@@ -1,0 +1,5 @@
+# Keep the generated API reference and shell scripts byte-identical across
+# OSes so the CI `api-docs` drift gate is deterministic (it regenerates on
+# Linux; these are generated/committed on Windows).
+docs/api/**     text eol=lf
+*.sh            text eol=lf
