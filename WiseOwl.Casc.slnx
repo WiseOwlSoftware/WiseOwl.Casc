@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/WiseOwl.Casc/WiseOwl.Casc.csproj" />
+    <Project Path="src/WiseOwl.Casc.Diablo4/WiseOwl.Casc.Diablo4.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/WiseOwl.Casc.Tests/WiseOwl.Casc.Tests.csproj" />
+    <Project Path="tests/WiseOwl.Casc.Diablo4.Tests/WiseOwl.Casc.Diablo4.Tests.csproj" />
+  </Folder>
+  <Folder Name="/samples/">
+    <Project Path="samples/Casc.Sample.Console/Casc.Sample.Console.csproj" />
+  </Folder>
+  <Folder Name="/docs/" />
+</Solution>

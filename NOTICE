@@ -1,0 +1,43 @@
+WiseOwl.Casc
+Copyright (c) Brent Rector
+A personal open-source project. Licensed under the MIT License (see LICENSE).
+
+The "WiseOwl.Casc" name uses the reserved, verified WiseOwl.* NuGet prefix.
+That prefix reservation is a structural anti-impersonation measure (it makes a
+one-character-off impostor package impossible); it is not a claim that the
+project is a product of any business.
+
+================================================================================
+DISCLAIMER
+================================================================================
+
+WiseOwl.Casc is an UNOFFICIAL, independent library. It is NOT affiliated with,
+authorized, sponsored, or endorsed by Blizzard Entertainment, Inc.
+
+World of Warcraft, Diablo, Diablo IV, Overwatch, StarCraft, Warcraft, and
+related names and marks are trademarks or registered trademarks of Blizzard
+Entertainment, Inc. Any use of those marks in this project is purely
+NOMINATIVE — i.e. to describe which games' file formats a given module is
+compatible with — and does not imply any association with or endorsement by
+Blizzard Entertainment.
+
+This library ships no Blizzard game assets or data. It is a clean-room
+reimplementation that reads content from a copy of a game you have legally
+obtained and installed yourself. Use it only with your own legally-obtained
+game files, and in accordance with the relevant end-user license agreements.
+
+================================================================================
+THIRD-PARTY REFERENCES
+================================================================================
+
+This is a clean-room implementation written from a self-contained binary-format
+specification. No third-party source code is incorporated. The following
+permissively-licensed projects were consulted as references / cross-checks for
+the publicly-documented CASC, TACT, TVFS, BLTE and Diablo IV SNO formats, and
+are credited with gratitude. See THIRD-PARTY.md for details.
+
+  - WoW-Tools/CascLib (TOM_RUS)            — MIT — CASC/TACT/TVFS/BLTE behaviour
+  - Dakota628/d4parse                      — Diablo IV SNO / .tex format notes
+  - DiabloTools/d4data                     — combined-meta bundle (0x44CF00F5)
+  - HoldMyBeer-gg/rustydemon               — Diablo IV texture format notes
+  - wowdev.wiki (TACT/CASC community docs) — protocol documentation

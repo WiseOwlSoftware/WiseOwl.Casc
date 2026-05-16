@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <AssemblyName>casc-sample</AssemblyName>
+    <RootNamespace>WiseOwl.Casc.Sample</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/WiseOwl.Casc.Diablo4/WiseOwl.Casc.Diablo4.csproj" />
+  </ItemGroup>
+
+</Project>

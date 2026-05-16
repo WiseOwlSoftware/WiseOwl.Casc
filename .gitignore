@@ -1,0 +1,32 @@
+# Build output
+bin/
+obj/
+artifacts/
+
+# IDE / tooling
+.vs/
+.idea/
+.vscode/
+.claude/
+*.user
+*.suo
+*.lscache
+
+# .NET
+*.nupkg
+*.snupkg
+project.lock.json
+
+# Extracted Blizzard game data — NEVER commit game bytes/assets.
+# Tests read the user's own install or synthetic fixtures only.
+extracted/
+*.tex
+*.dds
+*.blte
+*.casc-dump/
+samples/**/out/
+tests/**/fixtures/real/
+
+# OS
+Thumbs.db
+.DS_Store

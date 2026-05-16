@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.0;net8.0;net10.0</TargetFrameworks>
+    <IsPackable>true</IsPackable>
+    <PackageId>WiseOwl.Casc.Diablo4</PackageId>
+    <Title>WiseOwl.Casc.Diablo4 — Diablo IV CASC module (CoreTOC, SNO, .tex)</Title>
+    <!-- The only package where the "Diablo IV" mark appears, used purely
+         nominatively as a compatibility descriptor. -->
+    <Description>Diablo IV game module for WiseOwl.Casc: CoreTOC.dat, SNO records, shared-payload resolution, the 0x44CF00F5 combined-meta bundle, and .tex/BCn helpers. Unofficial; not affiliated with or endorsed by Blizzard Entertainment. Diablo is a trademark of Blizzard Entertainment, Inc. Use only with your own legally-obtained game files.</Description>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+    <PackageReference Include="System.Memory" Version="4.6.0" />
+    <PackageReference Include="System.Threading.Tasks.Extensions" Version="4.6.0" />
+    <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="9.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../WiseOwl.Casc/WiseOwl.Casc.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-test:
+    name: Build & test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore WiseOwl.Casc.slnx
+
+      - name: Build
+        run: dotnet build WiseOwl.Casc.slnx --configuration Release --no-restore
+
+      # Integration tests that need a real Blizzard install self-skip when
+      # one is absent (no game bytes are ever committed or downloaded in CI).
+      - name: Test
+        run: dotnet test WiseOwl.Casc.slnx --configuration Release --no-build --verbosity normal
