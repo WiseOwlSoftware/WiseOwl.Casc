@@ -167,7 +167,9 @@ attribution in `NOTICE`.)
 
 `path → CascPathHash → TVFS → EKey → local index (9-byte) → archive
 envelope → BLTE → bytes`. By content key:
-`CKey → encoding table → EKey → …`.
+`CKey → encoding table → EKey → …`. For a Diablo IV SNO the path is
+`Base\<Folder>\<id>` (see correction CL-4); an empty `Payload` follows the
+`0xABBA0003` shared-payload alias (CL-5).
 
 ---
 
@@ -189,17 +191,52 @@ content (per the user's standing instruction to correct the spec when wrong).
 - **CL-3 (2026-05-16) — file sharing.** `.idx` and `data.NNN` must be
   opened `FileShare.ReadWrite`; the live game / Battle.net agent holds
   them open. A plain read share throws `IOException`.
-- **OPEN — per-SNO TVFS deep traversal.** Top-level `Base\*.dat`
-  (`CoreTOC.dat`, `Texture-Base-Global.dat`) resolve and read correctly
-  end-to-end. Per-SNO records (`Base\Meta\<grp>\<name><ext>`) do **not**
-  resolve yet — they live below the top level, in a nested `vfs-N`
-  sub-manifest the current walk does not fully descend (or the D4 root
-  applies an additional name/shared-payload transform at this layer, cf.
-  upstream §8.11 D4RootHandler `CreateSNOEntry`/shared-payloads). Next
-  iteration: trace which `vfs-N` carries the SNO subtree and confirm the
-  sub-manifest recursion + path-prefix accumulation. The upstream
-  `0xABBA0003` shared-payload mapping (CL ref: d4-binary-formats §1, §8.11)
-  is then layered on for texture payload de-duplication.
+- **CL-4 (2026-05-16) — per-SNO addressing RESOLVED (supersedes the prior
+  "OPEN" item).** The TVFS walk was never the problem: it is complete
+  (1,759,690 entries; the 37 nested `vfs-N` sub-manifests are descended;
+  the full install tree resolves). Diablo IV addresses SNO content in
+  TVFS by **`Base\<Folder>\<id>`** — folder ∈ {`Meta`,`Payload`,`PayLow`,
+  `PayMed`,`Child`}, `<id>` the decimal SNO id, **no group folder, no
+  name, no extension** (a child sub-id appends `-<subId>`). Empirically:
+  `Base\Meta\2458674` resolves; the name-path
+  `Base\Meta\108\Paragon_Warlock_00.pbd` and the CascLib.NET-era
+  `base:meta\<id>` colon form both miss. So `ReadSno` builds
+  `Base\<Folder>\<id>`. CoreTOC is needed only for name↔id/group, not for
+  addressing.
+- **CL-5 (2026-05-16) — texture payloads are mostly direct.** With the
+  complete TVFS, `Base\Payload\<textureId>` resolves directly for the
+  paragon atlases (incl. the per-class ones the upstream §8.5 census,
+  taken through CascLib.NET's narrower view, reported as "no direct
+  entry"). The `0xABBA0003` `CoreTOCSharedPayloadsMapping.dat`
+  (`i32 magic; i32 count; count × {i32 snoId, i32 sharedSnoId}`; 35,616
+  entries this build) is implemented as a **transparent fallback**: an
+  empty/absent direct payload follows the alias to the holder SNO.
+- **CL-6 — `CoreTOCReplacedSnosMapping.dat` deliberately not implemented.**
+  Not needed on the current build (every paragon/board/node/gam id and
+  the paragon atlases resolve without it). Implement only if a seasonal
+  patch makes a known SNO 404 and it is found in the replaced map
+  (gated, per the consumer assessment FR-6).
+
+### Library boundary (FR-5 — explicit)
+
+`WiseOwl.Casc` / `WiseOwl.Casc.Diablo4` own: the **transport**, **CoreTOC**
+(incl. name↔id index), the **`0x44CF00F5` combined-meta** /
+`TextureDefinition`, **shared-payload** resolution, the **`SnoRecord`**
+primitive reader (`U8/U16/U32/I32/F32`, `Ascii`, record-style
+`DT_VARIABLEARRAY` = `{i64 pad, i32 off@+8, i32 size@+12}`,
+payload-relative — distinct from the combined-meta variant
+`{i32 pad, off@+4, size@+8}` blob-relative, owned internally by
+`CombinedTextureMeta`), and image-library-agnostic **BC1/BC3 decode**
+(`DecodeMip0` → raw straight-alpha RGBA32; the caller crops with
+`TexFrame.PixelRect` and owns any imaging/PNG/compositing).
+
+Typed paragon records (`ParagonBoard` 108 / `ParagonNode` 106 /
+`ParagonGlyph` 111 / `ParagonGlyphAffix` 112) and **GameBalance
+`AttributeFormulas`** (SNO 201912), including the 6 calibrated engine
+intrinsics, are **domain logic and stay in the consumer**
+(`d4-binary-formats.md` §5–§7). The library intentionally does not own
+them; a consumer migrates only its CASC/`SnoRecord`/`TextureDefinition`
+layer.
 
 ## Source / re-verification
 

@@ -32,6 +32,7 @@ public sealed class CascStorage : IDisposable
     private readonly object _gate = new();
     private EncodingTable? _encoding;          // lazily parsed
     private TvfsManifest? _tvfs;               // lazily parsed
+    private readonly Dictionary<int, FileStream> _archives = [];  // cached handles
 
     private CascStorage(
         string installPath, BuildInfo build,
@@ -172,24 +173,44 @@ public sealed class CascStorage : IDisposable
 
     private byte[] ReadEnvelope(in ArchiveLocation loc)
     {
-        var dataFile = Path.Combine(
-            _installPath, "Data", "data", $"data.{loc.ArchiveIndex:D3}");
-        if (!File.Exists(dataFile))
-            throw new CascContentNotFoundException($"Missing archive '{dataFile}'.");
+        // Keep one handle per data.NNN open and seek per read: a dataset run
+        // does hundreds of by-id reads and re-opening each time dominated.
+        var fs = GetArchive(loc.ArchiveIndex);
+        lock (fs)
+        {
+            fs.Seek(loc.Offset, SeekOrigin.Begin);
+            return ReadExactly(fs, loc.Size, loc.ArchiveIndex, loc.Offset);
+        }
+    }
 
-        using var fs = new FileStream(
-            dataFile, FileMode.Open, FileAccess.Read, FileShare.ReadWrite,
-            bufferSize: 1, FileOptions.RandomAccess);
-        fs.Seek(loc.Offset, SeekOrigin.Begin);
+    private FileStream GetArchive(int archiveIndex)
+    {
+        if (_archives.TryGetValue(archiveIndex, out var existing)) return existing;
+        lock (_gate)
+        {
+            if (_archives.TryGetValue(archiveIndex, out existing)) return existing;
+            var dataFile = Path.Combine(
+                _installPath, "Data", "data", $"data.{archiveIndex:D3}");
+            if (!File.Exists(dataFile))
+                throw new CascContentNotFoundException($"Missing archive '{dataFile}'.");
+            var fs = new FileStream(
+                dataFile, FileMode.Open, FileAccess.Read, FileShare.ReadWrite,
+                bufferSize: 1, FileOptions.RandomAccess);
+            _archives[archiveIndex] = fs;
+            return fs;
+        }
+    }
 
-        var buffer = new byte[loc.Size];
+    private static byte[] ReadExactly(FileStream fs, int size, int archive, long offset)
+    {
+        var buffer = new byte[size];
         var read = 0;
         while (read < buffer.Length)
         {
             var n = fs.Read(buffer, read, buffer.Length - read);
             if (n <= 0)
                 throw new CascFormatException(
-                    $"Short read in '{dataFile}' at {loc.Offset} " +
+                    $"Short read in data.{archive:D3} at {offset} " +
                     $"({read}/{buffer.Length}).");
             read += n;
         }
@@ -208,5 +229,12 @@ public sealed class CascStorage : IDisposable
     }
 
     /// <inheritdoc/>
-    public void Dispose() { /* archives are opened per-read; nothing held */ }
+    public void Dispose()
+    {
+        lock (_gate)
+        {
+            foreach (var fs in _archives.Values) fs.Dispose();
+            _archives.Clear();
+        }
+    }
 }

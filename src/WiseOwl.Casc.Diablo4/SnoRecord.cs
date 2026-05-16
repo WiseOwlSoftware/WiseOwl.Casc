@@ -63,6 +63,19 @@ public readonly ref struct SnoRecord(ReadOnlySpan<byte> data, int payloadBase)
     /// <summary>Single byte at a payload-relative offset.</summary>
     public byte U8(int payloadOffset) => _data[PayloadBase + payloadOffset];
 
+    /// <summary>Read a NUL-terminated ASCII string at a payload-relative
+    /// offset, stopping at the first NUL or <paramref name="maxLength"/>
+    /// bytes. Used for inline record strings (e.g. a node's
+    /// <c>szAttributeFormula</c> text).</summary>
+    public string Ascii(int payloadOffset, int maxLength) =>
+        Bytes.AsciiZ(_data, PayloadBase + payloadOffset, maxLength);
+
+    /// <summary>Read a NUL-terminated ASCII string at an <b>absolute</b>
+    /// buffer offset (a <c>DT_CSTRING</c>/<c>DT_STRING_FORMULA</c> indirection
+    /// stores an absolute offset).</summary>
+    public string AsciiAbsolute(int absoluteOffset, int maxLength) =>
+        Bytes.AsciiZ(_data, absoluteOffset, maxLength);
+
     /// <summary>IEEE-754 <see cref="float"/> at a payload-relative offset.</summary>
     public float F32(int payloadOffset)
     {

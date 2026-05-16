@@ -34,10 +34,19 @@ public sealed class TvfsManifest
 
     private readonly Dictionary<ulong, EncodingKey> _byPathHash;
 
-    private TvfsManifest(Dictionary<ulong, EncodingKey> map) => _byPathHash = map;
+    private TvfsManifest(Dictionary<ulong, EncodingKey> map, TvfsStats stats)
+    {
+        _byPathHash = map;
+        Stats = stats;
+    }
 
     /// <summary>Number of indexed files.</summary>
     public int Count => _byPathHash.Count;
+
+    /// <summary>Walk diagnostics (sub-manifest descent counts, a capped
+    /// sample of reconstructed path strings) — for understanding the tree,
+    /// not part of normal use.</summary>
+    public TvfsStats Stats { get; }
 
     /// <summary>All path-hash → encoding-key entries.</summary>
     public IReadOnlyDictionary<ulong, EncodingKey> Entries => _byPathHash;
@@ -63,19 +72,39 @@ public sealed class TvfsManifest
         Func<EncodingKey, byte[]> readSubManifest)
     {
         var map = new Dictionary<ulong, EncodingKey>();
-        var ctx = new Context(isSubManifestKey, readSubManifest, map);
+        var stats = new TvfsStats();
+        var ctx = new Context(isSubManifestKey, readSubManifest, map, stats);
         WalkDirectory(rootData, ctx, new PathBuilder());
-        return new TvfsManifest(map);
+        return new TvfsManifest(map, stats);
+    }
+
+    /// <summary>TVFS walk diagnostics.</summary>
+    public sealed class TvfsStats
+    {
+        /// <summary>File nodes visited.</summary>
+        public int FileNodes { get; internal set; }
+        /// <summary>Spans whose key matched a nested manifest.</summary>
+        public int SubManifestSpans { get; internal set; }
+        /// <summary>Nested manifests actually descended.</summary>
+        public int SubManifestsDescended { get; internal set; }
+        /// <summary>Deepest directory recursion reached.</summary>
+        public int MaxDepth { get; internal set; }
+        /// <summary>A capped sample of reconstructed path strings (raw,
+        /// pre-hash) — to see exactly what the tree names look like.</summary>
+        public List<string> SamplePaths { get; } = [];
     }
 
     private sealed class Context(
         Func<EncodingKey, bool> isSub,
         Func<EncodingKey, byte[]> readSub,
-        Dictionary<ulong, EncodingKey> map)
+        Dictionary<ulong, EncodingKey> map,
+        TvfsStats stats)
     {
         public Func<EncodingKey, bool> IsSub { get; } = isSub;
         public Func<EncodingKey, byte[]> ReadSub { get; } = readSub;
         public Dictionary<ulong, EncodingKey> Map { get; } = map;
+        public TvfsStats Stats { get; } = stats;
+        public int Depth { get; set; }
     }
 
     /// <summary>A growable ASCII path accumulator with save/restore (the
@@ -100,6 +129,14 @@ public sealed class TvfsManifest
         }
 
         public void Truncate(int length) => Length = length;
+
+        /// <summary>The raw (un-normalized) assembled path, for diagnostics.</summary>
+        public string Raw() =>
+#if NETSTANDARD2_0
+            System.Text.Encoding.ASCII.GetString(_buf, 0, Length);
+#else
+            System.Text.Encoding.ASCII.GetString(_buf.AsSpan(0, Length));
+#endif
 
         /// <summary>Hash the accumulated path with the same normalization the
         /// storage uses: <c>/</c> → <c>\</c> and ASCII upper-cased (matching
@@ -224,13 +261,23 @@ public sealed class TvfsManifest
         if (cftOffset + h.EKeySize > cft.Length) return;
         var eKey = EncodingKey.FromBytes(cft.Slice(cftOffset, h.EKeySize));
 
+        ctx.Stats.FileNodes++;
+
         // A span pointing at a nested TVFS directory: recurse into it.
         if (ctx.IsSub(eKey))
         {
+            ctx.Stats.SubManifestSpans++;
+            ctx.Stats.SubManifestsDescended++;
+            ctx.Depth++;
+            if (ctx.Depth > ctx.Stats.MaxDepth) ctx.Stats.MaxDepth = ctx.Depth;
             path.Append((byte)'/');
             WalkDirectory(ctx.ReadSub(eKey), ctx, path);
+            ctx.Depth--;
             return;
         }
+
+        if (ctx.Stats.SamplePaths.Count < 60)
+            ctx.Stats.SamplePaths.Add(path.Raw());
 
         var hash = path.Hash();
 #if NETSTANDARD2_0

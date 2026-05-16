@@ -1,4 +1,5 @@
 using System.IO;
+using System.Linq;
 using WiseOwl.Casc;
 using WiseOwl.Casc.Diablo4;
 using Xunit;
@@ -6,10 +7,10 @@ using Xunit;
 namespace WiseOwl.Casc.Diablo4.Tests;
 
 /// <summary>
-/// The full first-session goal, proven end to end against a real Diablo IV
-/// install: open <c>fenris</c>, resolve <c>Base\CoreTOC.dat</c> through
-/// TVFS, BLTE-read it, parse the <c>0xBCDE6611</c> directory, then resolve
-/// and BLTE-read a record <b>by SNO id</b>. Self-skips with no install.
+/// End-to-end against a real Diablo IV install: SNO read by id (Meta +
+/// Payload + shared-payload), CoreTOC via TVFS, the combined-meta bundle,
+/// and image-agnostic BC3 decode. Acceptance values are the ones the
+/// ParagonOptimizer assessment specified. Self-skips with no install.
 /// </summary>
 public sealed class Diablo4StorageIntegrationTests
 {
@@ -22,77 +23,115 @@ public sealed class Diablo4StorageIntegrationTests
         return File.Exists(Path.Combine(d4, ".build.info")) ? d4 : null;
     }
 
-    /// <summary>Proven: open <c>fenris</c>, resolve <c>Base\CoreTOC.dat</c>
-    /// through the clean-room TVFS, BLTE-decode it, parse the
-    /// <c>0xBCDE6611</c> directory, and build the per-SNO path scheme.</summary>
+    /// <summary>FR-1: open fenris, resolve CoreTOC via TVFS, then resolve +
+    /// BLTE-read records strictly by SNO id (Meta).</summary>
     [SkippableFact]
-    public void Opens_fenris_and_resolves_CoreTOC_via_TVFS()
+    public void Reads_SNO_meta_by_id()
     {
         var install = Install();
         Skip.If(install is null, "No Diablo IV install available.");
 
         using var d4 = Diablo4Storage.Open(install!);
 
-        // CoreTOC.dat came through TVFS → BLTE → the 0xBCDE6611 parser.
         Assert.Equal("Paragon_Warlock_00",
             d4.CoreToc.GetName(SnoGroup.ParagonBoard, 2458674));
-        Assert.Equal("Generic_Normal_Int",
-            d4.CoreToc.GetName(SnoGroup.ParagonNode, 678776));
+        Assert.Equal(@"Base\Meta\678776", d4.SnoPath(678776));
 
-        // The per-SNO path scheme is built from the CoreTOC name + group + ext.
-        Assert.Equal(@"Base\Meta\108\Paragon_Warlock_00.pbd",
-            d4.SnoPath(SnoGroup.ParagonBoard, 2458674));
-    }
-
-    /// <summary>Resolve + BLTE-read a record strictly by SNO id. The deep
-    /// per-SNO TVFS tree (records live below the top-level <c>Base\*.dat</c>
-    /// files, in a nested <c>vfs-N</c> manifest) needs one more clean-room
-    /// TVFS traversal iteration; until then this self-skips with a precise
-    /// reason rather than reporting a false pass. See docs/devlog/0001.</summary>
-    [SkippableFact]
-    public void Reads_a_SNO_record_by_id()
-    {
-        var install = Install();
-        Skip.If(install is null, "No Diablo IV install available.");
-
-        using var d4 = Diablo4Storage.Open(install!);
-
-        byte[] blob;
-        try
-        {
-            blob = d4.ReadSno(SnoGroup.ParagonBoard, 2458674);
-        }
-        catch (CascContentNotFoundException ex)
-        {
-            Skip.If(true,
-                "KNOWN GAP: per-SNO TVFS deep traversal not complete — " +
-                $"top-level Base\\*.dat resolve, per-SNO records do not yet. {ex.Message}");
-            return;
-        }
-
-        var rec = new SnoRecord(blob);
+        // ParagonNode 678776: ~236 B, SNO signature 0xDEADBEEF, id at 0x10.
+        var node = d4.ReadSno(SnoGroup.ParagonNode, 678776);
+        var rec = new SnoRecord(node);
         Assert.Equal(SnoRecord.ExpectedSignature, rec.Signature);
-        Assert.Equal(2458674, rec.SnoId);          // SNO id at payload base 0x10
+        Assert.Equal(678776, rec.SnoId);
+
+        // ParagonBoard 2458674 parses (board's own id at payload base).
+        var board = new SnoRecord(d4.ReadSno(SnoGroup.ParagonBoard, 2458674));
+        Assert.Equal(2458674, board.SnoId);
+
+        // GameBalance AttributeFormulas (SNO 201912) is reachable too.
+        var gam = d4.ReadSno(SnoGroup.GameBalance, 201912);
+        Assert.True(gam.Length > 1000, $"gam blob {gam.Length} B");
+
+        // Try-variant must not throw on a legitimately-absent SNO.
+        Assert.False(d4.TryReadSno(SnoGroup.ParagonNode, 1, SnoFolder.Meta, out _));
+        Assert.Throws<SnoNotFoundException>(
+            () => d4.ReadSno(SnoGroup.ParagonNode, 1));
     }
 
+    /// <summary>FR-2: texture payload by id, including shared-payload
+    /// aliasing for a class atlas that has no direct payload.</summary>
     [SkippableFact]
-    public void Reads_the_combined_texture_meta_bundle()
+    public void Reads_texture_payload_with_shared_payload_aliasing()
     {
         var install = Install();
         Skip.If(install is null, "No Diablo IV install available.");
 
         using var d4 = Diablo4Storage.Open(install!);
 
-        var meta = d4.TextureMeta;     // Base\Texture-Base-Global.dat (0x44CF00F5)
-        Assert.True(meta.BySno.Count > 1000,
-            $"combined-meta should hold many textures, got {meta.BySno.Count}");
+        // Direct payloads by id (FR-2 acceptance sizes). On the current
+        // build the full TVFS exposes both atlases directly; the
+        // shared-payload alias is a transparent fallback when it does not.
+        Assert.Equal(576_000,
+            d4.ReadSno(SnoGroup.Texture, 1314234, SnoFolder.Payload).Length);
+        Assert.Equal(632_832,
+            d4.ReadSno(SnoGroup.Texture, 2550887, SnoFolder.Payload).Length);
 
-        // The paragon node atlas must be present and decode as BC3 (eTexFormat
-        // 49) — the verified-upstream fact this library implements.
-        var nodes = d4.CoreToc.GetName(SnoGroup.Texture, 1208406);
-        Assert.Equal("2DUI_ParagonNodes", nodes);
-        Assert.True(meta.TryGet(1208406, out var td));
+        // The 0xABBA0003 mapping is parsed and populated.
+        Assert.True(d4.SharedPayloads.Count > 10_000,
+            $"shared-payload entries: {d4.SharedPayloads.Count}");
+
+        // Prove transparent aliasing on a real entry: find a mapping whose
+        // requesting id has NO direct Base\Payload\<id> but whose source
+        // does — ReadSno(Payload) on the requester must return the source's
+        // exact bytes (the alias was followed).
+        var proved = false;
+        foreach (var (key, src) in d4.SharedPayloads.Pairs())
+        {
+            var hasDirect = d4.Casc.TryResolvePath(
+                $@"Base\Payload\{key}", out _);
+            if (hasDirect) continue;
+            if (!d4.Casc.TryResolvePath($@"Base\Payload\{src}", out _)) continue;
+
+            var viaAlias = d4.ReadSno(SnoGroup.Texture, key, SnoFolder.Payload);
+            var direct = d4.ReadSno(SnoGroup.Texture, src, SnoFolder.Payload);
+            Assert.NotEmpty(viaAlias);
+            Assert.Equal(direct, viaAlias);
+            Assert.True(d4.TryGetSharedPayloadSource(key, out var s) && s == src);
+            proved = true;
+            break;
+        }
+        Assert.True(proved, "no exercisable shared-payload alias entry found");
+    }
+
+    /// <summary>FR-1/FR-4/FR-5: combined-meta catalog + image-agnostic BC3
+    /// decode + atlas frame crop, no imaging dependency.</summary>
+    [SkippableFact]
+    public void Combined_meta_and_image_agnostic_bc3_decode()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+
+        using var d4 = Diablo4Storage.Open(install!);
+
+        var meta = d4.TextureMeta;
+        Assert.True(meta.BySno.Count > 1000, $"defs {meta.BySno.Count}");
+        Assert.True(meta.TryGet(1208406, out var td));     // 2DUI_ParagonNodes
         Assert.Equal(TextureCodec.Bc3, td.Codec);
-        Assert.True(td.Frames.Count > 0, "atlas should expose ptFrame rects");
+        Assert.True(td.Frames.Count > 0);
+
+        var payload = d4.ReadSno(SnoGroup.Texture, 1208406, SnoFolder.Payload);
+        var img = td.DecodeMip0(payload);                  // raw RGBA32
+        Assert.Equal(td.Width, img.Width);
+        Assert.Equal(td.Height, img.Height);
+        Assert.Equal(img.Width * img.Height * 4, img.Rgba.Length);
+
+        // Crop one ptFrame and prove it is real art (not blank): some pixels
+        // opaque, some transparent (atlas icons sit on transparency).
+        var f = td.Frames[0];
+        var (x, y, w, h) = f.PixelRect(img.Width, img.Height);
+        var crop = img.Crop(x, y, w, h);
+        var opaque = 0;
+        for (var i = 3; i < crop.Length; i += 4) if (crop[i] > 16) opaque++;
+        var px = w * h;
+        Assert.InRange(opaque, 1, px - 1);
     }
 }

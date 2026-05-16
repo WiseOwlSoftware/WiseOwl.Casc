@@ -36,11 +36,28 @@ if (casc.TryResolvePath(@"Base\CoreTOC.dat", out _))
         if (++i == 10) break;
     }
 
+    // Resolve + BLTE-read a record strictly by SNO id.
+    if (d4.TryReadSno(SnoGroup.ParagonBoard, 2458674, SnoFolder.Meta,
+            out var boardBlob))
+    {
+        var rec = new SnoRecord(boardBlob);
+        Console.WriteLine($"\nReadSno(ParagonBoard,2458674) -> {boardBlob.Length} B, "
+            + $"sig=0x{rec.Signature:X8}, snoId={rec.SnoId}");
+    }
+
     var meta = d4.TextureMeta;
-    Console.WriteLine($"\nCombined texture meta: {meta.BySno.Count:N0} definitions");
+    Console.WriteLine($"\nCombined texture meta: {meta.BySno.Count:N0} definitions"
+        + $"; shared-payload aliases: {d4.SharedPayloads.Count:N0}");
     if (meta.TryGet(1208406, out var td))
+    {
         Console.WriteLine($"  2DUI_ParagonNodes -> {td.Codec} "
             + $"{td.Width}x{td.Height}, {td.Frames.Count} atlas frames");
+        // Image-library-agnostic decode: raw RGBA32, caller owns the rest.
+        var payload = d4.ReadSno(SnoGroup.Texture, 1208406, SnoFolder.Payload);
+        var img = td.DecodeMip0(payload);
+        Console.WriteLine($"  decoded mip0 -> {img.Width}x{img.Height} "
+            + $"({img.Rgba.Length:N0} RGBA bytes), {td.Frames.Count} frames sliceable");
+    }
 }
 
 Console.WriteLine("\nDone.");

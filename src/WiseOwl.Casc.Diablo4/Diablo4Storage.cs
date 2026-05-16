@@ -47,6 +47,7 @@ public sealed class Diablo4Storage : IDisposable
     private readonly CascStorage _casc;
     private readonly bool _ownsCasc;
     private CombinedTextureMeta? _textureMeta;
+    private SharedPayloadMapping? _sharedPayloads;
     private readonly object _gate = new();
 
     private Diablo4Storage(CascStorage casc, bool ownsCasc, CoreToc coreToc)
@@ -87,35 +88,116 @@ public sealed class Diablo4Storage : IDisposable
         return new Diablo4Storage(casc, ownsCasc, CoreToc.Parse(tocBytes));
     }
 
-    /// <summary>The TVFS path a SNO resolves through.</summary>
-    public string SnoPath(SnoGroup group, int id, SnoFolder folder = SnoFolder.Meta,
-        int subId = -1, string prefix = "Base")
+    /// <summary>
+    /// The TVFS path a SNO resolves through:
+    /// <c>&lt;prefix&gt;\&lt;Folder&gt;\&lt;id&gt;</c> (a child sub-id
+    /// appends <c>-&lt;subId&gt;</c>). Verified empirically against the live
+    /// build: Diablo IV addresses SNO content in TVFS by the numeric id —
+    /// <b>not</b> by a <c>&lt;group&gt;\&lt;name&gt;&lt;ext&gt;</c> name path
+    /// and not by the <c>base:meta\&lt;id&gt;</c> colon form.
+    /// </summary>
+    public string SnoPath(int id, SnoFolder folder = SnoFolder.Meta,
+        int subId = -1, string prefix = "Base") =>
+        subId < 0 ? $@"{prefix}\{folder}\{id}"
+                  : $@"{prefix}\{folder}\{id}-{subId}";
+
+    /// <summary>Resolve and BLTE-read a SNO by id (the <see cref="SnoGroup"/>
+    /// documents intent; the TVFS address is id-only). For
+    /// <see cref="SnoFolder.Payload"/>, an empty/absent direct payload is
+    /// transparently resolved through the shared-payload mapping.</summary>
+    /// <exception cref="SnoNotFoundException">No such SNO content (the SNO
+    /// legitimately has none — callers may skip it).</exception>
+    public byte[] ReadSno(SnoGroup group, int id, SnoFolder folder = SnoFolder.Meta,
+        int subId = -1)
     {
-        var name = CoreToc.GetName(group, id)
-            ?? throw new CascContentNotFoundException(
-                $"SNO id {id} (group {(int)group}) is not in CoreTOC.");
-        var ext = ExtensionFor(group);
-        var leaf = subId < 0 ? $"{name}{ext}" : $"{name}-{subId}{ext}";
-        return $@"{prefix}\{folder}\{(int)group}\{leaf}";
+        _ = group;
+        if (TryReadSno(group, id, folder, out var bytes, subId)) return bytes;
+        throw new SnoNotFoundException(
+            $"SNO {id} (group {(int)group}) folder {folder}" +
+            (subId < 0 ? "" : $" sub {subId}") + " is not in the file system.");
     }
 
-    /// <summary>Resolve and BLTE-read a SNO record by id.</summary>
-    /// <exception cref="CascContentNotFoundException">Unknown SNO / not in
-    /// the file system.</exception>
-    public byte[] ReadSno(SnoGroup group, int id, SnoFolder folder = SnoFolder.Meta,
-        int subId = -1) =>
-        _casc.ReadPath(SnoPath(group, id, folder, subId));
+    /// <summary>Try to resolve and BLTE-read a SNO by id. Returns
+    /// <see langword="false"/> (no throw) when the SNO legitimately has no
+    /// such content — the common "skip the art-less node" case.</summary>
+    public bool TryReadSno(SnoGroup group, int id, SnoFolder folder,
+        out byte[] bytes, int subId = -1)
+    {
+        _ = group;
+        if (_casc.TryResolvePath(SnoPath(id, folder, subId), out var ek))
+        {
+            bytes = _casc.Read(ek);
+            // A texture's direct payload can be present-but-empty: that means
+            // "follow the shared-payload alias".
+            if (folder is SnoFolder.Payload && bytes.Length == 0 &&
+                TryReadSharedPayload(id, subId, out var aliased))
+            {
+                bytes = aliased;
+            }
+            return true;
+        }
 
-    /// <summary>Resolve and open a SNO record by id as a decoded stream.</summary>
+        // No direct payload at all → the shared-payload alias is the source.
+        if (folder is SnoFolder.Payload &&
+            TryReadSharedPayload(id, subId, out var shared))
+        {
+            bytes = shared;
+            return true;
+        }
+
+        bytes = [];
+        return false;
+    }
+
+    /// <summary>Resolve and open a SNO by id as a decoded stream.</summary>
     public Stream OpenSno(SnoGroup group, int id, SnoFolder folder = SnoFolder.Meta,
         int subId = -1) =>
         new MemoryStream(ReadSno(group, id, folder, subId), writable: false);
 
-    /// <summary>Asynchronously resolve and read a SNO record by id.</summary>
+    /// <summary>Asynchronously resolve and read a SNO by id.</summary>
     public Task<byte[]> ReadSnoAsync(SnoGroup group, int id,
         SnoFolder folder = SnoFolder.Meta, int subId = -1,
         CancellationToken cancellationToken = default) =>
         Task.Run(() => ReadSno(group, id, folder, subId), cancellationToken);
+
+    private bool TryReadSharedPayload(int id, int subId, out byte[] bytes)
+    {
+        bytes = [];
+        if (!SharedPayloads.TryGetSource(id, out var sourceId)) return false;
+        if (_casc.TryResolvePath(SnoPath(sourceId, SnoFolder.Payload, subId),
+                out var ek))
+        {
+            bytes = _casc.Read(ek);
+            return true;
+        }
+        return false;
+    }
+
+    /// <summary>The shared-payload de-duplication mapping
+    /// (<c>Base\CoreTOCSharedPayloadsMapping.dat</c>, magic
+    /// <c>0xABBA0003</c>), parsed on first use. Empty if the file is
+    /// absent.</summary>
+    public SharedPayloadMapping SharedPayloads
+    {
+        get
+        {
+            if (_sharedPayloads is not null) return _sharedPayloads;
+            lock (_gate)
+            {
+                _sharedPayloads ??=
+                    _casc.TryResolvePath(@"Base\CoreTOCSharedPayloadsMapping.dat",
+                        out var ek)
+                        ? SharedPayloadMapping.Parse(_casc.Read(ek))
+                        : SharedPayloadMapping.Empty;
+            }
+            return _sharedPayloads;
+        }
+    }
+
+    /// <summary>True if <paramref name="id"/>'s payload is physically stored
+    /// under another SNO; <paramref name="sourceId"/> is that holder.</summary>
+    public bool TryGetSharedPayloadSource(int id, out int sourceId) =>
+        SharedPayloads.TryGetSource(id, out sourceId);
 
     /// <summary>The combined-meta texture catalog
     /// (<c>Base\Texture-Base-Global.dat</c>, magic <c>0x44CF00F5</c>),

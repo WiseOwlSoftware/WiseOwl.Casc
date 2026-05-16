@@ -71,34 +71,28 @@ decision.
   overflows here; ours doesn't).
 - Combined-meta `0x44CF00F5`: 140,197 defs; `2DUI_ParagonNodes` → BC3
   4224×192, 31 ptFrames (matches upstream §8.13/§8.15).
-- 12 tests pass, 1 honest skip; solution builds 0 warnings.
-
-**THE ONE OPEN GAP — resume here:** per-SNO resolution by id
-(`Diablo4Storage.ReadSno` → `Base\Meta\<grp>\<name><ext>`). Top-level
-`Base\*.dat` resolve; per-SNO records do not yet — they live in a deeper
-nested `vfs-N` sub-manifest the TVFS walk doesn't fully descend, and/or the
-D4 root applies an extra name/shared-payload transform here (cf. upstream
-§8.11 `D4RootHandler.CreateSNOEntry` + `0xABBA0003`
-`CoreTOCSharedPayloadsMapping`). `TvfsManifest` already has sub-manifest
-recursion + a path accumulator; the next step is to trace **which** `vfs-N`
-carries the SNO subtree (instrument the walk: dump resolved top-level paths
-and which sub-manifests are entered), confirm the prefix accumulation across
-the recursion boundary, then layer shared-payload aliasing for texture
-payload de-dup. The test `Reads_a_SNO_record_by_id` auto-promotes from
-skip→pass once `ReadSno` works.
+- **Per-SNO read by id (FR-1/FR-2) CLOSED** — D4 SNO address is
+  `Base\<Folder>\<id>` (NOT name-path, NOT `base:meta\<id>`; correction
+  CL-4). TVFS walk was always complete (1,759,690 entries). `ReadSno`/
+  `TryReadSno` (Meta+Payload), `SnoNotFoundException`, `0xABBA0003`
+  shared-payload transparent fallback, image-agnostic BC1/BC3
+  `DecodeMip0`→raw RGBA, `CoreToc.TryGetId`, archive handle cache — all
+  proven on the live install.
+- 14 tests pass, 0 skipped; solution builds 0 warnings. The
+  ParagonOptimizer migration blocker is **closed**.
 
 ## Next steps (priority order)
 
-1. Close the per-SNO TVFS gap (above) → un-skip; full DoD #2.
-2. Shared-payload `0xABBA0003` mapping (texture payload aliasing).
-3. `WiseOwl.Casc.Diablo4` `.tex` BCn decode (image-lib-agnostic: raw
-   RGBA / DDS out) + atlas `ptFrame` slicing; node↔icon via
-   `hIconMask`/`hIcon` == `ptFrame.ImageHandle` (upstream §8.13).
-4. Async stream-y `OpenRead` (currently eager MemoryStream); key store for
-   BLTE `'E'` (encrypted) chunks if ever needed.
-5. CHANGELOG/devlog/ARTICLE-SOURCE upkeep each session.
-6. Later: ParagonOptimizer drops vendored CascLib for this package;
-   future `.Wow`/`.Overwatch`/`.D2R` modules (core is designed for them).
+1. Hand the resolution back to the ParagonOptimizer session — it can now
+   migrate D4Extract off vendored CascLib onto this library (full meta
+   pipeline + textures).
+2. Optional, non-blocking: BC7 decode (paragon is BC3; only if a needed
+   atlas is BC7); BLTE `'E'` key store; streaming/async `OpenRead`
+   (currently eager `byte[]`/`MemoryStream` — fine for the dataset
+   workload). `CoreTOCReplacedSnosMapping` only if a seasonal patch 404s
+   a known SNO (FR-6, deferred).
+3. CHANGELOG/devlog/ARTICLE-SOURCE upkeep each session.
+4. Later: future `.Wow`/`.Overwatch`/`.D2R` modules (core designed for them).
 
 ## Gotchas
 

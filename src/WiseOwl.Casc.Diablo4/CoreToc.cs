@@ -38,6 +38,7 @@ public sealed class CoreToc
     public const uint NewFormatSentinel = 0xBCDE6611;
 
     private readonly Dictionary<long, string> _namesByKey;
+    private readonly Dictionary<(SnoGroup, string), int> _idByName;
 
     private CoreToc(
         int groupCount,
@@ -47,7 +48,16 @@ public sealed class CoreToc
         GroupCount = groupCount;
         GroupFormatHashes = groupFormatHashes;
         Entries = entries;
-        _namesByKey = entries.ToDictionary(Key, e => e.Name);
+        _namesByKey = new Dictionary<long, string>(entries.Count);
+        _idByName = new Dictionary<(SnoGroup, string), int>(entries.Count);
+        foreach (var e in entries)
+        {
+            _namesByKey[Key(e)] = e.Name;
+            // First id wins for a (group,name) collision (rare; matches the
+            // directory's own first-seen resolution).
+            var nameKey = (e.Group, e.Name);
+            if (!_idByName.ContainsKey(nameKey)) _idByName[nameKey] = e.Id;
+        }
     }
 
     /// <summary>Number of SNO groups (the <c>N</c> in the spec).</summary>
@@ -130,6 +140,15 @@ public sealed class CoreToc
         name = v ?? string.Empty;
         return ok;
     }
+
+    /// <summary>Resolve a SNO id from its group and name (O(1), indexed).</summary>
+    public bool TryGetId(SnoGroup group, string name, out int id) =>
+        _idByName.TryGetValue((group, name), out id);
+
+    /// <summary>Resolve a SNO id from its group and name, or
+    /// <see langword="null"/> if unknown.</summary>
+    public int? GetId(SnoGroup group, string name) =>
+        _idByName.TryGetValue((group, name), out var v) ? v : null;
 
     /// <summary>The payload format hash for a SNO group (<c>0</c> if out of
     /// range). Used to select the typed record reader.</summary>

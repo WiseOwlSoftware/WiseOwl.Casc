@@ -17,9 +17,17 @@ public class CascException : Exception
 public sealed class CascFormatException(string message) : CascException(message);
 
 /// <summary>The requested content could not be located in this storage.</summary>
-public sealed class CascContentNotFoundException(string message) : CascException(message);
+public class CascContentNotFoundException(string message) : CascException(message);
 
 /// <summary>The content is encrypted with a key this library does not have.
 /// BLTE <c>'E'</c> (Salsa20) chunks require a TACT key the consumer has not
 /// supplied.</summary>
 public sealed class CascEncryptedContentException(string message) : CascException(message);
+
+/// <summary>
+/// A specific SNO (by group/id and folder) could not be resolved. Distinct
+/// from <see cref="CascContentNotFoundException"/> so callers can cleanly
+/// tell "this SNO legitimately has no such content — skip it" from a real
+/// transport failure.
+/// </summary>
+public sealed class SnoNotFoundException(string message) : CascContentNotFoundException(message);

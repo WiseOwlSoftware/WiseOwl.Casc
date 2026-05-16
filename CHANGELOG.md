@@ -30,12 +30,24 @@ Semantic Versioning once it reaches `1.0.0`.
   `2DUI_ParagonNodes` → BC3 4224×192, 31 ptFrames.
 - 12 tests pass, 1 documented skip; solution builds with 0 warnings.
 
-### Known gap
-- Per-SNO read by id (`Diablo4Storage.ReadSno`) — the deep nested-`vfs-N`
-  TVFS subtree + the `0xABBA0003` shared-payload layer. Top-level
-  `Base\*.dat` resolve; per-SNO records do not yet. The test self-skips
-  with a precise reason rather than report a false pass. See
-  `docs/casc-format.md` (correction log, "OPEN") and `docs/devlog/0001`.
+### Resolved — per-SNO read by id (the ParagonOptimizer migration blocker)
+- D4 addresses SNO content in TVFS by **`Base\<Folder>\<id>`** (numeric id;
+  no group/name/extension) — not the name-path, not `base:meta\<id>`. The
+  TVFS walk was already complete (1,759,690 entries). See correction CL-4.
+- `Diablo4Storage.ReadSno`/`TryReadSno` (Meta + Payload), throwing
+  `SnoNotFoundException` vs. non-throwing `TryReadSno` for skippable
+  absent SNOs.
+- `0xABBA0003` `CoreTOCSharedPayloadsMapping` parsed and applied as a
+  transparent payload-alias fallback (`SharedPayloads`,
+  `TryGetSharedPayloadSource`).
+- Image-library-agnostic `TextureDefinition.DecodeMip0` → raw
+  straight-alpha RGBA32 `DecodedImage` (+ `Crop`); clean-room BC1/BC3.
+- `SnoRecord.Ascii`/`AsciiAbsolute`; `CoreToc.TryGetId`/`GetId` name index;
+  `CascStorage` archive `FileStream` handle cache for bulk by-id reads.
+- 14 tests pass, 0 skipped. All P0/P1 consumer feature requests
+  (FR-1…FR-9) adopted and proven; see `docs/devlog/0002`. `docs/casc-format.md`
+  documents the library/consumer boundary (FR-5) and the deferred
+  `CoreTOCReplacedSnosMapping` (FR-6).
 
 See [`docs/devlog/`](docs/devlog/) for the narrative of how each piece was
 built and why, and [`docs/casc-format.md`](docs/casc-format.md) for the
