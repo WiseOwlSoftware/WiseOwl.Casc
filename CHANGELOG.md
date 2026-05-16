@@ -59,9 +59,14 @@ Semantic Versioning once it reaches `1.0.0`.
 - FR-15: `Diablo4Storage.ReadGroup(group, folder)` streaming, reuses
   resident index/encoding/archive handles.
 - FR-16: library/consumer boundary reinforced (no typed game-record APIs).
-- FR-13 (StringList localized names): **accepted but deferred** to its own
-  RE workstream — not shipped unproven. Tracked in
-  `docs/feature-backlog.md`.
+- FR-13 (StringList localized names): **reverse-engineered, implemented &
+  proven** (RE workstream completed). Per-locale `0x44CF00F5` bundle
+  `base/StringList-Text-<locale>.dat` (same container family as the texture
+  catalog; body at `B=alignUp8(prevEnd)`, no `+8`, SNO positional from
+  index; `infoLength@B+20`, 40-byte entries, UTF-8). Validated bundle-wide
+  (58,286 tables / 175,014 strings). API: `Diablo4Storage.GetStrings(
+  locale)` → `StringListCatalog` (cached) + `TryGetString`. Full spec:
+  `docs/casc-format.md §9` + CL-7; narrative `docs/devlog/0003`.
 
 See [`docs/devlog/`](docs/devlog/) for the narrative of how each piece was
 built and why, and [`docs/casc-format.md`](docs/casc-format.md) for the

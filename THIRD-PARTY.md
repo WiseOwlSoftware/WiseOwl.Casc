@@ -17,6 +17,7 @@ reverse-engineering community's prior work.
 | [Dakota628/d4parse](https://github.com/Dakota628/d4parse) | — | Diablo IV SNO record conventions and the `.tex` (`TextureDefinition`) mip/`SerTex` layout. |
 | [DiabloTools/d4data](https://github.com/DiabloTools/d4data) | — | The `0x44CF00F5` combined-meta bundle (`Texture-Base-Global.dat`) container layout. |
 | [HoldMyBeer-gg/rustydemon](https://github.com/HoldMyBeer-gg/rustydemon) | — | Diablo IV texture format cross-check. |
+| [alkhdaniel/diablo-4-string-parser](https://github.com/alkhdaniel/diablo-4-string-parser) | — | Standalone Diablo IV `.stl` (StringList) layout cross-check (the consolidated per-locale bundle was reversed independently — see `docs/casc-format.md §9`). |
 | [wowdev.wiki](https://wowdev.wiki/TACT) | community | TACT / CASC / TVFS / BLTE protocol documentation. |
 
 The byte-level specification this library implements is maintained in

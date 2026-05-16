@@ -149,6 +149,23 @@ public sealed class CascStorage : IDisposable
         }
     }
 
+    /// <summary>Diagnostic: walk the TVFS collecting every raw path the
+    /// predicate accepts (uncapped). For format investigation only —
+    /// rebuilds the manifest, so do not call it on a hot path.</summary>
+    public IReadOnlyList<string> DiagnosticPaths(Func<string, bool> match)
+    {
+        if (Config.VfsRoot is not { } vr) return [];
+        var subKeys = new HashSet<ulong>();
+        foreach (var k in Config.VfsManifestEncodingKeys())
+            subKeys.Add(k.IndexPrefix);
+        var m = TvfsManifest.Parse(
+            Read(vr.Encoding),
+            ek => subKeys.Contains(ek.IndexPrefix),
+            ek => Read(ek),
+            match);
+        return m.Stats.CapturedPaths;
+    }
+
     /// <summary>Resolve a TVFS path to its encoding key.</summary>
     public bool TryResolvePath(string path, out EncodingKey eKey)
     {

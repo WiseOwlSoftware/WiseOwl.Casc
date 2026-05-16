@@ -48,7 +48,11 @@ public sealed class Diablo4Storage : IDisposable
     private readonly bool _ownsCasc;
     private CombinedTextureMeta? _textureMeta;
     private SharedPayloadMapping? _sharedPayloads;
+    private readonly Dictionary<string, StringListCatalog> _strings = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _gate = new();
+
+    /// <summary>The default locale (the one most installs ship enabled).</summary>
+    public const string DefaultLocale = "enUS";
 
     private Diablo4Storage(CascStorage casc, bool ownsCasc, CoreToc coreToc)
     {
@@ -245,6 +249,44 @@ public sealed class Diablo4Storage : IDisposable
             return _textureMeta;
         }
     }
+
+    /// <summary>
+    /// The per-locale localized-string catalog
+    /// (<c>base/StringList-Text-&lt;locale&gt;.dat</c>), parsed and cached on
+    /// first use. <paramref name="locale"/> is a D4 locale code such as
+    /// <c>enUS</c>, <c>deDE</c>, <c>frFR</c>, <c>esES</c>, <c>esMX</c>,
+    /// <c>itIT</c>, <c>jaJP</c>, <c>koKR</c>, <c>plPL</c>, <c>ptBR</c>,
+    /// <c>ruRU</c>, <c>trTR</c>, <c>zhCN</c>, <c>zhTW</c>.
+    /// </summary>
+    /// <exception cref="CascContentNotFoundException">That locale's bundle
+    /// is not present in this install.</exception>
+    public StringListCatalog GetStrings(string locale = DefaultLocale)
+    {
+        lock (_gate)
+        {
+            if (_strings.TryGetValue(locale, out var cached)) return cached;
+            var path = $"base/StringList-Text-{locale}.dat";
+            if (!_casc.TryResolvePath(path, out var ek))
+                throw new CascContentNotFoundException(
+                    $"No StringList bundle for locale '{locale}' ({path}).");
+            var cat = StringListCatalog.Parse(
+                _casc.Read(ek), locale, sno => CoreToc.GetName((SnoGroup)42, sno));
+            _strings[locale] = cat;
+            return cat;
+        }
+    }
+
+    /// <summary>Resolve a label within a known StringList table (SNO) to its
+    /// localized text. Prefer this — labels are unique only within a table.</summary>
+    public bool TryGetString(int tableSno, string label, out string text,
+        string locale = DefaultLocale) =>
+        GetStrings(locale).TryGet(tableSno, label, out text);
+
+    /// <summary>Resolve a label across all tables (first match). Convenient
+    /// but ambiguous if the label exists in multiple tables.</summary>
+    public bool TryGetString(string label, out string text,
+        string locale = DefaultLocale) =>
+        GetStrings(locale).TryGet(label, out text);
 
     /// <summary>The Diablo IV SNO-group → file-extension table (factual data,
     /// matching the current build). Unknown groups fall back to the numeric

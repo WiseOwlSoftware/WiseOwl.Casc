@@ -66,13 +66,17 @@ public sealed class TvfsManifest
     /// one of the build config's nested <c>vfs-N</c> manifests?</param>
     /// <param name="readSubManifest">Reads a nested manifest's decoded bytes
     /// given its encoding key.</param>
+    /// <param name="capturePathIf">Optional diagnostic: every reconstructed
+    /// raw path the predicate accepts is collected in
+    /// <see cref="TvfsStats.CapturedPaths"/> (for format investigation).</param>
     public static TvfsManifest Parse(
         byte[] rootData,
         Func<EncodingKey, bool> isSubManifestKey,
-        Func<EncodingKey, byte[]> readSubManifest)
+        Func<EncodingKey, byte[]> readSubManifest,
+        Func<string, bool>? capturePathIf = null)
     {
         var map = new Dictionary<ulong, EncodingKey>();
-        var stats = new TvfsStats();
+        var stats = new TvfsStats { CapturePathIf = capturePathIf };
         var ctx = new Context(isSubManifestKey, readSubManifest, map, stats);
         WalkDirectory(rootData, ctx, new PathBuilder());
         return new TvfsManifest(map, stats);
@@ -92,6 +96,14 @@ public sealed class TvfsManifest
         /// <summary>A capped sample of reconstructed path strings (raw,
         /// pre-hash) — to see exactly what the tree names look like.</summary>
         public List<string> SamplePaths { get; } = [];
+
+        /// <summary>Optional diagnostic filter: when set, every reconstructed
+        /// raw path the predicate accepts is collected in
+        /// <see cref="CapturedPaths"/> (uncapped). For format investigation.</summary>
+        public Func<string, bool>? CapturePathIf { get; internal set; }
+
+        /// <summary>Raw paths matching <see cref="CapturePathIf"/>.</summary>
+        public List<string> CapturedPaths { get; } = [];
     }
 
     private sealed class Context(
@@ -278,6 +290,12 @@ public sealed class TvfsManifest
 
         if (ctx.Stats.SamplePaths.Count < 60)
             ctx.Stats.SamplePaths.Add(path.Raw());
+
+        if (ctx.Stats.CapturePathIf is { } pred)
+        {
+            var raw = path.Raw();
+            if (pred(raw)) ctx.Stats.CapturedPaths.Add(raw);
+        }
 
         var hash = path.Hash();
 #if NETSTANDARD2_0

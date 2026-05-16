@@ -40,4 +40,5 @@ are credited with gratitude. See THIRD-PARTY.md for details.
   - Dakota628/d4parse                      — Diablo IV SNO / .tex format notes
   - DiabloTools/d4data                     — combined-meta bundle (0x44CF00F5)
   - HoldMyBeer-gg/rustydemon               — Diablo IV texture format notes
+  - alkhdaniel/diablo-4-string-parser      — Diablo IV .stl StringList notes
   - wowdev.wiki (TACT/CASC community docs) — protocol documentation

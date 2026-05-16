@@ -173,6 +173,104 @@ envelope → BLTE → bytes`. By content key:
 
 ---
 
+## 9. Diablo IV StringList container (`.stl`, SNO group 42) — localized text
+
+The definitive reference for Diablo IV localized strings. Fully
+reverse-engineered and **validated bundle-wide** against build
+`3.0.2.71886` (58,286 tables / 175,014 strings; the walk lands exactly at
+EOF). Cross-checked against `alkhdaniel/diablo-4-string-parser` (the
+standalone `.stl` parser) — this section adds the *consolidated container*
+that parser does not cover.
+
+### 9.1 Addressing
+
+StringList content is **not** per-SNO path-addressable (`Base\Meta\<id>`
+does not resolve for group 42 — same situation as texture *meta*). It is
+delivered through per-locale consolidated bundles in TVFS:
+
+| TVFS path | Contents |
+|---|---|
+| `base/StringList-Text-<locale>.dat` | The consolidated catalog for one locale (every table). |
+| `base/StringList-Text-<locale>-0x<16-hex>.dat` | Per-locale content shards (analogous to the texture `…-0x<h>.dat` shards). |
+| `base/StringList-Text-Global.dat` | Locale-independent container (tiny; usually a single placeholder table). |
+
+Locales observed in the live build: `enUS deDE esES esMX frFR itIT jaJP
+koKR plPL ptBR ruRU trTR zhCN zhHM` (the install also carries `zhTW`).
+The consolidated `base/StringList-Text-<locale>.dat` is what a consumer
+reads; resolve it through TVFS (`/`→`\`, upper-cased at hash time, like all
+paths).
+
+### 9.2 Container — the `0x44CF00F5` combined-meta family
+
+The consolidated bundle is the **same `0x44CF00F5` combined-meta container
+as `Texture-Base-Global.dat`** (§8 / texture catalog), with one key
+difference in per-entry placement:
+
+```
+u32  magic   = 0x44CF00F5
+u32  count
+count × { i32 sno ; u32 size }            // the index, in table order
+
+prevEnd = 8 + count*8                      // = end of index
+for i in 0 .. count-1:
+    B = alignUp8(prevEnd)                  // body base of table i
+    prevEnd = B + size[i]                  // advance (size is body length)
+    // sno for table i is index[i].sno  (POSITIONAL — not stored in the body)
+```
+
+> **Difference vs. the texture catalog (important).** The texture catalog
+> places each descriptor at `alignUp8(prevEnd) + 8` and stores the SNO id
+> at `descStart+0` (`TextureDefinition` body base = `descStart+4`).
+> StringList uses **no `+8`** and stores **no SNO id in the body** — the
+> body begins exactly at `B = alignUp8(prevEnd)` and the SNO id is taken
+> positionally from the index. (Empirically: the texture `+8`/`snoId`
+> convention yields all-zero bodies for StringList; `B = alignUp8(prevEnd)`
+> decodes every one of the 58,286 tables.) See correction CL-7.
+
+### 9.3 StringListDefinition body (relative to `B`)
+
+```
+B+0  .. B+15   header / pad (16 bytes)
+B+16           u32  blockSize        (e.g. 0x20; not needed to read strings)
+B+20           u32  infoLength       (byte length of the entry table)
+B+24 .. B+31   pad (8 bytes)
+B+32           entry[ infoLength / 40 ]      // 40-byte stride
+
+entry (40 bytes):
+  +0   i64 pad
+  +8   u32 keyOffset      // B-relative
+  +12  u32 keyLen         // bytes (includes a trailing NUL)
+  +16  i64 pad
+  +24  u32 valOffset      // B-relative
+  +28  u32 valLen         // bytes (includes a trailing NUL)
+  +32  i64 pad
+
+label = UTF-8 at  B + keyOffset , keyLen bytes  (strip trailing NUL)
+text  = UTF-8 at  B + valOffset , valLen bytes  (strip trailing NUL)
+```
+
+`entryCount = infoLength / 40`. Strings are **UTF-8** (values carry D4
+markup, e.g. `{c_important}…{/c}`, `{VALUE}`, `[{VALUE2} * 100|1%|]`,
+`{s1}`/`{s2}` substitution tokens). Labels are unique only **within a
+table**; the table (SNO) is the domain bucket (`AttributeDescriptions`,
+`Bnet_Chat`, skill/affix/item tables, …) — resolve the table by SNO
+(name via CoreTOC group 42) then the label.
+
+### 9.4 Verified anchors (build 3.0.2.71886, enUS)
+
+- `count = 58286`; full walk `finalPrevEnd = 20,207,724`,
+  `blobLen = 20,207,728` (4-byte trailing pad).
+- table SNO `4080` = `AttributeDescriptions`, 646 entries.
+- table SNO `4087` = `Bnet_Chat`: label `ChatLink_WhisperedTo` →
+  `"{s1} whispers: {s2}"`.
+- last table SNO `2646845` = `DungeonAffix_Positive_Torment_AncestralElites`:
+  `AffixName` → `"{c_white}Dungeon Delve{/c}"`.
+
+Implemented by `WiseOwl.Casc.Diablo4.StringListCatalog` /
+`Diablo4Storage.GetStrings(locale)` / `TryGetString`.
+
+---
+
 ## Correction log
 
 This log records errors/omissions found while implementing, and the true
@@ -216,6 +314,19 @@ content (per the user's standing instruction to correct the spec when wrong).
   the paragon atlases resolve without it). Implement only if a seasonal
   patch makes a known SNO 404 and it is found in the replaced map
   (gated, per the consumer assessment FR-6).
+- **CL-7 (2026-05-16) — StringList container reversed (FR-13 DONE; no
+  longer deferred).** §9 is the full, bundle-wide-validated spec.
+  Key facts established here: (a) StringList is delivered via per-locale
+  consolidated `0x44CF00F5` bundles, **not** per-SNO `Base\Meta\<id>`;
+  (b) it shares the texture combined-meta container but the per-entry body
+  is at `B = alignUp8(prevEnd)` with **no `+8`** and **no SNO id in the
+  body** (positional, from the index) — the texture `+8`/`snoId@descStart`
+  convention produces all-zero StringList bodies and is wrong here;
+  (c) the StringListDefinition is `infoLength@B+20`, 40-byte entries at
+  `B+32` (`keyOffset@+8,keyLen@+12,valOffset@+24,valLen@+28`), UTF-8
+  strings at `B+offset`. Validated across all 58,286 tables (walk lands at
+  EOF). The earlier "FR-13 deferred / needs its own RE workstream" note in
+  `feature-backlog.md` is superseded — it is implemented and proven.
 
 ### Library boundary (FR-5 — explicit)
 
@@ -226,9 +337,12 @@ primitive reader (`U8/U16/U32/I32/F32`, `Ascii`, record-style
 `DT_VARIABLEARRAY` = `{i64 pad, i32 off@+8, i32 size@+12}`,
 payload-relative — distinct from the combined-meta variant
 `{i32 pad, off@+4, size@+8}` blob-relative, owned internally by
-`CombinedTextureMeta`), and image-library-agnostic **BC1/BC3 decode**
+`CombinedTextureMeta`), image-library-agnostic **BC1/BC3 decode**
 (`DecodeMip0` → raw straight-alpha RGBA32; the caller crops with
-`TexFrame.PixelRect` and owns any imaging/PNG/compositing).
+`TexFrame.PixelRect` and owns any imaging/PNG/compositing), the game-wide
+**`GbidHash`**, and the per-locale **StringList catalog** (§9 —
+`StringListCatalog` / `Diablo4Storage.GetStrings`/`TryGetString`; a generic
+D4-container concern, reusable across Blizzard games).
 
 Typed paragon records (`ParagonBoard` 108 / `ParagonNode` 106 /
 `ParagonGlyph` 111 / `ParagonGlyphAffix` 112) and **GameBalance
