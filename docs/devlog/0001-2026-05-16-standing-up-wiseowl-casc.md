@@ -32,9 +32,12 @@ one — the exact bug class older `byte[]`-everywhere libraries had), records,
 `init` options, spans, async, file-scoped namespaces. Multi-TFM
 (`netstandard2.0;net8.0;net10.0`) with a tiny `IsExternalInit` polyfill.
 
-**Personal project.** Mid-session correction: this is Brent Rector's
-personal project, *not* the Wise Owl Software business. Authorship/copyright
-is "Brent Rector"; the `WiseOwl.Casc` package id still uses the reserved
+**Ownership, settled.** A few mid-session corrections converged here:
+Brent Rector is sole owner/admin of *both* the `BrentRector` account and
+the `WiseOwlSoftware` org, so there's no third-party ambiguity. Final
+state: the repo lives at **`WiseOwlSoftware/WiseOwl.Casc` (public)**;
+package `Authors` = "Brent Rector", `Company`/copyright = "Wise Owl
+Software". The `WiseOwl.Casc` package id uses the reserved
 `WiseOwl.*` NuGet prefix (a naming/anti-impersonation decision, not an
 ownership claim).
 

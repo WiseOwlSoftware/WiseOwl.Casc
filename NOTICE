@@ -1,11 +1,11 @@
 WiseOwl.Casc
-Copyright (c) Brent Rector
-A personal open-source project. Licensed under the MIT License (see LICENSE).
+Copyright (c) Wise Owl Software
+Licensed under the MIT License (see LICENSE).
 
-The "WiseOwl.Casc" name uses the reserved, verified WiseOwl.* NuGet prefix.
-That prefix reservation is a structural anti-impersonation measure (it makes a
-one-character-off impostor package impossible); it is not a claim that the
-project is a product of any business.
+Published under the WiseOwlSoftware organization (GitHub + the reserved,
+verified WiseOwl.* NuGet prefix), of which Brent Rector is the sole owner
+and administrator. The reserved prefix is a structural anti-impersonation
+measure: it makes a one-character-off impostor package impossible.
 
 ================================================================================
 DISCLAIMER

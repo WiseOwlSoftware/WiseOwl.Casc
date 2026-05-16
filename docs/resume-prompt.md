@@ -10,14 +10,18 @@
 `WiseOwl.Casc` — a clean-room, modern, fully-documented .NET library for
 Blizzard's **CASC** content-storage stack, with Diablo IV as the first game
 module. **Not** a fork of CascLib; informed by it (MIT) + the upstream
-reverse-engineering record. Personal project of **Brent Rector** (copyright
-"Brent Rector"); the `WiseOwl.*` NuGet prefix is a reserved
-anti-impersonation naming decision, not a business ownership claim.
+reverse-engineering record. Published under the **Wise Owl Software** org
+(GitHub `WiseOwlSoftware` + the reserved `WiseOwl.*` NuGet prefix); Brent
+Rector is sole owner/admin of both that org and the `BrentRector` account.
+Package `Authors` = "Brent Rector"; `Company`/copyright = "Wise Owl
+Software". The `WiseOwl.*` prefix is a reserved anti-impersonation naming
+decision.
 
 - **Local root:** `e:\Casc` (git repo; commit+push freely at milestones).
-- **GitHub:** `BrentRector/WiseOwl.Casc` (private; origin set; `gh` =
-  BrentRector; commits use the noreply email — plain `brent@wiseowl.com`
-  is rejected by GitHub email privacy).
+- **GitHub:** `WiseOwlSoftware/WiseOwl.Casc` (**public**; origin set;
+  `gh` authed as `BrentRector`; commits use the
+  `<id>+BrentRector@users.noreply.github.com` form — plain
+  `brent@wiseowl.com` is rejected by GitHub email privacy).
 - **Build:** .NET 10 SDK. `dotnet build/test WiseOwl.Casc.slnx`. Core
   multi-TFMs `netstandard2.0;net8.0;net10.0` (ns2.0 uses
   `src/Shared/Polyfills.cs` for `IsExternalInit`).
