@@ -17,6 +17,21 @@ public enum SnoGroup
     /// <summary>GameBalance tables (<c>.gam</c>) — formula/constant tables.</summary>
     GameBalance = 20,
 
+    /// <summary>Power definitions (<c>.pow</c>) — skills/passives.</summary>
+    Power = 29,
+
+    /// <summary>Item definitions (<c>.itm</c>).</summary>
+    Item = 73,
+
+    /// <summary>Player class definitions (<c>.prd</c>).</summary>
+    PlayerClass = 74,
+
+    /// <summary>Item-type definitions.</summary>
+    ItemType = 98,
+
+    /// <summary>Affix definitions (<c>.aff</c>).</summary>
+    Affix = 104,
+
     /// <summary>UI / 2D textures (<c>.tex</c>). Paragon node/glyph art lives
     /// in shared atlases here; the pixel payload is addressable by SNO id but
     /// the <see cref="TextureDefinition"/> meta is only in the combined-meta

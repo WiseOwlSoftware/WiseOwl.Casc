@@ -91,8 +91,16 @@ decision.
    (currently eager `byte[]`/`MemoryStream` — fine for the dataset
    workload). `CoreTOCReplacedSnosMapping` only if a seasonal patch 404s
    a known SNO (FR-6, deferred).
-3. CHANGELOG/devlog/ARTICLE-SOURCE upkeep each session.
-4. Later: future `.Wow`/`.Overwatch`/`.D2R` modules (core designed for them).
+3. Round-2 consumer FRs tracked in `docs/feature-backlog.md`. FR-11/12/15
+   done & proven (named groups + int escape hatch; `Diablo4.GbidHash`
+   verified vs `0x42C16A1B`; `ReadGroup` streaming). FR-14 mechanism done
+   (folder-generic resolver; concrete Child id gated on RE). **FR-13
+   (StringList localized names) accepted but DEFERRED — needs its own RE
+   workstream; do not ship unproven. Promote with the d4-character-model
+   workstream; write the `StringList-Text-<locale>-*.dat` container into
+   `casc-format.md` first, then implement+prove.**
+4. CHANGELOG/devlog/ARTICLE-SOURCE upkeep each session.
+5. Later: future `.Wow`/`.Overwatch`/`.D2R` modules (core designed for them).
 
 ## Gotchas
 

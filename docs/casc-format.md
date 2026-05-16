@@ -238,6 +238,13 @@ intrinsics, are **domain logic and stay in the consumer**
 them; a consumer migrates only its CASC/`SnoRecord`/`TextureDefinition`
 layer.
 
+**FR-16 (reinforced).** Item / Affix / Power / Class / GameBalance →
+stat-effect *modeling* is a ParagonOptimizer **domain spec** built on the
+library's id-keyed read + `SnoRecord` + `GbidHash` (+ StringList once
+FR-13 lands). The library will **not** grow typed game-record APIs. Round-2
+feature requests and their disposition (incl. FR-13 deferred to its own RE
+workstream) are tracked in `docs/feature-backlog.md`.
+
 ## Source / re-verification
 
 - Clean-room from public TACT/CASC documentation (wowdev.wiki) and

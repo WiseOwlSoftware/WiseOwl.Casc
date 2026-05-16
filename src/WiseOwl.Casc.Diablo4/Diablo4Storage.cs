@@ -160,6 +160,36 @@ public sealed class Diablo4Storage : IDisposable
         CancellationToken cancellationToken = default) =>
         Task.Run(() => ReadSno(group, id, folder, subId), cancellationToken);
 
+    /// <summary>
+    /// Group-agnostic escape hatch: resolve + BLTE-read any SNO by id for a
+    /// group <see cref="SnoGroup"/> does not name (the TVFS address is
+    /// id-only — the group is informational). Raw bytes only; per the
+    /// library/consumer boundary the library does not grow typed readers.
+    /// </summary>
+    public byte[] ReadSno(int groupId, int id, SnoFolder folder = SnoFolder.Meta,
+        int subId = -1) =>
+        ReadSno((SnoGroup)groupId, id, folder, subId);
+
+    /// <summary>Group-agnostic non-throwing read by id.</summary>
+    public bool TryReadSno(int groupId, int id, SnoFolder folder,
+        out byte[] bytes, int subId = -1) =>
+        TryReadSno((SnoGroup)groupId, id, folder, out bytes, subId);
+
+    /// <summary>
+    /// Stream every SNO in a group as <c>(id, bytes)</c>, skipping ids that
+    /// legitimately have no content in <paramref name="folder"/>. The local
+    /// index, encoding table and archive handles stay resident, so sweeping
+    /// a large group (Affix/Power are thousands of records) does not re-open
+    /// storage.
+    /// </summary>
+    public IEnumerable<(int Id, byte[] Bytes)> ReadGroup(
+        SnoGroup group, SnoFolder folder = SnoFolder.Meta)
+    {
+        foreach (var e in CoreToc.EntriesInGroup(group))
+            if (TryReadSno(group, e.Id, folder, out var bytes))
+                yield return (e.Id, bytes);
+    }
+
     private bool TryReadSharedPayload(int id, int subId, out byte[] bytes)
     {
         bytes = [];

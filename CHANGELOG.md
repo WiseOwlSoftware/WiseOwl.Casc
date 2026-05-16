@@ -49,6 +49,20 @@ Semantic Versioning once it reaches `1.0.0`.
   documents the library/consumer boundary (FR-5) and the deferred
   `CoreTOCReplacedSnosMapping` (FR-6).
 
+### Round-2 consumer feature requests (future / non-blocking)
+- FR-11: `SnoGroup` names `Power/Item/PlayerClass/ItemType/Affix`;
+  `Diablo4Storage.ReadSno(int groupId,…)`/`TryReadSno` int escape hatch.
+- FR-12: `static uint Diablo4.GbidHash(string)` (case-insensitive DJB2;
+  verified `== 0x42C16A1B`); GameBalance fully enumerable by group.
+- FR-14: `SnoFolder.Child`/`PayLow`/`PayMed` served by the same id-keyed
+  resolver (mechanism proven; a concrete Child id is gated on the deferred RE).
+- FR-15: `Diablo4Storage.ReadGroup(group, folder)` streaming, reuses
+  resident index/encoding/archive handles.
+- FR-16: library/consumer boundary reinforced (no typed game-record APIs).
+- FR-13 (StringList localized names): **accepted but deferred** to its own
+  RE workstream — not shipped unproven. Tracked in
+  `docs/feature-backlog.md`.
+
 See [`docs/devlog/`](docs/devlog/) for the narrative of how each piece was
 built and why, and [`docs/casc-format.md`](docs/casc-format.md) for the
 self-contained transport spec.
