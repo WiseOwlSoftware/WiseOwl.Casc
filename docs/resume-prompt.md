@@ -101,8 +101,24 @@ decision.
    `TryGetString`. Definitive spec: `casc-format.md §9` + CL-7; narrative
    `devlog/0003`. (Container = texture combined-meta family but body at
    `B=alignUp8(prevEnd)`, no `+8`, SNO positional from index.)
-4. CHANGELOG/devlog/ARTICLE-SOURCE upkeep each session.
-5. Later: future `.Wow`/`.Overwatch`/`.D2R` modules (core designed for them).
+4. Round-3 typed readers (B1–B6) — **DONE & PROVEN** (converged design,
+   owner-approved): `ParagonBoardDefinition`/`ParagonNodeDefinition`
+   (+`NodeAttribute` with `NParam`+`ParamPlus12`, `ParagonRarity`,
+   `SnoPassivePower`)/`ParagonGlyphDefinition`/`ParagonGlyphAffixDefinition`
+   /`AttributeFormulaTable` + `Diablo4Storage.Read*` + `TryGetIconFrame`.
+   Raw fields only; **library ships NO formula evaluator** (decided). §7
+   acceptance matrix passes verbatim (201912=1038 entries, CoreStat_Normal
+   →"5"). **Library scope FROZEN at "B1–B6 + existing"** for the
+   eliminate-D4Extract goal. Typed Item/Affix/Power/Class deferred (C6).
+5. **SPEC AUTHORITY: `e:\Casc\docs\casc-format.md` is the single canonical
+   CASC+D4 byte-format reference** (§§1–14 + §15 provenance map + CL-* log).
+   Upstream `e:\Paragon\docs\d4-binary-formats.md` §3–§8.15 is SUPERSEDED
+   for layouts (frozen, history/article source only). Policy carve-out (6
+   intrinsic values, scoring, relight, JSON schema) referenced, never
+   absorbed. Keep this file definitive; never re-introduce a second
+   layout doc.
+6. CHANGELOG/devlog/ARTICLE-SOURCE upkeep each session.
+7. Later: future `.Wow`/`.Overwatch`/`.D2R` modules (core designed for them).
 
 ## Gotchas
 

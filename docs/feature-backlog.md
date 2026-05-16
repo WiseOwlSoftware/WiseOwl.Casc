@@ -32,6 +32,34 @@ needed its own reverse-engineering — that workstream is now complete**
 documented (`casc-format.md §9` + CL-7), implemented and proven, with no
 faking at any step. Nothing in round 2 remains deferred.
 
+## Round 3 — typed record readers (B1–B6) — DONE & PROVEN
+
+Converged design (consumer requirements + casc pushback, owner-approved
+2026-05-16). Boundary refined: the library now owns typed *record
+decoding* (raw fields); the consumer keeps evaluation + the 6 calibrated
+intrinsics + scoring + the app's bundled-JSON schema. The library ships
+**no formula evaluator at all** (decided — a format library is not an
+arithmetic engine).
+
+| Item | Status | Notes |
+|---|---|---|
+| B1 `ParagonBoardDefinition` + `ReadParagonBoard` | DONE | Cells row-major (`Width*Width`, `0xFFFFFFFF`→null), `NodeCount`, `CellAt`. 2458674→W21/441. |
+| B2 `ParagonNodeDefinition` + `NodeAttribute` + `ParagonRarity` | DONE | Raw `RarityOverride` int + enum; `SnoPassivePower`; `HIcon/HIconMask`; `NodeAttribute{AttributeId,NParam(+4),ParamPlus12(+12),FormulaGbid,InlineFormula}`. |
+| B3 `ParagonGlyphDefinition` + `ReadParagonGlyph` | DONE | ≤3 affix SNOs @104/108/112; bounds-safe for short placeholder records. |
+| B4 `ParagonGlyphAffixDefinition` + `ReadParagonGlyphAffix` | DONE | `AffectedRarity@24`,`Operation@48`,`Base@76`,`PerLevel@80`. |
+| B5 `AttributeFormulaTable` + `ReadAttributeFormulas` | DONE | `eGameBalanceType==22` enforced; `ByName`/`TryGetFormulaText`=`arRanges[0]` text; `TryGetNameByGbid` keyed on `GbidHash(szName)`. 201912→1038 entries; `ParagonNodeCoreStat_Normal`→"5". Text+indices only. |
+| B6 `Diablo4Storage.TryGetIconFrame` | DONE | Lazy handle→(atlasSno,TexFrame) index; first-party `hIconMask==ImageHandle`. |
+
+Naming: `*Definition` (matches `TextureDefinition` + the game struct
+names; resolves the `SnoGroup` enum collision). Delivery: static
+`Parse(ReadOnlySpan<byte>)` + `Diablo4Storage.Read*`. CI-safe synthetic
+tests + live §7 acceptance matrix (verbatim, passes). Spec: §§12–14 +
+CL-8; **spec authority transferred to `casc-format.md`** (§15 provenance
+map; upstream §3–§8.15 frozen for layouts). **Library scope is now FROZEN
+at "B1–B6 + existing"** — nothing further for the eliminate-D4Extract
+goal. Typed Item/Affix/Power/Class readers stay deferred (C6) until that
+RE exists.
+
 ## When the d4-character-model workstream starts
 
 1. Pin concrete acceptance: real Power/Affix/Item SNO ids + expected

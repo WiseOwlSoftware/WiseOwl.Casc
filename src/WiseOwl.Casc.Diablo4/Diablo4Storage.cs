@@ -288,6 +288,80 @@ public sealed class Diablo4Storage : IDisposable
         string locale = DefaultLocale) =>
         GetStrings(locale).TryGet(label, out text);
 
+    // ----- Typed Diablo IV record readers (raw fields only) ---------------
+
+    /// <summary>Read + decode a <see cref="ParagonBoardDefinition"/> by SNO
+    /// id (group 108).</summary>
+    public ParagonBoardDefinition ReadParagonBoard(int id) =>
+        ParagonBoardDefinition.Parse(ReadSno(SnoGroup.ParagonBoard, id));
+
+    /// <summary>Read + decode a <see cref="ParagonNodeDefinition"/> by SNO
+    /// id (group 106).</summary>
+    public ParagonNodeDefinition ReadParagonNode(int id) =>
+        ParagonNodeDefinition.Parse(ReadSno(SnoGroup.ParagonNode, id));
+
+    /// <summary>Read + decode a <see cref="ParagonGlyphDefinition"/> by SNO
+    /// id (group 111).</summary>
+    public ParagonGlyphDefinition ReadParagonGlyph(int id) =>
+        ParagonGlyphDefinition.Parse(ReadSno(SnoGroup.ParagonGlyph, id));
+
+    /// <summary>Read + decode a <see cref="ParagonGlyphAffixDefinition"/> by
+    /// SNO id (group 112).</summary>
+    public ParagonGlyphAffixDefinition ReadParagonGlyphAffix(int id) =>
+        ParagonGlyphAffixDefinition.Parse(ReadSno(SnoGroup.ParagonGlyphAffix, id));
+
+    /// <summary>Read + decode the GameBalance <see cref="AttributeFormulaTable"/>
+    /// (default SNO <c>201912</c>, the paragon formula table). Returns
+    /// formula <i>text</i> + name/GBID indices only — evaluation and the
+    /// calibrated intrinsics stay with the consumer.</summary>
+    public AttributeFormulaTable ReadAttributeFormulas(int id = 201912) =>
+        AttributeFormulaTable.Parse(ReadSno(SnoGroup.GameBalance, id));
+
+    /// <summary>
+    /// Resolve a node icon handle (<see cref="ParagonNodeDefinition.HIconMask"/>
+    /// or <see cref="ParagonNodeDefinition.HIcon"/>) to the atlas SNO and
+    /// <see cref="TexFrame"/> that carry it — the first-party node↔icon
+    /// link (<c>hIconMask == TexFrame.ImageHandle</c>). The handle→frame
+    /// index is built once from <see cref="TextureMeta"/> on first use.
+    /// </summary>
+    public bool TryGetIconFrame(uint handle, out int atlasSno, out TexFrame frame)
+    {
+        var idx = IconFrameIndex;
+        if (idx.TryGetValue(handle, out var hit))
+        {
+            atlasSno = hit.Sno;
+            frame = hit.Frame;
+            return true;
+        }
+        atlasSno = 0;
+        frame = default;
+        return false;
+    }
+
+    private Dictionary<uint, (int Sno, TexFrame Frame)>? _iconFrames;
+
+    private Dictionary<uint, (int Sno, TexFrame Frame)> IconFrameIndex
+    {
+        get
+        {
+            if (_iconFrames is not null) return _iconFrames;
+            lock (_gate)
+            {
+                if (_iconFrames is null)
+                {
+                    var map = new Dictionary<uint, (int, TexFrame)>();
+                    foreach (var kv in TextureMeta.BySno)
+                        foreach (var f in kv.Value.Frames)
+                            // First atlas wins on a shared handle.
+                            if (!map.ContainsKey(f.ImageHandle))
+                                map[f.ImageHandle] = (kv.Key, f);
+                    _iconFrames = map;
+                }
+            }
+            return _iconFrames;
+        }
+    }
+
     /// <summary>The Diablo IV SNO-group → file-extension table (factual data,
     /// matching the current build). Unknown groups fall back to the numeric
     /// <c>.NNN</c> form the game uses.</summary>

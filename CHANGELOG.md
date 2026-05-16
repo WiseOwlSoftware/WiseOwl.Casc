@@ -49,6 +49,31 @@ Semantic Versioning once it reaches `1.0.0`.
   documents the library/consumer boundary (FR-5) and the deferred
   `CoreTOCReplacedSnosMapping` (FR-6).
 
+### Round-3 — typed D4 record readers (B1–B6) + spec authority
+- Converged design (consumer requirements + casc pushback, owner-approved).
+  Library now owns typed *record decoding* (raw fields); ships **no
+  formula evaluator** (decided — a format library is not an arithmetic
+  engine). Evaluation + 6 calibrated intrinsics + scoring + JSON schema
+  stay permanently with the consumer.
+- `ParagonBoardDefinition`, `ParagonNodeDefinition` (+`NodeAttribute`
+  with `NParam`/`ParamPlus12`, `ParagonRarity`, `SnoPassivePower`,
+  `HIcon`/`HIconMask`), `ParagonGlyphDefinition` (bounds-safe),
+  `ParagonGlyphAffixDefinition`, `AttributeFormulaTable`
+  (`eGameBalanceType==22`; `ByName`/`TryGetFormulaText`;
+  `TryGetNameByGbid` keyed on `GbidHash`); `Diablo4Storage.Read*` +
+  `TryGetIconFrame` (first-party `hIconMask==ImageHandle`).
+- Each type: static `Parse(ReadOnlySpan<byte>)` + facade. CI-safe
+  synthetic tests + live §7 acceptance matrix (verbatim): board
+  2458674→W21/441; node 678776 sig 0xDEADBEEF; GameBalance 201912 =
+  1038 entries, `ParagonNodeCoreStat_Normal`→"5", `_Magic`→"7";
+  `GbidHash`==0x42C16A1B. 27 tests pass, 1 unrelated skip, 0 warnings.
+- **Spec authority transferred:** `docs/casc-format.md` re-scoped to the
+  single canonical CASC + Diablo IV byte-format reference (new §§10–14
+  D4 SNO/record/texture layer + §15 provenance map + CL-8). Upstream
+  `d4-binary-formats.md` §3–§8.15 superseded for layouts (frozen).
+  Policy carve-out referenced, never absorbed. Library scope FROZEN at
+  "B1–B6 + existing". Narrative: `docs/devlog/0004`.
+
 ### Round-2 consumer feature requests (future / non-blocking)
 - FR-11: `SnoGroup` names `Power/Item/PlayerClass/ItemType/Affix`;
   `Diablo4Storage.ReadSno(int groupId,…)`/`TryReadSno` int escape hatch.

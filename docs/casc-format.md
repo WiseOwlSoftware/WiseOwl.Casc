@@ -1,21 +1,35 @@
-# CASC transport — self-contained format spec
+# WiseOwl.Casc — CASC + Diablo IV byte-format reference (canonical)
 
-The byte-level reference for the **game-agnostic** CASC/TACT/TVFS/BLTE
-layer `WiseOwl.Casc` implements. This is written to be implementable from
-this document alone (per the project's self-contained-specs rule).
+The single, definitive, self-contained byte-level reference for everything
+`WiseOwl.Casc` / `WiseOwl.Casc.Diablo4` implement: the game-agnostic
+CASC/TACT/TVFS/BLTE transport **and** the Diablo IV SNO record / `.tex` /
+combined-meta / StringList layer. Implementable from this document alone
+(the project's self-contained-specs rule). One file, one `CL-*` correction
+log.
 
-> **Relationship to the upstream record.** The originating ParagonOptimizer
-> project's `e:\Paragon\docs\d4-binary-formats.md` §3–§8.15 is the
-> authoritative reverse-engineering record for the **Diablo IV SNO / `.tex`
-> layer** (CoreTOC `0xBCDE6611`, SNO payload base `0x10`, `DT_*`,
-> shared-payload `0xABBA0003`, combined-meta `0x44CF00F5`, `TextureDefinition`,
-> `ptFrame`, the node↔icon link, BC3). Cross-reference it; we do **not**
-> duplicate it. **It deliberately does not specify the CASC transport** — it
-> says "WoW-Tools CascLib already implements all of this." This document
-> fills that omission: the transport is specified here, clean-room, verified
-> against Diablo IV build `3.0.2.71886`.
+> **Spec authority (converged 2026-05-16).** All Diablo IV access/format
+> code now lives in `WiseOwl.Casc`, so spec ownership follows code
+> ownership. **This file is the canonical upstream.** The originating
+> `e:\Paragon\docs\d4-binary-formats.md` §3–§8.15 is **SUPERSEDED for byte
+> layouts** by this document — its format sections are frozen and retained
+> only as project history + wiseowl.com article/devlog source. The verified
+> truth is re-derived and recorded **here** (see §13 *Provenance &
+> migration map*); ParagonOptimizer reads this file and never maintains
+> layout docs.
+>
+> **Policy carve-out (referenced, never absorbed).** Consumer
+> interpretation/policy stays authoritative in `e:\Paragon`: the 6
+> calibrated engine-intrinsic power-budget multiplier *values*, the
+> scoring/objective model (`scoring-model-design.md`,
+> `paragon-optimization-objective.md`), the icon relight/composite
+> calibration (`gen_selected.py`, §8.15 of the upstream history), and the
+> app's bundled-JSON schema. This library decodes raw fields and **never**
+> evaluates formulas, scales, scores, or emits app resources.
 
-All multi-byte fields are little-endian unless marked **BE**.
+All multi-byte fields are little-endian unless marked **BE**. CASC/D4
+byte-format facts in §§1–13 are clean-room and verified against Diablo IV
+build `3.0.2.71886` (`.build.info` Build Key
+`522f2f30f1eb0e32af225966b8ac91d1`).
 
 ---
 
@@ -271,6 +285,158 @@ Implemented by `WiseOwl.Casc.Diablo4.StringListCatalog` /
 
 ---
 
+## 10. Diablo IV SNO file wrapper & addressing
+
+Every SNO blob (the bytes from `Diablo4Storage.ReadSno`) begins with a
+16-byte `SNOFileHeader`; the **payload base is `0x10`** and *all* record
+field offsets and `DT_VARIABLEARRAY` `dataOffset`s in §§12–14 are measured
+from there.
+
+```
+SNOFileHeader (16 bytes):
+  0x00 u32 dwSignature   (== 0xDEADBEEF)
+  0x04 u32 dwFormatHash  (often 0 → resolve via CoreTOC EntryFormatHashes[group])
+  0x08 u32 dwDummy
+  0x0C u32 dwXMLHash
+payload base = 0x10  (the SNO Id, DT_INT, sits here)
+```
+
+**Addressing (CL-4/CL-5).** A D4 SNO resolves through TVFS by the path
+`<prefix>\<Folder>\<id>` (prefix `Base`; folder ∈
+`Meta|Payload|PayLow|PayMed|Child`; numeric id; no group/name/extension; a
+child sub-id appends `-<subId>`). An empty/absent `Payload` follows the
+`0xABBA0003` `CoreTOCSharedPayloadsMapping` alias to the holder SNO.
+CoreTOC (`0xBCDE6611`) supplies name↔id↔group + per-group format hash.
+
+## 11. DT primitive encodings (record fields)
+
+Field offsets in §§12–13 are payload-relative; read at `0x10 + offset`.
+
+| DT type | Encoding |
+|---|---|
+| `DT_INT/UINT/DWORD/SNO/ENUM/GBID` | 4-byte LE at the field offset (`DT_GBID` `0xFFFFFFFF` = null) |
+| `DT_FLOAT` | 4-byte IEEE-754 LE |
+| `DT_CHARARRAY[n]` | inline NUL-terminated ASCII, `n` bytes reserved |
+| `DT_STRING_FORMULA` | 32-byte struct: `i64 pad; i32 srcOffset@+8; i32 srcSize@+12; i32 compiledOffset@+16; i32 compiledSize@+20`. Text = ASCII at payload `srcOffset`, `srcSize` bytes (strip NUL/trim) |
+| `DT_VARIABLEARRAY` (record form) | `i64 pad; i32 dataOffset@+8 (payload-relative); i32 dataSize@+12`. Element count = `dataSize / elementStride`; no count field |
+| `DT_POLYMORPHIC_VARIABLEARRAY` | `i64 pad; i32 dataOffset@+8; i32 dataSize@+12; i32 count@+16; i32 pad2@+20`. An 8-byte type tag precedes the element struct |
+
+> The combined-meta (`0x44CF00F5`) container variant of the variable-array
+> descriptor is different (`i32 pad; i32 off@+4; i32 size@+8` for textures;
+> StringList uses `B = alignUp8(prevEnd)`) — see §9 / §14, not this table.
+
+## 12. Paragon record layouts (groups 106/108/111/112)
+
+All offsets payload-relative (base `0x10`). RE-VERIFIED 2026-05-16 via the
+B1–B4 typed readers against build `3.0.2.71886` (provenance: upstream
+`d4-binary-formats.md §5`, the *VERIFIED* tables + glyph correction).
+
+**`ParagonBoardDefinition`** (group 108, `.pbd`):
+`snoId@0`; `nWidth@12` (DT_UINT); `arEntries@16`
+(`DT_VARIABLEARRAY[DT_SNO]`; `dataOffset@+8` payload-rel, `dataSize@+12`).
+Cells = `dataSize/4` LE u32 SNO ids, row-major (`index=row*Width+col`),
+`0xFFFFFFFF`=empty. Cell count == `Width*Width` (21×21=441 on this build).
+
+**`ParagonNodeDefinition`** (group 106, `.pgn`):
+`snoId@0`; `hIcon@8` (DT_UINT); `hIconMask@12` (DT_UINT);
+`eRarityOverride@20` (0=Common,2=Magic,3=Rare,4=Legendary);
+`snoPassivePower@24` (DT_SNO group 29); `ptAttributes@32`
+(`DT_VARIABLEARRAY[AttributeSpecifier]`; `dataOffset@+8`, `dataSize@+12`);
+`bHasSocket@80` (DT_INT); `bIsGate@84` (DT_INT).
+`AttributeSpecifier` stride **88**: `eAttribute@+0`; `nParam@+4` (DT_INT);
+the distinct value `@+12`; inline formula `srcOffset@+24`/`srcSize@+28`
+(payload-relative, used when GBID is null); `gbidFormula@+48` (DT_GBID;
+`0xFFFFFFFF` ⇒ use the inline text).
+
+**`ParagonGlyphDefinition`** (group 111, `.gph`):
+`snoId@0`; up to three affix `DT_SNO` ids at `@104/@108/@112`
+(`0`/`0xFFFFFFFF` slots omitted). Some group-111 SNOs are short
+placeholder records — readers must bounds-check before `+104`.
+
+**`ParagonGlyphAffixDefinition`** (group 112, `.gaf`, formatHash
+353797140): `snoId@0`; `eAffectedNodeRarity@24` (1=Normal/2=Magic/3=Rare);
+`eBonusOperation@48` (1/2/4/5); `flStartingBonusScalar@76` (DT_FLOAT, ==
+Maxroll `base`); `flAddedBonusScalarPerLevel@80` (DT_FLOAT, == `perLevel`).
+
+## 13. GameBalance `AttributeFormulas` (group 20, SNO 201912)
+
+Payload-relative; RE-VERIFIED 2026-05-16 via B5 (provenance: upstream
+`d4-binary-formats.md §7.3-VERIFIED`). Only `eGameBalanceType == 22`
+(AttributeFormulas) is in scope; other GameBalance table types have
+different element structs (deferred, feature-backlog C6).
+
+```
+GameBalanceDefinition: snoId@0; eGameBalanceType@8 (==22);
+  ptData DT_POLYMORPHIC_VARIABLEARRAY @16 → dataOffset@+8 (payload-rel)
+  tableBase = dataOffset + 8        (8-byte polymorphic type tag)
+  AttributeFormulaEntry_Table: tEntries DT_VARIABLEARRAY @ tableBase+16
+    → entries dataOffset@+8, dataSize@+12 ; ENTRY STRIDE 280
+AttributeFormulaEntry (280):
+  szName  DT_CHARARRAY[256] inline @ +0
+  gbid    DT_GBID            @ +256   (in-record value is 0xFFFFFFFF/null)
+  arRanges DT_VARIABLEARRAY  @ +264   (dataOffset@+8, dataSize@+12); RANGE STRIDE 48
+AttributeFormulaRange (48):
+  nItemPowerRangeStart i32 @ +0 ; rangeValue1 f32 @ +4 ; rangeValue2 f32 @ +8
+  tFormula DT_STRING_FORMULA @ +16  (FormulaOffset@+8, FormulaSize@+12)
+  formula text = ASCII @ payload FormulaOffset, FormulaSize bytes (trim)
+```
+
+**Identity:** the in-record `gbid` is null; an entry's identity is
+`GbidHash(szName)` (case-insensitive DJB2 — §“GbidHash”, == `0x42C16A1B`
+for `ParagonNodeCoreStat_Normal`). A node's `gbidFormula` (§12) equals
+`GbidHash(formulaName)`; resolve `gbid → name → arRanges[0] text`. The
+library returns **text + name/GBID indices only**; evaluation + the 6
+calibrated intrinsics are the consumer's (carve-out).
+
+## 14. Texture `.tex` / combined-meta / `ptFrame` / BCn
+
+Texture pixel payloads are addressable by SNO id (§10); the
+`TextureDefinition` *meta* is **not** per-SNO — it is consolidated into the
+`0x44CF00F5` combined bundle `Base\Texture-Base-Global.dat` (the same
+container family as the StringList per-locale bundle, §9). Per-entry the
+texture container uses `descStart = alignUp8(prevEnd) + 8` with the SNO id
+at `descStart+0` and the `TextureDefinition` body at `descStart+4` — *this
+`+8`/in-body-snoId convention is what differs from StringList* (§9 / CL-7).
+`TextureDefinition`: `eTexFormat@8`, `dwWidth@16`, `dwHeight@18`,
+`serTex@64`, `ptFrame@80` (combined-meta variable-array form
+`i32 pad; off@+4 (blob-rel from descStart); size@+8`). Paragon atlases are
+**BC3** (`eTexFormat 49`), mip0 at payload offset 0, row width
+`align(W,64)` then crop. `ptFrame` (`TexFrame`, 36 B:
+`u32 ImageHandle; f32 U0,V0,U1,V1; …`) gives atlas sub-rects; pixel rect =
+`floor(U·W)…ceil(U·W)`. **Node↔icon link is first-party:**
+`ParagonNode.hIconMask`/`hIcon` == `TexFrame.ImageHandle` (no correlation
+needed) — exposed via `Diablo4Storage.TryGetIconFrame`. RE-VERIFIED via the
+texture/combined-meta readers + B6 (provenance: upstream §8.11–§8.15;
+BCn decode is image-library-agnostic raw RGBA, §“boundary”).
+
+## 15. Provenance & migration map
+
+Auditable mapping of every upstream `d4-binary-formats.md §3–§8.15`
+byte-format item to its destination here, so the spec-authority handoff
+loses nothing. Status = RE-verified against build `3.0.2.71886`.
+
+| Upstream §/topic | Destination here | Status |
+|---|---|---|
+| §1 CoreTOC `0xBCDE6611` | §10 (addressing) + CL-2/CL-4 | verified |
+| §1 `0xABBA0003` shared-payload mapping | §10 + CL-5 | verified |
+| §3 SNO addressing + `SNOFileHeader` (base `0x10`) | §10 | verified |
+| §4 DT primitive encodings | §11 | verified |
+| §5 ParagonBoard/Node/Glyph/GlyphAffix layouts | §12 | verified (B1–B4) |
+| §5.1 / §8.13 node↔icon (`hIconMask==ImageHandle`) | §14 + B6 | verified |
+| §7 / §7.3-VERIFIED GameBalance AttributeFormulas | §13 | verified (B5) |
+| §8.1–§8.2 `TextureDefinition` / `eTexFormat` / BCn | §14 (+§9 container) | verified |
+| §8.12–§8.14 `0x44CF00F5` bundle / `ptFrame` slice | §14 (+§9) | verified |
+| §8.5 StringList per-locale bundles | §9 | verified (CL-7) |
+| §7 the **6 calibrated intrinsic VALUES** | NOT absorbed → `e:\Paragon` policy | carve-out |
+| §8.14/§8.15 relight & disc+symbol composite | NOT absorbed → `e:\Paragon` policy | carve-out |
+| §3–§8 investigation narrative / dead-ends | `docs/devlog/*` + `ARTICLE-SOURCE.md` | history |
+
+The upstream file is frozen for layouts and demoted to history/article
+source (the demotion banner is the ParagonOptimizer session's edit to its
+own repo; `e:\Paragon` is read-only here).
+
+---
+
 ## Correction log
 
 This log records errors/omissions found while implementing, and the true
@@ -327,8 +493,23 @@ content (per the user's standing instruction to correct the spec when wrong).
   strings at `B+offset`. Validated across all 58,286 tables (walk lands at
   EOF). The earlier "FR-13 deferred / needs its own RE workstream" note in
   `feature-backlog.md` is superseded — it is implemented and proven.
+- **CL-8 (2026-05-16) — typed record readers + spec authority.** The
+  converged boundary moved typed *record decoding* into the library
+  (B1–B6): `ParagonBoardDefinition`/`ParagonNodeDefinition`/
+  `ParagonGlyphDefinition`/`ParagonGlyphAffixDefinition`/
+  `AttributeFormulaTable` + `Diablo4Storage.Read*` + `TryGetIconFrame`,
+  raw fields only (no evaluation/scoring/emission — the library ships
+  **no formula evaluator at all**, by decision). The §5/§7 layouts were
+  re-derived and verified here (§§12–13; §7 acceptance matrix passes
+  verbatim: board 2458674 W21/441; node 678776 sig 0xDEADBEEF;
+  GameBalance 201912 = 1038 entries, `ParagonNodeCoreStat_Normal`→"5",
+  `_Magic`→"7"). Spec authority transferred to this file; upstream
+  `d4-binary-formats.md` §3–§8.15 frozen for layouts (§15 provenance
+  map). `NodeAttribute` exposes both `NParam` (+4) and `ParamPlus12`
+  (+12) raw so the consumer never re-parses the specifier. Glyph readers
+  bounds-check (short placeholder group-111 records exist).
 
-### Library boundary (FR-5 — explicit)
+### Library boundary (FR-5/FR-16 — explicit)
 
 `WiseOwl.Casc` / `WiseOwl.Casc.Diablo4` own: the **transport**, **CoreTOC**
 (incl. name↔id index), the **`0x44CF00F5` combined-meta** /
