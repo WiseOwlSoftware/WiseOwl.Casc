@@ -7,6 +7,8 @@
     <!-- Tests intentionally exercise non-public helpers via fixtures; do not
          require XML docs here. -->
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <!-- xUnit method names use underscores by convention. -->
+    <NoWarn>$(NoWarn);CA1707</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

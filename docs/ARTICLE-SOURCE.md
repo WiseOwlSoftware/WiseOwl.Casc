@@ -182,3 +182,79 @@ Chronological, informal, one beat-cluster each. Suggested entries:
 - The composite-icon resolution (closes beat 8).
 - Real benchmarks / "it just works on the current patch" evidence.
 - Final chosen title; confirm trademark clearance results.
+
+## 7. Building-session log (kept current by the building session)
+
+> Distilled, ship-quality material for the website session. Append per
+> session; do not shrink. Technical byte-detail lives in
+> `docs/casc-format.md` (transport) and the upstream
+> `e:\Paragon\docs\d4-binary-formats.md` §3–§8.15 (D4 SNO/.tex).
+
+### Session 1 — 2026-05-16 — the library exists, and most of it is proven
+
+Beats this advances: **6** (it was the package name), **9** (why a new
+library), **10** (naming/trademark), **11** (design & philosophy).
+
+- **Clean-room, not a fork.** The library is written from a self-contained
+  spec; the MIT WoW-Tools CascLib and the upstream RE record were *studied*,
+  not copied. The deliberate omission in the upstream spec — the CASC
+  *transport* ("CascLib already does this") — is exactly what we had to
+  write, and now own as `docs/casc-format.md`. Good article beat: the saga's
+  villain (a near-identical package name) is structurally killed by the
+  reserved `WiseOwl.*` prefix; the saga's *substance* (an undocumented,
+  fragmented transport) is killed by writing the spec down.
+
+- **A naming mini-essay, lived not just argued (beat 10).** Mid-build, the
+  reviewer asked "why is there a type called `Jenkins96` — why a person's
+  name?" It was Bob Jenkins' public-domain *lookup3*. We renamed it
+  `CascPathHash` (says what it does) and moved attribution to `NOTICE`.
+  Quotable principle for the article: *in a clean-room redesign, type names
+  should describe behaviour; human/lineage credit belongs in NOTICE, not in
+  the API surface.* Same family of judgement as `WiseOwl.Casc` vs
+  `*CascLib*`.
+
+- **The asymmetry wall, seen from the other side (beats 3 & 6).** The
+  origin saga's "texture metadata isn't path-addressable" wall reappears
+  here as a transport fact: top-level `Base\*.dat` resolve through our
+  clean-room TVFS; per-SNO records sit deeper (a nested `vfs-N`
+  sub-manifest + the D4 shared-payload layer). Confirms the article's
+  thesis: it was never an exotic Blizzard mechanism — it's *layers*, and a
+  documented library is the remedy.
+
+- **Engineering integrity on the record (through-line #1).** The per-SNO
+  read isn't done. The test for it **self-skips with a precise reason**
+  rather than fake a pass. The article should show this is deliberate: the
+  dev-log brand is honesty about the unfinished edge.
+
+- **Proven, against the live current patch (beat 11 evidence).** On
+  Diablo IV `3.0.2.71886`, with nothing committed but code: open the
+  install → 1,086,119-blob local index → BLTE-decode the real ~100 MB
+  `encoding` table → TVFS → `CoreTOC.dat` parsed to **849,257 SNOs / 181
+  groups** (the very file the stock CascLib NuGet *overflows* on) → the
+  `0x44CF00F5` combined-meta to **140,197 texture defs**, with
+  `2DUI_ParagonNodes` decoding as **BC3 4224×192, 31 atlas frames** —
+  byte-for-byte the upstream §8.13/§8.15 verified facts, reproduced by a
+  fresh clean-room parser. "It just works on the current patch" is no
+  longer aspirational.
+
+### API snapshot (session 1; stable shape, may grow)
+
+```csharp
+using WiseOwl.Casc;
+using WiseOwl.Casc.Diablo4;
+
+using var casc = CascStorage.OpenLocal(@"D:\Diablo IV");
+Console.WriteLine(casc.Build.Version);                 // 3.0.2.71886
+
+using var d4 = Diablo4Storage.Attach(casc);            // or .Open(path)
+foreach (var e in d4.CoreToc.EntriesInGroup(SnoGroup.ParagonBoard))
+    Console.WriteLine($"{e.Id} {e.Name}");
+
+var td = d4.TextureMeta.Get(1208406);                  // 2DUI_ParagonNodes
+Console.WriteLine($"{td!.Codec} {td.Width}x{td.Height} {td.Frames.Count}");
+// (planned) byte[] rec = d4.ReadSno(SnoGroup.ParagonBoard, 2458674);
+```
+
+Typed `ContentKey`/`EncodingKey` value types (you cannot pass the wrong one
+— the precise bug class older `byte[]`-everywhere CASC libraries had) is a
+small but article-worthy "what modern looks like" detail.

@@ -4,8 +4,10 @@ using System.Threading;
 using System.Threading.Tasks;
 using WiseOwl.Casc.Configuration;
 using WiseOwl.Casc.Encoding;
+using System.Collections.Generic;
 using WiseOwl.Casc.Indices;
 using WiseOwl.Casc.Internal;
+using WiseOwl.Casc.Tvfs;
 
 namespace WiseOwl.Casc;
 
@@ -29,6 +31,7 @@ public sealed class CascStorage : IDisposable
     private readonly LocalIndex _index;
     private readonly object _gate = new();
     private EncodingTable? _encoding;          // lazily parsed
+    private TvfsManifest? _tvfs;               // lazily parsed
 
     private CascStorage(
         string installPath, BuildInfo build,
@@ -115,6 +118,57 @@ public sealed class CascStorage : IDisposable
     public Task<byte[]> ReadAsync(
         EncodingKey eKey, CancellationToken cancellationToken = default) =>
         Task.Run(() => Read(eKey), cancellationToken);
+
+    /// <summary>The storage's TVFS file system (parsed on first use). For
+    /// Diablo IV this is the <c>vfs-root</c> tree; <see langword="null"/> if
+    /// the storage has no TVFS.</summary>
+    public TvfsManifest? Tvfs
+    {
+        get
+        {
+            if (_tvfs is not null) return _tvfs;
+            if (Config.VfsRoot is not { } vr) return null;
+            lock (_gate)
+            {
+                if (_tvfs is null)
+                {
+                    // Nested vfs-N manifests are matched by their 9-byte
+                    // index prefix (TVFS/CFT keys are 9 bytes).
+                    var subKeys = new HashSet<ulong>();
+                    foreach (var k in Config.VfsManifestEncodingKeys())
+                        subKeys.Add(k.IndexPrefix);
+
+                    _tvfs = TvfsManifest.Parse(
+                        Read(vr.Encoding),
+                        ek => subKeys.Contains(ek.IndexPrefix),
+                        ek => Read(ek));
+                }
+            }
+            return _tvfs;
+        }
+    }
+
+    /// <summary>Resolve a TVFS path to its encoding key.</summary>
+    public bool TryResolvePath(string path, out EncodingKey eKey)
+    {
+        eKey = default;
+        return Tvfs is { } t && t.TryResolve(path, out eKey);
+    }
+
+    /// <summary>Read and BLTE-decode a file by its TVFS path
+    /// (e.g. <c>Base\CoreTOC.dat</c>).</summary>
+    /// <exception cref="CascContentNotFoundException">No such path / no TVFS.</exception>
+    public byte[] ReadPath(string path)
+    {
+        if (!TryResolvePath(path, out var eKey))
+            throw new CascContentNotFoundException(
+                $"Path '{path}' is not in the TVFS file system.");
+        return Read(eKey);
+    }
+
+    /// <summary>Open a TVFS file by path as a decoded stream.</summary>
+    public Stream OpenPath(string path) =>
+        new MemoryStream(ReadPath(path), writable: false);
 
     private byte[] ReadEnvelope(in ArchiveLocation loc)
     {

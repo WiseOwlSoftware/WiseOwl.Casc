@@ -5,7 +5,7 @@ namespace WiseOwl.Casc.Diablo4;
 
 /// <summary>
 /// A reader over a decoded Diablo IV SNO blob (the bytes you get back from
-/// <see cref="Diablo4Storage.OpenSnoAsync"/>). Encapsulates the verified D4
+/// <see cref="Diablo4Storage.OpenSno"/>). Encapsulates the verified D4
 /// conventions: a 16-byte <c>SNOFileHeader</c>, then the <b>payload base</b>
 /// at file offset <c>0x10</c> (where the SNO id sits), with every field
 /// offset and <c>DT_VARIABLEARRAY</c> <c>dataOffset</c> measured from that

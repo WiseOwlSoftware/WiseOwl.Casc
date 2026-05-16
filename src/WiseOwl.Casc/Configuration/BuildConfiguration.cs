@@ -59,6 +59,22 @@ public sealed class BuildConfiguration
     /// <c>71886_Win64Client_3_0_2</c>.</summary>
     public string BuildName => Values("build-name").FirstOrDefault() ?? string.Empty;
 
+    /// <summary>Every nested TVFS manifest's encoding key — the
+    /// <c>vfs-root</c> and <c>vfs-1 … vfs-N</c> entries (second token of
+    /// each). Used to detect when a TVFS span points at a sub-directory.</summary>
+    public IEnumerable<EncodingKey> VfsManifestEncodingKeys()
+    {
+        foreach (var kv in _entries)
+        {
+            if (kv.Key.Length < 4 ||
+                !kv.Key.StartsWith("vfs-", StringComparison.Ordinal) ||
+                kv.Key.EndsWith("-size", StringComparison.Ordinal))
+                continue;
+            if (kv.Value.Length >= 2 && EncodingKey.TryParse(kv.Value[1], out var ek))
+                yield return ek;
+        }
+    }
+
     /// <summary>Resolve the on-disk path of a config/manifest file from its
     /// hex key: <c>&lt;basePath&gt;/Data/config/&lt;k0k1&gt;/&lt;k2k3&gt;/&lt;key&gt;</c>.
     /// </summary>
