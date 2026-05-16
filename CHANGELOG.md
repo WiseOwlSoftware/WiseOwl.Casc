@@ -49,6 +49,18 @@ Semantic Versioning once it reaches `1.0.0`.
   documents the library/consumer boundary (FR-5) and the deferred
   `CoreTOCReplacedSnosMapping` (FR-6).
 
+### API documentation
+- Complete generated API reference under [`docs/api/`](docs/api/) for both
+  shippable packages (per-type + per-member Markdown, namespace-organized,
+  cross-linked, source-linked) — one index per package. Generated from the
+  mandatory XML doc comments via a pinned `xmldocmd` dotnet tool
+  (`.config/dotnet-tools.json`); regenerate with
+  `scripts/gen-api-docs.{sh,ps1}`. A CI `api-docs` job regenerates and
+  fails on any drift, so the reference can never fall out of sync with the
+  public surface. Hand-written `docs/api/README.md` gives the layered
+  reading guide (consumer-facing vs. infrastructure) and links the
+  byte-format spec.
+
 ### Round-3 — typed D4 record readers (B1–B6) + spec authority
 - Converged design (consumer requirements + casc pushback, owner-approved).
   Library now owns typed *record decoding* (raw fields); ships **no

@@ -65,6 +65,15 @@ foreach (var e in d4.CoreToc.EntriesInGroup(SnoGroup.ParagonBoard))
 
 See [`samples/`](samples/) for a runnable console.
 
+## Documentation
+
+- **[API reference](docs/api/)** — complete, generated per-type/per-member
+  docs for both packages ([WiseOwl.Casc](docs/api/WiseOwl.Casc/WiseOwl.Casc.md),
+  [WiseOwl.Casc.Diablo4](docs/api/WiseOwl.Casc.Diablo4/WiseOwl.Casc.Diablo4.md)).
+- **[Byte-format spec](docs/casc-format.md)** — the canonical CASC +
+  Diablo IV binary-layout reference (with correction log).
+- **[Dev logs](docs/devlog/)** — how each piece was built and why.
+
 ## Status
 
 Early (`0.1.0-alpha`). See [`CHANGELOG.md`](CHANGELOG.md),

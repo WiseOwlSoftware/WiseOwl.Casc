@@ -117,8 +117,14 @@ decision.
    intrinsic values, scoring, relight, JSON schema) referenced, never
    absorbed. Keep this file definitive; never re-introduce a second
    layout doc.
-6. CHANGELOG/devlog/ARTICLE-SOURCE upkeep each session.
-7. Later: future `.Wow`/`.Overwatch`/`.D2R` modules (core designed for them).
+6. **API docs** = generated from XML comments into `docs/api/` (per
+   package, per type/member) via pinned `xmldocmd`
+   (`.config/dotnet-tools.json`); regen `scripts/gen-api-docs.{sh,ps1}`;
+   CI `api-docs` job fails on drift. XML doc comments stay the source of
+   truth — never hand-edit `docs/api/`; change the comments + regenerate.
+   `docs/api/README.md` is the hand-written reading guide.
+7. CHANGELOG/devlog/ARTICLE-SOURCE upkeep each session.
+8. Later: future `.Wow`/`.Overwatch`/`.D2R` modules (core designed for them).
 
 ## Gotchas
 
