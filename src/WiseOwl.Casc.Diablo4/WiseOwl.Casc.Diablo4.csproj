@@ -16,6 +16,10 @@
     <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="9.0.0" />
   </ItemGroup>
 
+  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+    <Compile Include="../Shared/Polyfills.cs" Link="Polyfills.cs" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="../WiseOwl.Casc/WiseOwl.Casc.csproj" />
   </ItemGroup>
