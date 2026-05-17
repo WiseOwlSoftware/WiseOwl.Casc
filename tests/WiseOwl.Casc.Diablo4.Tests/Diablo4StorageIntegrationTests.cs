@@ -213,9 +213,35 @@ public sealed class Diablo4StorageIntegrationTests
         Assert.Equal(0, rl.BoardRotationQuadrant);
 
         // Staged-delivery contract: ratios Provisional until the §10.8
-        // 67.7 anchor reproduces — no pitch number asserted yet; the
-        // 18-row State matrix is filled only with decode-proven rows.
+        // 67.7 anchor reproduces — no pitch number asserted yet.
         Assert.True(rl.Ratios.Provisional);
         Assert.Equal(0d, rl.Ratios.PitchRef);
+
+        // §7.5 gate 1: exactly the 18 §7.2 rows, verbatim keys.
+        var expected = new (int r, string s)[]
+        {
+            (0,"unselected"),(0,"selected"),(2,"unselected"),(2,"selected"),
+            (3,"unselected"),(3,"selected"),(4,"unselected"),(4,"selected"),
+            (-1,"socket.unselected"),(-1,"socket.selected"),(-1,"socket.socketed"),
+            (-1,"gate.unselected"),(-1,"gate.selected"),
+            (-1,"start.unselected"),(-1,"start.selected"),
+            (-1,"overlay.selectionRing"),(-1,"overlay.connectorBar"),
+            (-1,"overlay.pointerTriangle"),
+        };
+        Assert.Equal(18, rl.States.Count);
+        Assert.Equal(expected,
+            rl.States.Select(s => (s.RarityOverride, s.State)).ToArray());
+
+        // Decode-true layers: disc = Node_IconBase base disc handle;
+        // Rare/Legendary add the gold ornate; overlays are app-drawn
+        // (empty layers, §10.11).
+        Assert.Equal(0x1D166DC7u, rl.Disc.TextureHandle);
+        var rare = rl.States.First(s => s.RarityOverride == 3 && s.State == "unselected");
+        Assert.Contains(rare.Layers, e => e.TextureHandle == 0x1D166DC7u);
+        Assert.Contains(rare.Layers, e => e.TextureHandle == 0x4A901508u);
+        var common = rl.States.First(s => s.RarityOverride == 0 && s.State == "unselected");
+        Assert.Contains(common.Layers, e => e.TextureHandle == 0x1D166DC7u);
+        Assert.DoesNotContain(common.Layers, e => e.TextureHandle == 0x4A901508u);
+        Assert.Empty(rl.States.First(s => s.State == "overlay.connectorBar").Layers);
     }
 }
