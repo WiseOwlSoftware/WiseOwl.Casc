@@ -4,9 +4,36 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project uses
 Semantic Versioning once it reaches `1.0.0`.
 
+## [0.1.1-alpha] — 2026-05-17
+
+Maintenance prerelease: analyzer-clean build, one API refinement.
+
+### Changed
+
+- **`Diablo4Storage.SnoPath` is now `static`** (it is a pure path
+  formatter and uses no instance state). Breaking vs `0.1.0-alpha`:
+  call `Diablo4Storage.SnoPath(...)` instead of `instance.SnoPath(...)`.
+  Acceptable as a pre-1.0 prerelease refinement.
+
+### Fixed
+
+- Resolved all analyzer warnings. `0.1.0-alpha` shipped with 6
+  (`CA1711` on `NodeAttribute` and `CA1822` on `SnoPath`, each ×3
+  TFMs) — the earlier "0 warnings" status was inaccurate. `NodeAttribute`
+  keeps its name with a documented `CA1711` suppression (it is the
+  serialized `eAttribute` domain term and matches the byte-format spec /
+  ARTICLE-SOURCE vocabulary; it is a data record, not a `System.Attribute`).
+
+### CI
+
+- Bumped GitHub Actions to Node-24 majors (`actions/checkout@v6`,
+  `actions/setup-dotnet@v5`) ahead of the 2026-06-02 Node-20
+  runner deprecation.
+
 ## [0.1.0-alpha] — 2026-05-16
 
-Initial release.
+Initial release. (Note: built with 6 analyzer warnings; see
+`0.1.1-alpha` above. No functional defect.)
 
 ### WiseOwl.Casc — CASC/TACT/TVFS/BLTE transport
 

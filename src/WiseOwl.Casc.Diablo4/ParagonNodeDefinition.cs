@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using WiseOwl.Casc.Internal;
 
 namespace WiseOwl.Casc.Diablo4;
@@ -45,6 +46,12 @@ public enum ParagonRarity
 /// <param name="InlineFormula">The node's own formula source text (read at
 /// specifier <c>+24</c> offset / <c>+28</c> size, payload-relative) when
 /// <see cref="FormulaGbid"/> is <c>0xFFFFFFFF</c>; otherwise empty.</param>
+[SuppressMessage("Naming", "CA1711:Identifiers should not have incorrect suffix",
+    Justification = "\"Attribute\" is the established Diablo IV domain term " +
+        "(the serialized eAttribute field; matches the spec, ARTICLE-SOURCE, " +
+        "and upstream RE record). This is a data record struct, not a " +
+        "System.Attribute; renaming would diverge the code from the " +
+        "canonical byte-format vocabulary.")]
 public readonly record struct NodeAttribute(
     int AttributeId,
     int NParam,

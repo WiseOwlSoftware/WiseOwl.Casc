@@ -27,7 +27,6 @@ public sealed class Diablo4Storage : IDisposable
 | [ReadParagonNode](Diablo4Storage/ReadParagonNode.md)(…) | Read + decode a [`ParagonNodeDefinition`](./ParagonNodeDefinition.md) by SNO id (group 106). |
 | [ReadSno](Diablo4Storage/ReadSno.md)(…) | Resolve and BLTE-read a SNO by id (the [`SnoGroup`](./SnoGroup.md) documents intent; the TVFS address is id-only). For Payload, an empty/absent direct payload is transparently resolved through the shared-payload mapping. (2 methods) |
 | [ReadSnoAsync](Diablo4Storage/ReadSnoAsync.md)(…) | Asynchronously resolve and read a SNO by id. |
-| [SnoPath](Diablo4Storage/SnoPath.md)(…) | The TVFS path a SNO resolves through: `<prefix>\<Folder>\<id>` (a child sub-id appends `-<subId>`). Verified empirically against the live build: Diablo IV addresses SNO content in TVFS by the numeric id — not by a `<group>\<name><ext>` name path and not by the `base:meta\<id>` colon form. |
 | [TryGetIconFrame](Diablo4Storage/TryGetIconFrame.md)(…) | Resolve a node icon handle ([`HIconMask`](./ParagonNodeDefinition/HIconMask.md) or [`HIcon`](./ParagonNodeDefinition/HIcon.md)) to the atlas SNO and [`TexFrame`](./TexFrame.md) that carry it — the first-party node↔icon link (`hIconMask == TexFrame.ImageHandle`). The handle→frame index is built once from [`TextureMeta`](./Diablo4Storage/TextureMeta.md) on first use. |
 | [TryGetSharedPayloadSource](Diablo4Storage/TryGetSharedPayloadSource.md)(…) | True if *id*'s payload is physically stored under another SNO; *sourceId* is that holder. |
 | [TryGetString](Diablo4Storage/TryGetString.md)(…) | Resolve a label within a known StringList table (SNO) to its localized text. Prefer this — labels are unique only within a table. (2 methods) |
@@ -36,6 +35,7 @@ public sealed class Diablo4Storage : IDisposable
 | const [ProductCode](Diablo4Storage/ProductCode.md) | The Diablo IV TACT product code. |
 | static [ExtensionFor](Diablo4Storage/ExtensionFor.md)(…) | The Diablo IV SNO-group → file-extension table (factual data, matching the current build). Unknown groups fall back to the numeric `.NNN` form the game uses. |
 | static [OpenAsync](Diablo4Storage/OpenAsync.md)(…) | Open a local Diablo IV installation asynchronously. |
+| static [SnoPath](Diablo4Storage/SnoPath.md)(…) | The TVFS path a SNO resolves through: `<prefix>\<Folder>\<id>` (a child sub-id appends `-<subId>`). Verified empirically against the live build: Diablo IV addresses SNO content in TVFS by the numeric id — not by a `<group>\<name><ext>` name path and not by the `base:meta\<id>` colon form. |
 
 ## Remarks
 
