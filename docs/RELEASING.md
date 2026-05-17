@@ -128,6 +128,11 @@ Repo → **Settings → Branches → Add branch ruleset / rule** for `main`:
   - `Build & test`
   - `API docs in sync`
 
+  For each added check there is a **source dropdown** — set it to
+  **GitHub Actions** (not "Any source"). These checks come from Actions;
+  pinning the source stops a same-named status from any other integration
+  from satisfying the gate.
+
   These are the `name:` values of the two jobs in `ci.yml`; the `&` and
   spaces are part of the string. The search only finds checks GitHub has
   observed in the last ~week — CI runs on every push/PR to `main`, so
