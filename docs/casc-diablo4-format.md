@@ -502,6 +502,20 @@ Verified against build `3.0.2.71886` (`build/SnoScan strings|scan|f32`):
   the rarity-tint element, exactly where §3's evidence predicted. Its
   property bag is where the tint colour/blend (or a definitive
   "shader-driven, no data" confirmation) will be read.
+- **Serialization model — a hash-addressed object graph (proven via the
+  root widget block at `0xE0`):** a widget's block is
+  `[offset][size][count]` → a kind tag (`0x22`/`0x02`/`0x03`) → `n`
+  entries, **each a triplet `(memberNameHash u32, 0x1332C78D, payload
+  u32)`**. `0x1332C78D` is a constant member separator/type marker
+  (ubiquitous). `payload` is either **`0xA4C42E02`** = "value is an
+  object reference, resolved by `memberNameHash` elsewhere", or an
+  **immediate value** (e.g. `0x3D47BD2C` → float `0.049`). Objects are
+  addressed by **32-bit name-hash, not file offset** — which is why the
+  format is dominated by recurring 32-bit constants and has few
+  pointers. `ParagonBoard_main` (root) lists **6 child refs**
+  (`003DC5C1 02D88AE7 03D55658 0594CC83 06F9158E 093CBAA8`). This
+  reframes the remaining work from "unknown format" to a **member-hash
+  vocabulary mapping**.
 
 **Refined finding — the geometry is indirect, not local px.** Scanning
 the disc / grey-ring / ornate binding property bags for a float matching
@@ -518,16 +532,19 @@ points to. This is itself a consumer-relevant answer: a literal authored
 `CellPitch` in px may not exist as stored data — it is likely
 `canvasPx × normalisedSpacing` over the `ParagonBoardDefinition` grid.
 
-**Still open (NOT decoded — no guesses emitted):** the **meaning of the
-property-name hashes**, the **root-header section table** (which points
-to the transform/layout block), and how the normalised factors combine
-to screen px. Two concrete unlock routes, both in progress: (a) decode
-the `0x20`/`0x68` section descriptors to find the transform block;
-(b) anchor the normalised values to px via a known-size oracle (the
-calibration capture requested in `docs/fr-c7-response.md` §6, or our own
-texture-native sizes once the size-property hash is identified). No
-`CellPitch`/size numbers are asserted until one of these proves the
-hash→meaning and the px derivation.
+**Still open (NOT decoded — no guesses emitted):** the **member-hash
+vocabulary** — which `memberNameHash` is width / height / anchor /
+pitch / tint colour / blend — and the normalised→screen-px derivation.
+The format model is now pinned (hash-addressed object graph, triplet
+members), so this is a tractable vocabulary problem, attacked by:
+(a) reading a *leaf image* widget's triplets (e.g. the disc-binding
+widget) where geometry members carry immediate float values, and
+correlating constant members across many widgets to label them;
+(b) anchoring the resulting normalised factors to px via a known-size
+oracle (our own texture-native sizes once the size member is found, or
+the calibration capture in `docs/fr-c7-response.md` §6). No
+`CellPitch`/size numbers are asserted until a `memberNameHash`→meaning
+is *proven*, not inferred.
 The typed `ParagonRenderLayout` ships only when these are pinned with a
 verbatim acceptance matrix — consistent with the FR's
 zero-guessed-constants contract.
