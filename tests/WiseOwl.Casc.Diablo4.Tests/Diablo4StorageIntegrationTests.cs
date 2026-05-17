@@ -134,4 +134,45 @@ public sealed class Diablo4StorageIntegrationTests
         var px = w * h;
         Assert.InRange(opaque, 1, px - 1);
     }
+
+    /// <summary>FR-C7 §7.4: the generic UI-scene reader. Decodes
+    /// <c>ParagonBoard</c> (657304, group 46, <c>0xE4825AB8</c>) and
+    /// asserts the spec §10 facts proven during RE: the root widget's
+    /// class id, and the CanvasRef rect (nWidth 1920 / nHeight 1200)
+    /// bound on <c>ParagonBoard_main</c>. Self-skips with no
+    /// install.</summary>
+    [SkippableFact]
+    public void ReadUiScene_decodes_ParagonBoard_widget_graph()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+
+        var scene = d4.ReadUiScene(657304);               // ParagonBoard
+        Assert.Equal(657304, scene.SnoId);
+        Assert.True(scene.Widgets.Count > 50,
+            $"expected a rich widget graph, got {scene.Widgets.Count}");
+
+        // The root widget, by the pinned header (§10.3): name +
+        // classOff(0xFFFFFFFF sentinel) decoded its class id.
+        var root = scene.Widgets.First(w => w.Name == "ParagonBoard_main");
+        Assert.Equal(0x1E3077C7u, root.ClassId);
+
+        // Named via the shipped hashes; values are the decoded facts
+        // (CanvasRef = 1920×1200; §10 / §10.11 table).
+        uint fW = Diablo4.FieldHash("nWidth");
+        uint fH = Diablo4.FieldHash("nHeight");
+        Assert.Contains(scene.Widgets, w =>
+            w.Fields.Any(f => f.FieldHash == fW && f.HasValue && f.RawValue == 1920) &&
+            w.Fields.Any(f => f.FieldHash == fH && f.HasValue && f.RawValue == 1200));
+
+        // The node container is present (the §10.11 ParagonNodes widget).
+        Assert.Contains(scene.Widgets, w => w.Name == "ParagonNodes");
+
+        // Every schema entry's separator is DT_BINDABLEPROPERTY by
+        // construction, so every field's TypeHash is a real DT_* id
+        // (DT_INT etc.) — sanity that pairing held.
+        Assert.Contains(scene.Widgets, w =>
+            w.Fields.Any(f => f.TypeHash == Diablo4.TypeHash("DT_INT")));
+    }
 }

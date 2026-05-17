@@ -290,6 +290,18 @@ public sealed class Diablo4Storage : IDisposable
 
     // ----- Typed Diablo IV record readers (raw fields only) ---------------
 
+    /// <summary>
+    /// Read + decode a Diablo IV <b>UI-scene</b> SNO (group
+    /// <see cref="UiScene.Group"/> = 46, format hash
+    /// <see cref="UiScene.FormatHash"/>) into its raw widget graph.
+    /// Generic surface (any <c>0xE4825AB8</c> SNO, e.g.
+    /// <c>ParagonBoard</c> 657304); raw fields only, no
+    /// layout/imaging/policy — see <see cref="UiScene"/>.
+    /// </summary>
+    /// <param name="snoId">The UI-scene SNO id.</param>
+    public UiScene ReadUiScene(int snoId) =>
+        UiScene.Parse(snoId, ReadSno(UiScene.Group, snoId));
+
     /// <summary>Read + decode a <see cref="ParagonBoardDefinition"/> by SNO
     /// id (group 108).</summary>
     public ParagonBoardDefinition ReadParagonBoard(int id) =>
