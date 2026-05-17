@@ -320,6 +320,74 @@ public sealed class Diablo4Storage : IDisposable
     public ParagonBoardDefinition ReadParagonBoard(int id) =>
         ParagonBoardDefinition.Parse(ReadSno(SnoGroup.ParagonBoard, id));
 
+    /// <summary>
+    /// Resolve a <c>ParagonBoard</c>'s <b>localized display name</b> — the
+    /// in-game board name ("Start", "Dynamism", "Pyrosis", …) — for a locale.
+    /// </summary>
+    /// <remarks>
+    /// <para>The board's localized name is not on
+    /// <see cref="ParagonBoardDefinition"/> (group 108) at all; it lives in
+    /// the board's <b>sibling StringList table</b> (group
+    /// <see cref="SnoGroup.StringList"/> = 42). The D4 convention, recovered
+    /// clean-room and recorded in <c>docs/casc-diablo4-format.md §6.4</c>
+    /// (Appendix A CL-15): the sibling table's CoreTOC name is
+    /// <c>"ParagonBoard_" + boardSnoName</c> (e.g. board
+    /// <c>Paragon_Warlock_00</c> → table
+    /// <c>ParagonBoard_Paragon_Warlock_00</c>), and the localized string is
+    /// under label <c>"Name"</c>. The SNO ids are unrelated (no fixed offset
+    /// — Warlock happens to be board−1, Sorcerer is not); resolution is
+    /// strictly name-keyed via <see cref="CoreToc"/>. Holds for every class
+    /// (Barb/Druid/Necro/Paladin/Rogue/Sorc/Spirit/Warlock).</para>
+    /// <para>Raw decoded value only — no fallback policy. If the board SNO
+    /// name is unknown, the sibling table is absent, or it carries no
+    /// <c>Name</c> label, this returns <see langword="false"/> and the
+    /// consumer owns the fallback (e.g. show the SnoName identifier).</para>
+    /// </remarks>
+    /// <param name="boardSnoId">The <c>ParagonBoard</c> SNO id (group 108).</param>
+    /// <param name="name">The localized board name, or <see cref="string.Empty"/>.</param>
+    /// <param name="locale">Locale (default <see cref="DefaultLocale"/>).</param>
+    /// <returns><see langword="true"/> iff a localized name was decoded.</returns>
+    public bool TryReadParagonBoardName(
+        int boardSnoId, out string name, string locale = DefaultLocale)
+    {
+        name = string.Empty;
+        if (!CoreToc.TryGetName(SnoGroup.ParagonBoard, boardSnoId, out var boardName))
+            return false;
+        if (!CoreToc.TryGetId(
+                SnoGroup.StringList, ParagonBoardStringTablePrefix + boardName,
+                out var tableSno))
+            return false;
+        return GetStrings(locale).TryGet(tableSno, ParagonBoardNameLabel, out name);
+    }
+
+    /// <summary>
+    /// Resolve a <c>ParagonBoard</c>'s localized display name, throwing if it
+    /// cannot be resolved. See <see cref="TryReadParagonBoardName"/> for the
+    /// convention, the boundary (raw value only), and the no-fallback note;
+    /// prefer that overload when the consumer owns an unknown-name fallback.
+    /// </summary>
+    /// <param name="boardSnoId">The <c>ParagonBoard</c> SNO id (group 108).</param>
+    /// <param name="locale">Locale (default <see cref="DefaultLocale"/>).</param>
+    /// <returns>The localized board name.</returns>
+    /// <exception cref="SnoNotFoundException">The board SNO, its sibling
+    /// StringList table, or the <c>Name</c> label could not be resolved.</exception>
+    public string ReadParagonBoardName(
+        int boardSnoId, string locale = DefaultLocale) =>
+        TryReadParagonBoardName(boardSnoId, out var n, locale)
+            ? n
+            : throw new SnoNotFoundException(
+                $"No localized name for ParagonBoard SNO {boardSnoId} " +
+                $"(locale '{locale}'): sibling StringList table or '" +
+                $"{ParagonBoardNameLabel}' label not found.");
+
+    /// <summary>CoreTOC-name prefix of a <c>ParagonBoard</c>'s sibling
+    /// StringList table (the board SnoName prefixed with this).</summary>
+    private const string ParagonBoardStringTablePrefix = "ParagonBoard_";
+
+    /// <summary>Label of the localized board name within the sibling
+    /// StringList table.</summary>
+    private const string ParagonBoardNameLabel = "Name";
+
     /// <summary>Read + decode a <see cref="ParagonNodeDefinition"/> by SNO
     /// id (group 106).</summary>
     public ParagonNodeDefinition ReadParagonNode(int id) =>

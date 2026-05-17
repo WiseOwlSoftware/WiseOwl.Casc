@@ -370,6 +370,21 @@ switch (cmd)
         }
         return 0;
     }
+    case "stl":
+    {
+        // Dump a StringList table (group 42 SNO) for a locale: every
+        // label -> localized text pair.  FR-D1 recon.
+        if (argv.Count < 2) { Console.Error.WriteLine("stl <sno> [locale]"); return 2; }
+        int stlSno = int.Parse(argv[1]);
+        var loc = argv.Count > 2 ? argv[2] : "enUS";
+        var cat = d4.GetStrings(loc);
+        var tbl = cat.Table(stlSno);
+        if (tbl is null) { Console.WriteLine($"no table sno={stlSno} in {loc}"); return 1; }
+        Console.WriteLine($"sno={stlSno} name={tbl.Name ?? "<?>"} locale={loc} entries={tbl.Entries.Count}");
+        foreach (var kv in tbl.Entries)
+            Console.WriteLine($"  [{kv.Key}] = {kv.Value}");
+        return 0;
+    }
     default:
         Console.Error.WriteLine($"unknown command '{cmd}'");
         return 2;

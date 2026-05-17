@@ -272,6 +272,51 @@ label.
   `DungeonAffix_Positive_Torment_AncestralElites`: `AffixName` →
   `"{c_white}Dungeon Delve{/c}"`.
 
+### 6.4 Sibling-table convention: ParagonBoard localized name (FR-D1)
+
+A `ParagonBoardDefinition` (group 108, §7.1) carries **no** name,
+name-string-id, or GBID. A board's **localized display name** ("Start",
+"Dynamism", "Pyrosis", …) lives in the board's **sibling StringList
+table** (group 42), resolved strictly by **CoreTOC name**:
+
+```
+boardName = CoreToc.GetName(108, boardSnoId)        ; e.g. "Paragon_Warlock_00"
+tableName = "ParagonBoard_" + boardName             ; "ParagonBoard_Paragon_Warlock_00"
+tableSno  = CoreToc.GetId(42, tableName)            ; group-42 StringList SNO
+text      = GetStrings(locale).TryGet(tableSno, "Name")
+```
+
+- The label within the sibling table is **`Name`** (the table holds
+  exactly one entry on the verified build).
+- Resolution is **name-keyed only**. The two SNO ids have **no fixed
+  offset**: Warlock's table happens to be `boardSnoId − 1`
+  (`Paragon_Warlock_00` 2458674 → `ParagonBoard_Paragon_Warlock_00`
+  2458673) but Sorcerer's is not (`Paragon_Sorc_00` 939773 →
+  `ParagonBoard_Paragon_Sorc_00` 1111181). Never derive the table SNO
+  arithmetically.
+- Holds for **every** class stem on the verified build (`Paragon_Barb`,
+  `_Druid`, `_Necro`, `_Paladin`, `_Rogue`, `_Sorc`, `_Spirit`,
+  `_Warlock`).
+- Locale-aware end to end (the StringList catalog is per-locale).
+
+Verified anchors (build `3.0.2.71886`):
+
+| Board SNO (108) | Board name | Table SNO (42) | `Name` (enUS) | `Name` (deDE) |
+|---|---|---|---|---|
+| 2458674 | `Paragon_Warlock_00` (IsStart) | 2458673 | `Start` | — |
+| 2458680 | `Paragon_Warlock_03` | 2458679 | `Dynamism` | `Dynamismus` |
+| 2458682 | `Paragon_Warlock_04` | 2458681 | `Pyrosis` | — |
+| 2458692 | `Paragon_Warlock_10` | 2458691 | `Dominion` | — |
+
+Shipped surface: `Diablo4Storage.TryReadParagonBoardName(int boardSnoId,
+out string name, string locale = "enUS")` and the throwing
+`ReadParagonBoardName`. Raw decoded value only — **no fallback policy**
+(an unknown board / absent sibling table / missing `Name` label returns
+`false` / `string.Empty`; the consumer owns the SnoName fallback).
+`SnoGroup.StringList = 42` is now a named group (still not per-SNO
+path-addressable; meaningful for CoreTOC name↔id resolution). See
+Appendix A CL-15.
+
 ## 7. Paragon record layouts (SNO groups 106 / 108 / 111 / 112)
 
 All offsets payload-relative (base `0x10`).
@@ -831,6 +876,22 @@ true value (the sections above already state the corrected truth).
   exploratory-derived `450` and the correct parser returned `0` —
   the §10.11 table was corrected to the authoritative values and the
   exploratory tool is downgraded to recon-only.
+
+- **CL-15 — ParagonBoard localized name is a sibling StringList table,
+  name-keyed (FR-D1).** `ParagonBoardDefinition` (group 108) carries no
+  name/name-id/GBID; the in-game board name is in the group-42
+  StringList SNO whose CoreTOC name is `"ParagonBoard_" + boardSnoName`,
+  under label `Name`. The two SNO ids have **no fixed offset** — an
+  early observation that Warlock's table is `boardSnoId − 1` was
+  *not* generalised: Sorcerer's is not (`Paragon_Sorc_00` 939773 →
+  `ParagonBoard_Paragon_Sorc_00` 1111181), so resolution is strictly
+  CoreTOC-name-keyed. Convention recorded in §6.4; acceptance
+  (`Paragon_Warlock_00` → `Start`, `Paragon_Warlock_03` → `Dynamism`
+  enUS / `Dynamismus` deDE) is asserted by the
+  `ReadParagonBoardName_resolves_localized_board_name` integration
+  test. Shipped surface: `Diablo4Storage.TryReadParagonBoardName` /
+  `ReadParagonBoardName`; `SnoGroup.StringList = 42` named. Raw value
+  only, no fallback policy (consumer owns the SnoName fallback).
 
 ## Appendix B — provenance & migration map
 

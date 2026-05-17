@@ -202,8 +202,22 @@ decision.
    `build/SnoScan` (recon only, per CL-14). NEVER fabricate a number;
    the oracle is the check, not the source — discipline held all round
    (CL-13/14 caught over-claims before ship).
-10. CHANGELOG/devlog/ARTICLE-SOURCE upkeep each session.
-11. Later: future `.Wow`/`.Overwatch`/`.D2R` modules (core designed for them).
+10. **FR-D1 (DELIVERED — devlog 0012, spec §6.4 + CL-15, consumer
+    report `docs/fr-d1-response.md`).** Answer **(B)**: a ParagonBoard's
+    localized display name is an **API gap** → shipped minimal typed
+    surface. Convention (clean-room, name-keyed — **no SNO offset**):
+    board `Paragon_<Class>_<NN>` (group 108) → sibling StringList SNO
+    (group 42) named `"ParagonBoard_" + boardSnoName`, label `Name`.
+    Public: `Diablo4Storage.TryReadParagonBoardName(id, out name,
+    locale="enUS")` + throwing `ReadParagonBoardName`; `SnoGroup
+    .StringList = 42` named. Raw value only, **no fallback policy**
+    (consumer owns SnoName fallback). Acceptance asserted by
+    `ReadParagonBoardName_resolves_localized_board_name` (Warlock_00→
+    `Start`, Warlock_03→`Dynamism`/deDE `Dynamismus`). `SnoScan stl
+    <sno> <locale>` added (recon-only). Same amend-until-publish
+    contract as FR-C7.
+11. CHANGELOG/devlog/ARTICLE-SOURCE upkeep each session.
+12. Later: future `.Wow`/`.Overwatch`/`.D2R` modules (core designed for them).
 
 ## Gotchas
 
