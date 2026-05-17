@@ -396,4 +396,58 @@ public sealed class Diablo4StorageIntegrationTests
         Assert.Equal(classes.Count, de.Count);
         Assert.Contains(de, c => c.SnoName == "Sorcerer");
     }
+
+    /// <summary>FR-D3: glyph→class membership is first-party, keyed to
+    /// the shared PlayerClass SNO id, decoded from the fUsableByClass
+    /// fixed array indexed by eClass rank (§7.3 / CL-18).</summary>
+    [SkippableFact]
+    public void ReadParagonGlyph_resolves_usable_by_class()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+
+        var sorcerer    = d4.CoreToc.GetId(SnoGroup.PlayerClass, "Sorcerer")!.Value;
+        var druid       = d4.CoreToc.GetId(SnoGroup.PlayerClass, "Druid")!.Value;
+        var necromancer = d4.CoreToc.GetId(SnoGroup.PlayerClass, "Necromancer")!.Value;
+        var spiritborn  = d4.CoreToc.GetId(SnoGroup.PlayerClass, "Spiritborn")!.Value;
+        var paladin     = d4.CoreToc.GetId(SnoGroup.PlayerClass, "Paladin")!.Value;
+        const int warlock = 2207749; // FR-D1/D2 shared key (acceptance probe)
+        Assert.Equal(warlock, d4.CoreToc.GetId(SnoGroup.PlayerClass, "Warlock"));
+
+        // Warlock-usable glyph (slot = eClass rank 7) → includes 2207749.
+        var wlk = d4.ReadParagonGlyph(2529463); // Rare_111_Willpower_Main
+        Assert.Contains(warlock, wlk.UsableByClassSnoIds);
+
+        // Single-class Sorcerer glyph (slot 0) → Sorcerer only, excludes Warlock.
+        var sor = d4.ReadParagonGlyph(1023184); // Rare_001_Intelligence_Main
+        Assert.Equal(new[] { sorcerer }, sor.UsableByClassSnoIds);
+        Assert.DoesNotContain(warlock, sor.UsableByClassSnoIds);
+
+        // Independent first-party anchor: an explicitly Necromancer glyph
+        // (eClass rank 4) → Necromancer.
+        var nec = d4.ReadParagonGlyph(1331846); // Rare_033_Willpower_Side_Necro
+        Assert.Equal(new[] { necromancer }, nec.UsableByClassSnoIds);
+
+        // Multi-class glyph → the full correct set (slots 3/5/6 =
+        // Druid / Spiritborn / Paladin by eClass rank).
+        var multi = d4.ReadParagonGlyph(1029487); // Rare_063_Intelligence_Side
+        Assert.Equal(
+            new[] { druid, spiritborn, paladin }.OrderBy(x => x).ToArray(),
+            multi.UsableByClassSnoIds.OrderBy(x => x).ToArray());
+
+        // Junk/placeholder ("Axe Bad Data", malformed record) → honest
+        // empty sentinel, never a silently-wrong (all-class) set.
+        var junk = d4.ReadParagonGlyph(732443);
+        Assert.Empty(junk.UsableByClassSnoIds);
+
+        // Byte-only Parse leaves it unresolved (identity needs CoreTOC).
+        var byteOnly = ParagonGlyphDefinition.Parse(
+            d4.ReadSno(SnoGroup.ParagonGlyph, 2529463));
+        Assert.Empty(byteOnly.UsableByClassSnoIds);
+
+        // Shared key really joins to FR-D1/D2.
+        Assert.Contains(d4.ReadCharacterClasses(),
+            c => c.SnoId == warlock && c.SnoName == "Warlock");
+    }
 }

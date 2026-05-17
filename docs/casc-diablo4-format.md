@@ -442,10 +442,44 @@ Cells = `dataSize / 4` LE `u32` SNO ids, row-major
 | Offset | Type | Field |
 |---|---|---|
 | 0 | DT_INT | `snoId` |
+| 0x24 | DT_FIXEDARRAY[DT_INT] | `fUsableByClass` — per-class boolean (non-zero ⇒ usable); slot = the class's **eClass rank** (see below). On the verified build slots 0–7 carry the 8 classes; 8–10 are pad. |
+| 0x50 | u32 | affix array `dataOffset` (== 104 for a well-formed glyph) — the structural well-formed guard |
 | 104 / 108 / 112 | DT_SNO ×3 | up to three affix SNO ids (`0` / `0xFFFFFFFF` slots omitted) |
 
 Some group-111 SNOs are short placeholder records — bounds-check before
 reading `+104`.
+
+**Glyph→class membership (FR-D3).** The slot index of a class in
+`fUsableByClass` is its **eClass rank**: the position of the class when
+the §6.5 PlayerClass roster is ordered ascending by the class's
+`eClass` ordinal, read from the **PlayerClass record payload `+16`**.
+On build `3.0.2.71886` the eClass ordinals are sparse and rank-compact
+to 0–7:
+
+| Rank (glyph slot) | Class | eClass (PlayerClass +16) | PlayerClass SNO |
+|---|---|---|---|
+| 0 | Sorcerer | 0 | 131965 |
+| 1 | Barbarian | 1 | 169776 |
+| 2 | Rogue | 3 | 199275 |
+| 3 | Druid | 5 | 131966 |
+| 4 | Necromancer | 6 | 199277 |
+| 5 | Spiritborn | 7 | 1206232 |
+| 6 | Paladin | 9 | 2079084 |
+| 7 | Warlock | 10 | 2207749 |
+
+This ordering is **data-driven** (computed from live eClass ordinals,
+never hardcoded) and **over-determined**: it is independently
+corroborated by (a) the explicitly-named `*_Necro` glyphs setting
+exactly rank-4 (= Necromancer) and (b) the consumer's
+empirically-validated Warlock = index 7 (= rank 7). Membership is keyed
+to the **PlayerClass SNO id** — the shared class key with §6.5 / §6.6
+(FR-D1/D2). A malformed/placeholder glyph (affix `dataOffset` at
+`+0x50` ≠ 104, e.g. the `Axe Bad Data` junk SNO 732443, which
+otherwise reads a spurious all-8 pattern) yields an **empty** set —
+honest sentinel, never a silently-wrong class. Shipped surface:
+`ParagonGlyphDefinition.UsableByClassSnoIds`, populated by
+`Diablo4Storage.ReadParagonGlyph(int)` (byte-only `Parse(blob)` leaves
+it empty — the ordering needs `CoreToc`). See Appendix A CL-18.
 
 ### 7.4 `ParagonGlyphAffixDefinition` (group 112, `.gaf`)
 
@@ -1006,6 +1040,29 @@ true value (the sections above already state the corrected truth).
   `Diablo4Storage.ReadCharacterClasses(locale)` →
   `IReadOnlyList<CharacterClass>` (SnoId/SnoName/DisplayName), ordered
   by SnoId, cached per locale.
+
+- **CL-18 — Glyph→class membership = `fUsableByClass` indexed by eClass
+  rank (FR-D3).** `ParagonGlyphDefinition` (group 111) carries a
+  per-class boolean fixed array `fUsableByClass` at payload `+0x24`.
+  The slot for a class is its **eClass rank**: position when the §6.5
+  PlayerClass roster is sorted ascending by the class's `eClass`
+  ordinal (PlayerClass record payload `+16`; sparse 0/1/3/5/6/7/9/10 →
+  rank-compact 0..7). Decoded library-side per the durable opaque-id
+  principle — **not** a consumer bit-order guess and **not** the
+  Maxroll `classFilter`. The mapping is **over-determined**: the
+  explicitly-named `*_Necro` glyphs set exactly rank 4 (= Necromancer)
+  and the consumer's empirically-verified Warlock = index 7 (= rank 7)
+  both independently confirm the eClass-rank derivation; Sorcerer = rank
+  0 cross-checks (Intelligence_Main glyph). Well-formed guard: affix
+  `dataOffset` at payload `+0x50` == 104 — the `Axe Bad Data` junk SNO
+  (732443, a 120-byte placeholder) otherwise reads a spurious all-8
+  pattern, so it is gated to an empty set. Recorded in §7.3; acceptance
+  (Warlock-usable → 2207749; Sorcerer-only excludes Warlock; `_Necro`
+  → Necromancer; multi-class → full set; junk → empty) asserted by
+  `ReadParagonGlyph_resolves_usable_by_class`. Shipped:
+  `ParagonGlyphDefinition.UsableByClassSnoIds` (the shared class key),
+  populated by `Diablo4Storage.ReadParagonGlyph(int)`; byte-only
+  `Parse(blob)` leaves it empty.
 
 ## Appendix B — provenance & migration map
 

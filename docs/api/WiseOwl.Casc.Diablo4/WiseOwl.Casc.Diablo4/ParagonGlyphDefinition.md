@@ -13,6 +13,7 @@ public sealed class ParagonGlyphDefinition
 | static [Parse](ParagonGlyphDefinition/Parse.md)(…) | Decode a ParagonGlyph from its raw SNO blob. |
 | [AffixSnoIds](ParagonGlyphDefinition/AffixSnoIds.md) { get; } | The glyph's ParagonGlyphAffix SNO ids (0..3, in slot order). |
 | [SnoId](ParagonGlyphDefinition/SnoId.md) { get; } | The glyph's own SNO id. |
+| [UsableByClassSnoIds](ParagonGlyphDefinition/UsableByClassSnoIds.md) { get; } | The set of classes that may socket this glyph, as PlayerClass SNO ids — the shared class key (== [`SnoId`](./CharacterClass/SnoId.md) / [`ClassSnoId`](./ParagonBoardDefinition/ClassSnoId.md); FR-D3). Empty if decoded via the byte-only [`Parse`](./ParagonGlyphDefinition/Parse.md) (no [`CoreToc`](./CoreToc.md) to resolve the class ordering), or for a malformed/placeholder glyph record (honest empty sentinel — never a silently-wrong class). |
 
 ## Remarks
 

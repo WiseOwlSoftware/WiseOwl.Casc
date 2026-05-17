@@ -410,6 +410,27 @@ switch (cmd)
         Console.WriteLine($"-- {shown} hit(s) --");
         return 0;
     }
+    case "glyphclass":
+    {
+        // FR-D3 recon: for every group-111 glyph, print snoId/name and
+        // the int32 values of the candidate class-eligibility fixed array
+        // at absolute 0x34 (payload+0x24), 12 slots. Recon only.
+        int slots = argv.Count > 1 ? int.Parse(argv[1]) : 12;
+        foreach (var e in toc.Entries)
+        {
+            if ((int)e.Group != 111) continue;
+            if (!d4.TryReadSno(111, e.Id, SnoFolder.Meta, out var b)) continue;
+            var sb = new System.Text.StringBuilder();
+            for (int s = 0; s < slots; s++)
+            {
+                int o = 0x34 + s * 4;
+                sb.Append(o + 4 <= b.Length ? BitConverter.ToInt32(b, o) : 0);
+                sb.Append(s == slots - 1 ? "" : ",");
+            }
+            Console.WriteLine($"{e.Id,9} len={b.Length,4} [{sb}] {e.Name}");
+        }
+        return 0;
+    }
     default:
         Console.Error.WriteLine($"unknown command '{cmd}'");
         return 2;

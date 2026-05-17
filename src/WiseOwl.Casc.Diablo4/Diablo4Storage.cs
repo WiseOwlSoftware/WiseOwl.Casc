@@ -51,6 +51,7 @@ public sealed class Diablo4Storage : IDisposable
     private readonly Dictionary<string, StringListCatalog> _strings = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, IReadOnlyList<CharacterClass>> _classes = new(StringComparer.OrdinalIgnoreCase);
     private (int SnoId, string SnoName)[]? _classRoster;
+    private (int SnoId, int Rank)[]? _classRanks;
     private readonly object _gate = new();
 
     /// <summary>The default locale (the one most installs ship enabled).</summary>
@@ -545,6 +546,60 @@ public sealed class Diablo4Storage : IDisposable
         }
     }
 
+    /// <summary>
+    /// The §6.5 class roster as <c>(SnoId, Rank)</c>, where <c>Rank</c> is
+    /// the class's position when the roster is ordered ascending by its
+    /// <c>eClass</c> ordinal (PlayerClass record payload <c>+16</c>) — the
+    /// first-party slot order of the glyph <c>fUsableByClass</c> array
+    /// (FR-D3, §7.3 / CL-18). Locale-independent; cached.
+    /// </summary>
+    /// <remarks>
+    /// Data-driven, not a hardcoded order: on the verified build the
+    /// eClass ordinals are sparse (Sorcerer 0, Barbarian 1, Rogue 3,
+    /// Druid 5, Necromancer 6, Spiritborn 7, Paladin 9, Warlock 10) and
+    /// rank-compact to 0..7 — independently corroborated by the
+    /// explicitly-named <c>*_Necro</c> glyphs (rank 4 = Necromancer) and
+    /// the consumer's empirically-verified Warlock = index 7.
+    /// </remarks>
+    private (int SnoId, int Rank)[] PlayerClassRanks()
+    {
+        lock (_gate)
+        {
+            if (_classRanks is not null) return _classRanks;
+            var roster = PlayerClassRoster();
+            var byEClass = new (int SnoId, int EClass)[roster.Length];
+            for (var i = 0; i < roster.Length; i++)
+            {
+                var rec = new SnoRecord(
+                    ReadSno(SnoGroup.PlayerClass, roster[i].SnoId));
+                byEClass[i] = (roster[i].SnoId, (int)rec.U32(PlayerClassEClassOffset));
+            }
+            Array.Sort(byEClass, (a, b) => a.EClass.CompareTo(b.EClass));
+            var ranks = new (int, int)[byEClass.Length];
+            for (var r = 0; r < byEClass.Length; r++)
+                ranks[r] = (byEClass[r].SnoId, r);
+            _classRanks = ranks;
+            return ranks;
+        }
+    }
+
+    /// <summary>PlayerClass record payload offset of the <c>eClass</c>
+    /// ordinal (the game's internal class enum value; ranked to give the
+    /// glyph class-array slot order — §7.3 / CL-18).</summary>
+    private const int PlayerClassEClassOffset = 16;
+
+    /// <summary>Glyph record payload offset of the <c>fUsableByClass</c>
+    /// per-class boolean fixed array (int32 per slot; slot = eClass
+    /// rank).</summary>
+    private const int GlyphUsableByClassOffset = 0x24;
+
+    /// <summary>Glyph record payload offset whose value is the affix
+    /// array's <c>dataOffset</c> (== 104 for a well-formed glyph). Used as
+    /// the structural well-formed guard so malformed/placeholder records
+    /// (e.g. the <c>Axe Bad Data</c> junk SNO) yield an empty membership
+    /// instead of a silently-wrong class set.</summary>
+    private const int GlyphAffixDescriptorOffset = 0x50;
+
     /// <summary>The <c>General</c> StringList table SNO that holds the
     /// localized class names (build-stable; re-verify per Appendix D).</summary>
     private const int GeneralStringTableSno = 4118;
@@ -563,10 +618,46 @@ public sealed class Diablo4Storage : IDisposable
     public ParagonNodeDefinition ReadParagonNode(int id) =>
         ParagonNodeDefinition.Parse(ReadSno(SnoGroup.ParagonNode, id));
 
-    /// <summary>Read + decode a <see cref="ParagonGlyphDefinition"/> by SNO
-    /// id (group 111).</summary>
-    public ParagonGlyphDefinition ReadParagonGlyph(int id) =>
-        ParagonGlyphDefinition.Parse(ReadSno(SnoGroup.ParagonGlyph, id));
+    /// <summary>
+    /// Read + decode a <see cref="ParagonGlyphDefinition"/> by SNO id
+    /// (group 111), with its class membership resolved
+    /// (<see cref="ParagonGlyphDefinition.UsableByClassSnoIds"/> — FR-D3).
+    /// </summary>
+    /// <remarks>
+    /// The record's <c>fUsableByClass</c> boolean fixed array (payload
+    /// <c>+0x24</c>) is indexed by <b>eClass rank</b> (see
+    /// <see cref="PlayerClassRanks"/>); membership = the §6.5 PlayerClass
+    /// SNO ids whose rank slot is non-zero. Only resolved for a
+    /// structurally well-formed glyph (the affix descriptor at payload
+    /// <c>+0x50</c> == 104); malformed/placeholder records get an empty
+    /// set (honest sentinel, per the durable opaque-id boundary —
+    /// Appendix C / CL-18). Raw decoded values only.
+    /// </remarks>
+    public ParagonGlyphDefinition ReadParagonGlyph(int id)
+    {
+        var blob = ReadSno(SnoGroup.ParagonGlyph, id);
+        var glyph = ParagonGlyphDefinition.Parse(blob);
+
+        var rec = new SnoRecord(blob);
+        // Structural well-formed guard: a real glyph has the affix array
+        // descriptor (dataOffset == 104) here; the placeholder/junk record
+        // does not. Avoids emitting a silently-wrong class set.
+        if (rec.PayloadBase + GlyphAffixDescriptorOffset + 4 <= rec.Length &&
+            rec.U32(GlyphAffixDescriptorOffset) == 104)
+        {
+            var ranks = PlayerClassRanks();
+            var hits = new List<int>(ranks.Length);
+            foreach (var (snoId, rank) in ranks)
+            {
+                var off = GlyphUsableByClassOffset + rank * 4;
+                if (rec.PayloadBase + off + 4 <= rec.Length &&
+                    rec.U32(off) != 0)
+                    hits.Add(snoId);
+            }
+            if (hits.Count > 0) glyph.SetUsableByClassSnoIds(hits.ToArray());
+        }
+        return glyph;
+    }
 
     /// <summary>Read + decode a <see cref="ParagonGlyphAffixDefinition"/> by
     /// SNO id (group 112).</summary>

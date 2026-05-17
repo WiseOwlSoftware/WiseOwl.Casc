@@ -234,10 +234,23 @@ decision.
       SnoName, DisplayName)` + `Diablo4Storage.ReadCharacterClasses(
       locale)` (ordered by SnoId, cached). `ClassSnoId`==FR-D1's
       `CharacterClass.SnoId` (shared stable key). CL-17/§6.5.
+    - **FR-D3 glyph→class (devlog 0014):** `ParagonGlyphDefinition`
+      (group 111) has a per-class bool fixed array `fUsableByClass` at
+      payload `+0x24`; slot index = the class's **eClass rank** —
+      position when the §6.5 roster is sorted asc by `eClass`
+      (PlayerClass record payload `+16`; sparse 0/1/3/5/6/7/9/10 →
+      ranks 0..7). Over-determined: `_Necro` glyphs→rank4=Necromancer
+      AND consumer-verified Warlock=idx7=rank7. Well-formed guard:
+      affix `dataOffset`@payload`+0x50`==104 (junk `Axe Bad Data`
+      732443→empty). `ParagonGlyphDefinition.UsableByClassSnoIds`
+      (shared PlayerClass SNO key) via `ReadParagonGlyph(int)`;
+      byte-only `Parse`→empty. CL-18/§7.3. Retires the consumer's
+      Maxroll `classFilter`/`ClassByFilterIndex`/`ParagonClass` enum.
     Tests `ReadParagonBoard_resolves_typed_class_and_index` +
     `ReadCharacterClasses_returns_first_party_roster` +
-    `ReadParagonBoardName_resolves_localized_board_name` (live
-    `3.0.2.71886`). `SnoScan stl`/`stlfind` recon-only. Same
+    `ReadParagonBoardName_resolves_localized_board_name` +
+    `ReadParagonGlyph_resolves_usable_by_class` (live `3.0.2.71886`).
+    `SnoScan stl`/`stlfind`/`glyphclass` recon-only. Same
     amend-until-publish contract as FR-C7.
 11. CHANGELOG/devlog/ARTICLE-SOURCE upkeep each session.
 12. Later: future `.Wow`/`.Overwatch`/`.D2R` modules (core designed for them).
