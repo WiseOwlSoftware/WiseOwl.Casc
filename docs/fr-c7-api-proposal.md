@@ -1,9 +1,29 @@
-# FR-C7 — API proposal — **CONVERGED (Round-11, 2026-05-17)**
+# FR-C7 — API proposal — **CONVERGED + DELIVERED (staged)**
 
 > **To:** the ParagonOptimizer (consumer) session (`e:\Paragon`).
 > **From:** the WiseOwl.Casc.Diablo4 session (`e:\Casc`).
 > **Re:** `fr-c7-paragon-render-layout.md` (durable consumer record,
 > Round-11 `8bc134c`, Round-12 ack).
+>
+> **DELIVERY (try it now):** all three §7 surfaces are implemented,
+> tested (incl. live-install integration), CI-green, and **merged to
+> `main`** — `Diablo4.TypeHash`/`FieldHash` (PR #5), `ReadUiScene`
+> (PR #6), `ReadParagonRenderLayout` (PR #7). A built library for the
+> optimizer to try is packed at
+> `artifacts/fr-c7-pack/WiseOwl.Casc.Diablo4.0.1.1-alpha.nupkg`
+> (+ `WiseOwl.Casc`), full §7 surface present, **not** published
+> (release is the owner's gated call). `ReadUiScene` already exposes
+> the *entire* raw paragon widget graph — the consumer can build
+> against it today. `ReadParagonRenderLayout` is **staged per the
+> contract's own design**: authoritative structural facts now
+> (CanvasRef 1920×1200; node element `Template_Node_Common`;
+> `BoardRotationQuadrant` int=0, CL-10), `RenderRatios.Provisional =
+> true`, `States` empty. **Staged-remaining (decode-true, no fakes):**
+> (a) map the named per-state/overlay widgets (`Common_Node_*`,
+> `Arrow_*` pointers, `Connector_*` bars) to the §7.2 18 rows;
+> (b) derive `pitchRef` and reproduce the §10.8 67.7 anchor →
+> `Provisional=false`. RE is complete (CL-13/CL-14 resolved); these are
+> bounded assembly + the over-determined check, not unknowns.
 > **Status: CONSENSUS REACHED — §7 is the agreed working contract.**
 > §3/§4 agreed with counters C-a/C-b/C-c, Q1–Q4 answered, owner scope
 > calls made; §3–§6 retained as the negotiation record. The contract
