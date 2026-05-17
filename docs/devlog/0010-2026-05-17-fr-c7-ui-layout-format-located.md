@@ -48,3 +48,32 @@ through-line as the analyzer-honesty correction one devlog earlier.
 Next: decode the `0xE4825AB8` widget-node struct + anchor/size encoding
 + per-state binding table, then the typed `ParagonRenderLayout` reader
 with a verbatim acceptance matrix.
+
+## Continuation (same day) — structure decoded, one FR answer banked
+
+Pushed into the format with `SnoScan strings|scan|f32`. It is a **named
+widget-tree / serialized object graph**: inline ASCII widget names
+(`ParagonBoard_main` → `Content` → `ParagonNodes` → `_BaseLayer` /
+`_TopLayer` / `_BoardRotationLayer`, `Storyboard_ScaleTest`, …) — the
+rotation- and scale-bearing widgets the FR needs exist and are named.
+The texture-binding micro-struct is now proven:
+`tag(0x22|0x02|0x03) 0 handle 0`, with widget records carrying offset
+back-references and a recurring shared node-element style handle pair
+(`012FC68B`/`A4C42E02`).
+
+A real FR answer was banked, not deferred: scanning for the consumer's
+catalogued handles, the **rarity fill swatches and the orange ornate are
+absent** from `ParagonBoard` — only the *neutral* disc, rings and gold
+ornate are bound. That is positive evidence that per-rarity colour is a
+**shader tint on the neutral disc, not a per-rarity texture**: the
+consumer's §2.3 recipe model is the correct one, and a "hand me the
+per-rarity disc texture" API would have been wrong. Finding the *absence*
+and reporting it is itself a deliverable (the FR explicitly invites
+"if it is an engine constant, say so with evidence").
+
+What was deliberately NOT done: emit `CellPitch`/size numbers. Sparse
+floats sit near the widgets (a `0.049` repeats) but the struct framing
+is not pinned, and the FR's contract is zero guessed constants. §10.3
+records exactly what is proven and flags the rest open. The discipline
+is the point: a partially-right layout that *looks* finished is worse
+than an honest "located + structured, numbers pending."

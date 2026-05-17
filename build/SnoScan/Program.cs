@@ -48,6 +48,76 @@ switch (cmd)
             Console.WriteLine($"{(int)e.Group,5}  0x{toc.FormatHashFor(e.Group):X8}  {e.Id,9}  {e.Name}");
         return 0;
     }
+    case "strings":
+    {
+        // Printable ASCII runs >= minlen, with offsets — widget-name landmarks.
+        if (argv.Count < 3) { Console.Error.WriteLine("strings <gid> <id> [minlen] [folder]"); return 2; }
+        int gidS = int.Parse(argv[1]), idS = int.Parse(argv[2]);
+        int minlen = argv.Count > 3 ? int.Parse(argv[3]) : 4;
+        var folderS = argv.Count > 4 ? Enum.Parse<SnoFolder>(argv[4], true) : SnoFolder.Meta;
+        if (!d4.TryReadSno(gidS, idS, folderS, out var bs)) { Console.WriteLine("no content"); return 1; }
+        int run = 0;
+        for (int i = 0; i <= bs.Length; i++)
+        {
+            bool p = i < bs.Length && bs[i] is >= 0x20 and < 0x7f;
+            if (p) run++;
+            else
+            {
+                if (run >= minlen)
+                {
+                    int st = i - run;
+                    Console.WriteLine($"{st:X6}  {System.Text.Encoding.ASCII.GetString(bs, st, run)}");
+                }
+                run = 0;
+            }
+        }
+        return 0;
+    }
+    case "scan":
+    {
+        // Every offset where a 32-bit value appears (LE), e.g. a texture handle.
+        if (argv.Count < 4) { Console.Error.WriteLine("scan <gid> <id> <hex32> [folder]"); return 2; }
+        int gidH = int.Parse(argv[1]), idH = int.Parse(argv[2]);
+        uint needle = Convert.ToUInt32(argv[3], 16);
+        var folderH = argv.Count > 4 ? Enum.Parse<SnoFolder>(argv[4], true) : SnoFolder.Meta;
+        if (!d4.TryReadSno(gidH, idH, folderH, out var bh)) { Console.WriteLine("no content"); return 1; }
+        int n = 0;
+        for (int i = 0; i + 4 <= bh.Length; i++)
+            if (BitConverter.ToUInt32(bh, i) == needle)
+            {
+                // context: 8 LE u32 before/at the hit, + float view
+                var ctx = new System.Text.StringBuilder();
+                for (int j = -16; j <= 16; j += 4)
+                {
+                    int o = i + j;
+                    if (o >= 0 && o + 4 <= bh.Length)
+                        ctx.Append(j == 0 ? "[" : " ").Append(BitConverter.ToUInt32(bh, o).ToString("X8")).Append(j == 0 ? "]" : "");
+                }
+                Console.WriteLine($"{i:X6} {ctx}");
+                n++;
+            }
+        Console.WriteLine($"-- {n} hit(s) for 0x{needle:X8} --");
+        return 0;
+    }
+    case "f32":
+    {
+        // Interpret a region as float32[] (offsets + ints alongside).
+        if (argv.Count < 5) { Console.Error.WriteLine("f32 <gid> <id> <hexoff> <count> [folder]"); return 2; }
+        int gidF = int.Parse(argv[1]), idF = int.Parse(argv[2]);
+        int offF = Convert.ToInt32(argv[3], 16);
+        int cnt = int.Parse(argv[4]);
+        var folderF = argv.Count > 5 ? Enum.Parse<SnoFolder>(argv[5], true) : SnoFolder.Meta;
+        if (!d4.TryReadSno(gidF, idF, folderF, out var bf)) { Console.WriteLine("no content"); return 1; }
+        for (int k = 0; k < cnt && offF + k * 4 + 4 <= bf.Length; k++)
+        {
+            int o = offF + k * 4;
+            uint u = BitConverter.ToUInt32(bf, o);
+            float f = BitConverter.ToSingle(bf, o);
+            string fs = (f != 0 && Math.Abs(f) is > 1e-4f and < 1e7f) ? f.ToString("0.###") : "";
+            Console.WriteLine($"{o:X6}  u32=0x{u:X8} ({(int)u,11})  f32={fs}");
+        }
+        return 0;
+    }
     case "dump":
     {
         if (argv.Count < 3) { Console.Error.WriteLine("dump <gid> <id> [folder]"); return 2; }

@@ -448,7 +448,47 @@ the field level is the remaining FR-C7 work (tracked CL-9); it is a
 B1–B6-scale round and will be delivered with the same acceptance rigour,
 not approximated.
 
-### 10.3 Reconnaissance instrument
+### 10.3 Decoded so far (verified) and the open field decode
+
+Verified against build `3.0.2.71886` (`build/SnoScan strings|scan|f32`):
+
+- **It is a named widget-tree / serialized object graph.** Widget names
+  are inline ASCII landmarks: `ParagonBoard_main` (root) → `Content` →
+  `ParagonNodes` → `ParagonNodes_BaseLayer` / `_TopLayer` /
+  `_BoardRotationLayer` (+ `_VFX_Canvas` siblings), `Storyboard_ScaleTest`,
+  `GlyphAuras`, the `SidePanel_*` / `Paragon_Points_*` chrome, etc. The
+  node-grid scale and board-rotation widgets the FR needs **exist and are
+  named** (`_BoardRotationLayer`, `Storyboard_ScaleTest`).
+- **Texture-binding micro-struct (proven):**
+  `… tag(u32 0x22|0x02|0x03)  0x00000000  textureHandle(u32 LE)
+  0x00000000 …`, where `textureHandle` is the same `TexFrame.ImageHandle`
+  space as §6. Bound in `ParagonBoard`: base disc `1D166DC7`, grey rim
+  ring `87A89F86`, glyph pulse ring `BED4CF21` (**4 occurrences** = the
+  multiple node states), gold ornate frame `4A901508`. Widget records
+  carry offset back-references (e.g. `→0xE9A8`, `→0x1E88`) and a
+  recurring shared handle pair `012FC68B` / `A4C42E02` co-located with
+  node-element bindings — a **shared node-element style/material
+  template** (the next RE target).
+- **FR §2.3 answered (evidence-based):** the rarity fill swatches
+  (`33A11FA6`, `A09D0667`, …) and the orange ornate `A54E0DD1` are
+  **absent** from `ParagonBoard`. The render layout binds only the
+  *neutral* disc + rings + gold ornate. Therefore per-rarity colour is a
+  **shader tint applied to the neutral disc, not a per-rarity texture** —
+  the consumer's shader-recipe model (§2.3) is the correct one; a "give
+  me the per-rarity disc texture" API would be wrong because no such
+  asset is referenced.
+
+**Still open (NOT decoded — no guesses emitted):** the widget-node
+struct field layout, the anchor/size encoding (authored px ↔ board-cell
+pitch), the per-rarity/per-state ordered layer list, and the animation
+params. Sparse floats are present near widgets (e.g. `0.049` repeats —
+plausibly a normalised anchor) but the struct framing is not yet pinned,
+so no `CellPitch`/size numbers are asserted. The typed
+`ParagonRenderLayout` ships only when these are pinned with a verbatim
+acceptance matrix — consistent with the FR's zero-guessed-constants
+contract.
+
+### 10.4 Reconnaissance instrument
 
 `build/SnoScan` (in `e:\Casc`, not shipped, not in the solution —
 same throwaway posture as `build/TileIcon`) drives the real
@@ -506,12 +546,17 @@ true value (the sections above already state the corrected truth).
   record**, format hash **`0xE4825AB8`** (peers: `ActionBar`, `Armory`,
   `BuildViewer`…), specifically `ParagonBoard` SNO 657304 (145,550 B)
   and `ParagonBoardSelect` 964599. Container header proven (§10.2);
-  the nested widget-tree field decode (cell pitch, per-rarity/state
-  texture-binding layer lists, anim params) is **in progress** and
-  will land with a verbatim acceptance matrix — explicitly NOT yet
-  decoded, nothing in §10 guessed. The consumer ask's
-  document-target reference (`casc-format.md`) predates the spec split;
-  this D4-layer format is owned here.
+  widget-tree is a named serialized object graph and the texture-binding
+  micro-struct is decoded (§10.3). **FR §2.3 answered with evidence:**
+  the rarity swatches + orange ornate are absent from `ParagonBoard`, so
+  per-rarity colour is a shader tint on the neutral disc, not a
+  per-rarity texture (the consumer's recipe model is correct). Still
+  open and explicitly NOT guessed: the widget-node struct field layout,
+  anchor/size↔cell-pitch encoding, per-state ordered layer list, anim
+  params — the typed `ParagonRenderLayout` ships only with a verbatim
+  acceptance matrix. The consumer ask's document-target reference
+  (`casc-format.md`) predates the spec split; this D4-layer format is
+  owned here.
 
 ## Appendix B — provenance & migration map
 
