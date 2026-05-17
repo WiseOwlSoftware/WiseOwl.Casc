@@ -317,6 +317,86 @@ out string name, string locale = "enUS")` and the throwing
 path-addressable; meaningful for CoreTOC name↔id resolution). See
 Appendix A CL-15.
 
+### 6.5 Character-class roster + localized names (FR-D2)
+
+The canonical playable-class roster is **SNO group 74**
+(`SnoGroup.PlayerClass`), independent of paragon. On build
+`3.0.2.71886` group 74 holds the eight classes plus one non-class junk
+entry:
+
+| PlayerClass SnoId | SnoName | `General` `PlayerClass<SnoName>Male` (enUS) |
+|---|---|---|
+| 169776 | `Barbarian` | Barbarian |
+| 131966 | `Druid` | Druid |
+| 199277 | `Necromancer` | Necromancer |
+| 2079084 | `Paladin` | Paladin |
+| 199275 | `Rogue` | Rogue |
+| 131965 | `Sorcerer` | Sorcerer |
+| 1206232 | `Spiritborn` | Spiritborn |
+| 2207749 | `Warlock` | Warlock |
+| 159433 | `Axe Bad Data` | *(no label — filtered)* |
+
+- **Localized name source:** the **`General`** StringList table (SNO
+  **4118**, §6.3), label **`"PlayerClass" + SnoName + "Male"`**. This
+  gendered label is the markup-free display string; the base
+  `PlayerClass<SnoName>` label carries D4 `|5sing:plur` pluralization
+  markup, and `…Male`/`…Female` are identical display strings on the
+  verified build. Locale-aware (per-locale catalog).
+- **Membership filter (data-driven, no hardcoded list):** a group-74
+  entry is a real playable class **iff** that label exists. `Axe Bad
+  Data` has none → excluded. New seasonal classes appear automatically.
+- **Stable key:** the PlayerClass **SNO id** (never an array position).
+- Shipped surface: `Diablo4Storage.ReadCharacterClasses(string locale =
+  "enUS")` → ordered `IReadOnlyList<CharacterClass>` (`SnoId`,
+  `SnoName`, `DisplayName`), sorted by `SnoId`, cached per locale. Raw
+  decoded values only. See Appendix A CL-17.
+
+### 6.6 ParagonBoard class/index from the name convention (FR-D1)
+
+A `ParagonBoardDefinition` record carries **no** class or index field
+(§7.1 is the whole record — verified: 1820 B = header + `snoId` +
+`nWidth` + `arEntries` descriptor + 441 cells, nothing else). The only
+first-party source of a board's owning class and ordinal is the **SNO
+name convention** `Paragon_<ClassToken>_<Index>`. Per the durable
+opaque-id principle (Appendix C) this is decoded **once, library-side**,
+documented here with a re-verify trigger, and exposed typed — it is
+**never** a consumer regex.
+
+Decode rule:
+
+- `ClassToken` = substring between the `Paragon_` prefix and the
+  **final** `_`.
+- `BoardIndex` = the trailing integer after the final `_`. Width
+  varies: most start boards are `_00` but Spiritborn's is the
+  single-digit `_0`; parse as an integer, not fixed-width
+  (`Paragon_Warlock_03`→3, `Paragon_Spirit_0`→0).
+- `Class` = the **unique case-sensitive prefix match**: the one §6.5
+  roster `SnoName` that `ClassToken` is a prefix of. On the verified
+  build the eight tokens map 1:1 and unambiguously:
+
+  | Board token | → PlayerClass SnoName |
+  |---|---|
+  | `Barb` | `Barbarian` |
+  | `Druid` | `Druid` |
+  | `Necro` | `Necromancer` |
+  | `Paladin` | `Paladin` |
+  | `Rogue` | `Rogue` |
+  | `Sorc` | `Sorcerer` |
+  | `Spirit` | `Spiritborn` |
+  | `Warlock` | `Warlock` |
+
+  Resolution is data-driven against the §6.5 roster (not a hardcoded
+  abbreviation map). Zero matches **or** ambiguity **throws**
+  (`CascFormatException`) — the re-verify signal (Appendix D), never a
+  silent drift.
+
+Shipped surface: `Diablo4Storage.ReadParagonBoard(int)` resolves and
+populates `ParagonBoardDefinition.ClassSnoId` (the §6.5 stable key),
+`.ClassSnoName`, `.BoardIndex`. The byte-only
+`ParagonBoardDefinition.Parse(blob)` leaves them `0`/`""`/`-1` (identity
+derives from the name, not the bytes — honest sentinels, documented).
+See Appendix A CL-16.
+
 ## 7. Paragon record layouts (SNO groups 106 / 108 / 111 / 112)
 
 All offsets payload-relative (base `0x10`).
@@ -893,6 +973,40 @@ true value (the sections above already state the corrected truth).
   `ReadParagonBoardName`; `SnoGroup.StringList = 42` named. Raw value
   only, no fallback policy (consumer owns the SnoName fallback).
 
+- **CL-16 — ParagonBoard class/index is the name convention, decoded
+  library-side (FR-D1 rescoped).** The `ParagonBoard` record has no
+  class/index field (the 1820 B record is fully accounted for by §7.1).
+  The only first-party source is the SNO name
+  `Paragon_<ClassToken>_<Index>`. Per the durable opaque-id principle
+  (Appendix C, mirrored 2026-05-17) the convention is decoded once,
+  library-side, not by a consumer regex: token = between `Paragon_` and
+  the final `_`; index = trailing integer (variable width —
+  `Paragon_Spirit_0` is a single digit, parse as int); class = the
+  **unique case-sensitive prefix** of exactly one §6.5 PlayerClass
+  roster SnoName (`Sorc`→`Sorcerer`, `Spirit`→`Spiritborn`, …). No
+  match / ambiguity throws `CascFormatException` (re-verify signal).
+  Recorded in §6.6; acceptance (`Paragon_Warlock_00`→Warlock/idx 0,
+  `Paragon_Warlock_03`→Warlock/idx 3, `Paragon_Spirit_0`→Spiritborn/
+  idx 0) asserted by `ReadParagonBoard_resolves_typed_class_and_index`.
+  Shipped: `ParagonBoardDefinition.ClassSnoId/.ClassSnoName/.BoardIndex`
+  populated by `Diablo4Storage.ReadParagonBoard(int)`; byte-only
+  `Parse(blob)` leaves honest `0`/`""`/`-1` sentinels.
+
+- **CL-17 — Character-class roster + localized names (FR-D2).** The
+  playable-class roster is SNO group 74 (`PlayerClass`), independent of
+  paragon. Localized name = the `General` StringList table (SNO 4118)
+  label `"PlayerClass" + SnoName + "Male"` (markup-free; base
+  `PlayerClass<SnoName>` carries `|5sing:plur` markup). Real-class
+  membership is data-driven: a group-74 entry is a class iff that label
+  exists — excludes `Axe Bad Data` (159433) with no hardcoded list.
+  Stable key = the PlayerClass SNO id. Recorded in §6.5; acceptance
+  (roster = the 8 classes incl. Warlock/Paladin/Spiritborn, junk
+  filtered, locale-aware) asserted by
+  `ReadCharacterClasses_returns_first_party_roster`. Shipped:
+  `Diablo4Storage.ReadCharacterClasses(locale)` →
+  `IReadOnlyList<CharacterClass>` (SnoId/SnoName/DisplayName), ordered
+  by SnoId, cached per locale.
+
 ## Appendix B — provenance & migration map
 
 Auditable mapping of every upstream `d4-binary-formats.md §3–§8.15`
@@ -942,6 +1056,21 @@ evaluator at all**, by decision.
 id-keyed read + record decoders + `GbidHash` + StringList. The library
 will not grow scoring/evaluation APIs. Round-2/3 feature requests and
 their disposition are tracked in `docs/feature-backlog.md`.
+
+**Durable principle — SNO names are opaque ids (2026-05-17, owner;
+mirrored here from `fr-d1-paragon-board-name.md §3` /
+`wiseowl-casc-diablo4-requirements.md §1`).** A consumer treats every
+SNO **name** as an **opaque, stable id** and **never decomposes its
+substructure** to recover semantic fields. Any D4 **naming convention**
+(e.g. `Paragon_<Class>_<NN>`) is a data mapping in the **same category
+as a byte layout**: decoded **once, library-side**, documented with a
+`CL-*` row and an Appendix D re-verify trigger, and exposed **typed** —
+never re-implemented as a consumer regex that drifts silently when
+Blizzard renames/relocalizes/extends it. *"It's a readable string not
+bytes" does not move the boundary.* Applied: §6.4 (board name, CL-15),
+§6.6 (board class/index, CL-16), §6.5 (class roster, CL-17). Decoding
+such a convention library-side is in-boundary; "Readable string not
+bytes" never makes name-parsing a consumer concern.
 
 ## Appendix D — source & re-verification
 

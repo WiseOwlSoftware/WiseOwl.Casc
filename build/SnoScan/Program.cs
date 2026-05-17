@@ -385,6 +385,31 @@ switch (cmd)
             Console.WriteLine($"  [{kv.Key}] = {kv.Value}");
         return 0;
     }
+    case "stlfind":
+    {
+        // Find StringList entries whose label OR value contains a
+        // substring (case-insensitive), across every table. Recon only.
+        if (argv.Count < 2) { Console.Error.WriteLine("stlfind <substr> [locale] [max]"); return 2; }
+        var needle = argv[1];
+        var loc = argv.Count > 2 ? argv[2] : "enUS";
+        int max = argv.Count > 3 ? int.Parse(argv[3]) : 60;
+        var cat = d4.GetStrings(loc);
+        int shown = 0;
+        foreach (var t in cat.Tables.Values)
+        {
+            foreach (var kv in t.Entries)
+            {
+                if (kv.Key.Contains(needle, StringComparison.OrdinalIgnoreCase) ||
+                    kv.Value.Contains(needle, StringComparison.OrdinalIgnoreCase))
+                {
+                    Console.WriteLine($"sno={t.Sno} name={t.Name ?? "<?>"} [{kv.Key}] = {kv.Value}");
+                    if (++shown >= max) { Console.WriteLine("-- truncated --"); return 0; }
+                }
+            }
+        }
+        Console.WriteLine($"-- {shown} hit(s) --");
+        return 0;
+    }
     default:
         Console.Error.WriteLine($"unknown command '{cmd}'");
         return 2;

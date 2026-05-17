@@ -306,4 +306,94 @@ public sealed class Diablo4StorageIntegrationTests
         Assert.Equal(string.Empty, none);
         Assert.Throws<SnoNotFoundException>(() => d4.ReadParagonBoardName(1));
     }
+
+    /// <summary>FR-D1 (rescoped): typed board class + index resolved
+    /// library-side from the SNO-name convention — the consumer never
+    /// parses the SnoName (§6.6 / CL-16).</summary>
+    [SkippableFact]
+    public void ReadParagonBoard_resolves_typed_class_and_index()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+
+        // Probe 1: Paragon_Warlock_00 (2458674, IsStart) → class Warlock
+        // (the group-74 PlayerClass SNO, a stable id), index 0.
+        var warlockClass = d4.CoreToc.GetId(SnoGroup.PlayerClass, "Warlock");
+        Assert.NotNull(warlockClass);
+        var b0 = d4.ReadParagonBoard(2458674);
+        Assert.Equal(warlockClass!.Value, b0.ClassSnoId);
+        Assert.Equal("Warlock", b0.ClassSnoName);
+        Assert.Equal(0, b0.BoardIndex);
+
+        // Probe 2: Paragon_Warlock_03 (2458680) → Warlock, index 3 —
+        // without the consumer parsing the SnoName.
+        var b3 = d4.ReadParagonBoard(2458680);
+        Assert.Equal(warlockClass.Value, b3.ClassSnoId);
+        Assert.Equal("Warlock", b3.ClassSnoName);
+        Assert.Equal(3, b3.BoardIndex);
+
+        // Abbreviated token resolves by unique-prefix to the roster name:
+        // Sorc→Sorcerer, Spirit→Spiritborn (and the single-digit start
+        // board Paragon_Spirit_0 → index 0).
+        var sorc = d4.CoreToc.GetId(SnoGroup.ParagonBoard, "Paragon_Sorc_04")!.Value;
+        var bs = d4.ReadParagonBoard(sorc);
+        Assert.Equal("Sorcerer", bs.ClassSnoName);
+        Assert.Equal(4, bs.BoardIndex);
+        var spirit0 = d4.CoreToc.GetId(SnoGroup.ParagonBoard, "Paragon_Spirit_0")!.Value;
+        var bsp = d4.ReadParagonBoard(spirit0);
+        Assert.Equal("Spiritborn", bsp.ClassSnoName);
+        Assert.Equal(0, bsp.BoardIndex);
+
+        // ClassSnoId matches the FR-D2 roster (same stable key).
+        var roster = d4.ReadCharacterClasses();
+        Assert.Contains(roster, c => c.SnoId == b0.ClassSnoId && c.SnoName == "Warlock");
+
+        // The byte-only Parse leaves identity unresolved (honest sentinels;
+        // identity derives from the SNO name, not the bytes).
+        var byteOnly = ParagonBoardDefinition.Parse(
+            d4.ReadSno(SnoGroup.ParagonBoard, 2458674));
+        Assert.Equal(0, byteOnly.ClassSnoId);
+        Assert.Equal(string.Empty, byteOnly.ClassSnoName);
+        Assert.Equal(-1, byteOnly.BoardIndex);
+    }
+
+    private static readonly string[] ExpectedClassRoster =
+        { "Barbarian", "Druid", "Necromancer", "Paladin",
+          "Rogue", "Sorcerer", "Spiritborn", "Warlock" };
+
+    /// <summary>FR-D2: first-party character-class roster + localized
+    /// names from D4's own class data (group 74 + General table), with
+    /// no dependency on the paragon SNO groups (§6.5 / CL-17).</summary>
+    [SkippableFact]
+    public void ReadCharacterClasses_returns_first_party_roster()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+
+        var classes = d4.ReadCharacterClasses();
+
+        // The latest classes are present with their exact localized names.
+        Assert.Contains(classes, c => c.SnoName == "Warlock"    && c.DisplayName == "Warlock");
+        Assert.Contains(classes, c => c.SnoName == "Paladin"    && c.DisplayName == "Paladin");
+        Assert.Contains(classes, c => c.SnoName == "Spiritborn" && c.DisplayName == "Spiritborn");
+
+        // Full current-build roster = exactly the eight playable classes;
+        // the non-class junk entry (Axe Bad Data) is filtered data-driven.
+        var names = classes.Select(c => c.SnoName).OrderBy(s => s).ToArray();
+        Assert.Equal(ExpectedClassRoster, names);
+        Assert.DoesNotContain(classes, c => c.SnoName.Contains("Bad Data"));
+
+        // Stable per-class key = the PlayerClass SNO id (not array
+        // position); matches CoreTOC group 74.
+        var warlock = classes.First(c => c.SnoName == "Warlock");
+        Assert.Equal(d4.CoreToc.GetId(SnoGroup.PlayerClass, "Warlock"), warlock.SnoId);
+
+        // Locale-aware; deterministic (cached → same instance).
+        Assert.Same(classes, d4.ReadCharacterClasses());
+        var de = d4.ReadCharacterClasses("deDE");
+        Assert.Equal(classes.Count, de.Count);
+        Assert.Contains(de, c => c.SnoName == "Sorcerer");
+    }
 }

@@ -49,6 +49,8 @@ public sealed class Diablo4Storage : IDisposable
     private CombinedTextureMeta? _textureMeta;
     private SharedPayloadMapping? _sharedPayloads;
     private readonly Dictionary<string, StringListCatalog> _strings = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, IReadOnlyList<CharacterClass>> _classes = new(StringComparer.OrdinalIgnoreCase);
+    private (int SnoId, string SnoName)[]? _classRoster;
     private readonly object _gate = new();
 
     /// <summary>The default locale (the one most installs ship enabled).</summary>
@@ -315,10 +317,103 @@ public sealed class Diablo4Storage : IDisposable
     public ParagonRenderLayout ReadParagonRenderLayout() =>
         ParagonRenderProjection.Project(ReadUiScene(657304));
 
-    /// <summary>Read + decode a <see cref="ParagonBoardDefinition"/> by SNO
-    /// id (group 108).</summary>
-    public ParagonBoardDefinition ReadParagonBoard(int id) =>
-        ParagonBoardDefinition.Parse(ReadSno(SnoGroup.ParagonBoard, id));
+    /// <summary>
+    /// Read + decode a <see cref="ParagonBoardDefinition"/> by SNO id (group
+    /// 108), with its class/index identity resolved from the SNO-name
+    /// convention (FR-D1 — <see cref="ParagonBoardDefinition.ClassSnoId"/> /
+    /// <see cref="ParagonBoardDefinition.ClassSnoName"/> /
+    /// <see cref="ParagonBoardDefinition.BoardIndex"/>).
+    /// </summary>
+    /// <remarks>
+    /// The board record has no class/index field; the only first-party
+    /// source is the SNO name <c>Paragon_&lt;ClassToken&gt;_&lt;Index&gt;</c>.
+    /// Per the durable opaque-id principle (Appendix C) this naming
+    /// convention is decoded once, library-side, and exposed typed — never a
+    /// consumer regex. The class token is the unique case-sensitive prefix of
+    /// exactly one <see cref="SnoGroup.PlayerClass"/> roster SnoName (§6.6,
+    /// CL-16); identity is left unresolved only if the board SNO name is
+    /// unknown to <see cref="CoreToc"/>.
+    /// </remarks>
+    public ParagonBoardDefinition ReadParagonBoard(int id)
+    {
+        var blob = ReadSno(SnoGroup.ParagonBoard, id);
+        if (CoreToc.TryGetName(SnoGroup.ParagonBoard, id, out var boardName) &&
+            TryResolveBoardIdentity(boardName, out var classSnoId,
+                out var className, out var boardIndex))
+            return ParagonBoardDefinition.Parse(
+                blob, classSnoId, className, boardIndex);
+        return ParagonBoardDefinition.Parse(blob);
+    }
+
+    /// <summary>
+    /// Decode the <c>Paragon_&lt;ClassToken&gt;_&lt;Index&gt;</c> naming
+    /// convention (FR-D1, §6.6 / CL-16). The token is the substring between
+    /// the <c>Paragon_</c> prefix and the final <c>_</c>; the index is the
+    /// trailing integer (handles both <c>_03</c> and the single-digit
+    /// <c>_0</c> start board). The token maps to a class by being the
+    /// <b>unique case-sensitive prefix</b> of exactly one
+    /// <see cref="SnoGroup.PlayerClass"/> roster SnoName (e.g.
+    /// <c>Sorc</c>→<c>Sorcerer</c>, <c>Spirit</c>→<c>Spiritborn</c>,
+    /// <c>Warlock</c>→<c>Warlock</c>). Ambiguity or no match throws — the
+    /// re-verify trigger, never a silent drift.
+    /// </summary>
+    /// <exception cref="CascFormatException">The name does not match the
+    /// convention, or the class token is not a unique roster-name prefix
+    /// (a re-verify signal — see Appendix D).</exception>
+    private bool TryResolveBoardIdentity(
+        string boardSnoName, out int classSnoId,
+        out string className, out int boardIndex)
+    {
+        classSnoId = 0;
+        className = string.Empty;
+        boardIndex = -1;
+
+        const string prefix = "Paragon_";
+        if (!boardSnoName.StartsWith(prefix, StringComparison.Ordinal))
+            throw new CascFormatException(
+                $"ParagonBoard name '{boardSnoName}' does not match the " +
+                "'Paragon_<Class>_<Index>' convention (§6.6 — re-verify).");
+
+        var lastUs = boardSnoName.LastIndexOf('_');
+        if (lastUs < prefix.Length)
+            throw new CascFormatException(
+                $"ParagonBoard name '{boardSnoName}' has no class/index " +
+                "separator (§6.6 — re-verify).");
+
+        var token = boardSnoName.Substring(prefix.Length, lastUs - prefix.Length);
+        var idxText = boardSnoName.Substring(lastUs + 1);
+#if NETSTANDARD2_0
+        if (token.Length == 0 || idxText.Length == 0 ||
+            !int.TryParse(idxText, out boardIndex))
+#else
+        if (token.Length == 0 || !int.TryParse(idxText, out boardIndex))
+#endif
+            throw new CascFormatException(
+                $"ParagonBoard name '{boardSnoName}' trailing index is not " +
+                "an integer (§6.6 — re-verify).");
+
+        var match = -1;
+        var roster = PlayerClassRoster();
+        for (var i = 0; i < roster.Length; i++)
+        {
+            if (!roster[i].SnoName.StartsWith(token, StringComparison.Ordinal))
+                continue;
+            if (match >= 0)
+                throw new CascFormatException(
+                    $"ParagonBoard class token '{token}' is an ambiguous " +
+                    $"prefix of both '{roster[match].SnoName}' and " +
+                    $"'{roster[i].SnoName}' (§6.6 / CL-16 — re-verify).");
+            match = i;
+        }
+        if (match < 0)
+            throw new CascFormatException(
+                $"ParagonBoard class token '{token}' is not a prefix of any " +
+                $"PlayerClass roster name (§6.6 / CL-16 — re-verify).");
+
+        classSnoId = roster[match].SnoId;
+        className = roster[match].SnoName;
+        return true;
+    }
 
     /// <summary>
     /// Resolve a <c>ParagonBoard</c>'s <b>localized display name</b> — the
@@ -387,6 +482,81 @@ public sealed class Diablo4Storage : IDisposable
     /// <summary>Label of the localized board name within the sibling
     /// StringList table.</summary>
     private const string ParagonBoardNameLabel = "Name";
+
+    /// <summary>
+    /// The current build's playable character-class roster + localized
+    /// display names (FR-D2), first-party from D4's own class data —
+    /// independent of paragon (the roster is correct even if paragon is out
+    /// of scope).
+    /// </summary>
+    /// <remarks>
+    /// Decoded clean-room (§6.5 / CL-17): the roster is
+    /// <see cref="SnoGroup.PlayerClass"/> (74); a group-74 entry is a real
+    /// playable class iff the <c>General</c> StringList table (SNO
+    /// <see cref="GeneralStringTableSno"/>) has label
+    /// <c>"PlayerClass" + SnoName + "Male"</c> — this data-driven membership
+    /// test excludes non-class junk (e.g. <c>Axe Bad Data</c>) with no
+    /// hardcoded list. <see cref="CharacterClass.DisplayName"/> is that
+    /// label's localized value (the markup-free display form). Ordered by
+    /// <see cref="CharacterClass.SnoId"/> ascending for determinism; the
+    /// SnoId is the stable per-class key (never an array position), so the
+    /// list survives a class being added/reordered next season. Cached per
+    /// locale. Raw decoded values only — no policy/imaging.
+    /// </remarks>
+    /// <param name="locale">Locale (default <see cref="DefaultLocale"/>).</param>
+    public IReadOnlyList<CharacterClass> ReadCharacterClasses(
+        string locale = DefaultLocale)
+    {
+        lock (_gate)
+        {
+            if (_classes.TryGetValue(locale, out var cached)) return cached;
+
+            var strings = GetStrings(locale);
+            var list = new List<CharacterClass>();
+            foreach (var e in CoreToc.EntriesInGroup(SnoGroup.PlayerClass))
+            {
+                if (strings.TryGet(GeneralStringTableSno,
+                        PlayerClassLabelPrefix + e.Name + PlayerClassLabelSuffix,
+                        out var display))
+                    list.Add(new CharacterClass(e.Id, e.Name, display));
+            }
+            list.Sort((a, b) => a.SnoId.CompareTo(b.SnoId));
+            IReadOnlyList<CharacterClass> ro = list;
+            _classes[locale] = ro;
+            return ro;
+        }
+    }
+
+    /// <summary>The locale-independent (SnoId, SnoName) class roster used to
+    /// resolve a paragon board's class (FR-D1). Membership is decided via the
+    /// <see cref="DefaultLocale"/> <c>General</c> table (label existence is
+    /// locale-independent); cached.</summary>
+    private (int SnoId, string SnoName)[] PlayerClassRoster()
+    {
+        lock (_gate)
+        {
+            if (_classRoster is not null) return _classRoster;
+            var src = ReadCharacterClasses(DefaultLocale);
+            var roster = new (int, string)[src.Count];
+            for (var i = 0; i < src.Count; i++)
+                roster[i] = (src[i].SnoId, src[i].SnoName);
+            _classRoster = roster;
+            return roster;
+        }
+    }
+
+    /// <summary>The <c>General</c> StringList table SNO that holds the
+    /// localized class names (build-stable; re-verify per Appendix D).</summary>
+    private const int GeneralStringTableSno = 4118;
+
+    /// <summary>Class-name label = this + the PlayerClass SnoName + the
+    /// suffix. The gendered form is the markup-free display string (the base
+    /// <c>PlayerClass&lt;SnoName&gt;</c> label carries <c>|5sing:plur</c>
+    /// markup); the gender variants are identical display strings.</summary>
+    private const string PlayerClassLabelPrefix = "PlayerClass";
+
+    /// <summary>See <see cref="PlayerClassLabelPrefix"/>.</summary>
+    private const string PlayerClassLabelSuffix = "Male";
 
     /// <summary>Read + decode a <see cref="ParagonNodeDefinition"/> by SNO
     /// id (group 106).</summary>

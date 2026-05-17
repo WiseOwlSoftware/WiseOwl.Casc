@@ -1,10 +1,14 @@
 # Diablo4Storage.ReadParagonBoard method
 
-Read + decode a [`ParagonBoardDefinition`](../ParagonBoardDefinition.md) by SNO id (group 108).
+Read + decode a [`ParagonBoardDefinition`](../ParagonBoardDefinition.md) by SNO id (group 108), with its class/index identity resolved from the SNO-name convention (FR-D1 — [`ClassSnoId`](../ParagonBoardDefinition/ClassSnoId.md) / [`ClassSnoName`](../ParagonBoardDefinition/ClassSnoName.md) / [`BoardIndex`](../ParagonBoardDefinition/BoardIndex.md)).
 
 ```csharp
 public ParagonBoardDefinition ReadParagonBoard(int id)
 ```
+
+## Remarks
+
+The board record has no class/index field; the only first-party source is the SNO name `Paragon_<ClassToken>_<Index>`. Per the durable opaque-id principle (Appendix C) this naming convention is decoded once, library-side, and exposed typed — never a consumer regex. The class token is the unique case-sensitive prefix of exactly one PlayerClass roster SnoName (§6.6, CL-16); identity is left unresolved only if the board SNO name is unknown to [`CoreToc`](./CoreToc.md).
 
 ## See Also
 

@@ -10,8 +10,11 @@ public sealed class ParagonBoardDefinition
 
 | name | description |
 | --- | --- |
-| static [Parse](ParagonBoardDefinition/Parse.md)(…) | Decode a ParagonBoard from its raw SNO blob (as returned by [`ReadSno`](./Diablo4Storage/ReadSno.md) for ParagonBoard). |
+| static [Parse](ParagonBoardDefinition/Parse.md)(…) | Decode a ParagonBoard from its raw SNO blob (as returned by [`ReadSno`](./Diablo4Storage/ReadSno.md) for ParagonBoard). Grid only — the class/index identity ([`ClassSnoId`](./ParagonBoardDefinition/ClassSnoId.md) / [`ClassSnoName`](./ParagonBoardDefinition/ClassSnoName.md) / [`BoardIndex`](./ParagonBoardDefinition/BoardIndex.md)) is left unresolved (`0`/empty/`-1`) because it derives from the SNO name, not the bytes; use [`ReadParagonBoard`](./Diablo4Storage/ReadParagonBoard.md) to get a fully resolved definition. |
+| [BoardIndex](ParagonBoardDefinition/BoardIndex.md) { get; } | The per-class board ordinal — the SNO name's trailing integer (`Paragon_Warlock_03` → `3`; `Paragon_Spirit_0` → `0`), or `-1` if decoded byte-only. See [`ClassSnoId`](./ParagonBoardDefinition/ClassSnoId.md) for the convention/boundary. |
 | [Cells](ParagonBoardDefinition/Cells.md) { get; } | All cells, row-major. A cell is the ParagonNode SNO id, or `null` for an empty cell (`0xFFFFFFFF`). |
+| [ClassSnoId](ParagonBoardDefinition/ClassSnoId.md) { get; } | The owning class's PlayerClass SNO id — the stable per-class key (FR-D1), or `0` if this instance was decoded via the byte-only [`Parse`](./ParagonBoardDefinition/Parse.md) overload (which has no [`CoreToc`](./CoreToc.md) to resolve the name convention). |
+| [ClassSnoName](ParagonBoardDefinition/ClassSnoName.md) { get; } | The owning class's CoreTOC SnoName (e.g. `Warlock`) — a stable key matching [`SnoName`](./CharacterClass/SnoName.md); or Empty if decoded byte-only. See [`ClassSnoId`](./ParagonBoardDefinition/ClassSnoId.md) for the convention/boundary. |
 | [NodeCount](ParagonBoardDefinition/NodeCount.md) { get; } | Number of non-empty cells (placed nodes). |
 | [SnoId](ParagonBoardDefinition/SnoId.md) { get; } | The board's own SNO id (== the CoreTOC id). |
 | [Width](ParagonBoardDefinition/Width.md) { get; } | Grid side length (`nWidth`; 21 on the current build). |
