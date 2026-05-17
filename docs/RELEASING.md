@@ -53,10 +53,22 @@ short-lived token at run time and exchanges it for a single-use API key.
 
 ## One-time setup (do this before the first release)
 
+> **All GitHub steps below are in the _repository_ settings, NOT the
+> organization settings.** Go to
+> `https://github.com/WiseOwlSoftware/WiseOwl.Casc` and click the
+> **Settings** tab on the repo's own tab bar (Code · Issues · Pull
+> requests · … · **Settings**). The org-level Settings page has no
+> Environments / Actions-variables section — that is expected; those are
+> per-repository. Only step 3 (Trusted Publishing) is done on nuget.org.
+
 ### 1. GitHub: create the `nuget` Environment
 
-Repo → **Settings → Environments → New environment** → name it exactly
-`nuget`.
+**Repository** Settings (see note above) → left sidebar, **Code and
+automation** section → **Environments** → **New environment** → name it
+exactly `nuget`.
+
+(Environment protection rules are free for **public** repos, which this
+is — no paid plan needed.)
 
 - Under **Deployment protection rules**, enable **Required reviewers** and
   add yourself (Brent Rector). This is the manual approval gate.
