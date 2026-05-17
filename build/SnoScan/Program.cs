@@ -215,6 +215,74 @@ switch (cmd)
         Console.WriteLine($"-- {hits} match(es) over {targets.Count} target(s) --");
         return 0;
     }
+    case "widgets":
+    {
+        // widgets <gid> <id> [wordlist] [nameFilter]
+        // Anchor on the PROVEN encodings, not the (unpinned) record
+        // header: every maximal run of 12-byte schema triplets
+        // (u32@k+4 == DT_BINDABLEPROPERTY) is one widget's field list;
+        // the ASCII string immediately before it is its name; the
+        // 56-byte 0x22 records immediately after are its instance
+        // values, positionally keyed.
+        if (argv.Count < 3) { Console.Error.WriteLine("widgets <gid> <id> [wordlist] [nameFilter]"); return 2; }
+        int gw = int.Parse(argv[1]), iw = int.Parse(argv[2]);
+        string? wl = argv.Count > 3 ? argv[3] : null;
+        string? filt = argv.Count > 4 ? argv[4] : null;
+        if (!d4.TryReadSno(gw, iw, SnoFolder.Meta, out var bw)) { Console.WriteLine("no content"); return 1; }
+        const uint SEP = 0x1332C78D;
+        var tn = new Dictionary<uint,string> {
+            [SEP]="DT_BINDABLEPROPERTY",[0xA4C42E02]="DT_INT",[0xE65047AD]="DT_FLOAT",
+            [0x3D4646AB]="DT_BYTE",[0x3D47BD2C]="DT_ENUM",[0xE549F591]="DT_CSTRING",
+            [0x8E266332]="DT_RGBACOLOR",[0xA4C45887]="DT_SNO",[0x2B0285C0]="StringLabelHandleEx" };
+        var fnm = new Dictionary<uint,string>();
+        if (wl != null) foreach (var s in File.ReadLines(wl))
+        { var t=s.Trim(); if(t.Length<2)continue; uint h=0; foreach(char c in t) h=(h<<5)+h+(byte)c; fnm.TryAdd(h&0x0FFFFFFFu,t); }
+        string FN(uint h)=>fnm.TryGetValue(h&0x0FFFFFFFu,out var n)?n:$"f:0x{h:X7}";
+        string TN(uint h)=>tn.TryGetValue(h,out var n)?n:$"t:0x{h:X8}";
+        int i2=0, shown=0;
+        while (i2 + 12 <= bw.Length)
+        {
+            if (BitConverter.ToUInt32(bw, i2+4) != SEP) { i2 += 4; continue; }
+            int runStart = i2, n = 0;
+            while (i2 + 12 <= bw.Length && BitConverter.ToUInt32(bw, i2+4) == SEP)
+            { n++; i2 += 12; }
+            // name = nearest NUL-terminated printable run anywhere
+            // before runStart (the enclosing widget; names precede a
+            // GROUP of schema-run objects, not each run).
+            string nm = "(?)"; int nmAt = -1;
+            for (int b = runStart - 1; b > Math.Max(0, runStart - 0x4000); b--)
+            {
+                if (bw[b] != 0) continue;                  // candidate string end
+                int en = b; int st = b;
+                while (st > 0 && bw[st-1] is >=0x20 and <0x7f) st--;
+                if (en - st >= 4)
+                {
+                    var cand = System.Text.Encoding.ASCII.GetString(bw, st, en-st);
+                    // identifier-ish (widget names are CamelCase/underscore)
+                    if (System.Text.RegularExpressions.Regex.IsMatch(cand, "^[A-Za-z][A-Za-z0-9_]{3,}$"))
+                    { nm = cand; nmAt = st; break; }
+                }
+                b = st;                                    // skip past this run
+            }
+            int s0 = nmAt >= 0 ? nmAt : runStart;
+            if (filt != null && !nm.Contains(filt, StringComparison.OrdinalIgnoreCase)) continue;
+            // instance records: forward from end of run, skip to first 0x22
+            int p = i2; while (p+4<=bw.Length && BitConverter.ToUInt32(bw,p)!=0x22 && p<i2+0x200) p+=4;
+            var vals = new List<uint>();
+            while (p+0x38<=bw.Length && BitConverter.ToUInt32(bw,p)==0x22)
+            { vals.Add(BitConverter.ToUInt32(bw,p+8)); p += 0x38; }
+            Console.WriteLine($"@0x{s0:X} '{nm}'  fields={n}  instrec={vals.Count}");
+            for (int q=0; q<n; q++)
+            {
+                uint f = BitConverter.ToUInt32(bw, runStart+q*12);
+                uint t = BitConverter.ToUInt32(bw, runStart+q*12+8);
+                string v = q<vals.Count ? $"0x{vals[q]:X8} ({(int)vals[q]})" : "-";
+                Console.WriteLine($"    {FN(f),-20} {TN(t),-20} = {v}");
+            }
+            if (++shown > 80 && filt==null) { Console.WriteLine("… (truncated; use nameFilter)"); break; }
+        }
+        return 0;
+    }
     case "walk":
     {
         // walk <gid> <id> <nameSubstr> [wordlist]

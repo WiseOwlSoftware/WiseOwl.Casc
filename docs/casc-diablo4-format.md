@@ -624,17 +624,30 @@ its salient points:
 
 ### 10.11 Outstanding (assembly only — no external dependency)
 
-The format is fully decoded; what remains is mechanical:
+The format is fully decoded and the assembly now reads real bound
+values. Decoded directly from the instance records (build
+`3.0.2.71886`, `SnoScan widgets`; schema-run-anchored, header-model
+independent — robust to CL-13):
 
-1. Associate each widget's schema run with its instance records; locate
-   the `ParagonNodes` container + node-template widgets; read their
-   bound `nLeft/nRight/nTop/nBottom/nWidth/nHeight`, `rgbaTint`, and
-   `DT_SNO` values.
-2. Derive `pitchRef` from those bound rects + the
-   `ParagonBoardDefinition` grid extent; verify it reproduces ≈67.7
-   px/grid at the §10.8 provenance and is cross-widget consistent.
-   `RenderRatios.Provisional` stays `true` until this passes — no pitch
-   number is asserted before it.
+| Widget | Bound rect (UI ref units) |
+|---|---|
+| `ParagonBoard_main` (root) | `nWidth 1920`, `nHeight 1200` ⇒ **CanvasRef = 1920×1200** |
+| `Template_ParagonBoard` | `nWidth 2300`, `nHeight 1200` |
+| `Content` | all `0` (fill-parent / bound at runtime) |
+| `ParagonNodes` (node container) | `nWidth 450`, `nHeight 1115`, `nTop 80`, `nBottom 50` |
+
+These are facts (read from the `+0x08` slot of the positional 56-byte
+`0x22` records), not inferences. Remaining:
+
+1. Read the node-template element rect + its `DT_SNO`/`rgbaTint`
+   (the widget bearing texture field `0x07DB38D3` + full rect).
+2. Derive `pitchRef` from the `ParagonNodes` container extent + the
+   `ParagonBoardDefinition` Warlock-Start grid extent (§7.1, already
+   decoded); verify `pitchRef × (renderH ÷ CanvasRefH) × zoom₀`
+   reproduces ≈67.7 px/grid at the §10.8 provenance and is cross-widget
+   consistent. `RenderRatios.Provisional` stays `true` until this
+   passes — no pitch number asserted before it (the oracle is the
+   *check*, never the source).
 3. Resolve residual unnamed field-ids (type already known; a
    refinement, non-blocking).
 4. Implement the §10.10 agreed contract + the verbatim 18-row
