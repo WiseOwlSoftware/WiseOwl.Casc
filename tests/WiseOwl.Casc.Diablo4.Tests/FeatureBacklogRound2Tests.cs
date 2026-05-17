@@ -33,6 +33,36 @@ public sealed class FeatureBacklogRound2Tests
             Diablo4.GbidHash("PARAGONNODECORESTAT_NORMAL"));
     }
 
+    /// <summary>FR-C7: the D4 type/field hashes (seed-0 DJB2 family).
+    /// CI-safe — exact vectors verified against the UI-scene schema and
+    /// the GBID family check (`docs/casc-diablo4-format.md §10.2`).</summary>
+    [Fact]
+    public void TypeHash_and_FieldHash_match_known_vectors()
+    {
+        // Type ids (case-sensitive, full u32).
+        Assert.Equal(0xA4C42E02u, Diablo4.TypeHash("DT_INT"));
+        Assert.Equal(0x1332C78Du, Diablo4.TypeHash("DT_BINDABLEPROPERTY"));
+        Assert.Equal(0xA4C45887u, Diablo4.TypeHash("DT_SNO"));
+        Assert.Equal(0x8E266332u, Diablo4.TypeHash("DT_RGBACOLOR"));
+        Assert.Equal(0xE65047ADu, Diablo4.TypeHash("DT_FLOAT"));
+
+        // Field ids (TypeHash masked to 28 bits).
+        Assert.Equal(0x06F9158Eu, Diablo4.FieldHash("nWidth"));
+        Assert.Equal(0x02D88AE7u, Diablo4.FieldHash("nHeight"));
+        Assert.Equal(0x07F1EF79u, Diablo4.FieldHash("nLeft"));
+        Assert.Equal(0x069EA64Cu, Diablo4.FieldHash("nRight"));
+        Assert.Equal(0x003DC5C1u, Diablo4.FieldHash("nTop"));
+        Assert.Equal(0x0594CC83u, Diablo4.FieldHash("nBottom"));
+        Assert.Equal(0x09A3F17Bu, Diablo4.FieldHash("rgbaTint"));
+
+        // Family invariants: FieldHash is TypeHash & 0x0FFFFFFF;
+        // TypeHash is case-sensitive (unlike GbidHash).
+        Assert.Equal(Diablo4.TypeHash("nWidth") & 0x0FFFFFFFu,
+                     Diablo4.FieldHash("nWidth"));
+        Assert.NotEqual(Diablo4.TypeHash("DT_INT"),
+                        Diablo4.TypeHash("dt_int"));
+    }
+
     /// <summary>FR-11: character-modeling groups are named, and any group
     /// resolves by id (incl. the int escape hatch) round-tripping a SNO
     /// header.</summary>
