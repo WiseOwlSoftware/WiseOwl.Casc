@@ -160,14 +160,48 @@ decision.
    published yet; one-time setup (GitHub `nuget` env + required reviewer,
    `NUGET_USER` repo var, nuget.org Trusted-Publishing policy for both
    ids) is the owner's to do before the first release — see the runbook.
-9. **FR-C7 (ACTIVE — devlog 0010, spec §10 + CL-9):** RE the D4
-   UI-scene SNO that drives paragon render → typed
-   `ParagonRenderLayout`. **LOCATED**: group-46 UI-scene record, hash
-   `0xE4825AB8` (`ParagonBoard` SNO 657304, 145,550 B). Container
-   characterised; **field decode IN PROGRESS — do not fake it.** RE
-   tool = `build/SnoScan` (our lib; `e:\Paragon` read-only). Next:
-   decode the `0xE4825AB8` widget-node struct + anchor/size + per-state
-   binding table, then the reader + verbatim acceptance matrix.
+9. **FR-C7 (DELIVERED — RE complete, all gates met; devlogs 0010/0011,
+   spec §10 + CL-9..CL-14, consumer contract `docs/fr-c7-api-proposal.md`
+   §7).** D4 UI-scene format (group 46 = type `UI`, hash `0xE4825AB8`;
+   `ParagonBoard` SNO 657304) fully reverse-engineered **standalone &
+   clean-room**. Key decoded facts (all in spec §10):
+   - **D4 identifier hash = DJB2 core `h=h*33+ch` SEED 0** (not 5381):
+     `Diablo4.TypeHash` (no-lower, full u32), `Diablo4.FieldHash`
+     (`& 0x0FFFFFFF`), `Diablo4.GbidHash` (lowercased). Public, shipped.
+     Names absent from SNO data (hash-keyed) but in `Diablo IV.exe`
+     reflection registry → recovered by string-extract+hash+match.
+   - **Record header (CL-13):** `classOff = nameStart +
+     alignUp8(strlen+1) + 0x10`; class id @classOff; `0xFFFFFFFF`
+     sentinel @classOff+0x08. **Schema** = packed 12-byte
+     `(fieldHash, typeHash("DT_BINDABLEPROPERTY")=0x1332C78D, DT_type)`.
+     **Instance values** = fixed 56-byte `0x22` records, value@`+0x08`,
+     positionally keyed to the schema.
+   - **CanvasRef 1920×1200** (`ParagonBoard_main`); node element
+     `Template_Node_Common`=100×100 ref; disc `Node_IconBase` inset 7 →
+     86; **`PitchRef=100/1200`, `DiscRef=86/1200`**, Ornate/Symbol/
+     SocketRing÷Disc=`100/86`. Over-determined 67.7 anchor (consumer
+     oracle {zoom0,7680×2160,Warlock-Start}) **REPRODUCES** →
+     `RenderRatios.Provisional=false`.
+   - Grey ring / connectors / pointers / per-rarity tint / pulse-anim
+     are **NOT in the data** (app-drawn / fixed shader §2.3 / engine) —
+     `0`/`null` is the *decoded answer*, evidence-backed, not gaps.
+   - **CL-14:** the `build/SnoScan widgets` heuristic over-attributes
+     by nearest-name → **recon only**; the shipped header-pinned
+     `Diablo4Storage.ReadUiScene` is the authoritative parser.
+   Shipped public API (`Diablo4Storage`): `ReadUiScene(snoId)` (raw
+   widget graph), `ReadParagonRenderLayout()` (typed §7.1 projection,
+   18-row §7.2 `States`), `Diablo4.TypeHash/FieldHash`. PRs #5–#10
+   merged; library packed `artifacts/fr-c7-pack/*0.1.1-alpha.nupkg`
+   (NOT published — release is the owner's gated call). **Remaining:**
+   repack at the completed state + final consumer note; optionally
+   release `0.1.1-alpha` via the gated pipeline. **Working with the
+   optimizer:** FR loop; consumer is on HOLD (durable record
+   `e:\Paragon\docs\fr-c7-paragon-render-layout.md` Round-11/12);
+   `docs/fr-c7-api-proposal.md` §7 is the converged frozen-until-publish
+   contract; relay status to the consumer via the owner. RE tool
+   `build/SnoScan` (recon only, per CL-14). NEVER fabricate a number;
+   the oracle is the check, not the source — discipline held all round
+   (CL-13/14 caught over-claims before ship).
 10. CHANGELOG/devlog/ARTICLE-SOURCE upkeep each session.
 11. Later: future `.Wow`/`.Overwatch`/`.D2R` modules (core designed for them).
 
