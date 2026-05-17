@@ -388,6 +388,79 @@ Payload empty/absent → shared-payload alias (§5) → retry as
 
 ---
 
+## 10. Paragon UI render layout (group 46, `0xE4825AB8`) — FR-C7
+
+> **Status: format LOCATED + container characterized; field-level
+> decode IN PROGRESS.** This section states only what is empirically
+> proven against build `3.0.2.71886`. It is deliberately *not* a
+> finished layout — the nested widget-tree fields are not yet decoded,
+> and nothing here is guessed. (Consumer ask: `e:\Paragon\docs\
+> fr-c7-paragon-render-layout.md`. Note: that ask references the
+> pre-split single `casc-format.md`; per the spec split this D4-layer
+> format is documented **here**, in `casc-diablo4-format.md`, with its
+> own `CL-*` log — the split is not being re-merged.)
+
+### 10.1 The format and target record (proven)
+
+Diablo IV UI screens/scenes are a distinct SNO record family in
+**group 46**, format hash **`0xE4825AB8`** — peers include `ActionBar`,
+`Armory`, `BuildViewer`, `BrightnessDialog`, `Achievements` (286
+entries; all UI screens/menus/dialogs). This is the "different
+UI-definition SNO format" the consumer could not previously identify.
+
+The paragon node/board render layout is:
+
+| SNO | id | Meta size | role |
+|---|---|---|---|
+| `ParagonBoard` | 657304 | 145,550 B | the board screen — node grid placement + per-state texture binding |
+| `ParagonBoardSelect` | 964599 | 34,481 B | the board-selection screen |
+
+Wrong leads, eliminated with evidence (so they are not re-investigated):
+group **63** `Paragon_*Nodes` are 113-byte tutorial/help triggers;
+group **29** `Paragon_*_Legendary_*` are node *powers*; groups
+**1/9/14/27** are the *art* (mesh / animation / VFX); group **42**
+paragon entries are localized strings; group **44** `2DUI_Paragon*` are
+the texture atlases (already decodable). The render *metric* is none of
+these — it is the group-46 UI-scene record.
+
+### 10.2 Container header (proven, common across `0xE4825AB8`)
+
+```
+0x00  u32  0xDEADBEEF              SNO signature
+0x00..0x10                        16-byte SNO header (zero after sig)
+0x10  u32  SNO id                 (657304 for ParagonBoard)
+0x20  u32  0x70                   root-struct offset (constant observed)
+0x24  u32  type/version word      0x12 (ParagonBoard) vs 0x11 (BrightnessDialog)
+0x30  u32  offset (0x88)          \ root descriptor offset/size/count
+0x34  u32  size   (0x58)          / triple
+0x38  u32  0x01                   count/flag
+0x80  ASCII root widget name      "ParagonBoard_main\0"
+~0xA8 u32  hash/handle, FFFFFFFF  start of the nested widget tree
+```
+
+The body is a **nested widget tree**: 32-bit texture/material/style
+handles (the same `TexFrame.ImageHandle` space as §6 — e.g. the
+`2DUI_Paragon_transparentElements` frame handles the consumer
+catalogued) interleaved with per-widget anchor/size float structs and
+`0xFFFFFFFF` child/sentinel delimiters. Decoding the widget-node struct,
+the anchor/size encoding, and the per-rarity/per-state binding table to
+the field level is the remaining FR-C7 work (tracked CL-9); it is a
+B1–B6-scale round and will be delivered with the same acceptance rigour,
+not approximated.
+
+### 10.3 Reconnaissance instrument
+
+`build/SnoScan` (in `e:\Casc`, not shipped, not in the solution —
+same throwaway posture as `build/TileIcon`) drives the real
+`WiseOwl.Casc.Diablo4` decoder against the live install:
+`groups` (all 181 groups + format hashes + counts), `find <substr>`
+(named entries → group/hash/id), `dump <gid> <id> [folder]`
+(SNO header fields + hex/ascii). This keeps the RE on our own library
+and leaves `e:\Paragon` strictly read-only (the consumer's `snoscan`
+tool would have written build output there).
+
+---
+
 ## Appendix A — correction log (Diablo IV errata)
 
 What was found wrong/omitted during empirical implementation, and the
@@ -426,6 +499,19 @@ true value (the sections above already state the corrected truth).
   value (+12) so the consumer never re-parses the specifier. Spec
   authority transferred to this document set; upstream
   `d4-binary-formats.md` §3–§8.15 frozen for layouts.
+
+- **CL-9 — paragon UI render layout (FR-C7), format located.** The
+  paragon render metric is **not** in the paragon record groups, the
+  art groups, or the texture atlases — it is a **group-46 UI-scene
+  record**, format hash **`0xE4825AB8`** (peers: `ActionBar`, `Armory`,
+  `BuildViewer`…), specifically `ParagonBoard` SNO 657304 (145,550 B)
+  and `ParagonBoardSelect` 964599. Container header proven (§10.2);
+  the nested widget-tree field decode (cell pitch, per-rarity/state
+  texture-binding layer lists, anim params) is **in progress** and
+  will land with a verbatim acceptance matrix — explicitly NOT yet
+  decoded, nothing in §10 guessed. The consumer ask's
+  document-target reference (`casc-format.md`) predates the spec split;
+  this D4-layer format is owned here.
 
 ## Appendix B — provenance & migration map
 

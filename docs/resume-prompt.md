@@ -154,8 +154,16 @@ decision.
    published yet; one-time setup (GitHub `nuget` env + required reviewer,
    `NUGET_USER` repo var, nuget.org Trusted-Publishing policy for both
    ids) is the owner's to do before the first release — see the runbook.
-9. CHANGELOG/devlog/ARTICLE-SOURCE upkeep each session.
-10. Later: future `.Wow`/`.Overwatch`/`.D2R` modules (core designed for them).
+9. **FR-C7 (ACTIVE — devlog 0010, spec §10 + CL-9):** RE the D4
+   UI-scene SNO that drives paragon render → typed
+   `ParagonRenderLayout`. **LOCATED**: group-46 UI-scene record, hash
+   `0xE4825AB8` (`ParagonBoard` SNO 657304, 145,550 B). Container
+   characterised; **field decode IN PROGRESS — do not fake it.** RE
+   tool = `build/SnoScan` (our lib; `e:\Paragon` read-only). Next:
+   decode the `0xE4825AB8` widget-node struct + anchor/size + per-state
+   binding table, then the reader + verbatim acceptance matrix.
+10. CHANGELOG/devlog/ARTICLE-SOURCE upkeep each session.
+11. Later: future `.Wow`/`.Overwatch`/`.D2R` modules (core designed for them).
 
 ## Gotchas
 
