@@ -99,18 +99,25 @@ the **`nuget` environment**. Repo → **Settings → Environments → nuget →
 Environment secrets → Add secret**:
 
 - Name: `NUGET_USER`
-- Value: **exactly the "Package owner" shown on the Trusted Publishing
-  policy** (step 3) — for this project the `WiseOwlSoftware`
-  organization, so the value is **`WiseOwlSoftware`**.
+- Value: the **policy *creator's* individual nuget.org username** — the
+  account you were signed into when you created the Trusted Publishing
+  policy. For this project: **`BrentRector`**.
 
-This is the single most error-prone value. The `NuGet/login` `user:`
-input must identify the nuget.org account whose Trusted Publishing
-policy is being matched and *as which* packages are published. Because
-the policy's Package owner is the **organization** `WiseOwlSoftware`
-(packages live under the reserved `WiseOwl.*` prefix owned by that org),
-the value is the **org account name**, *not* the individual maintainer's
-personal handle. It would be the personal handle only if the policy's
-Package owner were set to the individual account instead.
+This is the single most error-prone value, and it is **NOT** the policy's
+"Package owner". NuGet's token-exchange endpoint matches the policy by
+its **creator**, and says so verbatim on mismatch:
+
+> *Token exchange failed (HTTP 401)… Make sure you are using the
+> username of the **policy creator, not the policy owner**: No matching
+> trust policy owned by user '…' was found.*
+
+So even though the policy's **Package owner** is the `WiseOwlSoftware`
+organization (packages live under the reserved `WiseOwl.*` prefix owned
+by that org), `NuGet/login`'s `user:` must be the **individual account
+that created the policy** (`BrentRector`). Package ownership and the
+`user:` value are independent: the policy can publish *to* the org while
+being authenticated *as* its individual creator. Do not "correct" this to
+the org name — that is precisely the mistake that produced the 401 above.
 
 (A username is not actually sensitive, so a repo/environment *variable*
 would work too — but it is stored here as an environment secret and the
