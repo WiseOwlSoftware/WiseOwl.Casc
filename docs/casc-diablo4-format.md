@@ -532,9 +532,35 @@ points to. This is itself a consumer-relevant answer: a literal authored
 `CellPitch` in px may not exist as stored data — it is likely
 `canvasPx × normalisedSpacing` over the `ParagonBoardDefinition` grid.
 
+- **Rigorous finding — there is NO authored pixel node geometry in
+  `ParagonBoard`.** Full-record float scan (all 145,550 B): 82 floats in
+  the 8–4096 "pixel-plausible" range out of 576 numeric floats; the rest
+  are normalised fractions (`0.049`-class) or hash-as-float. **No value
+  clusters at any bound texture's native size (disc 154², ring 135²,
+  ornate ~325²), at any screen resolution (1920/1080/1280/720), or at a
+  node-grid pitch.** The clean recurring px values that *do* exist
+  (`10`×12, `223.474`×10, `55.848`×8, `20`, `40`, `30`, `25`) are
+  chrome-scale — margins/panel sizes consistent with the abundant
+  `SidePanel_*` / `Header_*` / `*_Divider` widgets — not node disc /
+  symbol / pitch. The large singletons (`893.x`, `957`, `3574`) are
+  ASCII/hash false-positives (e.g. `893.898` = the bytes of
+  `Rarity_Display`). **Conclusion (evidence-backed, answers the FR's
+  "data or engine constant?"):** the paragon node render metric is
+  *not* authored px data. The game composes node visuals at runtime
+  from (a) the `ParagonBoardDefinition` grid (§7.1, already decoded),
+  (b) the bound textures' *native* sizes (§6, already decodable), and
+  (c) **normalised** scale/anchor factors in this object graph, against
+  the runtime render resolution. A literal authored `CellPitch`/disc-px
+  does not exist to extract — so `ParagonRenderLayout` must expose the
+  *normalised model + derivation rule*, not px constants, and the one
+  truly absent quantity (the global px scale = render resolution) still
+  needs a single calibration measurement (`fr-c7-response.md` §6) — not
+  because we failed to find it, but because the game does not store it.
+
 **Still open (NOT decoded — no guesses emitted):** the **member-hash
-vocabulary** — which `memberNameHash` is width / height / anchor /
-pitch / tint colour / blend — and the normalised→screen-px derivation.
+vocabulary** — which `memberNameHash` carries the normalised
+scale / anchor / pitch factor and the tint colour/blend — and the exact
+normalised→screen derivation.
 The format model is now pinned (hash-addressed object graph, triplet
 members), so this is a tractable vocabulary problem, attacked by:
 (a) reading a *leaf image* widget's triplets (e.g. the disc-binding

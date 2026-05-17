@@ -139,3 +139,52 @@ Pure oracle — no byte work on your side, consistent with the boundary:
   to what you composite.
 
 These only *validate/accelerate*; the decode proceeds without them.
+
+## 7. Premise correction (important) — there are no authored px constants
+
+Update from the deep dive (`casc-diablo4-format.md` §10.3, rigorous
+full-record scan). The format is now structurally decoded: a
+**hash-addressed object graph** of widgets, each
+`name + classHash + members`, where a member is a triplet
+`(memberNameHash, 0x1332C78D, value|objRef)`. We scanned **all
+145,550 bytes** for pixel-magnitude floats: there is **no value cluster
+at any bound texture's native size, at any screen resolution, or at a
+node-grid pitch**. The only clean px floats are chrome-scale (side
+panels, header dividers).
+
+**So a key assumption in your ask is not borne out:** the UI-definition
+SNO does *not* contain authored draw-scale/placement metadata in pixels.
+The game composes node visuals at runtime from three things, two of
+which you (or we) already have:
+
+1. the **`ParagonBoardDefinition` grid** (group 108, §7.1) — already
+   decoded; you have the cell `(X,Y)` lattice;
+2. the **bound textures' native sizes** (§6) — already decodable on our
+   side (disc 154², ring 135², ornate ~325², symbols per atlas);
+3. **normalised** scale/anchor factors in this object graph (real data,
+   still being vocabulary-mapped) — these we will deliver.
+
+The one quantity that is genuinely **not in any data file** is the
+global pixel scale — it is the runtime render resolution. So:
+
+- `ParagonRenderLayout` will return a **normalised model**
+  (scale/anchor factors + the layer/state lists + the texture handles +
+  the §3 tint model), plus the explicit derivation rule
+  `elementPx = textureNativeSize × normScale`,
+  `nodeCentrePx = canvasPx × normPitch(gridXY)`. It will **not** return
+  px constants, because the game has none to give.
+- Your §6 calibration capture is therefore **not optional** — it is the
+  single measurement that fixes the global scale (`canvasPx` for your
+  target resolution). One screenshot, two measured distances, once. With
+  it your composite is exact; without it the *ratios* are exact but the
+  absolute size floats free. This is not a gap in our RE — it is how the
+  game itself works (resolution-independent UI), and it is the
+  evidence-backed answer to your FR's "is it data or an engine
+  constant?" for the scale field: **engine/runtime, not data.**
+
+Net: keep your calibrated `IconCellFactor`/canvas constant as the
+*resolution anchor* (it is legitimately yours to own — it is not in the
+data for anyone), and expect us to replace every *ratio/relationship*
+constant (disc↔cell, symbol↔disc, ornate↔disc, per-state layer set,
+tint) with decoded normalised values. That is the correct, honest
+shape of C7 given what the format actually contains.
