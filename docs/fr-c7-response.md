@@ -188,3 +188,25 @@ data for anyone), and expect us to replace every *ratio/relationship*
 constant (disc↔cell, symbol↔disc, ornate↔disc, per-state layer set,
 tint) with decoded normalised values. That is the correct, honest
 shape of C7 given what the format actually contains.
+
+### 7.1 Known calibration target: 7680×2160 (32:9)
+
+The user's play resolution is **7680×2160** (32:9, ≈3.56:1). D4 UI is
+resolution-independent and **height-scaled, horizontally centred** at
+super-wide aspect — it does *not* stretch to 7680. So for the px
+derivation:
+
+- The global scale keys off **height (2160)**, not width:
+  `scale ≈ 2160 / D4_UI_referenceHeight` (reference height TBD — the
+  calibration capture pins it; common D4 reference is 1080 → ×2, but
+  this is to be *measured*, not assumed).
+- Node centres are placed about the **horizontal midpoint (3840)**, not
+  across the full 7680.
+- The in-game **UI-scale slider** is an additional runtime multiplier on
+  top of resolution scaling; a capture must be at slider default (or the
+  slider value recorded) for the measured px to map cleanly.
+
+Any calibration screenshot should therefore be tagged exactly
+`7680×2160 @ <UI-scale slider value>`; the two measured distances
+(node-to-node centre, disc diameter) then pin `D4_UI_referenceHeight`
+and the disc↔cell ratio in one shot.
