@@ -447,23 +447,27 @@ SNO meta format; it is exposed as public API (`Diablo4.TypeHash` /
 ### 10.3 Data-binding model and encoding
 
 `0xE4825AB8` is a reflection-serialised, hash-addressed widget graph
-of variable-size widget records, each with an inline NUL-terminated
-name, a class id (`= typeHash(widget-class name)`), a `0xFFFFFFFF`
-sentinel, and a block of schema entries + instance records.
+of variable-size widget records. The **record header is pinned**
+(verified across `ParagonBoard_main`@0x80 (17), `Template_ParagonBoard`
+@0xA70 (21), `ParagonNodes_BaseLayer`@0x20F8 (22),
+`ParagonNodes`@0x1E30 (12) — name lengths in parens):
 
-> **Record-header framing is NOT yet pinned.** An earlier model
-> ("name+0x28 = class id, +0x30 = sentinel, +0x60 = block") was
-> inferred from a few *same-name-length* widgets and does **not**
-> generalise: `ParagonBoard_main`@0x80 has the class id `0x1E3077C7` at
-> name+0x28, but `ParagonNodes`@0x1E30 has `0xFFFFFFFF` there — the
-> offsets are relative to a padded/aligned name field or the enclosing
-> record start, not the raw name start. Determining the widget record
-> header (name field size/alignment; class-id and sentinel positions
-> relative to a stable anchor; how a widget's schema run and its
-> instance records are delimited per widget) is the **active
-> sub-problem** for the §10.11 assembly. The two encodings below are
-> independently proven (by the separator-keyed `members` scan and the
-> fixed-stride `0x22` scan) and do **not** depend on the header model.
+```
+nameStart                                  : name, NUL-terminated ASCII
+classOff = nameStart + alignUp8(len+1) + 0x10
+classOff + 0x00  u32  class id = typeHash(widget-class name)
+classOff + 0x04  u32  0
+classOff + 0x08  u32  0xFFFFFFFF  (sentinel)
+… schema run + instance records follow
+```
+
+`alignUp8(n) = (n + 7) & ~7`. (The earlier "fixed name+0x28" model was
+an over-generalisation from same-length names — see CL-13, now
+resolved: the post-name fields sit after the name padded up to an
+8-byte boundary, plus a constant `0x10`.) This makes a correct parser
+possible: enumerate NUL-terminated identifier names, compute `classOff`,
+require the `0xFFFFFFFF` at `classOff+0x08`, then read the schema run
+and instance records below.
 
 Widgets reference children by name-hash, not file offset (hence the
 constant-heavy layout). Each field has two co-located parts:
@@ -749,6 +753,11 @@ true value (the sections above already state the corrected truth).
   56-byte `0x22` instance records, value@+0x08) are independently
   proven and unaffected. Caught when the `walk` tool mis-parsed
   `ParagonNodes` — recorded rather than built upon.
+  **RESOLVED:** the header is `classOff = nameStart + alignUp8(len+1)
+  + 0x10`; class id at `classOff`, `0xFFFFFFFF` sentinel at
+  `classOff+0x08` — verified across four widgets of name lengths
+  12/17/21/22 (§10.3). The over-generalised model is fully superseded;
+  a correct (non-heuristic) parser is now possible.
 
 ## Appendix B — provenance & migration map
 
