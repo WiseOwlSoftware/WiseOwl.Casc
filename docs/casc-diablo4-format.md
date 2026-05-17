@@ -644,11 +644,40 @@ CL-14):
 | per-state / overlay | named widgets `Common_Node_BG_Black` / `Common_Node_Revealed` / `Node_Purchasable` / `Arrow_{Top,Right,Bottom,Left}` (pointer triangles) / `Connector_{Top,Right,Bottom,Left}` (connector bars) |
 
 These are facts from the `+0x08` slot of the positional 56-byte `0x22`
-records via the authoritative header-pinned parser. Remaining:
+records via the authoritative header-pinned parser.
 
-1. Map the named per-state/overlay widgets above to the §7.2 18-row
-   matrix (their `DT_SNO` texture handles + `rgbaTint` + rects); add
-   rows only when decode-proven (no fabricated rows).
+**Per-state texture binding (decode-true).** Node textures are bound
+**not** via the `DT_SNO` field but via field **`0x0C152636`** of type
+**`0x6B1C5D9C`** (a texture/material-handle DT type; both still
+unnamed — a refinement, identified by behaviour) on specifically-named
+widgets:
+
+| Widget | Bound handle | §2.2 role |
+|---|---|---|
+| `Node_IconBase` | `0x1D166DC7` | base disc |
+| `NodeAvailableGlow` | `0x4A901508` | gold ornate (Rare/Legendary) |
+| `GlyphNodeGlow_Revealed` / `_Purchased`, `Usage_Slot_2` | `0xBED4CF21` | socket pulse ring |
+
+Only these are bound in `ParagonBoard`. The grey rim ring
+(`0x87A89F86`), the selection ring, the connector bars
+(`0x77ECA3A8`/`0x288DE11F`) and the four pointer triangles are **absent
+from the scene data** — confirming they are **app-drawn / procedural
+overlays** (consistent with FR §2.5 and the Round-11 `overlay.*` note:
+"not per-node baked"). Per-rarity differentiation is the bound
+`rgbaTint` (§10.7 / §2.3 — shader tint on the shared neutral disc, not
+per-rarity textures). So the §7.2 18-row matrix maps to a **small set
+of shared decode-true elements** (disc + gold ornate + pulse) ×
+per-rarity `rgbaTint`, with the 3 `overlay.*` rows carrying *no* bound
+scene data (the consumer keeps its catalogued procedural handles, as
+the FR anticipated) — not 18 distinct baked layer-lists.
+
+Remaining:
+
+1. Populate `StateElements` from the decode-true elements above
+   (`Node_IconBase`/`NodeAvailableGlow`/`GlyphNodeGlow_*` handles +
+   rects + the per-rarity `rgbaTint` + the pulse `AnimSpec`); overlay
+   rows carry the documented "app-drawn, not in scene data". No
+   fabricated rows.
 2. Derive `pitchRef` from the `Template_Node_Common` element + the node
    layout + the `ParagonBoardDefinition` Warlock-Start grid (§7.1);
    verify it reproduces ≈67.7 px/grid at the §10.8 provenance and is
