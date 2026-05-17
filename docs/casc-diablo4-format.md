@@ -610,6 +610,54 @@ problem: a candidate `memberNameHash`→meaning is accepted only if
 **and** the same member is consistent across widgets — proof, not
 inference.
 
+### 10.5 Reflection-serialised; the id scheme; negative hash result
+
+Enumerating every `(id, 0x1332C78D, payload)` triplet (scan for the
+ubiquitous separator) proved the format is **reflection-serialised**,
+not a plain widget tree:
+
+- **Each field-id maps to exactly one fixed payload across the whole
+  file** (e.g. `0x093CBAA8`→`0.0488f`×132; `0x06AB76DE`→`0xA4C42E02`
+  ×124). That is a **schema/type table**, not per-instance values:
+  34 distinct field-ids, each `(fieldId, SEP, typeOrDefault)`; the
+  per-instance geometry lives in a separate data section keyed by this
+  schema. ~7 recurring payloads = the **type enum**
+  (`0xA4C42E02` dominant = "object/deferred", `0x3D47BD2C`=`0.0488f`,
+  `0x6B1C5D9C`, `0x2B0285C0`, `0x8E266332`, `0xE549F591`, `0xA4C45887`).
+- **Id structure proven:** all 34 field-ids are `< 0x0E000000`
+  (top byte `0x00`–`0x0D`), while separator/class/type ids have
+  non-zero top bytes (`0x13`, `0x1E`, `0xA4`, `0xE5`…). 34 uniform
+  32-bit hashes all landing `<0x0E000000` has probability ≈ 0, so the
+  id is **structured: `(categoryTag<<24) | hash24`** — the top byte is
+  a kind tag (`0x00` = field), not hash entropy.
+- **Negative hash result (rules out the easy path):** the `hash24`
+  matches **none** of GbidHash, FNV-1a, FNV-1a-lower, DJB2, DJB2-lower,
+  SDBM, CRC32, or lookup3 (hi/lo) for a broad UI wordlist
+  (`type/object/ref/child/widget/x/y/width/height/scale/anchor/size/…`).
+  The UI field-name hash is a non-standard or seeded scheme — blind
+  brute force is not the realistic unlock.
+
+**Honest assessment of the two remaining routes (no guess will bridge
+them):**
+1. *Name the fields by hash* — needs the D4 UI member-name string list
+   or the exact seeded algorithm (an external artifact / the upstream RE
+   record), **not** further blind brute force.
+2. *Name the fields by value behaviour* — decode the **instance-data
+   section** (separate from this schema), extract per-widget values,
+   and accept a field as "pitch/scale/anchor" only when it reproduces
+   the 67.7 px/grid anchor at the stated provenance for a decoded
+   `canvasRef` and is cross-widget consistent. This needs the
+   instance-data section framing and the canvas-reference + zoom model
+   decoded — the next deep target — and is the route that does not
+   depend on an external artifact.
+
+Route 2 is the one being pursued (no external dependency); route 1 is
+flagged for the owner/consumer as the de-risking accelerator if a D4 UI
+field-name list exists in the upstream record. Until one of them
+*proves* a field→meaning, **no pitch/scale/anchor number is asserted** —
+the schema and id scheme are decoded; the named geometry is not, and is
+not faked.
+
 ### 10.4 Reconnaissance instrument
 
 `build/SnoScan` (in `e:\Casc`, not shipped, not in the solution —
