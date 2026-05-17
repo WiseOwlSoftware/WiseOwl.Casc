@@ -110,15 +110,28 @@ first publish** — they need not pre-exist. The policy binds "publish as
 this account" to *exactly* this repo + workflow + environment and nothing
 else.
 
-### 4. (Recommended) Branch protection on `main`
+### 4. (Optional — does not affect publish safety) Branch protection on `main`
 
-Repo → **Settings → Branches → Add rule** for `main`:
+This step only enforces the feature-branch/PR habit as a rule. The
+irreversible-publish protection (release-only trigger, environment
+approval, version guard, `--skip-duplicate`) is **independent** of branch
+protection — skip this entirely if the UI fights you and nothing about
+publishing becomes less safe.
 
-- Require a pull request before merging.
-- Require the **CI** status checks (`Build & test`, `API docs in sync`)
-  to pass.
+Repo → **Settings → Branches → Add branch ruleset / rule** for `main`:
 
-This makes the feature-branch/PR model enforced rather than just habit.
+- Enable **Require a pull request before merging**.
+- Enable **Require status checks to pass before merging**. The control is
+  a **search box**, not a pre-filled list ("No required checks" is just
+  the empty selected-list state, not an error). Type each of these exact
+  job names and select it:
+  - `Build & test`
+  - `API docs in sync`
+
+  These are the `name:` values of the two jobs in `ci.yml`; the `&` and
+  spaces are part of the string. The search only finds checks GitHub has
+  observed in the last ~week — CI runs on every push/PR to `main`, so
+  they are present once CI has run at least once (it has).
 
 ---
 
