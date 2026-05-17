@@ -82,8 +82,8 @@ public sealed class FeatureBacklogRound2Tests
         Skip.If(install is null, "No Diablo IV install available.");
         using var d4 = Diablo4Storage.Open(install!);
 
-        Assert.Equal(@"Base\Child\1234", d4.SnoPath(1234, SnoFolder.Child));
-        Assert.Equal(@"Base\Child\1234-0", d4.SnoPath(1234, SnoFolder.Child, 0));
+        Assert.Equal(@"Base\Child\1234", Diablo4Storage.SnoPath(1234, SnoFolder.Child));
+        Assert.Equal(@"Base\Child\1234-0", Diablo4Storage.SnoPath(1234, SnoFolder.Child, 0));
 
         // Child sub-blobs are addressed Base\Child\<id>-<subId>.
         var found = false;
@@ -92,7 +92,7 @@ public sealed class FeatureBacklogRound2Tests
             foreach (var e in d4.CoreToc.EntriesInGroup(g).Take(600))
             {
                 if (!d4.Casc.TryResolvePath(
-                        d4.SnoPath(e.Id, SnoFolder.Child, 0), out _)) continue;
+                        Diablo4Storage.SnoPath(e.Id, SnoFolder.Child, 0), out _)) continue;
                 Assert.True(d4.TryReadSno(g, e.Id, SnoFolder.Child, out var b,
                     subId: 0));
                 Assert.NotEmpty(b);

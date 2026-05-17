@@ -3,7 +3,7 @@
 The TVFS path a SNO resolves through: `<prefix>\<Folder>\<id>` (a child sub-id appends `-<subId>`). Verified empirically against the live build: Diablo IV addresses SNO content in TVFS by the numeric id — not by a `<group>\<name><ext>` name path and not by the `base:meta\<id>` colon form.
 
 ```csharp
-public string SnoPath(int id, SnoFolder folder = SnoFolder.Meta, int subId = -1, 
+public static string SnoPath(int id, SnoFolder folder = SnoFolder.Meta, int subId = -1, 
     string prefix = "Base")
 ```
 

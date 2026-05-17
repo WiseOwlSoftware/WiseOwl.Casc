@@ -100,7 +100,7 @@ public sealed class Diablo4Storage : IDisposable
     /// <b>not</b> by a <c>&lt;group&gt;\&lt;name&gt;&lt;ext&gt;</c> name path
     /// and not by the <c>base:meta\&lt;id&gt;</c> colon form.
     /// </summary>
-    public string SnoPath(int id, SnoFolder folder = SnoFolder.Meta,
+    public static string SnoPath(int id, SnoFolder folder = SnoFolder.Meta,
         int subId = -1, string prefix = "Base") =>
         subId < 0 ? $@"{prefix}\{folder}\{id}"
                   : $@"{prefix}\{folder}\{id}-{subId}";

@@ -35,7 +35,7 @@ public sealed class Diablo4StorageIntegrationTests
 
         Assert.Equal("Paragon_Warlock_00",
             d4.CoreToc.GetName(SnoGroup.ParagonBoard, 2458674));
-        Assert.Equal(@"Base\Meta\678776", d4.SnoPath(678776));
+        Assert.Equal(@"Base\Meta\678776", Diablo4Storage.SnoPath(678776));
 
         // ParagonNode 678776: ~236 B, SNO signature 0xDEADBEEF, id at 0x10.
         var node = d4.ReadSno(SnoGroup.ParagonNode, 678776);

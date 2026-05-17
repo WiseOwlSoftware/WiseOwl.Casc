@@ -38,14 +38,14 @@
     <RepositoryType>git</RepositoryType>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageIcon>icon.png</PackageIcon>
-    <PackageReleaseNotes>Pre-1.0 (0.1.0-alpha). See CHANGELOG.md in the repository for the full, dated change history and the dev logs for the narrative.</PackageReleaseNotes>
+    <PackageReleaseNotes>Pre-1.0 (0.1.1-alpha). See CHANGELOG.md in the repository for the full, dated change history and the dev logs for the narrative.</PackageReleaseNotes>
     <PackageTags>casc;tact;tvfs;blte;blizzard;diablo4;wow;sno;tex;bc7;game-data;modding</PackageTags>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <EmbedUntrackedSources>true</EmbedUntrackedSources>
-    <Version>0.1.0-alpha</Version>
+    <Version>0.1.1-alpha</Version>
     <!-- Unofficial-status disclaimer travels with every published package. -->
     <Description>Unofficial, modern .NET library for Blizzard's CASC content-storage stack. Not affiliated with or endorsed by Blizzard Entertainment. World of Warcraft, Diablo, and related marks are trademarks of Blizzard Entertainment, Inc. Use only with your own legally-obtained game files.</Description>
   </PropertyGroup>
