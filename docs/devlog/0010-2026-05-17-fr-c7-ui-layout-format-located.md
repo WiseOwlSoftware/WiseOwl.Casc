@@ -77,3 +77,26 @@ is not pinned, and the FR's contract is zero guessed constants. §10.3
 records exactly what is proven and flags the rest open. The discipline
 is the point: a partially-right layout that *looks* finished is worse
 than an honest "located + structured, numbers pending."
+
+## Continuation 2 — the widget record is a property-bag
+
+Diffing same-type sibling widgets (`ParagonNodes_BaseLayer` vs
+`_TopLayer`) cracked the record framing: inline name → constant
+class-hash `0x1E3077C7` at name+0x28 → `FFFFFFFF` sentinel → a
+`[self-backref][size][count]` descriptor → `count` × (32-bit
+property-name hash, value). It is a **property-bag widget tree**;
+the earlier "texture-binding micro-struct" is just a property whose
+value is a texture handle. The two layers are byte-identical after the
+name (coincident full-board canvases) — a useful negative: the node
+metric is not in the layer widgets, it is in the node prefab / the
+data-region bindings. And the widget sitting immediately after the
+base-disc binding is named **`Rarity_Display`** — the rarity element is
+exactly where the §3 absence-evidence said the tint must live.
+
+The honest edge held again: the *framing* is pinned, but the
+property-name hashes are still opaque (which hash means "disc width"
+vs "anchor" vs "pitch"). Mapping hash→meaning needs an oracle — a
+widget whose on-screen px size is known — which is precisely the
+calibration capture the consumer response asks for. So still no
+`CellPitch`/size numbers asserted; structure deepened, numbers
+deliberately withheld until a hash↔meaning proof exists.

@@ -478,15 +478,42 @@ Verified against build `3.0.2.71886` (`build/SnoScan strings|scan|f32`):
   me the per-rarity disc texture" API would be wrong because no such
   asset is referenced.
 
-**Still open (NOT decoded — no guesses emitted):** the widget-node
-struct field layout, the anchor/size encoding (authored px ↔ board-cell
-pitch), the per-rarity/per-state ordered layer list, and the animation
-params. Sparse floats are present near widgets (e.g. `0.049` repeats —
-plausibly a normalised anchor) but the struct framing is not yet pinned,
-so no `CellPitch`/size numbers are asserted. The typed
-`ParagonRenderLayout` ships only when these are pinned with a verbatim
-acceptance matrix — consistent with the FR's zero-guessed-constants
-contract.
+- **Widget record = a property-bag (proven across 3 widgets:
+  `ParagonNodes_BaseLayer`, `_TopLayer`, `Template_ParagonBoard`):**
+  ```
+  inline name (ASCII, NUL-terminated, zero-padded)
+  name+0x28  u32  class hash 0x1E3077C7   (constant — widget base-class id)
+  name+0x30  u32  0xFFFFFFFF               (sentinel) + zero run
+  …          u32  self back-ref offset    (= name_start + 0x60)
+  +4         u32  property-block size      (0xB0 layers / 0xB8 template)
+  +8         u32  property count           (4 layers / 5 template)
+  then count × ( u32 property-name hash , value )
+  ```
+  `size` and `count` vary per widget (the property bag); the class hash
+  and framing are constant. Recurring property-name hashes: `1332C78D`
+  (value `0.049` = `0x3D47BD2C`), `A4C42E02`, `093CBAA8`, `03D55658`,
+  `081BC013`, `0AB7C81F`. The §10.3 "texture-binding micro-struct" is
+  simply a property entry whose value is a `TexFrame.ImageHandle`.
+  `BaseLayer` and `TopLayer` are **byte-identical** after the name
+  (coincident full-board canvases) — the node metric is therefore in
+  the node *prefab* / data-region bindings, not the layer widgets.
+- **`Rarity_Display` widget located:** the widget record immediately
+  after the base-disc binding (≈`0xE9B8`) is named `Rarity_Display` —
+  the rarity-tint element, exactly where §3's evidence predicted. Its
+  property bag is where the tint colour/blend (or a definitive
+  "shader-driven, no data" confirmation) will be read.
+
+**Still open (NOT decoded — no guesses emitted):** the **meaning of the
+property-name hashes** (which hash is size / anchor / pitch / tint), and
+therefore the anchor/size encoding (authored px ↔ board-cell pitch), the
+per-rarity/per-state ordered layer list, and the animation params. The
+property-bag *framing* is now pinned, but mapping a hash → "this is the
+disc width" needs an oracle: a widget whose on-screen pixel size is
+known (the calibration capture requested in `docs/fr-c7-response.md` §6).
+No `CellPitch`/size numbers are asserted until that mapping is proven.
+The typed `ParagonRenderLayout` ships only when these are pinned with a
+verbatim acceptance matrix — consistent with the FR's
+zero-guessed-constants contract.
 
 ### 10.4 Reconnaissance instrument
 
