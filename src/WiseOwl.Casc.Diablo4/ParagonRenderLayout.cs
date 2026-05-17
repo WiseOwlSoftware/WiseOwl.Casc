@@ -153,19 +153,85 @@ internal static class ParagonRenderProjection
             OrnateOverDisc: 0, SymbolOverDisc: 0,
             GreyRingOverDisc: 0, SocketRingOverDisc: 0);
 
-        // Disc/Symbol elements and the 18-row State matrix require the
-        // per-state widget→texture assembly (§10.12); rows are added
-        // only when decode-proven (no fabricated states). Until then
-        // States is empty and the consumer relies on ReadUiScene +
-        // their interim calibrated constants (the contract's staged
-        // design: Provisional ratios + audit rects now, States next).
-        var states = Array.Empty<StateElements>();
+        // Per-state texture binding (§10.11, decode-true): node
+        // textures bind via the texture-handle DT type 0x6B1C5D9C on
+        // specifically-named widgets. Disc/ornate/pulse are the only
+        // elements bound in ParagonBoard; rarity differs by rgbaTint
+        // (shader, §2.3); the overlay.* layers are app-drawn (absent
+        // from scene data — FR §2.5).
+        const uint TexHandleType = 0x6B1C5D9Cu;
+
+        NodeElement Elem(string widgetName)
+        {
+            var x = ByName(widgetName);
+            if (x is null) return default;
+            uint handle = 0;
+            byte alpha = 0;
+            foreach (var f in x.Fields)
+            {
+                if (f.HasValue && f.TypeHash == TexHandleType &&
+                    f.RawValue is not 0 and not 0xFFFFFFFF && handle == 0)
+                    handle = f.RawValue;
+                if (f.HasValue && f.FieldHash == Diablo4.FieldHash("dwAlpha"))
+                    alpha = (byte)f.RawValue;
+            }
+            return new NodeElement(handle, Rect(x), alpha);
+        }
+
+        var disc   = Elem("Node_IconBase");        // 0x1D166DC7
+        var ornate = Elem("NodeAvailableGlow");    // 0x4A901508 (Rare/Legendary)
+        var pulse  = Elem("GlyphNodeGlow_Revealed"); // 0xBED4CF21 (socket)
+
+        static NodeElement[] L(params NodeElement[] xs) =>
+            xs.Where(e => e.TextureHandle != 0).ToArray();
+
+        var states = new List<StateElements>(18);
+
+        // Rows 1–8: rarity {0,2,3,4} × {unselected,selected}. Layers are
+        // the shared decode-true elements (disc, + gold ornate for
+        // Rare/Legendary); per-rarity colour is rgbaTint (not decoded
+        // per-rarity ⇒ Tint/LitTint left null, not fabricated).
+        foreach (var rar in new[] { 0, 2, 3, 4 })
+            foreach (var st in new[] { "unselected", "selected" })
+                states.Add(new StateElements(
+                    rar, st,
+                    rar >= 3 ? L(disc, ornate) : L(disc),
+                    Tint: null, LitTint: null, Animation: null));
+
+        // Rows 9–11: socket. Pulse present when unselected; dropped on
+        // selected; socketed = selected + (glyph image, not separately
+        // bound here). AnimSpec left null until the pulse params are
+        // decoded (no fabricated anim).
+        states.Add(new StateElements(-1, "socket.unselected",
+            L(disc, pulse), null, null, Animation: null));
+        states.Add(new StateElements(-1, "socket.selected",
+            L(disc), null, null, null));
+        states.Add(new StateElements(-1, "socket.socketed",
+            L(disc), null, null, null));
+
+        // Rows 12–15: gate / start. No distinct gate/start texture is
+        // bound in ParagonBoard (shared node element + state).
+        states.Add(new StateElements(-1, "gate.unselected",  L(disc), null, null, null));
+        states.Add(new StateElements(-1, "gate.selected",    L(disc), null, null, null));
+        states.Add(new StateElements(-1, "start.unselected", L(disc), null, null, null));
+        states.Add(new StateElements(-1, "start.selected",   L(disc), null, null, null));
+
+        // Rows 16–18: overlays are app-drawn / procedural — absent from
+        // the scene data (§10.11, FR §2.5). Present with empty layers so
+        // the contract's 18 keys are 1:1; the consumer keeps its
+        // catalogued procedural handles for these (as anticipated).
+        states.Add(new StateElements(-1, "overlay.selectionRing",
+            Array.Empty<NodeElement>(), null, null, null));
+        states.Add(new StateElements(-1, "overlay.connectorBar",
+            Array.Empty<NodeElement>(), null, null, null));
+        states.Add(new StateElements(-1, "overlay.pointerTriangle",
+            Array.Empty<NodeElement>(), null, null, null));
 
         return new ParagonRenderLayout(
             ratios, canvas,
             Rect(container), Rect(template),
             boardRotationQuadrant,
-            Disc: default, Symbol: default,
+            Disc: disc, Symbol: default,
             States: states);
     }
 }
