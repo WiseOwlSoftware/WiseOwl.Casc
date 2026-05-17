@@ -651,16 +651,59 @@ them):**
    decoded — the next deep target — and is the route that does not
    depend on an external artifact.
 
-Route 1 checked and **closed**: the upstream RE record
-(`e:\Paragon\docs\d4-binary-formats.md`, scope §3–§8.15 = SNO/.tex/
-paragon records) contains **no UI-scene format and no UI field-name
-list**; nor do the other consumer docs. No external name artifact
-exists in our materials. **Route 2 is therefore mandatory, not
-optional** — it is the one being pursued (no external dependency).
-Until it *proves* a field→meaning via the 67.7 anchor, **no
-pitch/scale/anchor number is asserted** — the schema, the id scheme,
-and the type enum are decoded; the named geometry is not, and is not
-faked.
+### 10.6 The D4 identifier hashes (decisive — reusable library-wide)
+
+The UI field/type ids are D4's standard serialization hashes. Exact
+definition (cross-checked against the public d4data `parse.js`
+methodology — algorithm facts, no code taken). All are the DJB2 core
+`hash = hash*33 + ch` with **seed 0** (standard DJB2 seeds 5381 — D4
+does not; that is why a seed-5381 test misses):
+
+| Name | Lowercase input | Final mask | Identifies |
+|---|---|---|---|
+| `fieldHash` | no | `& 0x0FFFFFFF` (28-bit) | struct **field** name → the 34 member-ids; top-nibble clustering is just the 28-bit mask, *not* a tag |
+| `typeHash` | no | none (full u32) | **type/class/struct** names → `0x1E3077C7` (widget class), `0x1332C78D` (the member separator = a type id), the type-enum payloads |
+| `gbidHash` | **yes** | none (full u32) | GBIDs — **this is the existing `Diablo4.GbidHash`** (case-insensitive DJB2 family), now unified with the family |
+
+Supersedes the §10.5 "negative hash result" and the "(tag<<24)|hash24"
+guess: it is plain seed-0 DJB2, masked 28-bit for fields. This applies
+to **every** D4 SNO meta format, not only FR-C7.
+
+### 10.7 Field-name recovery — and the standalone clean-room method
+
+Field/type **names are not stored in any SNO/CASC data file** — the
+format is hash-keyed by design (only the 28-bit `fieldHash`). Names are
+therefore not recoverable from the data blobs alone (one-way hash).
+
+They *are* recoverable from the **D4 client binary**: Blizzard's engine
+embeds the type/field name strings for its own reflection/serialization
+registry. The community `names.txt` is predominantly **binary-extracted
+identifier strings** (e.g. `ACDBuffSyncedData`, …), hashed and matched;
+only the residue is dictionary-brute-forced, with misses tracked
+(`unfound_field_hashes.txt`, `field_collisions.yml`).
+
+**Standalone clean-room procedure (no dependency on d4data JSON):**
+1. String-extract printable identifiers from the *locally-installed*
+   D4 client binary (the user's own legally-obtained install — same
+   posture as reading their own game data; no Blizzard asset shipped).
+2. Hash each with `typeHash` / `fieldHash` (above).
+3. Match against observed ids; collisions and unmatched tracked.
+4. Expand with naming-convention generation
+   (`m`/`e`/`sno`/`h`/`DT_` prefixes, CamelCase compounds) for the
+   residue. Result is our own recovered schema, clean-room.
+
+This makes name recovery a first-party capability of the library, not
+an external lookup. (For FR-C7 specifically: group **46** = type
+**`UI`**; the per-widget class id is `typeHash` of a widget base-class
+name; the 34 `fieldHash` member-ids resolve once the binary
+string-extract is run and matched — the next concrete step.)
+
+Route 1 (external name list) was closed; this **route 1′ (own-binary
+extraction)** reopens recovery *standalone*. Until a field→meaning is
+*proven* (matched name **and**/or the 67.7 anchor via route 2), no
+pitch/scale/anchor number is asserted — schema, id scheme, type enum,
+and now the exact hash are decoded; the named geometry is not, and is
+not faked.
 
 ### 10.4 Reconnaissance instrument
 
