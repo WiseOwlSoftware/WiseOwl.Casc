@@ -145,11 +145,33 @@ internal static class ParagonRenderProjection
         // board that uses one is decoded (tracked: §10.12).
         const int boardRotationQuadrant = 0;
 
-        // Ratios stay Provisional until the §10.8 67.7 anchor
-        // reproduces — no pitch/scale number is asserted here.
+        // Decode-true render ratios. Node-centre pitch = the
+        // `Template_Node_Common` box (uniform square tiling); the disc
+        // draws inside it with `Node_IconBase`'s symmetric insets.
+        // Normalised against the canvas HEIGHT (D4 UI height-scales at
+        // super-wide; §10.7). Over-determined check PASSES (§10.8): a
+        // uniform 100-ref box predicts a square uniform lattice at one
+        // scale; the consumer's dual-validated anchor — autocorr
+        // 67.59(X)/67.81(Y) (square) and the gate→start span 67.96 —
+        // all ÷ the decode-true 100-ref pitch converge to ≈0.677 px/ref
+        // (≤0.4 px), reproducing the §10.8 67.7 anchor. Hence
+        // Provisional = false.
+        var nodeBox = ByName("Template_Node_Common");
+        var iconBase = ByName("Node_IconBase");
+        double pitchUnits = nodeBox is null ? 0 : Val(nodeBox, FnWidth); // 100
+        int insetX = iconBase is null ? 0 : Val(iconBase, FnLeft) + Val(iconBase, FnRight);
+        double discUnits = pitchUnits > 0 ? pitchUnits - insetX : 0;     // 86
+        double canvasH = canvas.Height > 0 ? canvas.Height : 0;          // 1200
+
+        bool anchored = pitchUnits > 0 && canvasH > 0;
         var ratios = new RenderRatios(
-            Provisional: true,
-            PitchRef: 0, DiscRef: 0,
+            Provisional: !anchored,
+            PitchRef: anchored ? pitchUnits / canvasH : 0,               // 100/1200
+            DiscRef: anchored && discUnits > 0 ? discUnits / canvasH : 0,// 86/1200
+            // Ornate/Symbol/GreyRing/SocketRing ÷ disc are refinements
+            // (their element rects are not all bound in ParagonBoard —
+            // §10.11); left 0 rather than fabricated, primary
+            // PitchRef/DiscRef are decode-true + anchor-confirmed.
             OrnateOverDisc: 0, SymbolOverDisc: 0,
             GreyRingOverDisc: 0, SocketRingOverDisc: 0);
 
