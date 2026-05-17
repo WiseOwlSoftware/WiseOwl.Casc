@@ -163,17 +163,35 @@ internal static class ParagonRenderProjection
         double discUnits = pitchUnits > 0 ? pitchUnits - insetX : 0;     // 86
         double canvasH = canvas.Height > 0 ? canvas.Height : 0;          // 1200
 
+        // Element draw size in ref units. The disc/ornate/symbol/pulse
+        // elements have no own nWidth — they fill the node box minus
+        // their symmetric insets (decode-true, §10.11). A missing
+        // widget ⇒ not bound in this scene (e.g. the grey rim ring is
+        // app-drawn — 0, not fabricated).
+        double ElemSize(string n)
+        {
+            var x = ByName(n);
+            if (x is null || pitchUnits <= 0) return 0;
+            int w = Val(x, FnWidth);
+            if (w > 0) return w;
+            return pitchUnits - (Val(x, FnLeft) + Val(x, FnRight)); // fills parent
+        }
+
+        double ornateSz = ElemSize("NodeAvailableGlow");    // gold ornate (fills box → 100)
+        double symbolSz = ElemSize("Node_Icon");            // per-class symbol
+        double socketSz = ElemSize("GlyphNodeGlow_Revealed"); // socket pulse ring
+        double greySz   = ElemSize("Node_GreyRing");        // app-drawn/absent ⇒ 0
+
         bool anchored = pitchUnits > 0 && canvasH > 0;
+        double Over(double v) => discUnits > 0 && v > 0 ? v / discUnits : 0;
         var ratios = new RenderRatios(
             Provisional: !anchored,
             PitchRef: anchored ? pitchUnits / canvasH : 0,               // 100/1200
             DiscRef: anchored && discUnits > 0 ? discUnits / canvasH : 0,// 86/1200
-            // Ornate/Symbol/GreyRing/SocketRing ÷ disc are refinements
-            // (their element rects are not all bound in ParagonBoard —
-            // §10.11); left 0 rather than fabricated, primary
-            // PitchRef/DiscRef are decode-true + anchor-confirmed.
-            OrnateOverDisc: 0, SymbolOverDisc: 0,
-            GreyRingOverDisc: 0, SocketRingOverDisc: 0);
+            OrnateOverDisc: Over(ornateSz),                              // 100/86
+            SymbolOverDisc: Over(symbolSz),                              // 100/86
+            GreyRingOverDisc: Over(greySz),                              // 0 (app-drawn)
+            SocketRingOverDisc: Over(socketSz));                         // 100/86
 
         // Per-state texture binding (§10.11, decode-true): node
         // textures bind via the texture-handle DT type 0x6B1C5D9C on
