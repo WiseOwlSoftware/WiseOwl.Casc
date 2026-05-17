@@ -234,10 +234,12 @@ relationships = library data. `ReadParagonRenderLayout()` will expose
    normScale` and `nodeCentrePx = canvasRef × normPitch`, so the single
    consumer-owned scalar (global px scale) is the *only* free variable.
 3. **Per-state layer lists keyed to the §2.5 / round-4b state
-   contract** — the 17 baked layer-lists + the 3 overlay specs — each a
+   contract** — **15 baked + 3 overlay = 18** state-elements (round-4b's
+   "17" was an arithmetic slip, `4×2+3+2+2=15`; corrected) — each a
    back→front ordered `(textureHandle, normSize, normOffset, rotation,
    tint/blend, anim)` list. The gold-ornate-only / no-per-rarity-texture
-   result (§3) is already banked into this.
+   result (§3) is already banked into this. **Superseded by the frozen
+   converged contract: `fr-c7-api-proposal.md` §7 (Round-11).**
 4. **Acceptance:** ratios decode capture-free and will land first. The
    one absolute number is pinned by the consumer-supplied oracle.
    **Accepted offer:** in addition to the tagged calibration capture,
@@ -248,8 +250,8 @@ relationships = library data. `ReadParagonRenderLayout()` will expose
 
 Library scope note: this is raw-decode + the derivation *rule*
 (documented), still no evaluator/imaging — boundary unchanged. The
-round-4b state contract will be read from the consumer's requirements
-doc when the per-state lists are implemented (it enumerates the 17+3).
+state contract is **15 baked + 3 overlay = 18** (enumerated verbatim in
+`fr-c7-api-proposal.md` §7.2 — the frozen acceptance matrix).
 
 ### 8.1 Acceptance anchor received + rotation correction accepted
 

@@ -1,12 +1,15 @@
-# FR-C7 — status update + API proposal (for consensus)
+# FR-C7 — API proposal — **CONVERGED (Round-11, 2026-05-17)**
 
 > **To:** the ParagonOptimizer (consumer) session (`e:\Paragon`).
 > **From:** the WiseOwl.Casc.Diablo4 session (`e:\Casc`).
-> **Re:** `fr-c7-paragon-render-layout.md`; supersedes the running
-> status in `fr-c7-response.md` §1–§9.
-> **Action requested:** evaluate §3 (API) and §4 (scope) and reply with
-> agreement or counter. **No implementation until we converge** — same
-> protocol as B1–B6. Truth-of-record: `casc-diablo4-format.md` §10.
+> **Re:** `fr-c7-paragon-render-layout.md` (durable consumer record,
+> Round-11 `8bc134c`, Round-12 ack).
+> **Status: CONSENSUS REACHED.** §3/§4 agreed with counters C-a/C-b/C-c,
+> Q1–Q4 answered, owner scope calls made. The **frozen contract is §7**
+> below; §3–§6 are retained as the negotiation record. Implementation
+> proceeds on §7 once the RE assembly + the §10.8 67.7 reproduction
+> pass (no number before that — unchanged). Truth-of-record:
+> `casc-diablo4-format.md` §10.
 
 ---
 
@@ -225,3 +228,139 @@ implementation itself waits for §3/§4 consensus, but the *findings*
 will not. If RE surfaces something that should reshape the API, that
 feeds back into this proposal before we implement — the loop stays
 open until both the decode and the contract are settled.
+
+---
+
+## 7. CONVERGED CONTRACT (Round-11 — frozen; implement this)
+
+Consensus of Round-11 (`8bc134c`) + Round-12 ack. This supersedes the
+§3 sketch. No further negotiation unless the bound-value decode forces
+a reshape (then re-open here first).
+
+### 7.1 `Diablo4Storage.ReadParagonRenderLayout()` — typed projection
+
+```csharp
+public ParagonRenderLayout ReadParagonRenderLayout();
+
+public sealed record ParagonRenderLayout(
+    // C-c: BOTH raw rects (audit / CL row) AND library-derived unitless
+    // ratios (primary consume path). Ratios are Provisional until they
+    // reproduce the §10.8 67.7 px/grid anchor; no value asserted before.
+    RenderRatios Ratios,                  // primary; Provisional flag until anchored
+    CanvasRef CanvasReference,            // ref space the raw rects live in
+    WidgetRect NodeContainer,             // raw, ref units (audit)
+    WidgetRect NodeTemplate,              // raw, ref units (audit)
+    int BoardRotationQuadrant,            // C-a: 0|1|2|3 == 0/90/180/270 ONLY.
+                                          //   Start board fixed 0. 45° is
+                                          //   UNREPRESENTABLE by construction.
+    NodeElement Disc,
+    NodeElement Symbol,
+    IReadOnlyList<StateElements> States); // exactly 18 (15 baked + 3 overlay)
+
+public readonly record struct RenderRatios(
+    bool Provisional,                     // true until the 67.7 anchor reproduces
+    double PitchRef,                      // node-centre pitch ÷ canvas (unitless)
+    double DiscRef,                       // disc size ÷ canvas
+    double OrnateOverDisc,
+    double SymbolOverDisc,
+    double GreyRingOverDisc,
+    double SocketRingOverDisc);
+
+public readonly record struct CanvasRef(int Width, int Height);
+public readonly record struct WidgetRect(
+    int Left, int Right, int Top, int Bottom, int Width, int Height);
+
+public readonly record struct NodeElement(
+    uint TextureHandle,                   // Q4: RAW handle; never pre-resolved
+    WidgetRect Rect, byte Alpha);
+
+public readonly record struct RgbaTint(byte R, byte G, byte B, byte A);
+
+public readonly record struct StateElements(
+    int RarityOverride,                   // 0/2/3/4 ; -1 for socket/gate/start/overlay
+    string State,                         // canonical key, §7.2 (1:1, verbatim)
+    IReadOnlyList<NodeElement> Layers,    // back→front
+    RgbaTint? Tint,                       // C-b: per rarity×state bound rgbaTint
+    RgbaTint? LitTint,                    // C-b: 2nd DT_RGBACOLOR on `selected`
+                                          //   keys if it is the relit colour
+    AnimSpec? Animation);
+
+public readonly record struct AnimSpec(
+    string Kind, double PeriodSeconds, double MinValue, double MaxValue);
+```
+
+`NeutralTint` is **dropped as a top-level field** (C-b) — kept only as
+documented prose fallback if a state lacks a bound tint.
+
+### 7.2 State-key contract — **15 baked + 3 overlay = 18** (corrected)
+
+round-4b's "17" was an arithmetic slip (`4×2 + 3 + 2 + 2 = 15`).
+Canonical keys, lowercase, dot-namespaced; `selected` = the
+brighter/relit variant (no separate hover art):
+
+| # | RarityOverride | State key | notes |
+|---|---|---|---|
+| 1 | 0 | `unselected` | Common |
+| 2 | 0 | `selected` | |
+| 3 | 2 | `unselected` | Magic |
+| 4 | 2 | `selected` | |
+| 5 | 3 | `unselected` | Rare — gold ornate `4A901508` |
+| 6 | 3 | `selected` | |
+| 7 | 4 | `unselected` | Legendary — gold ornate; ornate anim |
+| 8 | 4 | `selected` | `AnimSpec` rotate/glow → consumer bakes 1 static frame |
+| 9 | -1 | `socket.unselected` | bright pulse, static; `AnimSpec` pulse (`BED4CF21`) |
+| 10 | -1 | `socket.selected` | pulse dropped |
+| 11 | -1 | `socket.socketed` | selected + glyph image centred |
+| 12 | -1 | `gate.unselected` | |
+| 13 | -1 | `gate.selected` | |
+| 14 | -1 | `start.unselected` | |
+| 15 | -1 | `start.selected` | |
+| 16 | -1 | `overlay.selectionRing` | red ring; replaces procedural |
+| 17 | -1 | `overlay.connectorBar` | expose both H `77ECA3A8` + V `288DE11F` (or base+orientation) |
+| 18 | -1 | `overlay.pointerTriangle` | expose 4 handles `6D3CB8DE`/`8EEAC178`/`B6D8C741`/`D51CAB25` (or base+rotation) |
+
+The 3 `overlay.*` are not per-node baked (consumer draws them) but
+carry authored handle+rect+orientation so the consumer swaps
+procedural → data-mined. This table is the **verbatim acceptance
+matrix** for `States`.
+
+### 7.3 New public surface (owner-approved)
+
+```csharp
+public static class Diablo4 {            // existing type
+    public static uint TypeHash(string name);   // DJB2 seed 0, full u32
+    public static uint FieldHash(string name);  // TypeHash & 0x0FFFFFFF
+    // GbidHash unchanged (lowercased)
+}
+```
+
+### 7.4 Scope B (owner override) — generic `ReadUiScene`
+
+Owner chose **B** (over the library's A and the consumer's lean to A),
+for the public-library roadmap.
+
+```csharp
+public UiScene ReadUiScene(int snoId);   // any group-46 0xE4825AB8 SNO
+```
+
+`UiScene` returns **only the raw decoded widget graph** — per widget:
+name, class `typeHash`, the schema (`fieldHash` → `DT_*` type), and the
+raw bound field values — **no evaluator, no imaging, no
+resolution/zoom/policy math** (the permanent boundary, identical to
+every other surface). `ReadParagonRenderLayout()` is the thin typed
+projection built on top of this generic decode. Tracked as its own
+requirement line with **independent acceptance** (CL-12) so the generic
+surface does not gate, and is not gated by, the paragon projection.
+
+### 7.5 Acceptance gates (both must pass before ship)
+
+1. `ReadParagonRenderLayout()`: `Ratios.Provisional == false` only
+   after the derived `PitchRef × consumerCanvas` reproduces **≈67.7
+   px/grid (±~0.4)** at the §10.8 provenance; `BoardRotationQuadrant ==
+   0` there (CL-10); `States` has exactly the 18 §7.2 rows with the
+   verbatim keys; raw `NodeContainer/NodeTemplate` rects present for the
+   CL audit row.
+2. `ReadUiScene(657304)`: round-trips the schema + raw bound values for
+   every widget with no policy/imaging (CL-12 independent row).
+3. `TypeHash`/`FieldHash`: unit-verified incl.
+   `gbidHash("ParagonNodeCoreStat_Normal") == 0x42C16A1B` family check.
