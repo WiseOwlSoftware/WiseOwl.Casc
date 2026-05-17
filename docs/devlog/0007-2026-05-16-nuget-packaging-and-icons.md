@@ -90,3 +90,18 @@ catchlight at those proportions; `wiseowl-org-spectacled.svg` is the
 result and reads as a wise owl in spectacles without touching the
 accepted mark. Good demonstration that "use the characteristics, not
 the image" is both IP-clean and technically the more reliable route.
+
+Final turn: the owner produced a finished design of their own,
+`assets/Brown Owl.png` — a coloured, transparent-background horned-owl
+illustration (probed in-tool: 904×992, ~49% transparent, warm browns).
+That is not line art, so potrace fragmented it (2,700 specks; only the
+eyes survived) — the wrong tool for a finished raster design. The right
+move was not to vectorise it at all: `build/TileIcon` composites it
+centred on the shared brand dark tile with its own colours and alpha
+preserved (no recolour, no trace) and emits the ladder. Result is a
+polished org mark that respects the owner's artwork. Lesson worth
+keeping: match the pipeline to the *kind* of source — trace a line
+drawing, composite a finished design; don't force one through the
+other. `OwlTrace` stays in the repo for line-art sources but is out of
+the org-mark pipeline; `scripts/gen-icons` now drives TileIcon (org) +
+Lettermark (CASC) + IconGen (SVG package marks).

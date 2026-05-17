@@ -63,13 +63,15 @@ Semantic Versioning once it reaches `1.0.0`.
   (`build/IconGen` rasterises; `scripts/gen-icons.{sh,ps1}`):
   - **`wiseowl-org`** — the Wise Owl Software *organisation* mark (for
     the nuget.org org profile / org-level use; **not** a package icon).
-    A faithful potrace vectorisation of the owner's *own* hand-drawn Wise
-    Owl card (`assets/Owl.jpg`): recoloured autumn medium brown,
-    parchment + the two bottom rules removed, stroke dropouts bridged
-    (morphological close) + despeckled, smooth calligraphic curves.
-    Pipeline `build/OwlTrace` (SkiaSharp + `BitmapToVector` managed
-    potrace; the source photo is processed in-tool, never loaded into
-    assistant context). No third-party imagery — the owner's own art.
+    The owner's finished raster design `assets/Brown Owl.png` (a
+    coloured, transparent-background horned-owl illustration — not line
+    art) composited centred on the shared brand dark tile with its own
+    colours/alpha preserved (no recolour, no trace) and the size ladder
+    emitted, via `build/TileIcon` (SkiaSharp; the source is processed
+    in-tool, never loaded into assistant context). The owner's own art.
+    (`build/OwlTrace`, the potrace pipeline used for the earlier
+    hand-drawn card, is retained for line-art sources but is no longer
+    in the pipeline for the current org mark.)
   - **`WiseOwl.Casc`** package icon — a bold **“CASC”** 2×2 lettermark
     (typeface glyph outlines baked to vector, no runtime font dep) in
     autumn brown on the shared dark tile, with a small owl brand tick

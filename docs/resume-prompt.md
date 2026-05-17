@@ -132,15 +132,17 @@ decision.
 7. **NuGet packaging** done & verified: both libs pack `.nupkg`+`.snupkg`
    (per-TFM + XML docs, per-package README, MIT, SourceLink, dep groups;
    Demeanor house style). Icons (SVG→PNG ladder, `scripts/gen-icons.*`):
-   `wiseowl-org` = the **org** mark (owner's own card art, potrace-traced
-   via `build/OwlTrace`; NOT a package icon — for the nuget.org org
-   profile); `WiseOwl.Casc` package icon = **CASC lettermark**
-   (`build/Lettermark`); `WiseOwl.Casc.Diablo4` = the **D·IV** sibling.
-   `wiseowl-org-spectacled.svg` = the anatomy-proportioned bespectacled
-   variant (`OwlTrace eyeAnat=true`) — recommended as the org mark
-   (owner's call). Never trace third-party imagery into a shipped mark
-   (IP posture); anatomy-driven (proportions, not photo detection) is the
-   reliable + IP-clean way to detail the owner's own drawing.
+   `wiseowl-org` = the **org** mark = the owner's finished raster design
+   `assets/Brown Owl.png` composited on the brand tile via
+   `build/TileIcon` (colours/alpha preserved, NOT traced/recoloured;
+   NOT a package icon — for the nuget.org org profile);
+   `WiseOwl.Casc` package icon = **CASC lettermark** (`build/Lettermark`);
+   `WiseOwl.Casc.Diablo4` = the **D·IV** sibling. `scripts/gen-icons.*`
+   drives TileIcon (org) + Lettermark (CASC) + IconGen (SVG marks).
+   `build/OwlTrace` (potrace) is retained for line-art sources but is
+   out of the current pipeline. IP rule stands: never trace third-party
+   imagery into a shipped mark; match the pipeline to the source kind
+   (trace line art, composite a finished design).
 8. CHANGELOG/devlog/ARTICLE-SOURCE upkeep each session.
 9. Later: future `.Wow`/`.Overwatch`/`.D2R` modules (core designed for them).
 
