@@ -503,14 +503,31 @@ Verified against build `3.0.2.71886` (`build/SnoScan strings|scan|f32`):
   property bag is where the tint colour/blend (or a definitive
   "shader-driven, no data" confirmation) will be read.
 
+**Refined finding — the geometry is indirect, not local px.** Scanning
+the disc / grey-ring / ornate binding property bags for a float matching
+the known native frame sizes (disc 154², ring 135², ornate ~325²) found
+**none**. The only float near the bindings is the generic recurring
+`0.049` (a shared normalised property value present on most widgets,
+**not** a size), plus a false positive that is actually the ASCII of the
+`Rarity_Display` name. Conclusion: `0xE4825AB8` uses a **normalised /
+anchor-relative layout** — a widget's drawn size is not stored as pixels
+beside its texture handle; it is resolved from a parent canvas size × a
+normalised factor and/or a separate transform/layout section the root
+header (the `0x20` offset/size/count fields, `0x68`→`0x2C8`/`0x798`)
+points to. This is itself a consumer-relevant answer: a literal authored
+`CellPitch` in px may not exist as stored data — it is likely
+`canvasPx × normalisedSpacing` over the `ParagonBoardDefinition` grid.
+
 **Still open (NOT decoded — no guesses emitted):** the **meaning of the
-property-name hashes** (which hash is size / anchor / pitch / tint), and
-therefore the anchor/size encoding (authored px ↔ board-cell pitch), the
-per-rarity/per-state ordered layer list, and the animation params. The
-property-bag *framing* is now pinned, but mapping a hash → "this is the
-disc width" needs an oracle: a widget whose on-screen pixel size is
-known (the calibration capture requested in `docs/fr-c7-response.md` §6).
-No `CellPitch`/size numbers are asserted until that mapping is proven.
+property-name hashes**, the **root-header section table** (which points
+to the transform/layout block), and how the normalised factors combine
+to screen px. Two concrete unlock routes, both in progress: (a) decode
+the `0x20`/`0x68` section descriptors to find the transform block;
+(b) anchor the normalised values to px via a known-size oracle (the
+calibration capture requested in `docs/fr-c7-response.md` §6, or our own
+texture-native sizes once the size-property hash is identified). No
+`CellPitch`/size numbers are asserted until one of these proves the
+hash→meaning and the px derivation.
 The typed `ParagonRenderLayout` ships only when these are pinned with a
 verbatim acceptance matrix — consistent with the FR's
 zero-guessed-constants contract.
