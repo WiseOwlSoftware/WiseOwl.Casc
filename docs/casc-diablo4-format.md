@@ -584,19 +584,45 @@ decoder against the live install; commands: `groups`, `find`, `strings`,
 `crack` (wordlist → id matching), `dump`. Keeps the RE on our own
 library; `e:\Paragon` stays read-only.
 
-### 10.10 Open work (well-defined, no external dependency)
+### 10.10 Schema ⇄ instance encoding (decoded)
 
-1. Decode the **instance-data section** (separate from the schema) and
-   read each widget's bound `nLeft/nRight/nTop/nBottom/nWidth/nHeight`,
-   `rgbaTint`, and `DT_SNO` values.
-2. Resolve the residual unnamed field-ids (widen the candidate set) —
-   type is already known for all; names are a refinement.
-3. Reproduce the §10.8 67.7 anchor from the node/grid widgets' bound
-   rect ints → derive the normalised pitch/scale/anchor model and the
-   `nodeCentre = canvasRef × normPitch(gridXY)` rule.
-4. Implement `Diablo4Storage.ReadParagonRenderLayout()` per the agreed
-   contract (`docs/fr-c7-response.md` §8) + the verbatim acceptance
-   matrix. Until step 3 proves it, no pitch number is asserted.
+The format cleanly splits into two co-located parts per widget:
+
+- **Schema run** — packed **12-byte** entries
+  `(fieldHash, typeHash("DT_BINDABLEPROPERTY"), typeHash(DT_<type>))`,
+  one per field, declaring the widget's property list (no value).
+- **Instance records** — fixed **56-byte (`0x38`)** records, each
+  `+0x00 u32 = 0x22` (record tag), `+0x04 u32` sub-tag/kind
+  (`0`/`3` observed), **`+0x08 u32 = the bound value`**, `+0x0C..0x38`
+  zero pad. Records are **positionally keyed** to the schema field
+  order (Nth record ↔ Nth schema field). Observed live values e.g.
+  `+0x08 = 0x4B0` (1200), `= 3`.
+
+So a widget's `nWidth` value = the `+0x08` of the 56-byte `0x22`
+record at the position `nWidth` occupies in that widget's schema run.
+This is the last structural unknown; the format is now fully
+characterised (container §10.1 → hashes §10.2 → data-binding model
+§10.3 → schema §10.6 → this instance encoding). `DT_SNO` values
+(texture handles) and `DT_RGBACOLOR` (`rgbaTint`) read from the same
+`+0x08` slot of their positional record.
+
+### 10.11 Open work (well-defined, no external dependency)
+
+1. **Assembly:** associate each widget's schema run with its instance
+   records, locate the `ParagonNodes` container + node-template widgets,
+   read their bound `nLeft/nRight/nTop/nBottom/nWidth/nHeight`,
+   `rgbaTint`, `DT_SNO` values.
+2. **Reproduce the §10.8 67.7 anchor:** derive `pitchRef` from those
+   bound rects + the `ParagonBoardDefinition` grid extent; verify it
+   reproduces ≈67.7 px/grid at the stated provenance (7680×2160, zoom 0,
+   Warlock Start, axis-aligned per CL-10) and is cross-widget
+   consistent (over-determined). **No pitch number asserted until it
+   passes.**
+3. Resolve residual unnamed field-ids (type already known; names are a
+   refinement; non-blocking).
+4. On API consensus (`docs/fr-c7-api-proposal.md`), implement
+   `Diablo4Storage.ReadParagonRenderLayout()` + the verbatim acceptance
+   matrix.
 
 
 ## Appendix A — correction log (Diablo IV errata)
