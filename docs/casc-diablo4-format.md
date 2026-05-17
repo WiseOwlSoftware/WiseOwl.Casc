@@ -651,12 +651,16 @@ them):**
    decoded — the next deep target — and is the route that does not
    depend on an external artifact.
 
-Route 2 is the one being pursued (no external dependency); route 1 is
-flagged for the owner/consumer as the de-risking accelerator if a D4 UI
-field-name list exists in the upstream record. Until one of them
-*proves* a field→meaning, **no pitch/scale/anchor number is asserted** —
-the schema and id scheme are decoded; the named geometry is not, and is
-not faked.
+Route 1 checked and **closed**: the upstream RE record
+(`e:\Paragon\docs\d4-binary-formats.md`, scope §3–§8.15 = SNO/.tex/
+paragon records) contains **no UI-scene format and no UI field-name
+list**; nor do the other consumer docs. No external name artifact
+exists in our materials. **Route 2 is therefore mandatory, not
+optional** — it is the one being pursued (no external dependency).
+Until it *proves* a field→meaning via the 67.7 anchor, **no
+pitch/scale/anchor number is asserted** — the schema, the id scheme,
+and the type enum are decoded; the named geometry is not, and is not
+faked.
 
 ### 10.4 Reconnaissance instrument
 
