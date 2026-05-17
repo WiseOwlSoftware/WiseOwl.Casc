@@ -32,6 +32,13 @@ public enum SnoGroup
     /// <summary>Affix definitions (<c>.aff</c>).</summary>
     Affix = 104,
 
+    /// <summary>StringList tables (<c>.stl</c>) — localized <c>label → text</c>
+    /// buckets. Not per-SNO path-addressable; delivered through the per-locale
+    /// consolidated bundle read by <see cref="Diablo4Storage.GetStrings"/> /
+    /// <see cref="StringListCatalog"/>. The group id is still meaningful for
+    /// CoreTOC name↔id resolution (e.g. a record's sibling string table).</summary>
+    StringList = 42,
+
     /// <summary>UI / 2D textures (<c>.tex</c>). Paragon node/glyph art lives
     /// in shared atlases here; the pixel payload is addressable by SNO id but
     /// the <see cref="TextureDefinition"/> meta is only in the combined-meta

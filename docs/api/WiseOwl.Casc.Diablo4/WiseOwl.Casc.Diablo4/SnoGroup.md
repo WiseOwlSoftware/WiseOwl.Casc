@@ -16,6 +16,7 @@ public enum SnoGroup
 | PlayerClass | `74` | Player class definitions (`.prd`). |
 | ItemType | `98` | Item-type definitions. |
 | Affix | `104` | Affix definitions (`.aff`). |
+| StringList | `42` | StringList tables (`.stl`) — localized `label → text` buckets. Not per-SNO path-addressable; delivered through the per-locale consolidated bundle read by [`GetStrings`](./Diablo4Storage/GetStrings.md) / [`StringListCatalog`](./StringListCatalog.md). The group id is still meaningful for CoreTOC name↔id resolution (e.g. a record's sibling string table). |
 | Texture | `44` | UI / 2D textures (`.tex`). Paragon node/glyph art lives in shared atlases here; the pixel payload is addressable by SNO id but the [`TextureDefinition`](./TextureDefinition.md) meta is only in the combined-meta bundle (see [`CombinedTextureMeta`](./CombinedTextureMeta.md)). |
 | ParagonNode | `106` | Paragon node definitions (`.pgn`). |
 | ParagonBoard | `108` | Paragon board definitions (`.pbd`). |

@@ -265,4 +265,45 @@ public sealed class Diablo4StorageIntegrationTests
         Assert.DoesNotContain(common.Layers, e => e.TextureHandle == 0x4A901508u);
         Assert.Empty(rl.States.First(s => s.State == "overlay.connectorBar").Layers);
     }
+
+    /// <summary>FR-D1: a ParagonBoard's localized display name resolves
+    /// first-party from the board's sibling StringList table
+    /// (<c>ParagonBoard_&lt;boardSnoName&gt;</c>, label <c>Name</c>) — the
+    /// verbatim acceptance probes (§6.4 / CL-15).</summary>
+    [SkippableFact]
+    public void ReadParagonBoardName_resolves_localized_board_name()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+
+        // Probe 1: Paragon_Warlock_00 (SnoId 2458674, IsStart) → "Start".
+        Assert.Equal("Paragon_Warlock_00",
+            d4.CoreToc.GetName(SnoGroup.ParagonBoard, 2458674));
+        Assert.True(d4.TryReadParagonBoardName(2458674, out var start));
+        Assert.Equal("Start", start);
+        Assert.Equal("Start", d4.ReadParagonBoardName(2458674));
+
+        // Probe 2: a non-start Warlock board (Paragon_Warlock_03,
+        // SnoId 2458680) → its distinct in-game name.
+        Assert.Equal("Dynamism", d4.ReadParagonBoardName(2458680));
+
+        // Locale-aware: the same board resolves a different localized
+        // string (no English baked in).
+        Assert.Equal("Dynamismus", d4.ReadParagonBoardName(2458680, "deDE"));
+
+        // The convention is name-keyed (no fixed SNO offset): it holds
+        // for another class whose StringList id is NOT board−1
+        // (Paragon_Sorc_04 939... → ParagonBoard_Paragon_Sorc_04).
+        var sorc04 = d4.CoreToc.GetId(SnoGroup.ParagonBoard, "Paragon_Sorc_04");
+        Assert.NotNull(sorc04);
+        Assert.True(d4.TryReadParagonBoardName(sorc04!.Value, out var sn));
+        Assert.False(string.IsNullOrEmpty(sn));
+
+        // No fallback policy is baked in: an unknown board SNO yields
+        // false / throws (the consumer owns the SnoName fallback).
+        Assert.False(d4.TryReadParagonBoardName(1, out var none));
+        Assert.Equal(string.Empty, none);
+        Assert.Throws<SnoNotFoundException>(() => d4.ReadParagonBoardName(1));
+    }
 }
