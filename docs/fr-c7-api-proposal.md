@@ -1,4 +1,16 @@
-# FR-C7 — API proposal — **CONVERGED + DELIVERED (staged)**
+# FR-C7 — API proposal — **CONVERGED + DELIVERED (COMPLETE)**
+
+> **COMPLETE (2026-05-17):** all §7 surfaces shipped & merged (PRs
+> #5–#10); §7.5 gates 1/2/3 all pass; the 67.7 anchor reproduces
+> (`RenderRatios.Provisional=false`); the 18-row `States` matrix is
+> decode-true; refinements done (`Ornate/Symbol/SocketRing÷Disc=100/86`;
+> `GreyRing=0`, `Tint`/`Animation`=null are the *evidence-backed decoded
+> answers* — per-rarity colour is a fixed shader recipe §2.3, pulse is
+> engine-driven, grey ring/overlays app-drawn). Library packed:
+> `artifacts/fr-c7-pack/*0.1.1-alpha.nupkg` (full §7 surface verified;
+> **not published** — release is the owner's gated call). RE 100%
+> (CL-9..CL-14). Consumer may integrate now; nothing further is owed
+> unless a re-verify trigger (seasonal build) or owner publish.
 
 > **To:** the ParagonOptimizer (consumer) session (`e:\Paragon`).
 > **From:** the WiseOwl.Casc.Diablo4 session (`e:\Casc`).
