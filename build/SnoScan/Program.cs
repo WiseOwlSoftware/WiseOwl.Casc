@@ -215,6 +215,58 @@ switch (cmd)
         Console.WriteLine($"-- {hits} match(es) over {targets.Count} target(s) --");
         return 0;
     }
+    case "walk":
+    {
+        // walk <gid> <id> <nameSubstr> [wordlist]
+        // Locate a widget by inline name; print class id, the schema run
+        // (fieldHash,DT_BINDABLEPROPERTY,DT_type) triplets, and the
+        // following 56-byte 0x22 instance records (value@+0x08) paired
+        // positionally to the schema fields.
+        if (argv.Count < 4) { Console.Error.WriteLine("walk <gid> <id> <nameSubstr> [wordlist]"); return 2; }
+        int gw = int.Parse(argv[1]), iw = int.Parse(argv[2]);
+        string want = argv[3];
+        if (!d4.TryReadSno(gw, iw, SnoFolder.Meta, out var bw)) { Console.WriteLine("no content"); return 1; }
+        var tn = new Dictionary<uint,string> {
+            [0x1332C78D]="DT_BINDABLEPROPERTY",[0xA4C42E02]="DT_INT",[0xE65047AD]="DT_FLOAT",
+            [0x3D4646AB]="DT_BYTE",[0x3D47BD2C]="DT_ENUM",[0xE549F591]="DT_CSTRING",
+            [0x8E266332]="DT_RGBACOLOR",[0xA4C45887]="DT_SNO",[0x2B0285C0]="StringLabelHandleEx" };
+        var fn = new Dictionary<uint,string>();
+        if (argv.Count > 4)
+            foreach (var s in File.ReadLines(argv[4]))
+            { var t=s.Trim(); if(t.Length<2)continue; uint h=0; foreach(char c in t) h=(h<<5)+h+(byte)c; fn.TryAdd(h&0x0FFFFFFFu,t); }
+        string FN(uint h)=>fn.TryGetValue(h&0x0FFFFFFFu,out var n)?n:$"0x{h:X8}";
+        string TN(uint h)=>tn.TryGetValue(h,out var n)?n:$"0x{h:X8}";
+        // find the name
+        int at=-1;
+        for (int i=0;i+want.Length<bw.Length;i++)
+        { bool m=true; for(int j=0;j<want.Length;j++) if(bw[i+j]!=(byte)want[j]){m=false;break;} if(m){at=i;break;} }
+        if (at<0){ Console.WriteLine($"name '{want}' not found"); return 1; }
+        int nend=at; while(nend<bw.Length && bw[nend]!=0) nend++;
+        string nm=System.Text.Encoding.ASCII.GetString(bw,at,nend-at);
+        uint cls = at+0x2C<=bw.Length ? BitConverter.ToUInt32(bw,at+0x28) : 0;
+        Console.WriteLine($"widget '{nm}' @0x{at:X} classId=0x{cls:X8} ({TN(cls)})");
+        // schema run: nearest (x,1332C78D,y) triplets at/after name+0x28
+        int k=at;
+        while (k+12<=bw.Length && BitConverter.ToUInt32(bw,k+4)!=0x1332C78D && k<at+0x400) k+=4;
+        var fields=new List<(uint f,uint t)>();
+        while (k+12<=bw.Length && BitConverter.ToUInt32(bw,k+4)==0x1332C78D)
+        { fields.Add((BitConverter.ToUInt32(bw,k),BitConverter.ToUInt32(bw,k+8))); k+=12; }
+        Console.WriteLine($"schema: {fields.Count} fields @0x{(fields.Count>0? k-fields.Count*12:0):X}");
+        // instance records: scan forward from k for 56-byte 0x22 records
+        while (k+4<=bw.Length && BitConverter.ToUInt32(bw,k)!=0x22) k+=4;
+        var vals=new List<uint>();
+        int p=k;
+        while (p+0x38<=bw.Length && BitConverter.ToUInt32(bw,p)==0x22)
+        { vals.Add(BitConverter.ToUInt32(bw,p+8)); p+=0x38; }
+        Console.WriteLine($"instance: {vals.Count} records @0x{k:X} (stride 0x38, value@+0x08)");
+        for (int q=0;q<fields.Count;q++)
+        {
+            var (f,t)=fields[q];
+            string v = q<vals.Count ? $"0x{vals[q]:X8} ({(int)vals[q]})" : "(no record)";
+            Console.WriteLine($"  {FN(f),-22} : {TN(t),-20} = {v}");
+        }
+        return 0;
+    }
     case "dump":
     {
         if (argv.Count < 3) { Console.Error.WriteLine("dump <gid> <id> [folder]"); return 2; }

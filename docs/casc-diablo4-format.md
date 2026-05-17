@@ -446,16 +446,24 @@ SNO meta format; it is exposed as public API (`Diablo4.TypeHash` /
 
 ### 10.3 Data-binding model and encoding
 
-`0xE4825AB8` is a reflection-serialised, hash-addressed widget graph.
-Per widget:
+`0xE4825AB8` is a reflection-serialised, hash-addressed widget graph
+of variable-size widget records, each with an inline NUL-terminated
+name, a class id (`= typeHash(widget-class name)`), a `0xFFFFFFFF`
+sentinel, and a block of schema entries + instance records.
 
-```
-inline name (NUL-terminated, zero-padded)
-name+0x28  u32  class id = typeHash(widget-class name)
-name+0x30  u32  0xFFFFFFFF sentinel + zero run
-name+0x60  [ self-anchor ][ block size ][ field count ]
-           then the schema run, then the instance records
-```
+> **Record-header framing is NOT yet pinned.** An earlier model
+> ("name+0x28 = class id, +0x30 = sentinel, +0x60 = block") was
+> inferred from a few *same-name-length* widgets and does **not**
+> generalise: `ParagonBoard_main`@0x80 has the class id `0x1E3077C7` at
+> name+0x28, but `ParagonNodes`@0x1E30 has `0xFFFFFFFF` there — the
+> offsets are relative to a padded/aligned name field or the enclosing
+> record start, not the raw name start. Determining the widget record
+> header (name field size/alignment; class-id and sentinel positions
+> relative to a stable anchor; how a widget's schema run and its
+> instance records are delimited per widget) is the **active
+> sub-problem** for the §10.11 assembly. The two encodings below are
+> independently proven (by the separator-keyed `members` scan and the
+> fixed-stride `0x22` scan) and do **not** depend on the header model.
 
 Widgets reference children by name-hash, not file offset (hence the
 constant-heavy layout). Each field has two co-located parts:
@@ -715,6 +723,19 @@ true value (the sections above already state the corrected truth).
   bound values / schema) — no evaluator, imaging, or policy (the
   permanent boundary). Its acceptance is tracked independently of the
   paragon projection so neither gates the other (§10.10).
+- **CL-13 — widget-record header framing was over-generalised.** A
+  provisional model ("name+0x28 = class id, name+0x30 = sentinel,
+  name+0x60 = block") was inferred from a few same-name-length widgets
+  and asserted in an earlier §10.3. It does not generalise:
+  `ParagonBoard_main`@0x80 has the class id at name+0x28 but
+  `ParagonNodes`@0x1E30 has the `0xFFFFFFFF` sentinel there — the
+  header offsets are relative to a padded/aligned name field or the
+  enclosing record start, not the raw name start. §10.3 corrected to
+  state the header framing is unpinned (the active §10.11 sub-problem);
+  the two value encodings (12-byte separator-keyed schema entries;
+  56-byte `0x22` instance records, value@+0x08) are independently
+  proven and unaffected. Caught when the `walk` tool mis-parsed
+  `ParagonNodes` — recorded rather than built upon.
 
 ## Appendix B — provenance & migration map
 
