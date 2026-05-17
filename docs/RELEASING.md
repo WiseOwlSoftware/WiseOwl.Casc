@@ -81,8 +81,18 @@ the **`nuget` environment**. Repo → **Settings → Environments → nuget →
 Environment secrets → Add secret**:
 
 - Name: `NUGET_USER`
-- Value: the nuget.org account/org username that owns the reserved
-  `WiseOwl.*` prefix (the profile-URL handle, not an email).
+- Value: **exactly the "Package owner" shown on the Trusted Publishing
+  policy** (step 3) — for this project the `WiseOwlSoftware`
+  organization, so the value is **`WiseOwlSoftware`**.
+
+This is the single most error-prone value. The `NuGet/login` `user:`
+input must identify the nuget.org account whose Trusted Publishing
+policy is being matched and *as which* packages are published. Because
+the policy's Package owner is the **organization** `WiseOwlSoftware`
+(packages live under the reserved `WiseOwl.*` prefix owned by that org),
+the value is the **org account name**, *not* the individual maintainer's
+personal handle. It would be the personal handle only if the policy's
+Package owner were set to the individual account instead.
 
 (A username is not actually sensitive, so a repo/environment *variable*
 would work too — but it is stored here as an environment secret and the
