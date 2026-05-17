@@ -71,8 +71,26 @@ exactly `nuget`.
 is — no paid plan needed.)
 
 - Under **Deployment protection rules**, enable **Required reviewers** and
-  add yourself (Brent Rector). This is the manual approval gate.
-- Optionally restrict deployment branches to `main` and tags.
+  add yourself (Brent Rector). This is the manual approval gate. Click
+  the **Save protection rules** button under that section (separate from
+  any other save on the page).
+- **Deployment branches and tags — this MUST allow the release tag or the
+  publish job fails instantly at the gate, before approval.** `publish.yml`
+  triggers on a GitHub Release, which runs on the *tag* ref
+  (`refs/tags/v0.1.0-alpha`), **never** on `main`. So:
+  - Select **Selected branches and tags**.
+  - **Add deployment branch or tag rule** → ref type **Tag** → pattern
+    **`v*`**.
+  - A `main` *branch* rule is unnecessary here (this environment is only
+    ever entered by the release-triggered, tag-ref publish) and, if it is
+    the *only* rule, it actively blocks every release. Either delete it
+    or leave it alongside the `v*` tag rule — but the `v*` tag rule must
+    exist.
+
+  Symptom if this is wrong: the run ends in ~1 s with
+  *"Tag "v…" is not allowed to deploy to nuget due to environment
+  protection rules"* — a safe failure (nothing is published), fixed by
+  adding the `v*` tag rule and re-running.
 
 ### 2. GitHub: add `NUGET_USER`
 
