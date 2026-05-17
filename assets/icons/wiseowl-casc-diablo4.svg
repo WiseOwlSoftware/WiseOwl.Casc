@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  WiseOwl.Casc.Diablo4 package mark — sibling of the Casc owl tile.
+  A bold capital "D" with a smaller, readable Roman numeral "IV" overlaid,
+  in Diablo-reminiscent red shades (ox-blood → ember), on the shared brand
+  dark tile, with a thin autumn-brown keyline as the Wise Owl family cue
+  (matches the owl mark's colour so the two read as a set).
+
+  Letterforms are drawn as vector paths (no font dependency → deterministic
+  rendering). Named palette:
+    tile       #161b22 → #0b0e13
+    ox-blood   #5E0D0D   blood #A01015   ember #D7402A   (the "D")
+    bright     #F4863A                                   (the "IV")
+    family     #8A5A33   (autumn brown — same as the owl mark)
+  256×256 viewBox.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <linearGradient id="tileD" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#161b22"/>
+      <stop offset="1" stop-color="#0b0e13"/>
+    </linearGradient>
+    <linearGradient id="blood" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0"   stop-color="#5E0D0D"/>
+      <stop offset="0.55" stop-color="#A01015"/>
+      <stop offset="1"   stop-color="#D7402A"/>
+    </linearGradient>
+    <radialGradient id="ember" cx="0.46" cy="0.5" r="0.6">
+      <stop offset="0" stop-color="#D7402A" stop-opacity="0.30"/>
+      <stop offset="1" stop-color="#D7402A" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="256" height="256" rx="52" fill="url(#tileD)"/>
+  <ellipse cx="120" cy="130" rx="96" ry="92" fill="url(#ember)"/>
+
+  <!-- bold "D": outer silhouette minus the inner counter (evenodd) -->
+  <path fill-rule="evenodd" fill="url(#blood)" d="
+        M 52 60  L 132 60
+        C 180 60, 206 96, 206 130
+        C 206 164, 180 200, 132 200
+        L 52 200  Z
+        M 86 92   L 130 92
+        C 160 92, 174 110, 174 130
+        C 174 150, 160 168, 130 168
+        L 86 168  Z"/>
+
+  <!-- Roman numeral "IV", overlaid on the bowl, bright with a dark halo
+       for legibility against the mid-red "D" -->
+  <g stroke="#3A0808" stroke-width="11" stroke-linecap="round" fill="none">
+    <line x1="150" y1="96" x2="150" y2="166"/>
+    <polyline points="172,96 188,166 204,96"/>
+  </g>
+  <g stroke="#F4863A" stroke-width="7" stroke-linecap="round" fill="none">
+    <line x1="150" y1="96" x2="150" y2="166"/>
+    <polyline points="172,96 188,166 204,96"/>
+  </g>
+
+  <!-- Wise Owl family keyline (same autumn brown as the owl mark) -->
+  <rect x="10" y="10" width="236" height="236" rx="44" fill="none"
+        stroke="#8A5A33" stroke-width="3" opacity="0.6"/>
+</svg>

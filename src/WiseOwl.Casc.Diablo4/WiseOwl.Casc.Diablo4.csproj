@@ -25,7 +25,18 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="../../README.md" Pack="true" PackagePath="\" />
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0"
+                      PrivateAssets="All" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+    <None Include="../../assets/icons/wiseowl-casc-diablo4-128.png"
+          Pack="true" PackagePath="icon.png" />
+    <None Include="../../LICENSE" Pack="true" PackagePath="\" />
+    <None Include="../../NOTICE" Pack="true" PackagePath="\" />
+    <None Include="../../THIRD-PARTY.md" Pack="true" PackagePath="\" />
+    <None Include="../../CHANGELOG.md" Pack="true" PackagePath="\" />
   </ItemGroup>
 
 </Project>

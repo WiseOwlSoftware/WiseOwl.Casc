@@ -49,6 +49,35 @@ Semantic Versioning once it reaches `1.0.0`.
   documents the library/consumer boundary (FR-5) and the deferred
   `CoreTOCReplacedSnosMapping` (FR-6).
 
+### NuGet packaging
+- Both shippable libraries pack cleanly (`.nupkg` + symbol `.snupkg`):
+  per-TFM assemblies + XML docs (`netstandard2.0;net8.0;net10.0`),
+  per-package README rendered on nuget.org, MIT license expression,
+  `LICENSE`/`NOTICE`/`THIRD-PARTY`/`CHANGELOG` bundled, Source Link
+  (`Microsoft.SourceLink.GitHub`, private), deterministic/CI build,
+  correct dependency groups (`WiseOwl.Casc.Diablo4` → `WiseOwl.Casc`;
+  ns2.0 polyfills declared). Copyright "© <year> Wise Owl Software",
+  Authors "Brent Rector" — matching the Demeanor house style.
+- Three brand marks, each authored as SVG → committed PNG size ladder
+  (16–512 px; 128 px is the packed `icon.png`) via in-repo generators
+  (`build/IconGen` rasterises; `scripts/gen-icons.{sh,ps1}`):
+  - **`wiseowl-org`** — the Wise Owl Software *organisation* mark (for
+    the nuget.org org profile / org-level use; **not** a package icon).
+    A faithful potrace vectorisation of the owner's *own* hand-drawn Wise
+    Owl card (`assets/Owl.jpg`): recoloured autumn medium brown,
+    parchment + the two bottom rules removed, stroke dropouts bridged
+    (morphological close) + despeckled, smooth calligraphic curves.
+    Pipeline `build/OwlTrace` (SkiaSharp + `BitmapToVector` managed
+    potrace; the source photo is processed in-tool, never loaded into
+    assistant context). No third-party imagery — the owner's own art.
+  - **`WiseOwl.Casc`** package icon — a bold **“CASC”** 2×2 lettermark
+    (typeface glyph outlines baked to vector, no runtime font dep) in
+    autumn brown on the shared dark tile, with a small owl brand tick
+    and the family keyline. Pipeline `build/Lettermark`.
+  - **`WiseOwl.Casc.Diablo4`** package icon — the structural sibling:
+    bold red **D·IV** lettermark (ox-blood→ember) on the same tile with
+    the autumn-brown family keyline.
+
 ### Byte-format spec restructured & split (two docs)
 - The single `casc-format.md` was rewritten into standard
   format-reference shape (Scope → Conventions → Overview diagram →

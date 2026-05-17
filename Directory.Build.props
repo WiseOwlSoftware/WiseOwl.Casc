@@ -31,12 +31,14 @@
     <Authors>Brent Rector</Authors>
     <Company>Wise Owl Software</Company>
     <Product>WiseOwl.Casc</Product>
-    <Copyright>Copyright (c) Wise Owl Software</Copyright>
+    <Copyright>Copyright © $([System.DateTime]::UtcNow.Year) Wise Owl Software</Copyright>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/WiseOwlSoftware/WiseOwl.Casc</PackageProjectUrl>
     <RepositoryUrl>https://github.com/WiseOwlSoftware/WiseOwl.Casc.git</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>icon.png</PackageIcon>
+    <PackageReleaseNotes>Pre-1.0 (0.1.0-alpha). See CHANGELOG.md in the repository for the full, dated change history and the dev logs for the narrative.</PackageReleaseNotes>
     <PackageTags>casc;tact;tvfs;blte;blizzard;diablo4;wow;sno;tex;bc7;game-data;modding</PackageTags>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
     <IncludeSymbols>true</IncludeSymbols>
