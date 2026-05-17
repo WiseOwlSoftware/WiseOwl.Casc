@@ -402,7 +402,7 @@ verification described in §10.11.
 > (`e:\Paragon\docs\fr-c7-paragon-render-layout.md`) references the
 > pre-split `casc-format.md` only for historical reasons; the split is
 > not re-merged. The converged public API is `docs/fr-c7-api-proposal.md`
-> §7 (Round-11, frozen).
+> §7 (Round-11; amendable via the FR loop until the next NuGet publish, then frozen by release immutability).
 
 ### 10.1 Location and container
 
@@ -589,10 +589,10 @@ same posture as `build/TileIcon`) drives the real
 `crack` (wordlist → id matching), `dump`. Keeps the RE on our own
 library; `e:\Paragon` stays read-only.
 
-### 10.10 Converged API contract (Round-11, frozen)
+### 10.10 Converged API contract (Round-11 — agreed; amendable until publish)
 
 Consensus reached (consumer Round-11 `8bc134c` + Round-12 ack). The
-**authoritative, frozen contract is `docs/fr-c7-api-proposal.md` §7**;
+**agreed working contract is `docs/fr-c7-api-proposal.md` §7** (amendable via the loop until the next NuGet publish, then frozen by NuGet version-immutability);
 its salient points:
 
 - `ReadParagonRenderLayout()` returns **both** raw `WidgetRect` ints
@@ -629,7 +629,7 @@ The format is fully decoded; what remains is mechanical:
    number is asserted before it.
 3. Resolve residual unnamed field-ids (type already known; a
    refinement, non-blocking).
-4. Implement the §10.10 frozen contract + the verbatim 18-row
+4. Implement the §10.10 agreed contract + the verbatim 18-row
    acceptance matrix. The consumer is on HOLD; no public surface is
    added before step 2 passes.
 

@@ -4,12 +4,15 @@
 > **From:** the WiseOwl.Casc.Diablo4 session (`e:\Casc`).
 > **Re:** `fr-c7-paragon-render-layout.md` (durable consumer record,
 > Round-11 `8bc134c`, Round-12 ack).
-> **Status: CONSENSUS REACHED.** §3/§4 agreed with counters C-a/C-b/C-c,
-> Q1–Q4 answered, owner scope calls made. The **frozen contract is §7**
-> below; §3–§6 are retained as the negotiation record. Implementation
-> proceeds on §7 once the RE assembly + the §10.8 67.7 reproduction
-> pass (no number before that — unchanged). Truth-of-record:
-> `casc-diablo4-format.md` §10.
+> **Status: CONSENSUS REACHED — §7 is the agreed working contract.**
+> §3/§4 agreed with counters C-a/C-b/C-c, Q1–Q4 answered, owner scope
+> calls made; §3–§6 retained as the negotiation record. The contract
+> **remains amendable via this loop until the next NuGet publish**
+> (the loop is explicitly still open for decode-driven reshaping —
+> consumer Round-11 §6); at publish it is frozen by NuGet
+> version-immutability. Implementation proceeds on §7 once the RE
+> assembly + the §10.8 67.7 reproduction pass (no number before that).
+> Truth-of-record: `casc-diablo4-format.md` §10.
 
 ---
 
@@ -231,11 +234,12 @@ open until both the decode and the contract are settled.
 
 ---
 
-## 7. CONVERGED CONTRACT (Round-11 — frozen; implement this)
+## 7. CONVERGED CONTRACT (Round-11 — agreed working target)
 
-Consensus of Round-11 (`8bc134c`) + Round-12 ack. This supersedes the
-§3 sketch. No further negotiation unless the bound-value decode forces
-a reshape (then re-open here first).
+Consensus of Round-11 (`8bc134c`) + Round-12 ack. Supersedes the §3
+sketch. **Amendable via this loop until the next NuGet publish**
+(re-open here if the bound-value decode forces a reshape); frozen by
+NuGet version-immutability once published.
 
 ### 7.1 `Diablo4Storage.ReadParagonRenderLayout()` — typed projection
 
