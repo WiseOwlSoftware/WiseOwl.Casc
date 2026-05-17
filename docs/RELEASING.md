@@ -88,19 +88,27 @@ key is stored anywhere in GitHub.)
 
 ### 3. NuGet.org: register the Trusted Publishing policy
 
-nuget.org → your account → **Trusted Publishing** → add a policy:
+nuget.org → your account (or organization) → **Trusted Publishing** →
+add **one** policy:
 
-| Field | Value |
+| Field (label may vary) | Value |
 |---|---|
+| Package owner / username | the `NUGET_USER` account/org that holds the reserved `WiseOwl.*` prefix |
 | Repository owner | `WiseOwlSoftware` |
 | Repository | `WiseOwl.Casc` |
 | Workflow file | `publish.yml` |
 | Environment | `nuget` |
 
-Add the policy for **both** package ids (`WiseOwl.Casc` and
-`WiseOwl.Casc.Diablo4`) — or a glob covering the reserved `WiseOwl.*`
-prefix if the UI allows it. This binds "publish as me" to *exactly* this
-repo + workflow + environment and nothing else.
+**One policy is sufficient and correct.** A Trusted Publishing policy is
+scoped to a *repository + workflow (+ environment)* — there is **no
+package-id field**. This single policy authorizes the `publish.yml`
+workflow to push *every* package it builds, so it covers **both**
+`WiseOwl.Casc` and `WiseOwl.Casc.Diablo4` (both are packed and pushed by
+that one workflow). Because the owning account holds the reserved
+`WiseOwl.*` prefix, the workflow may **create both new package ids on the
+first publish** — they need not pre-exist. The policy binds "publish as
+this account" to *exactly* this repo + workflow + environment and nothing
+else.
 
 ### 4. (Recommended) Branch protection on `main`
 
