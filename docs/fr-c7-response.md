@@ -210,3 +210,43 @@ Any calibration screenshot should therefore be tagged exactly
 `7680×2160 @ <UI-scale slider value>`; the two measured distances
 (node-to-node centre, disc diameter) then pin `D4_UI_referenceHeight`
 and the disc↔cell ratio in one shot.
+
+## 8. Agreed API contract (round close — accepted)
+
+Consumer feedback accepted in full. Premise correction endorsed;
+`IconCellFactor` reframed as **permanently consumer-owned** (the
+resolution / UI-scale anchor) × the C7 normalised ratio — not a
+stand-in C7 erases. Same standing pattern as the 6 intrinsics / §3
+relight: render-time absolute scale = consumer policy; normalised
+relationships = library data. `ReadParagonRenderLayout()` will expose
+(raw decoded values only; no imaging/policy):
+
+1. **Grid→screen mapping, not just per-element scale.** The reproducible
+   rule `nodeCentre = canvasRef × normPitch(gridX, gridY)` (grid from
+   `ParagonBoardDefinition` §7.1), plus the **board rotation** factor
+   (~45° — exposed as decoded data, 0 if axis-aligned in the SNO) and
+   the documented super-wide rule (height-scale about the vertical
+   reference, horizontal-centre about mid-X; UI-scale slider is the
+   consumer-owned multiplier). The consumer must reproduce node
+   *positions*, not only sizes.
+2. **Canvas reference dimensions** the normalised factors are expressed
+   against, plus the explicit derivation `elementPx = nativeSize ×
+   normScale` and `nodeCentrePx = canvasRef × normPitch`, so the single
+   consumer-owned scalar (global px scale) is the *only* free variable.
+3. **Per-state layer lists keyed to the §2.5 / round-4b state
+   contract** — the 17 baked layer-lists + the 3 overlay specs — each a
+   back→front ordered `(textureHandle, normSize, normOffset, rotation,
+   tint/blend, anim)` list. The gold-ornate-only / no-per-rarity-texture
+   result (§3) is already banked into this.
+4. **Acceptance:** ratios decode capture-free and will land first. The
+   one absolute number is pinned by the consumer-supplied oracle.
+   **Accepted offer:** in addition to the tagged calibration capture,
+   the consumer will provide a **known-grid-distance reference** — a
+   capture in which two nodes' board `(X,Y)` are identified, so
+   `Δpx ÷ Δgrid` pins the scale unambiguously. Both captures tagged
+   `7680×2160 @ <UI-scale slider value>`.
+
+Library scope note: this is raw-decode + the derivation *rule*
+(documented), still no evaluator/imaging — boundary unchanged. The
+round-4b state contract will be read from the consumer's requirements
+doc when the per-state lists are implemented (it enumerates the 17+3).
