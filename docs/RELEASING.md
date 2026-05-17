@@ -118,25 +118,43 @@ approval, version guard, `--skip-duplicate`) is **independent** of branch
 protection — skip this entirely if the UI fights you and nothing about
 publishing becomes less safe.
 
-Repo → **Settings → Branches → Add branch ruleset / rule** for `main`:
+Repo → **Settings → Branches → Add rule** for branch name pattern
+`main`. (GitHub has two UIs: the **classic Branch protection rule**
+screen described here, and the newer **Rulesets** screen. They differ —
+the classic screen lists required checks with **no per-check source
+dropdown**; the Rulesets screen has a source dropdown you should set to
+**GitHub Actions**. Either is fine; the classic screen is simpler.)
 
-- Enable **Require a pull request before merging**.
-- Enable **Require status checks to pass before merging**. The control is
-  a **search box**, not a pre-filled list ("No required checks" is just
-  the empty selected-list state, not an error). Type each of these exact
-  job names and select it:
-  - `Build & test`
-  - `API docs in sync`
+Tuned for a **solo owner** — the real trap is locking yourself out:
 
-  For each added check there is a **source dropdown** — set it to
-  **GitHub Actions** (not "Any source"). These checks come from Actions;
-  pinning the source stops a same-named status from any other integration
-  from satisfying the gate.
+- ☑ **Require a pull request before merging**
+  - ☐ **Require approvals — leave OFF.** With one maintainer, requiring
+    ≥1 approval means you cannot approve your own PR and can never merge.
+    With approvals off, GitHub still allows self-merge after CI passes.
+- ☑ **Require status checks to pass before merging**
+  - ☑ **Require branches to be up to date before merging** (recommended)
+  - Add the two required checks. The control is a **search box**, not a
+    pre-filled list ("No required checks" is just the empty selected-list
+    state, not an error). Type each exact job name and select it:
+    - `Build & test`
+    - `API docs in sync`
 
-  These are the `name:` values of the two jobs in `ci.yml`; the `&` and
-  spaces are part of the string. The search only finds checks GitHub has
-  observed in the last ~week — CI runs on every push/PR to `main`, so
-  they are present once CI has run at least once (it has).
+    These are the `name:` values of the two jobs in `ci.yml`; the `&`
+    and spaces are part of the string. The search only finds checks
+    GitHub observed in the last ~week — CI runs on every push/PR to
+    `main`, so they are present once CI has run once (it has).
+- Optional, clean history: ☑ **Require linear history** (then merge via
+  Squash or Rebase). ☐ Conversation resolution — fine either way.
+- Leave **OFF**: Require signed commits (blocks unsigned commits unless
+  you already sign); **Require deployments to succeed** (do NOT add the
+  `nuget` environment — it gates *publishing on release*, not merging);
+  Merge queue; Lock branch; Restrict who can push. Keep **Allow force
+  pushes** and **Allow deletions** unchecked.
+- **"Do not allow bypassing the above settings"** — judgment call.
+  Checked = even you must PR every change to `main`. Unchecked = you keep
+  an admin escape hatch. Recommended **unchecked** for a solo owner: the
+  irreversible risk (publish) is gated independently by `publish.yml`, so
+  strictness here is hygiene, not safety.
 
 ---
 
