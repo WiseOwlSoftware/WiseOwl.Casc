@@ -212,10 +212,19 @@ public sealed class Diablo4StorageIntegrationTests
         Assert.InRange(rl.BoardRotationQuadrant, 0, 3);
         Assert.Equal(0, rl.BoardRotationQuadrant);
 
-        // Staged-delivery contract: ratios Provisional until the §10.8
-        // 67.7 anchor reproduces — no pitch number asserted yet.
-        Assert.True(rl.Ratios.Provisional);
-        Assert.Equal(0d, rl.Ratios.PitchRef);
+        // Gate-2: the over-determined 67.7 anchor reproduces.
+        // Decode-true PitchRef = Template_Node_Common box (100) ÷
+        // CanvasRef.Height (1200); DiscRef = (100 − 2×7 insets) ÷ 1200.
+        // Provisional flips false (consumer dual-validated anchor ÷ the
+        // 100-ref pitch converges square at ≈0.677 px/ref).
+        Assert.False(rl.Ratios.Provisional);
+        Assert.Equal(100.0 / 1200.0, rl.Ratios.PitchRef, 6);
+        Assert.Equal(86.0 / 1200.0, rl.Ratios.DiscRef, 6);
+        // Cross-check: the consumer's 67.7 px/grid at the §10.8
+        // provenance ÷ the decode-true pitch (100 ref) = the implied
+        // single uniform scale, consistent with their square autocorr.
+        double impliedScale = 67.7 / (rl.Ratios.PitchRef * rl.CanvasReference.Height);
+        Assert.InRange(impliedScale, 0.66, 0.69);
 
         // §7.5 gate 1: exactly the 18 §7.2 rows, verbatim keys.
         var expected = new (int r, string s)[]

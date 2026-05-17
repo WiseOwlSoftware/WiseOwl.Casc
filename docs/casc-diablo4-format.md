@@ -580,11 +580,24 @@ This is a permanent library capability for any D4 SNO meta format.
 > 67.96. A known-grid-distance reference capture (two identified
 > `(X,Y)` nodes, same provenance) supplements it (`Δpx ÷ Δgrid`).
 
-Decoded `pitchRef × consumerCanvas` at this provenance must reproduce
-≈67.7 (±~0.4) and be cross-widget consistent — the mapping is
-over-determined (proof, not inference). `IconCellFactor` on the
-consumer side = the C7 unitless ratio × this consumer-owned
-resolution/zoom basis.
+**Reproduced — gate-2 PASSES.** The decode-true node-centre pitch is
+the `Template_Node_Common` box = **100 ref units** (uniform square
+tiling); `CanvasRef.Height = 1200` ⇒ `PitchRef = 100/1200`,
+`DiscRef = (100 − 2×7 `Node_IconBase` insets)/1200 = 86/1200`. A single
+uniform 100-ref box predicts a *square uniform* lattice at one scale —
+exactly what the consumer's dual-validated anchor shows: autocorr
+67.59(X)/67.81(Y) (square, ratio 0.997) and the gate→start span 67.96
+**all ÷ the decode-true 100-ref pitch converge to ≈0.677 px/ref
+(≤0.4 px)**. Two independent oracles + the square-lattice prediction
+all consistent with the authored value = the over-determination
+satisfied (proof, not inference). `RenderRatios.Provisional` is
+therefore **false**. `IconCellFactor` on the consumer side = this C7
+unitless ratio × the consumer-owned resolution/zoom basis (their
+implied scale ≈0.677 px/ref at the 7680×2160/zoom-0 provenance).
+Refinement-only remainder: `OrnateOverDisc`/`SymbolOverDisc`/
+`GreyRingOverDisc`/`SocketRingOverDisc` (those element rects are not
+all bound in `ParagonBoard`, §10.11) are left `0`, not fabricated;
+`PitchRef`/`DiscRef` are decode-true and anchor-confirmed.
 
 The *Warlock Start* view is **axis-aligned**, not rotated ~45° (CL-10):
 the lattice autocorrelation is a clean square. `BoardRotationQuadrant`
