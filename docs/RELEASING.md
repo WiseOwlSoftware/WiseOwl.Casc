@@ -74,17 +74,21 @@ is — no paid plan needed.)
   add yourself (Brent Rector). This is the manual approval gate.
 - Optionally restrict deployment branches to `main` and tags.
 
-### 2. GitHub: add the `NUGET_USER` repo variable
+### 2. GitHub: add `NUGET_USER`
 
-Repo → **Settings → Secrets and variables → Actions → Variables → New
-repository variable**:
+The workflow reads `${{ secrets.NUGET_USER }}` from a secret scoped to
+the **`nuget` environment**. Repo → **Settings → Environments → nuget →
+Environment secrets → Add secret**:
 
 - Name: `NUGET_USER`
-- Value: the nuget.org account username that owns the reserved
-  `WiseOwl.*` prefix.
+- Value: the nuget.org account/org username that owns the reserved
+  `WiseOwl.*` prefix (the profile-URL handle, not an email).
 
-(A username is not sensitive — it is a *variable*, not a secret. No API
-key is stored anywhere in GitHub.)
+(A username is not actually sensitive, so a repo/environment *variable*
+would work too — but it is stored here as an environment secret and the
+workflow reads `secrets.NUGET_USER` accordingly. `secrets.*` resolves
+because the publish job targets `environment: nuget`. No API key is
+stored anywhere — auth is OIDC.)
 
 ### 3. NuGet.org: register the Trusted Publishing policy
 

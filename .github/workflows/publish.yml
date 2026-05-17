@@ -90,9 +90,12 @@ jobs:
         id: nugetlogin
         uses: NuGet/login@v1
         with:
-          # The nuget.org account that owns the WiseOwl.* prefix. Not a
-          # secret (a username is not sensitive); set as a repo variable.
-          user: ${{ vars.NUGET_USER }}
+          # The nuget.org account that owns the WiseOwl.* prefix. Stored
+          # as an environment-scoped secret on the `nuget` environment
+          # (a username isn't sensitive, so a variable would also be fine
+          # — but it exists as a secret, and secrets.* resolves here
+          # because this job targets `environment: nuget`).
+          user: ${{ secrets.NUGET_USER }}
 
       - name: Push to NuGet.org
         run: >
