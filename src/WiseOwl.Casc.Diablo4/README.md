@@ -1,7 +1,7 @@
 # WiseOwl.Casc.Diablo4
 
 The **Diablo IV** game module for [`WiseOwl.Casc`](https://www.nuget.org/packages/WiseOwl.Casc) —
-clean-room, modern .NET. CoreTOC, SNO read-by-id, shared-payload
+modern .NET. CoreTOC, SNO read-by-id, shared-payload
 resolution, the `0x44CF00F5` combined-meta family (textures + the
 per-locale StringList catalog), BC1/BC3 decode, and typed paragon /
 GameBalance record decoders.

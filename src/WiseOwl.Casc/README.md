@@ -1,6 +1,6 @@
 # WiseOwl.Casc
 
-A modern, clean-room **.NET library for Blizzard's CASC** content-storage
+A modern **.NET library for Blizzard's CASC** content-storage
 stack — the game-agnostic transport: **CASC / TACT / TVFS / BLTE**.
 
 > **Unofficial.** Not affiliated with or endorsed by Blizzard Entertainment.
@@ -33,4 +33,4 @@ companion package **`WiseOwl.Casc.Diablo4`**, which builds on this.
 
 MIT licensed. See `LICENSE`, `NOTICE`, and `THIRD-PARTY.md` for credits to
 the reverse-engineering community whose published format notes this
-clean-room implementation builds upon.
+implementation builds upon.

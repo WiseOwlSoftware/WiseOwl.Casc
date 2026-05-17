@@ -47,7 +47,7 @@
     <EmbedUntrackedSources>true</EmbedUntrackedSources>
     <Version>0.1.0-alpha</Version>
     <!-- Unofficial-status disclaimer travels with every published package. -->
-    <Description>Unofficial, clean-room .NET library for Blizzard's CASC content-storage stack. Not affiliated with or endorsed by Blizzard Entertainment. World of Warcraft, Diablo, and related marks are trademarks of Blizzard Entertainment, Inc. Use only with your own legally-obtained game files.</Description>
+    <Description>Unofficial, modern .NET library for Blizzard's CASC content-storage stack. Not affiliated with or endorsed by Blizzard Entertainment. World of Warcraft, Diablo, and related marks are trademarks of Blizzard Entertainment, Inc. Use only with your own legally-obtained game files.</Description>
   </PropertyGroup>
 
 </Project>

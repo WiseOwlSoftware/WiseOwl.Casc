@@ -32,9 +32,9 @@ THIRD-PARTY REFERENCES
 
 This is a clean-room implementation written from a self-contained binary-format
 specification. No third-party source code is incorporated. The following
-permissively-licensed projects were consulted as references / cross-checks for
-the publicly-documented CASC, TACT, TVFS, BLTE and Diablo IV SNO formats, and
-are credited with gratitude. See THIRD-PARTY.md for details.
+open-source projects and public documentation were consulted as references /
+cross-checks for the publicly-documented CASC, TACT, TVFS, BLTE and Diablo IV
+SNO formats, and are credited with gratitude. See THIRD-PARTY.md for details.
 
   - WoW-Tools/CascLib (TOM_RUS)            — MIT — CASC/TACT/TVFS/BLTE behaviour
   - Dakota628/d4parse                      — Diablo IV SNO / .tex format notes
