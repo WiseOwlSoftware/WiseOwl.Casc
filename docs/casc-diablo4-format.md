@@ -575,6 +575,41 @@ The typed `ParagonRenderLayout` ships only when these are pinned with a
 verbatim acceptance matrix — consistent with the FR's
 zero-guessed-constants contract.
 
+### 10.4 Acceptance anchor (consumer-supplied oracle, dual-validated)
+
+The consumer delivered the absolute-scale oracle (the quantity the game
+stores nowhere — see the §10.3 rigorous finding):
+
+> **≈ 67.7 px per grid-step**, provenance **{zoom = 0 (smallest),
+> render = 7680×2160, *Warlock Start* board, nothing selected}**.
+> Dual-validated, agreeing ≤ 0.4 px: (1) 2D autocorrelation of the node
+> lattice → 67.59 (X) / 67.81 (Y), **square lattice**; (2) landmark
+> span — socket(10,6) centre `(756,620)` (its unique red pulse ring) and
+> gate(10,0)→start(10,14) = `951.5 px ÷ 14 rows = 67.96`.
+
+This is the C7 acceptance anchor: decoded `normPitch × canvasRef` at
+this exact provenance **must reproduce ≈67.7 px/grid-step** (±~0.4).
+It is the consumer-owned resolution/zoom basis; on delivery
+`IconCellFactor = C7-normalised-ratio × this pitch basis` (the absolute
+scale stays permanently consumer policy — same pattern as the 6
+intrinsics / §3 relight).
+
+**CL-10 correction (banked before it could bias the decode): the Start
+board view is AXIS-ALIGNED, not rotated ~45°.** The FR's §2.4 "board is
+rotated ~45° for display" does **not** hold for this calibration view —
+the lattice is clean square rows/columns (the autocorrelation confirms
+a square lattice). The decode must **not** bake in a 45° rotation:
+`BoardRotationDegrees` is to be *read from the `ParagonNodes_
+BoardRotationLayer` widget*, and at this provenance it must resolve to
+**0°** (axis-aligned) to satisfy the anchor. Treating rotation as
+decoded data (default 0), never an assumed constant.
+
+With this anchor the §10.3 vocabulary mapping is now an *over-determined*
+problem: a candidate `memberNameHash`→meaning is accepted only if
+`normPitch(member) × canvasRef` reproduces 67.7 at the stated provenance
+**and** the same member is consistent across widgets — proof, not
+inference.
+
 ### 10.4 Reconnaissance instrument
 
 `build/SnoScan` (in `e:\Casc`, not shipped, not in the solution —
@@ -644,6 +679,16 @@ true value (the sections above already state the corrected truth).
   acceptance matrix. The consumer ask's document-target reference
   (`casc-format.md`) predates the spec split; this D4-layer format is
   owned here.
+- **CL-10 — FR-C7 board rotation is NOT a fixed ~45° (decode it).** The
+  FR §2.4 "in-game the board is rotated ~45°" does not hold for the
+  *Warlock Start* calibration view: the consumer's 2D lattice
+  autocorrelation at `{zoom 0, 7680×2160, nothing selected}` resolves a
+  **clean square axis-aligned lattice**, ≈67.7 px/grid-step
+  (dual-validated ≤0.4 px; §10.4). `BoardRotationDegrees` must be
+  **read from the `ParagonNodes_BoardRotationLayer` widget**, not
+  assumed; it must resolve to 0° at this provenance for the acceptance
+  anchor to hold. Recorded before vocabulary mapping so a phantom
+  rotation cannot be baked into the decode.
 
 ## Appendix B — provenance & migration map
 

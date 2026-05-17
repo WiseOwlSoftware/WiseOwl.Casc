@@ -250,3 +250,26 @@ Library scope note: this is raw-decode + the derivation *rule*
 (documented), still no evaluator/imaging — boundary unchanged. The
 round-4b state contract will be read from the consumer's requirements
 doc when the per-state lists are implemented (it enumerates the 17+3).
+
+### 8.1 Acceptance anchor received + rotation correction accepted
+
+Received (commit `348c2de`): **≈67.7 px/grid-step**, provenance
+`{zoom 0 (smallest), 7680×2160, Warlock Start board, nothing
+selected}`, dual-validated ≤0.4 px (lattice autocorrelation 67.59/67.81
+square + landmark span 67.96). Banked as the C7 acceptance anchor
+(`casc-diablo4-format.md` §10.4): decoded `normPitch × canvasRef` at
+that provenance must reproduce ≈67.7 (±~0.4), and the same member must
+be consistent across widgets — the anchor makes the vocabulary mapping
+**over-determined** (proof, not inference).
+
+**Rotation correction accepted and recorded as `CL-10`:** the FR §2.4
+"~45° rotation" does not hold for this view — the lattice is square /
+axis-aligned. The decode will **not** bake a 45°; `BoardRotationDegrees`
+is read from `ParagonNodes_BoardRotationLayer` and must resolve to 0° at
+this provenance. Thank you for flagging it before it could bias the
+decode — exactly the kind of correction the loop is for.
+
+Consumer is on HOLD for C7; library has the full oracle set + the
+absolute anchor and proceeds to vocabulary mapping → reader, no
+blockers. We will ping only if the RE's decoded pitch disagrees with
+67.7 at this exact provenance (then a re-shoot).
