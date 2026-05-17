@@ -7,6 +7,11 @@
     <IsPackable>true</IsPackable>
     <PackageId>WiseOwl.Casc</PackageId>
     <Title>WiseOwl.Casc — modern .NET CASC/TACT/TVFS/BLTE transport</Title>
+    <!-- Transport-package tags: overrides the generic default in
+         Directory.Build.props so nuget.org search ranks this for the
+         WoW/NGDP/MPQ transport audience rather than diluting with D4
+         record terms. Single tokens only (nuget.org splits on space). -->
+    <PackageTags>casc;tact;tvfs;blte;ngdp;mpq;blizzard;wow;warcraft;overwatch;starcraft;content-addressable-storage;game-data;data-extraction;modding;file-format</PackageTags>
   </PropertyGroup>
 
   <!-- netstandard2.0 lacks System.Memory in-box; bring spans/async there so

@@ -5,6 +5,11 @@
     <IsPackable>true</IsPackable>
     <PackageId>WiseOwl.Casc.Diablo4</PackageId>
     <Title>WiseOwl.Casc.Diablo4 — Diablo IV CASC module (CoreTOC, SNO, .tex)</Title>
+    <!-- D4-package tags: overrides the generic default in
+         Directory.Build.props so a Diablo IV dev searching
+         "diablo4 paragon sno" lands here, not diluted by tvfs/tact.
+         Single tokens only (nuget.org splits on space). -->
+    <PackageTags>casc;diablo4;diablo;d4;sno;coretoc;paragon;tex;dds;bc7;texture;localization;blizzard;game-data;data-extraction;modding</PackageTags>
     <!-- The only package where the "Diablo IV" mark appears, used purely
          nominatively as a compatibility descriptor. -->
     <Description>Diablo IV game module for WiseOwl.Casc: CoreTOC.dat, SNO records, shared-payload resolution, the 0x44CF00F5 combined-meta bundle, and .tex/BCn helpers. Unofficial; not affiliated with or endorsed by Blizzard Entertainment. Diablo is a trademark of Blizzard Entertainment, Inc. Use only with your own legally-obtained game files.</Description>
