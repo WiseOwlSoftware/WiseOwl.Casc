@@ -48,6 +48,12 @@ decision.
    header), `docs/devlog/NNNN-*`, this file, and project memory every
    meaningful session. Do NOT write into the wiseowl.com site repo.
 6. Do not modify `e:\Paragon` except to read.
+7. **Docs-only changes commit straight to `main`** (devlog, `casc-*-format.md`,
+   `docs/fr-*`, RELEASING, this file, CHANGELOG prose, ARTICLE-SOURCE) —
+   no PR. The branch → PR → CI → merge flow is **only** for code, tests,
+   workflows, and public-API/`docs/api` surface (what CI validates).
+   Rationale + the `paths-ignore`+required-checks deadlock it avoids:
+   memory `feedback_doc-changes-no-pr`.
 
 ## Architecture
 
