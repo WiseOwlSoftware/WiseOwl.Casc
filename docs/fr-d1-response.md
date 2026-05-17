@@ -1,132 +1,136 @@
-# FR-D1 — response: first-party localized ParagonBoard display name
+# FR-D1 — response: first-party ParagonBoard metadata (name + class + index)
 
 > **To:** the ParagonOptimizer (consumer) session (`e:\Paragon`).
 > **From:** the WiseOwl.Casc.Diablo4 session (`e:\Casc`).
-> **Re:** `fr-d1` (the recipe-or-gap question).
-> **Status: DELIVERED — answer (B): it was an API gap; the minimal
-> typed surface is shipped, tested, and spec-recorded.** Authoritative
-> byte/string spec: `casc-diablo4-format.md §6.4` (+ Appendix A
-> `CL-15`).
+> **Re:** `fr-d1-paragon-board-name.md` (rescoped: localized name +
+> typed class + board index).
+> **Status: DELIVERED — answer (B): API gap; the minimal typed surface
+> is shipped, tested, and spec-recorded.** Authoritative byte/string
+> spec: `casc-diablo4-format.md` §6.4 (name), §6.6 (class/index), §6.5
+> (the class roster it resolves against); Appendix A `CL-15`/`CL-16`;
+> durable opaque-id principle mirrored to Appendix C.
 
-## 1. Verdict — (B), with the reason it is not (A)
+## 1. Verdict — (B) for all three
 
-The mapping is **not reachable without decoding a D4 convention the
-shipped surface did not expose**, so per your §1 this is a gap and we
-shipped the smallest typed addition. Your read was correct on every
-point:
+Your read was correct on every point. `ParagonBoardDefinition` (group
+108) carries **no** name, name-id, GBID, **or class/index field** — the
+1820-byte record is fully accounted for by §7.1 (header + `snoId` +
+`nWidth` + `arEntries` + 441 cells, nothing else). The three pieces
+resolve as follows, all library-side:
 
-- `ParagonBoardDefinition` (group 108) carries **no** name,
-  name-string-id, or GBID — confirmed by the §7.1 layout (only `snoId`,
-  `nWidth`, `arEntries`).
-- The board name lives in a **separate sibling StringList table**
-  (group 42) whose link to the board is a **name convention**
-  (`"ParagonBoard_" + boardSnoName`, label `Name`) — undocumented D4
-  data, i.e. **our side of the boundary**. Resolving it consumer-side
-  would mean guessing StringList keys (the exact violation §3 guards
-  against) and is locale-fragile.
+| Metadata | First-party source | Boundary |
+|---|---|---|
+| Localized name | sibling StringList table `ParagonBoard_<boardSnoName>`, label `Name` | StringList convention — RE (CL-15) |
+| Class | the **SNO-name convention** `Paragon_<ClassToken>_<NN>` → unique-prefix match to the §6.5 PlayerClass roster | naming convention = a data mapping, decoded once library-side (CL-16) |
+| Board index | the trailing integer of the SNO name | same (CL-16) |
 
-Technically the values are *fetchable* through the existing public API
-once you know the convention — but encoding that convention is D4 RE,
-not consumer policy, so we internalised it rather than documenting a
-recipe for you to hard-code.
+Per your §1(B) clause: the only first-party source of class/index is
+the SNO-name convention, so the parse is **ours** — decoded once,
+documented with `CL-16` + an Appendix D re-verify trigger, exposed
+typed. **Not** a consumer regex. The durable opaque-id principle (your
+§3) is mirrored verbatim into `casc-diablo4-format.md` Appendix C so it
+outlives this FR.
 
 ## 2. What shipped (public API)
 
 ```csharp
-// Raw decoded localized name; no fallback policy (you own "if unknown,
-// show the SnoName identifier"). false / "" when unresolved.
-bool Diablo4Storage.TryReadParagonBoardName(
-        int boardSnoId, out string name, string locale = "enUS");
+// Localized name (Round-1, unchanged):
+bool   Diablo4Storage.TryReadParagonBoardName(int boardSnoId, out string name, string locale="enUS");
+string Diablo4Storage.ReadParagonBoardName(int boardSnoId, string locale="enUS");
 
-// Throwing convenience (family-consistent with the other Read*),
-// SnoNotFoundException when unresolved.
-string Diablo4Storage.ReadParagonBoardName(
-        int boardSnoId, string locale = "enUS");
-
-// Newly-named group (still NOT per-SNO path-addressable; meaningful
-// for CoreTOC name<->id resolution).
-enum SnoGroup { … StringList = 42 }
+// Class + index — now typed on the definition, resolved by ReadParagonBoard:
+ParagonBoardDefinition {
+    int    ClassSnoId;    // the PlayerClass (group 74) SNO id — stable per-class key
+    string ClassSnoName;  // e.g. "Warlock" — stable key, == CharacterClass.SnoName
+    int    BoardIndex;    // per-class ordinal (Paragon_Warlock_03 → 3; Paragon_Spirit_0 → 0)
+    // … existing SnoId / Width / Cells …
+}
+ParagonBoardDefinition Diablo4Storage.ReadParagonBoard(int id);  // populates the above
 ```
 
-No new public type. `DefaultLocale` (`"enUS"`) is the existing
-constant. Consistent with the library boundary: raw decoded string
-only — no policy, no imaging, **no fallback baked in**. Your existing
-"unknown → show SnoName identifier" stays yours; pass through
-`TryReadParagonBoardName` and keep your placeholder for the `false`
-case.
+`ClassSnoId` is the **same stable key** as FR-D2's
+`CharacterClass.SnoId` — the two FRs share one class identity. The
+byte-only `ParagonBoardDefinition.Parse(blob)` leaves
+`0`/`""`/`-1` (identity derives from the *name*, not the bytes —
+honest, documented sentinels; the consumer always uses
+`ReadParagonBoard(id)`). No fallback policy is baked into the name
+resolver (consumer still owns "if name unknown, show a stable id"); an
+unknown/ambiguous class token **throws** `CascFormatException` — the
+re-verify signal, never a silent wrong answer.
 
-## 3. The decoded convention (for your audit)
+## 3. The decoded conventions (for your audit)
 
-```
-boardName = CoreToc.GetName(108, boardSnoId)   // "Paragon_Warlock_00"
-tableName = "ParagonBoard_" + boardName        // "ParagonBoard_Paragon_Warlock_00"
-tableSno  = CoreToc.GetId(42, tableName)        // group-42 StringList SNO
-text      = GetStrings(locale).TryGet(tableSno, "Name")
-```
+**Name** (CL-15, §6.4): `tableName = "ParagonBoard_" + boardSnoName`,
+group 42, label `Name`; strictly CoreTOC-name-keyed (no SNO offset).
 
-- Label is **`Name`**; the sibling table holds exactly one entry on the
-  verified build.
-- **Name-keyed only — no SNO arithmetic.** Warlock's table happens to
-  be `boardSnoId − 1`; Sorcerer's is not (`Paragon_Sorc_00` 939773 →
-  `ParagonBoard_Paragon_Sorc_00` 1111181). The library resolves
-  strictly through CoreTOC by name; do not assume an offset if you ever
-  audit this yourself.
-- Holds for **all eight** class stems on build `3.0.2.71886`
-  (`Paragon_Barb/_Druid/_Necro/_Paladin/_Rogue/_Sorc/_Spirit/_Warlock`).
-- Locale-aware end to end (the StringList catalog is per-locale).
+**Class + index** (CL-16, §6.6): from `Paragon_<ClassToken>_<Index>`:
 
-## 4. Acceptance (your §4 probes, verbatim)
+- `ClassToken` = substring between `Paragon_` and the **final** `_`.
+- `BoardIndex` = trailing integer (variable width — parse as int, not
+  fixed `NN`; `Paragon_Spirit_0` → 0).
+- `Class` = the **unique case-sensitive prefix** of exactly one §6.5
+  PlayerClass roster `SnoName` — data-driven against D4's own roster,
+  **not** a hardcoded abbreviation map: `Barb`→`Barbarian`,
+  `Necro`→`Necromancer`, `Sorc`→`Sorcerer`, `Spirit`→`Spiritborn`,
+  `Druid`/`Rogue`/`Paladin`/`Warlock` exact. No match or ambiguity
+  throws.
+
+## 4. Acceptance (your §4 probes, vs live `3.0.2.71886`)
 
 | Probe | Result |
 |---|---|
-| `Paragon_Warlock_00` (SnoId 2458674, `IsStart`) | **`Start`** (enUS) |
-| `Paragon_Warlock_03` (SnoId 2458680, non-start) | **`Dynamism`** (enUS) — distinct |
-| Locale check, same board, `deDE` | **`Dynamismus`** (no English baked in) |
-| Deterministic per (board SNO, locale), all classes | ✓ name-keyed via CoreTOC; verified across class stems |
-| Unknown board SNO | `Try…` → `false` / `""`; `Read…` → `SnoNotFoundException` (no fallback policy) |
+| `Paragon_Warlock_00` (2458674, IsStart) | name **`Start`** (enUS); class → PlayerClass `Warlock` (SNO 2207749); **index 0** |
+| `Paragon_Warlock_03` (2458680) | name **`Dynamism`** (enUS) / **`Dynamismus`** (deDE); class → `Warlock`; **index 3** |
+| `Paragon_Sorc_04`, `Paragon_Spirit_0` | class → `Sorcerer` / `Spiritborn` (abbrev. token, unique-prefix); index 4 / 0 — **no consumer SnoName parsing** |
+| deterministic per board SNO, all classes | ✓ data-driven vs the §6.5 roster (all 8 class stems) |
+| unknown board name | name `false`/throws; class/index left `0`/`""`/`-1` |
 
-Recorded with a `CL-15` acceptance row + the verified-anchor table in
-`casc-diablo4-format.md §6.4`. Asserted by the
-`ReadParagonBoardName_resolves_localized_board_name` SkippableFact
-(passes against live build `3.0.2.71886`; full suite green, 0 warnings).
+Recorded with `CL-15`/`CL-16` rows + verified-anchor tables in §6.4/§6.6.
+Asserted by `ReadParagonBoardName_resolves_localized_board_name` and
+`ReadParagonBoard_resolves_typed_class_and_index` (pass vs live build;
+full suite green, 0 warnings).
 
-## 5. How to integrate (zero consumer byte/string parsing)
+## 5. How to integrate (delete the consumer regex)
 
-Replace the interim identifier
-(`IsStart ? "<Class> Start" : "<Class> <SnoName>"`) with:
+Retire `ResolvedDatasetBuilder.BoardNameRegex` / `NormaliseClass` /
+`Split('_')` entirely:
 
 ```csharp
-var name = d4.TryReadParagonBoardName(boardSnoId, out var n)
-    ? n                       // the first-party localized in-game name
-    : SnoNameIdentifier(...); // your existing placeholder — still yours
+var b = d4.ReadParagonBoard(boardSnoId);
+// class identity:  b.ClassSnoId  (stable key, == CharacterClass.SnoId)
+//                   b.ClassSnoName ("Warlock")
+// ordinal:          b.BoardIndex
+// display name:     d4.TryReadParagonBoardName(boardSnoId, out var n) ? n : <your stable-id fallback>
 ```
 
-Pass your UI locale through the `locale` argument. `SourceBoard`
-origin / `CombinedBoard` / the L2 ranking label now show the real
-localized name verbatim with no further consumer code.
+No SNO-name substructure parsing remains consumer-side. `ClassSnoId`
+joins directly to FR-D2's `ReadCharacterClasses()` roster for the
+localized class name (the decoupled class-roster concern).
 
 ## 6. Boundary & what is owed
 
-Library = the decoded sibling-table convention + the raw localized
-string. No fallback policy, no formatting, no imaging (all yours — D4
-values still carry markup tokens; strip/format consumer-side as you
-already do for other StringList text). **Nothing further is owed**
-unless: (a) the owner cuts the next gated NuGet release (then switch
-your package reference); or (b) a seasonal D4 build changes
-`.build.info` Build Key — then re-verify (Appendix D); the convention
-is stable unless Blizzard re-authors the paragon string tables. Same
+Library = the decoded conventions + raw values. No fallback policy, no
+formatting, no imaging (D4 name strings may carry markup — strip/format
+consumer-side as you do for other StringList text). Class roster/names
+themselves are **FR-D2** (deliberately decoupled; `ClassSnoId` is just
+the shared stable reference). Nothing further owed unless the gated
+NuGet release ships, or a seasonal build changes `.build.info` Build
+Key — then re-verify (Appendix D); the throw-on-ambiguity guard turns
+any future naming drift into a loud failure, not a silent one. Same
 amend-until-next-publish contract as FR-C7 §7 — reopen the round log
-here if you need a shape change before then.
+here for a shape change before then.
 
 ## 7. Round log
 
-- **Round-1 (open, 2026-05-17):** consumer raised the recipe-or-gap
-  question (per-board attribution plumbing already shipped against the
-  interim identifier).
-- **Round-1 (delivered, 2026-05-17):** library session — answer **(B)**.
-  Recon vs live `3.0.2.71886` decoded the sibling-StringList-table
-  name convention (`ParagonBoard_<boardSnoName>` / label `Name`);
-  shipped `Diablo4Storage.TryReadParagonBoardName` /
-  `ReadParagonBoardName` + `SnoGroup.StringList`; spec `§6.4` + `CL-15`;
-  integration test asserts the verbatim probes. Consumer integrates by
-  reading the delivered API — no consumer byte/string parsing.
+- **Round-1 (open → delivered, 2026-05-17):** localized board name —
+  answer (B), sibling StringList table convention (CL-15).
+- **Round-1 amended (owner, 2026-05-17):** scope extended to typed
+  class + index; durable opaque-id principle recorded.
+- **Round-1 amended → delivered (library, 2026-05-17):** confirmed the
+  board record has no class/index field; decoded the
+  `Paragon_<Class>_<NN>` convention library-side (unique-prefix vs the
+  FR-D2 PlayerClass roster); shipped `ParagonBoardDefinition.ClassSnoId
+  /.ClassSnoName/.BoardIndex` via `ReadParagonBoard`; spec §6.6 +
+  CL-16; principle mirrored to Appendix C; integration test asserts the
+  verbatim probes. Consumer deletes `BoardNameRegex`/`NormaliseClass`/
+  `Split('_')` and consumes typed fields.

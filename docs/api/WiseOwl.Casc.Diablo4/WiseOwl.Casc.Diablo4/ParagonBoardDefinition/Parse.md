@@ -1,6 +1,6 @@
 # ParagonBoardDefinition.Parse method
 
-Decode a ParagonBoard from its raw SNO blob (as returned by [`ReadSno`](../Diablo4Storage/ReadSno.md) for ParagonBoard).
+Decode a ParagonBoard from its raw SNO blob (as returned by [`ReadSno`](../Diablo4Storage/ReadSno.md) for ParagonBoard). Grid only — the class/index identity ([`ClassSnoId`](./ClassSnoId.md) / [`ClassSnoName`](./ClassSnoName.md) / [`BoardIndex`](./BoardIndex.md)) is left unresolved (`0`/empty/`-1`) because it derives from the SNO name, not the bytes; use [`ReadParagonBoard`](../Diablo4Storage/ReadParagonBoard.md) to get a fully resolved definition.
 
 ```csharp
 public static ParagonBoardDefinition Parse(ReadOnlySpan<byte> blob)

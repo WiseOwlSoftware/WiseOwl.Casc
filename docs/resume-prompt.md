@@ -202,20 +202,43 @@ decision.
    `build/SnoScan` (recon only, per CL-14). NEVER fabricate a number;
    the oracle is the check, not the source — discipline held all round
    (CL-13/14 caught over-claims before ship).
-10. **FR-D1 (DELIVERED — devlog 0012, spec §6.4 + CL-15, consumer
-    report `docs/fr-d1-response.md`).** Answer **(B)**: a ParagonBoard's
-    localized display name is an **API gap** → shipped minimal typed
-    surface. Convention (clean-room, name-keyed — **no SNO offset**):
-    board `Paragon_<Class>_<NN>` (group 108) → sibling StringList SNO
-    (group 42) named `"ParagonBoard_" + boardSnoName`, label `Name`.
-    Public: `Diablo4Storage.TryReadParagonBoardName(id, out name,
-    locale="enUS")` + throwing `ReadParagonBoardName`; `SnoGroup
-    .StringList = 42` named. Raw value only, **no fallback policy**
-    (consumer owns SnoName fallback). Acceptance asserted by
-    `ReadParagonBoardName_resolves_localized_board_name` (Warlock_00→
-    `Start`, Warlock_03→`Dynamism`/deDE `Dynamismus`). `SnoScan stl
-    <sno> <locale>` added (recon-only). Same amend-until-publish
-    contract as FR-C7.
+10. **FR-D1 + FR-D2 (DELIVERED — devlog 0012/0013, spec §6.4/§6.5/§6.6
+    + CL-15/16/17, reports `docs/fr-d1-response.md` /
+    `fr-d2-response.md`).** All answered **(B)** (API gaps → minimal
+    typed surfaces). **Durable opaque-id principle** (owner, 2026-05-17;
+    mirrored verbatim to spec Appendix C, outlives the FR): a consumer
+    treats every SNO **name** as an opaque stable id and never
+    decomposes its substructure; a D4 naming convention is a data
+    mapping in the same category as a byte layout — decoded once
+    library-side, CL-* + re-verify, exposed typed; "readable string not
+    bytes" does not move the boundary.
+    - **FR-D1 board name (Round-1, PR #11 merged):** sibling StringList
+      SNO `"ParagonBoard_"+boardSnoName` (group 42), label `Name`,
+      strictly name-keyed (no SNO offset). `Diablo4Storage
+      .TryReadParagonBoardName`/`ReadParagonBoardName`; `SnoGroup
+      .StringList=42`. CL-15/§6.4.
+    - **FR-D1 rescoped — typed class/index:** the `ParagonBoard` record
+      has NO class/index field; only source is the name
+      `Paragon_<Token>_<NN>`. Decoded library-side: token = between
+      `Paragon_` and final `_`; index = trailing int (variable width —
+      `Paragon_Spirit_0`=0); class = unique case-sensitive prefix of
+      exactly one §6.5 PlayerClass roster SnoName (data-driven, throws
+      on ambiguity/none). `ParagonBoardDefinition.ClassSnoId/
+      .ClassSnoName/.BoardIndex` populated by `ReadParagonBoard(int)`;
+      byte-only `Parse(blob)` keeps `0`/`""`/`-1`. CL-16/§6.6.
+    - **FR-D2 class roster:** group 74 `PlayerClass`; localized name =
+      `General` StringList table SNO 4118, label
+      `"PlayerClass"+SnoName+"Male"` (markup-free; base label has
+      `|5sing:plur`). Real-class filter = that label exists (excludes
+      `Axe Bad Data`, no hardcoded list). `CharacterClass(SnoId,
+      SnoName, DisplayName)` + `Diablo4Storage.ReadCharacterClasses(
+      locale)` (ordered by SnoId, cached). `ClassSnoId`==FR-D1's
+      `CharacterClass.SnoId` (shared stable key). CL-17/§6.5.
+    Tests `ReadParagonBoard_resolves_typed_class_and_index` +
+    `ReadCharacterClasses_returns_first_party_roster` +
+    `ReadParagonBoardName_resolves_localized_board_name` (live
+    `3.0.2.71886`). `SnoScan stl`/`stlfind` recon-only. Same
+    amend-until-publish contract as FR-C7.
 11. CHANGELOG/devlog/ARTICLE-SOURCE upkeep each session.
 12. Later: future `.Wow`/`.Overwatch`/`.D2R` modules (core designed for them).
 
