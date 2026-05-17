@@ -12,7 +12,7 @@ namespace WiseOwl.Casc.Diablo4;
 /// imaging, layout, or policy is applied (that boundary is the
 /// consumer's — see <c>docs/casc-diablo4-format.md</c> Appendix C and
 /// §10). For the typed paragon projection use
-/// <c>Diablo4Storage.ReadParagonRenderLayout</c> (§7.1 of the
+/// <see cref="Diablo4Storage.ReadParagonRenderLayout"/> (§7.1 of the
 /// FR-C7 contract).
 /// </summary>
 /// <remarks>
