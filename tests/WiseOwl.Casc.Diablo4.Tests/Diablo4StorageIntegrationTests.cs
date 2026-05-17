@@ -226,6 +226,18 @@ public sealed class Diablo4StorageIntegrationTests
         double impliedScale = 67.7 / (rl.Ratios.PitchRef * rl.CanvasReference.Height);
         Assert.InRange(impliedScale, 0.66, 0.69);
 
+        // Refinements (decode-true): ornate/symbol/socket-ring fill the
+        // 100-ref node box ⇒ ÷ disc(86) ≈ 1.163. The grey rim ring is
+        // app-drawn (absent from scene) ⇒ 0 (the truthful answer, not a
+        // gap). Per-rarity Tint / pulse AnimSpec are NOT bound (fixed
+        // shader recipe / engine-driven, §2.3) ⇒ null is correct.
+        Assert.Equal(100.0 / 86.0, rl.Ratios.OrnateOverDisc, 3);
+        Assert.Equal(100.0 / 86.0, rl.Ratios.SymbolOverDisc, 3);
+        Assert.Equal(100.0 / 86.0, rl.Ratios.SocketRingOverDisc, 3);
+        Assert.Equal(0d, rl.Ratios.GreyRingOverDisc);
+        Assert.All(rl.States, s => Assert.Null(s.Tint));
+        Assert.All(rl.States, s => Assert.Null(s.Animation));
+
         // §7.5 gate 1: exactly the 18 §7.2 rows, verbatim keys.
         var expected = new (int r, string s)[]
         {

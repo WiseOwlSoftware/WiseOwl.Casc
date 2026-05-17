@@ -594,10 +594,22 @@ satisfied (proof, not inference). `RenderRatios.Provisional` is
 therefore **false**. `IconCellFactor` on the consumer side = this C7
 unitless ratio × the consumer-owned resolution/zoom basis (their
 implied scale ≈0.677 px/ref at the 7680×2160/zoom-0 provenance).
-Refinement-only remainder: `OrnateOverDisc`/`SymbolOverDisc`/
-`GreyRingOverDisc`/`SocketRingOverDisc` (those element rects are not
-all bound in `ParagonBoard`, §10.11) are left `0`, not fabricated;
-`PitchRef`/`DiscRef` are decode-true and anchor-confirmed.
+Refinements **completed (decode-true)**: `NodeAvailableGlow` (ornate),
+`Node_Icon` (symbol) and `GlyphNodeGlow_Revealed` (socket pulse ring)
+have no own `nWidth` — they fill the 100-ref node box (minus symmetric
+insets), so `OrnateOverDisc = SymbolOverDisc = SocketRingOverDisc =
+100/86 ≈ 1.163`. `GreyRingOverDisc = 0` — the grey rim ring is **not
+bound in `ParagonBoard`** (app-drawn/procedural, like the overlays;
+the truthful answer, not a gap). `StateElements.Tint` / `Animation`
+are **null and that is the decoded answer**: scanning the whole scene,
+`rgbaTint` is bound only on non-node widgets (`BlackScreen`,
+`Usage_Slot_2`, `Template_GlyphAura_Tile`) — **no per-rarity tint is
+authored anywhere**, definitively confirming §2.3 (per-rarity colour is
+a fixed shader recipe, permanently the consumer's, not data); and no
+authored float anim fields exist on the pulse widgets (the pulse is
+engine-driven). `PitchRef`/`DiscRef` decode-true + anchor-confirmed;
+every `RenderRatios`/`StateElements` value is now either a decoded
+number or a documented, evidence-backed "not in the data".
 
 The *Warlock Start* view is **axis-aligned**, not rotated ~45° (CL-10):
 the lattice autocorrelation is a clean square. `BoardRotationQuadrant`
