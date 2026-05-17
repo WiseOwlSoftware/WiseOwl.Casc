@@ -180,6 +180,41 @@ switch (cmd)
         }
         return 0;
     }
+    case "dh":
+    {
+        // The exact D4 serialization hashes: DJB2 core (hash*33+c), SEED 0.
+        if (argv.Count < 2) { Console.Error.WriteLine("dh <str> [str...]"); return 2; }
+        foreach (var s in argv.Skip(1))
+        {
+            uint th = D4.TypeHash(s);
+            Console.WriteLine($"{s,-26} typeHash=0x{th:X8}  fieldHash=0x{th & 0x0FFFFFFF:X8}  gbidHash=0x{D4.GbidH(s):X8}");
+        }
+        return 0;
+    }
+    case "crack":
+    {
+        // Recover names: hash a wordlist, match observed ids.
+        // crack <wordlistFile> <targetsHexCsv> [field|type]
+        if (argv.Count < 3) { Console.Error.WriteLine("crack <wordlist> <hex,hex,...> [field|type|both]"); return 2; }
+        var words = File.ReadLines(argv[1]);
+        var targets = argv[2].Split(',', StringSplitOptions.RemoveEmptyEntries)
+            .Select(x => Convert.ToUInt32(x.Replace("0x", ""), 16)).ToHashSet();
+        string mode = argv.Count > 3 ? argv[3] : "both";
+        int hits = 0;
+        foreach (var w in words)
+        {
+            var s = w.Trim();
+            if (s.Length == 0) continue;
+            uint th = D4.TypeHash(s);
+            uint fh = th & 0x0FFFFFFFu;
+            if ((mode is "type" or "both") && targets.Contains(th))
+            { Console.WriteLine($"typeHash 0x{th:X8} = \"{s}\""); hits++; }
+            if ((mode is "field" or "both") && targets.Contains(fh))
+            { Console.WriteLine($"fieldHash 0x{fh:X8} = \"{s}\""); hits++; }
+        }
+        Console.WriteLine($"-- {hits} match(es) over {targets.Count} target(s) --");
+        return 0;
+    }
     case "dump":
     {
         if (argv.Count < 3) { Console.Error.WriteLine("dump <gid> <id> [folder]"); return 2; }
@@ -218,4 +253,23 @@ switch (cmd)
     default:
         Console.Error.WriteLine($"unknown command '{cmd}'");
         return 2;
+}
+
+// D4 serialization hashes — DJB2 core (hash*33 + ch), SEED 0 (NOT 5381).
+// typeHash: no-lowercase, full u32. fieldHash = typeHash & 0x0FFFFFFF.
+// gbidHash: lowercased, full u32.
+static class D4
+{
+    public static uint TypeHash(string s)
+    {
+        uint h = 0;
+        foreach (char c in s) h = (h << 5) + h + (byte)c;
+        return h;
+    }
+    public static uint GbidH(string s)
+    {
+        uint h = 0;
+        foreach (char c in s.ToLowerInvariant()) h = (h << 5) + h + (byte)c;
+        return h;
+    }
 }

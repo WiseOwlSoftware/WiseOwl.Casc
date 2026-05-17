@@ -388,379 +388,216 @@ Payload empty/absent → shared-payload alias (§5) → retry as
 
 ---
 
-## 10. Paragon UI render layout (group 46, `0xE4825AB8`) — FR-C7
+## 10. Diablo IV UI-scene format (group 46, `0xE4825AB8`) — FR-C7
 
-> **Status: format LOCATED + container characterized; field-level
-> decode IN PROGRESS.** This section states only what is empirically
-> proven against build `3.0.2.71886`. It is deliberately *not* a
-> finished layout — the nested widget-tree fields are not yet decoded,
-> and nothing here is guessed. (Consumer ask: `e:\Paragon\docs\
-> fr-c7-paragon-render-layout.md`. Note: that ask references the
-> pre-split single `casc-format.md`; per the spec split this D4-layer
-> format is documented **here**, in `casc-diablo4-format.md`, with its
-> own `CL-*` log — the split is not being re-merged.)
+> **Authoritative reference for the D4 UI-scene SNO** (the paragon
+> render layout the consumer requested as FR-C7). Status: **format,
+> hashes, data-binding model, and schema vocabulary fully decoded —
+> standalone and clean-room. Open:** the per-widget *bound instance
+> values* (the rect ints) and their reproduction of the §10.7 67.7
+> px/grid anchor → the typed `ParagonRenderLayout`. No
+> pitch/scale/anchor number is asserted until the bound values are read
+> and reproduce the anchor; nothing here is guessed.
+>
+> Spec-authority note: the consumer ask
+> (`e:\Paragon\docs\fr-c7-paragon-render-layout.md`) references the
+> pre-split `casc-format.md`; per the split this D4-layer format is
+> owned **here**, with its own `CL-*` log (CL-9, CL-10). Not re-merged.
 
-### 10.1 The format and target record (proven)
+### 10.1 Location and container
 
-Diablo IV UI screens/scenes are a distinct SNO record family in
-**group 46**, format hash **`0xE4825AB8`** — peers include `ActionBar`,
-`Armory`, `BuildViewer`, `BrightnessDialog`, `Achievements` (286
-entries; all UI screens/menus/dialogs). This is the "different
-UI-definition SNO format" the consumer could not previously identify.
+D4 UI screens/scenes are SNO **group 46** (CoreTOC type name **`UI`**),
+format hash **`0xE4825AB8`** — peers `ActionBar`, `Armory`,
+`BuildViewer`, `BrightnessDialog` (286 entries; all UI screens). The
+paragon render layout:
 
-The paragon node/board render layout is:
-
-| SNO | id | Meta size | role |
-|---|---|---|---|
-| `ParagonBoard` | 657304 | 145,550 B | the board screen — node grid placement + per-state texture binding |
-| `ParagonBoardSelect` | 964599 | 34,481 B | the board-selection screen |
-
-Wrong leads, eliminated with evidence (so they are not re-investigated):
-group **63** `Paragon_*Nodes` are 113-byte tutorial/help triggers;
-group **29** `Paragon_*_Legendary_*` are node *powers*; groups
-**1/9/14/27** are the *art* (mesh / animation / VFX); group **42**
-paragon entries are localized strings; group **44** `2DUI_Paragon*` are
-the texture atlases (already decodable). The render *metric* is none of
-these — it is the group-46 UI-scene record.
-
-### 10.2 Container header (proven, common across `0xE4825AB8`)
-
-```
-0x00  u32  0xDEADBEEF              SNO signature
-0x00..0x10                        16-byte SNO header (zero after sig)
-0x10  u32  SNO id                 (657304 for ParagonBoard)
-0x20  u32  0x70                   root-struct offset (constant observed)
-0x24  u32  type/version word      0x12 (ParagonBoard) vs 0x11 (BrightnessDialog)
-0x30  u32  offset (0x88)          \ root descriptor offset/size/count
-0x34  u32  size   (0x58)          / triple
-0x38  u32  0x01                   count/flag
-0x80  ASCII root widget name      "ParagonBoard_main\0"
-~0xA8 u32  hash/handle, FFFFFFFF  start of the nested widget tree
-```
-
-The body is a **nested widget tree**: 32-bit texture/material/style
-handles (the same `TexFrame.ImageHandle` space as §6 — e.g. the
-`2DUI_Paragon_transparentElements` frame handles the consumer
-catalogued) interleaved with per-widget anchor/size float structs and
-`0xFFFFFFFF` child/sentinel delimiters. Decoding the widget-node struct,
-the anchor/size encoding, and the per-rarity/per-state binding table to
-the field level is the remaining FR-C7 work (tracked CL-9); it is a
-B1–B6-scale round and will be delivered with the same acceptance rigour,
-not approximated.
-
-### 10.3 Decoded so far (verified) and the open field decode
-
-Verified against build `3.0.2.71886` (`build/SnoScan strings|scan|f32`):
-
-- **It is a named widget-tree / serialized object graph.** Widget names
-  are inline ASCII landmarks: `ParagonBoard_main` (root) → `Content` →
-  `ParagonNodes` → `ParagonNodes_BaseLayer` / `_TopLayer` /
-  `_BoardRotationLayer` (+ `_VFX_Canvas` siblings), `Storyboard_ScaleTest`,
-  `GlyphAuras`, the `SidePanel_*` / `Paragon_Points_*` chrome, etc. The
-  node-grid scale and board-rotation widgets the FR needs **exist and are
-  named** (`_BoardRotationLayer`, `Storyboard_ScaleTest`).
-- **Texture-binding micro-struct (proven):**
-  `… tag(u32 0x22|0x02|0x03)  0x00000000  textureHandle(u32 LE)
-  0x00000000 …`, where `textureHandle` is the same `TexFrame.ImageHandle`
-  space as §6. Bound in `ParagonBoard`: base disc `1D166DC7`, grey rim
-  ring `87A89F86`, glyph pulse ring `BED4CF21` (**4 occurrences** = the
-  multiple node states), gold ornate frame `4A901508`. Widget records
-  carry offset back-references (e.g. `→0xE9A8`, `→0x1E88`) and a
-  recurring shared handle pair `012FC68B` / `A4C42E02` co-located with
-  node-element bindings — a **shared node-element style/material
-  template** (the next RE target).
-- **FR §2.3 answered (evidence-based):** the rarity fill swatches
-  (`33A11FA6`, `A09D0667`, …) and the orange ornate `A54E0DD1` are
-  **absent** from `ParagonBoard`. The render layout binds only the
-  *neutral* disc + rings + gold ornate. Therefore per-rarity colour is a
-  **shader tint applied to the neutral disc, not a per-rarity texture** —
-  the consumer's shader-recipe model (§2.3) is the correct one; a "give
-  me the per-rarity disc texture" API would be wrong because no such
-  asset is referenced.
-
-- **Widget record = a property-bag (proven across 3 widgets:
-  `ParagonNodes_BaseLayer`, `_TopLayer`, `Template_ParagonBoard`):**
-  ```
-  inline name (ASCII, NUL-terminated, zero-padded)
-  name+0x28  u32  class hash 0x1E3077C7   (constant — widget base-class id)
-  name+0x30  u32  0xFFFFFFFF               (sentinel) + zero run
-  …          u32  self back-ref offset    (= name_start + 0x60)
-  +4         u32  property-block size      (0xB0 layers / 0xB8 template)
-  +8         u32  property count           (4 layers / 5 template)
-  then count × ( u32 property-name hash , value )
-  ```
-  `size` and `count` vary per widget (the property bag); the class hash
-  and framing are constant. Recurring property-name hashes: `1332C78D`
-  (value `0.049` = `0x3D47BD2C`), `A4C42E02`, `093CBAA8`, `03D55658`,
-  `081BC013`, `0AB7C81F`. The §10.3 "texture-binding micro-struct" is
-  simply a property entry whose value is a `TexFrame.ImageHandle`.
-  `BaseLayer` and `TopLayer` are **byte-identical** after the name
-  (coincident full-board canvases) — the node metric is therefore in
-  the node *prefab* / data-region bindings, not the layer widgets.
-- **`Rarity_Display` widget located:** the widget record immediately
-  after the base-disc binding (≈`0xE9B8`) is named `Rarity_Display` —
-  the rarity-tint element, exactly where §3's evidence predicted. Its
-  property bag is where the tint colour/blend (or a definitive
-  "shader-driven, no data" confirmation) will be read.
-- **Serialization model — a hash-addressed object graph (proven via the
-  root widget block at `0xE0`):** a widget's block is
-  `[offset][size][count]` → a kind tag (`0x22`/`0x02`/`0x03`) → `n`
-  entries, **each a triplet `(memberNameHash u32, 0x1332C78D, payload
-  u32)`**. `0x1332C78D` is a constant member separator/type marker
-  (ubiquitous). `payload` is either **`0xA4C42E02`** = "value is an
-  object reference, resolved by `memberNameHash` elsewhere", or an
-  **immediate value** (e.g. `0x3D47BD2C` → float `0.049`). Objects are
-  addressed by **32-bit name-hash, not file offset** — which is why the
-  format is dominated by recurring 32-bit constants and has few
-  pointers. `ParagonBoard_main` (root) lists **6 child refs**
-  (`003DC5C1 02D88AE7 03D55658 0594CC83 06F9158E 093CBAA8`). This
-  reframes the remaining work from "unknown format" to a **member-hash
-  vocabulary mapping**.
-
-**Refined finding — the geometry is indirect, not local px.** Scanning
-the disc / grey-ring / ornate binding property bags for a float matching
-the known native frame sizes (disc 154², ring 135², ornate ~325²) found
-**none**. The only float near the bindings is the generic recurring
-`0.049` (a shared normalised property value present on most widgets,
-**not** a size), plus a false positive that is actually the ASCII of the
-`Rarity_Display` name. Conclusion: `0xE4825AB8` uses a **normalised /
-anchor-relative layout** — a widget's drawn size is not stored as pixels
-beside its texture handle; it is resolved from a parent canvas size × a
-normalised factor and/or a separate transform/layout section the root
-header (the `0x20` offset/size/count fields, `0x68`→`0x2C8`/`0x798`)
-points to. This is itself a consumer-relevant answer: a literal authored
-`CellPitch` in px may not exist as stored data — it is likely
-`canvasPx × normalisedSpacing` over the `ParagonBoardDefinition` grid.
-
-- **Rigorous finding — there is NO authored pixel node geometry in
-  `ParagonBoard`.** Full-record float scan (all 145,550 B): 82 floats in
-  the 8–4096 "pixel-plausible" range out of 576 numeric floats; the rest
-  are normalised fractions (`0.049`-class) or hash-as-float. **No value
-  clusters at any bound texture's native size (disc 154², ring 135²,
-  ornate ~325²), at any screen resolution (1920/1080/1280/720), or at a
-  node-grid pitch.** The clean recurring px values that *do* exist
-  (`10`×12, `223.474`×10, `55.848`×8, `20`, `40`, `30`, `25`) are
-  chrome-scale — margins/panel sizes consistent with the abundant
-  `SidePanel_*` / `Header_*` / `*_Divider` widgets — not node disc /
-  symbol / pitch. The large singletons (`893.x`, `957`, `3574`) are
-  ASCII/hash false-positives (e.g. `893.898` = the bytes of
-  `Rarity_Display`). **Conclusion (evidence-backed, answers the FR's
-  "data or engine constant?"):** the paragon node render metric is
-  *not* authored px data. The game composes node visuals at runtime
-  from (a) the `ParagonBoardDefinition` grid (§7.1, already decoded),
-  (b) the bound textures' *native* sizes (§6, already decodable), and
-  (c) **normalised** scale/anchor factors in this object graph, against
-  the runtime render resolution. A literal authored `CellPitch`/disc-px
-  does not exist to extract — so `ParagonRenderLayout` must expose the
-  *normalised model + derivation rule*, not px constants, and the one
-  truly absent quantity (the global px scale = render resolution) still
-  needs a single calibration measurement (`fr-c7-response.md` §6) — not
-  because we failed to find it, but because the game does not store it.
-
-**Still open (NOT decoded — no guesses emitted):** the **member-hash
-vocabulary** — which `memberNameHash` carries the normalised
-scale / anchor / pitch factor and the tint colour/blend — and the exact
-normalised→screen derivation.
-The format model is now pinned (hash-addressed object graph, triplet
-members), so this is a tractable vocabulary problem, attacked by:
-(a) reading a *leaf image* widget's triplets (e.g. the disc-binding
-widget) where geometry members carry immediate float values, and
-correlating constant members across many widgets to label them;
-(b) anchoring the resulting normalised factors to px via a known-size
-oracle (our own texture-native sizes once the size member is found, or
-the calibration capture in `docs/fr-c7-response.md` §6). No
-`CellPitch`/size numbers are asserted until a `memberNameHash`→meaning
-is *proven*, not inferred.
-The typed `ParagonRenderLayout` ships only when these are pinned with a
-verbatim acceptance matrix — consistent with the FR's
-zero-guessed-constants contract.
-
-### 10.4 Acceptance anchor (consumer-supplied oracle, dual-validated)
-
-The consumer delivered the absolute-scale oracle (the quantity the game
-stores nowhere — see the §10.3 rigorous finding):
-
-> **≈ 67.7 px per grid-step**, provenance **{zoom = 0 (smallest),
-> render = 7680×2160, *Warlock Start* board, nothing selected}**.
-> Dual-validated, agreeing ≤ 0.4 px: (1) 2D autocorrelation of the node
-> lattice → 67.59 (X) / 67.81 (Y), **square lattice**; (2) landmark
-> span — socket(10,6) centre `(756,620)` (its unique red pulse ring) and
-> gate(10,0)→start(10,14) = `951.5 px ÷ 14 rows = 67.96`.
-
-This is the C7 acceptance anchor: decoded `normPitch × canvasRef` at
-this exact provenance **must reproduce ≈67.7 px/grid-step** (±~0.4).
-It is the consumer-owned resolution/zoom basis; on delivery
-`IconCellFactor = C7-normalised-ratio × this pitch basis` (the absolute
-scale stays permanently consumer policy — same pattern as the 6
-intrinsics / §3 relight).
-
-**CL-10 correction (banked before it could bias the decode): the Start
-board view is AXIS-ALIGNED, not rotated ~45°.** The FR's §2.4 "board is
-rotated ~45° for display" does **not** hold for this calibration view —
-the lattice is clean square rows/columns (the autocorrelation confirms
-a square lattice). The decode must **not** bake in a 45° rotation:
-`BoardRotationDegrees` is to be *read from the `ParagonNodes_
-BoardRotationLayer` widget*, and at this provenance it must resolve to
-**0°** (axis-aligned) to satisfy the anchor. Treating rotation as
-decoded data (default 0), never an assumed constant.
-
-With this anchor the §10.3 vocabulary mapping is now an *over-determined*
-problem: a candidate `memberNameHash`→meaning is accepted only if
-`normPitch(member) × canvasRef` reproduces 67.7 at the stated provenance
-**and** the same member is consistent across widgets — proof, not
-inference.
-
-### 10.5 Reflection-serialised; the id scheme; negative hash result
-
-Enumerating every `(id, 0x1332C78D, payload)` triplet (scan for the
-ubiquitous separator) proved the format is **reflection-serialised**,
-not a plain widget tree:
-
-- **Each field-id maps to exactly one fixed payload across the whole
-  file** (e.g. `0x093CBAA8`→`0.0488f`×132; `0x06AB76DE`→`0xA4C42E02`
-  ×124). That is a **schema/type table**, not per-instance values:
-  34 distinct field-ids, each `(fieldId, SEP, typeOrDefault)`; the
-  per-instance geometry lives in a separate data section keyed by this
-  schema. ~7 recurring payloads = the **type enum**
-  (`0xA4C42E02` dominant = "object/deferred", `0x3D47BD2C`=`0.0488f`,
-  `0x6B1C5D9C`, `0x2B0285C0`, `0x8E266332`, `0xE549F591`, `0xA4C45887`).
-- **Id structure proven:** all 34 field-ids are `< 0x0E000000`
-  (top byte `0x00`–`0x0D`), while separator/class/type ids have
-  non-zero top bytes (`0x13`, `0x1E`, `0xA4`, `0xE5`…). 34 uniform
-  32-bit hashes all landing `<0x0E000000` has probability ≈ 0, so the
-  id is **structured: `(categoryTag<<24) | hash24`** — the top byte is
-  a kind tag (`0x00` = field), not hash entropy.
-- **Negative hash result (rules out the easy path):** the `hash24`
-  matches **none** of GbidHash, FNV-1a, FNV-1a-lower, DJB2, DJB2-lower,
-  SDBM, CRC32, or lookup3 (hi/lo) for a broad UI wordlist
-  (`type/object/ref/child/widget/x/y/width/height/scale/anchor/size/…`).
-  The UI field-name hash is a non-standard or seeded scheme — blind
-  brute force is not the realistic unlock.
-
-**Honest assessment of the two remaining routes (no guess will bridge
-them):**
-1. *Name the fields by hash* — needs the D4 UI member-name string list
-   or the exact seeded algorithm (an external artifact / the upstream RE
-   record), **not** further blind brute force.
-2. *Name the fields by value behaviour* — decode the **instance-data
-   section** (separate from this schema), extract per-widget values,
-   and accept a field as "pitch/scale/anchor" only when it reproduces
-   the 67.7 px/grid anchor at the stated provenance for a decoded
-   `canvasRef` and is cross-widget consistent. This needs the
-   instance-data section framing and the canvas-reference + zoom model
-   decoded — the next deep target — and is the route that does not
-   depend on an external artifact.
-
-### 10.6 The D4 identifier hashes (decisive — reusable library-wide)
-
-The UI field/type ids are D4's standard serialization hashes. Exact
-definition (cross-checked against the public d4data `parse.js`
-methodology — algorithm facts, no code taken). All are the DJB2 core
-`hash = hash*33 + ch` with **seed 0** (standard DJB2 seeds 5381 — D4
-does not; that is why a seed-5381 test misses):
-
-| Name | Lowercase input | Final mask | Identifies |
-|---|---|---|---|
-| `fieldHash` | no | `& 0x0FFFFFFF` (28-bit) | struct **field** name → the 34 member-ids; top-nibble clustering is just the 28-bit mask, *not* a tag |
-| `typeHash` | no | none (full u32) | **type/class/struct** names → `0x1E3077C7` (widget class), `0x1332C78D` (the member separator = a type id), the type-enum payloads |
-| `gbidHash` | **yes** | none (full u32) | GBIDs — **this is the existing `Diablo4.GbidHash`** (case-insensitive DJB2 family), now unified with the family |
-
-Supersedes the §10.5 "negative hash result" and the "(tag<<24)|hash24"
-guess: it is plain seed-0 DJB2, masked 28-bit for fields. This applies
-to **every** D4 SNO meta format, not only FR-C7.
-
-### 10.7 Field-name recovery — and the standalone clean-room method
-
-Field/type **names are not stored in any SNO/CASC data file** — the
-format is hash-keyed by design (only the 28-bit `fieldHash`). Names are
-therefore not recoverable from the data blobs alone (one-way hash).
-
-They *are* recoverable from the **D4 client binary**: Blizzard's engine
-embeds the type/field name strings for its own reflection/serialization
-registry. The community `names.txt` is predominantly **binary-extracted
-identifier strings** (e.g. `ACDBuffSyncedData`, …), hashed and matched;
-only the residue is dictionary-brute-forced, with misses tracked
-(`unfound_field_hashes.txt`, `field_collisions.yml`).
-
-**Standalone clean-room procedure (no dependency on d4data JSON):**
-1. String-extract printable identifiers from the *locally-installed*
-   D4 client binary (the user's own legally-obtained install — same
-   posture as reading their own game data; no Blizzard asset shipped).
-2. Hash each with `typeHash` / `fieldHash` (above).
-3. Match against observed ids; collisions and unmatched tracked.
-4. Expand with naming-convention generation
-   (`m`/`e`/`sno`/`h`/`DT_` prefixes, CamelCase compounds) for the
-   residue. Result is our own recovered schema, clean-room.
-
-This makes name recovery a first-party capability of the library, not
-an external lookup. (For FR-C7 specifically: group **46** = type
-**`UI`**; the per-widget class id is `typeHash` of a widget base-class
-name; the 34 `fieldHash` member-ids resolve once the binary
-string-extract is run and matched — the next concrete step.)
-
-Route 1 (external name list) was closed; this **route 1′ (own-binary
-extraction)** reopens recovery *standalone*.
-
-### 10.8 Vocabulary recovered (standalone, from our own binary)
-
-Executed route 1′: string-extracted identifiers from the locally
-installed `Diablo IV.exe` (285,479 unique tokens, processed in-tool),
-hashed with the verified `typeHash`/`fieldHash`, matched the observed
-ids. **Hash impl self-verified**: `gbidHash("ParagonNodeCoreStat_
-Normal") = 0x42C16A1B` (the project's independently-known-good GBID).
-Zero guessing, zero d4data-JSON dependency.
-
-**Type system (`typeHash`) — the triplet reframed:**
-
-| id | name | meaning |
+| SNO | id | Meta size |
 |---|---|---|
-| `0x1332C78D` | **`DT_BINDABLEPROPERTY`** | the "separator" — every widget field is a *bindable property* |
-| `0xA4C42E02` | **`DT_INT`** | (the dominant payload — a type, not an "object ref") |
-| `0xE549F591` | `DT_CSTRING` | |
-| `0x8E266332` | `DT_RGBACOLOR` | rarity/tint colour type (relevant to §3) |
-| `0xA4C45887` | `DT_SNO` | SNO reference |
-| `0x2B0285C0` | `StringLabelHandleEx` | localized-string handle |
+| `ParagonBoard` | 657304 | 145,550 B |
+| `ParagonBoardSelect` | 964599 | 34,481 B |
 
-So a schema entry is `fieldName : DT_BINDABLEPROPERTY` of an underlying
-`DT_*` — D4's UI **data-binding** system. The §10.3 "triplet
-`(memberHash, 0x1332C78D, payload)`" is precisely
-`(fieldHash(name), typeHash("DT_BINDABLEPROPERTY"), typeHash(DT_*type))`.
+Container (proven, common across `0xE4825AB8`): `0xDEADBEEF` + 16-byte
+SNO header → root header at `0x20` (`0x70` root offset; type/version
+word; offset/size/count fields) → embedded root-widget name
+`ParagonBoard_main` at `0x80` → the widget graph.
 
-**Geometry fields (`fieldHash`) — the layout rect, recovered:**
+Eliminated with evidence (do not re-investigate): group 63
+`Paragon_*Nodes` = 113-byte tutorial triggers; group 29
+`Paragon_*_Legendary_*` = node powers; groups 1/9/14/27 = art
+(mesh/anim/VFX); group 42 = strings; group 44 `2DUI_Paragon*` = the
+texture atlases (already decodable, §6).
 
-| id | name |
+### 10.2 The D4 identifier hashes (decisive — reusable library-wide)
+
+All D4 serialization ids are the DJB2 core `h = h*33 + ch` with
+**seed 0** (standard DJB2 seeds 5381 — D4 does **not**; a seed-5381
+test misses, which is why eight common algorithms initially appeared to
+fail). Self-verified: `gbidHash("ParagonNodeCoreStat_Normal") =
+0x42C16A1B`, the project's independently-known-good GBID.
+
+| name | lowercase input | final mask | identifies |
+|---|---|---|---|
+| `fieldHash` | no | `& 0x0FFFFFFF` (28-bit) | struct **field** names |
+| `typeHash` | no | none (u32) | **type / class / struct** names |
+| `gbidHash` | **yes** | none (u32) | GBIDs — this **is** `Diablo4.GbidHash` |
+
+The 28-bit `fieldHash` mask is why all field-ids cluster `<0x10000000`.
+This applies to **every** D4 SNO meta format, not only FR-C7.
+
+### 10.3 Reflection / data-binding model
+
+`0xE4825AB8` is a reflection-serialised, hash-addressed widget graph:
+
+```
+widget := inline name (NUL-terminated, zero-padded)
+          name+0x28  u32  class id = typeHash(widget-class name)
+          name+0x30  u32  0xFFFFFFFF sentinel + zero run
+          name+0x60  [ self-anchor ][ block size ][ field count ]
+                     then  count × schema entry
+schema entry := ( fieldHash(name) , typeHash("DT_BINDABLEPROPERTY") ,
+                  typeHash(underlying DT_* type) )
+```
+
+Every widget field is a **`DT_BINDABLEPROPERTY`** of an underlying
+`DT_*` type — D4's UI data-binding system. `0x1332C78D` (the ubiquitous
+"separator" of earlier passes) **is** `typeHash("DT_BINDABLEPROPERTY")`.
+Widgets reference children by name-hash, not file offset (hence the
+recurring-constant-heavy layout and few pointers). `ParagonBoard_main`
+(root) lists 6 child refs.
+
+### 10.4 Standalone clean-room vocabulary recovery
+
+Field/type **names are not stored in any SNO/CASC data file** (the
+format is hash-keyed by design — one-way 28-bit `fieldHash`). They
+**are** embedded in the **D4 client binary** for the engine's own
+reflection registry. Recovery procedure (first-party; no dependency on
+any third-party JSON):
+
+1. String-extract printable identifiers from the *locally-installed*
+   `Diablo IV.exe` (+ `diablo_iv_loader.dll`) — the user's own
+   legally-obtained binary, processed in-tool, never shipped (same
+   posture as reading the user's own game data).
+2. Hash each candidate with `typeHash` / `fieldHash` (§10.2).
+3. Match against the observed ids; expand the residue with D4 naming
+   conventions (`n`/`fl`/`h`/`e`/`b`/`dw`/`sno`/`rgba`/`pt` prefixes ×
+   layout/widget terms). Collisions/misses tracked.
+
+Executed: 300k+ unique tokens, the FR-critical vocabulary resolved
+(below). This makes D4 name recovery a permanent library capability.
+
+### 10.5 Recovered type enum
+
+| id (`typeHash`) | type |
 |---|---|
-| `0x07F1EF79` | **`nLeft`** |
-| `0x069EA64C` | **`nRight`** |
-| `0x0594CC83` | **`nBottom`** |
-| `0x06F9158E` | **`nWidth`** |
-| `0x02D88AE7` | **`nHeight`** |
-| `0x0204DBB8` | `hTooltipText` |
+| `0x1332C78D` | `DT_BINDABLEPROPERTY` (the per-field binding marker) |
+| `0xA4C42E02` | `DT_INT` |
+| `0xE65047AD` | `DT_FLOAT` |
+| `0x3D4646AB` | `DT_BYTE` |
+| `0x3D47BD2C` | `DT_ENUM` |
+| `0xE549F591` | `DT_CSTRING` |
+| `0x8E266332` | `DT_RGBACOLOR` |
+| `0xA4C45887` | `DT_SNO` |
+| `0x2B0285C0` | `StringLabelHandleEx` |
+| `0x6B1C5D9C` | DT_* not yet named (struct/vector-like; residual) |
 
-The widget rect is `nLeft/nRight/nBottom/nWidth/nHeight` as
-`DT_INT` **bindable** properties — not literal constants in the schema
-(hence §10.3's "no px in the structure region": the *values* are bound
-at runtime / stored in the instance-data section keyed by these field
-hashes). FR-C7's cell pitch / element sizes are these bound ints,
-resolved against the §10.4 67.7 px/grid anchor. Remaining field-ids
-resolve by widening the candidate set (other client modules + D4
-`n/fl/h/e/b/sno/pt`-prefix conventions); the geometry spine is now
-named. **No pitch number asserted until the bound instance values are
-read and reproduce the 67.7 anchor** — but the vocabulary is no longer
-unknown, and was recovered clean-room.
+### 10.6 `ParagonBoard` widget schema (decoded)
 
-### 10.4 Reconnaissance instrument
+Field id → recovered name → type (count = occurrences across the SNO).
+Names blank where the residual candidate set has not yet matched; the
+**type is known for every field** (so unnamed fields are still
+classified):
 
-`build/SnoScan` (in `e:\Casc`, not shipped, not in the solution —
-same throwaway posture as `build/TileIcon`) drives the real
-`WiseOwl.Casc.Diablo4` decoder against the live install:
-`groups` (all 181 groups + format hashes + counts), `find <substr>`
-(named entries → group/hash/id), `dump <gid> <id> [folder]`
-(SNO header fields + hex/ascii). This keeps the RE on our own library
-and leaves `e:\Paragon` strictly read-only (the consumer's `snoscan`
-tool would have written build output there).
+| field id | name | type | n |
+|---|---|---|---|
+| `0x06F9158E` | **`nWidth`** | DT_INT | 86 |
+| `0x02D88AE7` | **`nHeight`** | DT_INT | 74 |
+| `0x07F1EF79` | **`nLeft`** | DT_INT | 66 |
+| `0x069EA64C` | **`nRight`** | DT_INT | 67 |
+| `0x003DC5C1` | **`nTop`** | DT_INT | 76 |
+| `0x0594CC83` | **`nBottom`** | DT_INT | 69 |
+| `0x0C2AFA21` | **`dwAlpha`** | DT_BYTE | 11 |
+| `0x09A3F17B` | **`rgbaTint`** | DT_RGBACOLOR | 6 |
+| `0x00957CB7` | (DT_RGBACOLOR field) | DT_RGBACOLOR | 26 |
+| `0x0789C1CD` | **`hText`** | StringLabelHandleEx | 52 |
+| `0x0204DBB8` | **`hTooltipText`** | StringLabelHandleEx | 1 |
+| `0x07DB38D3` | (texture/SNO ref — primary) | DT_SNO | 27 |
+| `0x01844A00` `0x0219D52D` `0x0C43C17C` `0x0CCBA90F` | (SNO refs) | DT_SNO | 1 each |
+| `0x06AB76DE` | (int) | DT_INT | 124 |
+| `0x0CDB00E9` | (int) | DT_INT | 14 |
+| `0x093CBAA8` | (enum) | DT_ENUM | 132 |
+| `0x03D55658` | (enum) | DT_ENUM | 122 |
+| `0x0C152636` | (DT_? `0x6B1C5D9C`) | DT_? | 93 |
+| `0x02509B49` `0x008AB8D6` | (cstring) | DT_CSTRING | 3 |
+| `0x03445DCD` `0x08CF4C5D` `0x05A28796` `0x0D6B1ED2` | (int) | DT_INT | 1 |
+| `0x0B63D29B` `0x0D75128C` `0x0DAEFCAA` `0x02330CBF` `0x056F24F5` `0x05A90F13` `0x0A2C2344` | (DT_? `0x6B1C5D9C`) | DT_? | 1 |
 
----
+The widget **layout rect is `nLeft / nRight / nTop / nBottom /
+nWidth / nHeight` as `DT_INT` bindable properties**; appearance is
+`rgbaTint` (+ a second DT_RGBACOLOR), `dwAlpha`, `hText`/`hTooltipText`;
+textures are the five `DT_SNO` fields (primary `0x07DB38D3`).
+
+### 10.7 FR-C7 geometry conclusions
+
+- **Premise correction (consumer-endorsed):** the rect fields are
+  **bindable**, not literal constants — a full 145 KB scan finds no
+  authored pixel cluster at any texture-native size, screen
+  resolution, or node pitch. Node geometry is *not* authored px data;
+  it is `ParagonBoardDefinition` grid (§7.1) + bound rect ints +
+  texture-native sizes (§6), composed at runtime resolution. A literal
+  `CellPitch` does not exist as stored data; `ParagonRenderLayout`
+  exposes the normalised model + derivation, not px constants. The
+  global px scale (render resolution / zoom) is permanently
+  consumer-owned — same pattern as the 6 intrinsics / §3 relight.
+- **Rarity tint (FR §2.3):** confirmed shader/colour-driven on the
+  *neutral* disc. The rarity fill-swatches and orange ornate are absent
+  from `ParagonBoard`; the bound colour is the `rgbaTint`
+  `DT_RGBACOLOR` field on the neutral disc — the consumer's recipe
+  model is correct, and the tint is a readable bound colour, not a
+  per-rarity texture.
+
+### 10.8 Acceptance anchor (consumer oracle, dual-validated)
+
+> **≈ 67.7 px / grid-step**, provenance **{zoom = 0 (smallest),
+> render = 7680×2160, *Warlock Start* board, nothing selected}**;
+> dual-validated ≤ 0.4 px (lattice autocorrelation 67.59/67.81 square;
+> landmark span gate(10,0)→start(10,14) = 951.5 px ÷ 14 = 67.96).
+> A known-grid-distance reference capture (two identified-`(X,Y)`
+> nodes, same tag) is also being supplied (`Δpx ÷ Δgrid`).
+
+Decoded `bound-rect → screen` at this provenance **must reproduce
+≈67.7** (±~0.4) and be cross-widget consistent — the mapping is
+*over-determined* (proof, not inference). `IconCellFactor` on delivery =
+C7-normalised-ratio × this consumer-owned pitch basis.
+
+**CL-10:** the *Warlock Start* view is **axis-aligned**, not rotated
+~45° (the FR §2.4 assumption fails here; the lattice autocorrelation is
+a clean square). `BoardRotationDegrees` is **decoded** from
+`ParagonNodes_BoardRotationLayer`, never assumed, and must resolve to 0°
+at this provenance.
+
+### 10.9 Reconnaissance instrument
+
+`build/SnoScan` (in `e:\Casc`, not shipped, not in the solution — same
+posture as `build/TileIcon`) drives the real `WiseOwl.Casc.Diablo4`
+decoder against the live install; commands: `groups`, `find`, `strings`,
+`scan`, `f32`, `members` (schema enumeration), `dh` (the D4 hashes),
+`crack` (wordlist → id matching), `dump`. Keeps the RE on our own
+library; `e:\Paragon` stays read-only.
+
+### 10.10 Open work (well-defined, no external dependency)
+
+1. Decode the **instance-data section** (separate from the schema) and
+   read each widget's bound `nLeft/nRight/nTop/nBottom/nWidth/nHeight`,
+   `rgbaTint`, and `DT_SNO` values.
+2. Resolve the residual unnamed field-ids (widen the candidate set) —
+   type is already known for all; names are a refinement.
+3. Reproduce the §10.8 67.7 anchor from the node/grid widgets' bound
+   rect ints → derive the normalised pitch/scale/anchor model and the
+   `nodeCentre = canvasRef × normPitch(gridXY)` rule.
+4. Implement `Diablo4Storage.ReadParagonRenderLayout()` per the agreed
+   contract (`docs/fr-c7-response.md` §8) + the verbatim acceptance
+   matrix. Until step 3 proves it, no pitch number is asserted.
+
 
 ## Appendix A — correction log (Diablo IV errata)
 
@@ -801,23 +638,31 @@ true value (the sections above already state the corrected truth).
   authority transferred to this document set; upstream
   `d4-binary-formats.md` §3–§8.15 frozen for layouts.
 
-- **CL-9 — paragon UI render layout (FR-C7), format located.** The
-  paragon render metric is **not** in the paragon record groups, the
-  art groups, or the texture atlases — it is a **group-46 UI-scene
-  record**, format hash **`0xE4825AB8`** (peers: `ActionBar`, `Armory`,
-  `BuildViewer`…), specifically `ParagonBoard` SNO 657304 (145,550 B)
-  and `ParagonBoardSelect` 964599. Container header proven (§10.2);
-  widget-tree is a named serialized object graph and the texture-binding
-  micro-struct is decoded (§10.3). **FR §2.3 answered with evidence:**
-  the rarity swatches + orange ornate are absent from `ParagonBoard`, so
-  per-rarity colour is a shader tint on the neutral disc, not a
-  per-rarity texture (the consumer's recipe model is correct). Still
-  open and explicitly NOT guessed: the widget-node struct field layout,
-  anchor/size↔cell-pitch encoding, per-state ordered layer list, anim
-  params — the typed `ParagonRenderLayout` ships only with a verbatim
-  acceptance matrix. The consumer ask's document-target reference
-  (`casc-format.md`) predates the spec split; this D4-layer format is
-  owned here.
+- **CL-9 — D4 UI-scene format (FR-C7) decoded; the D4 hash cracked.**
+  The paragon render metric is a **group-46 UI-scene SNO** (type `UI`),
+  format hash **`0xE4825AB8`**, `ParagonBoard` SNO 657304 — *not* the
+  paragon record/art/atlas groups (all eliminated with evidence, §10.1).
+  Decoded standalone & clean-room (full reference: §10): D4's
+  serialization hash is **DJB2 with seed 0** (`fieldHash` 28-bit-masked,
+  `typeHash` full, `gbidHash` lowercased = the existing
+  `Diablo4.GbidHash`) — self-verified vs the known GBID `0x42C16A1B`,
+  and **reusable across every D4 SNO meta format, not just FR-C7**.
+  The format is a reflection / data-binding widget graph: each field is
+  `DT_BINDABLEPROPERTY` of a `DT_*` type; the `ParagonBoard` schema is
+  fully type-classified with the FR-critical fields named — the layout
+  rect `nLeft/nRight/nTop/nBottom/nWidth/nHeight` (DT_INT), `rgbaTint`
+  (DT_RGBACOLOR), `dwAlpha`, the `DT_SNO` texture fields — recovered by
+  string-extracting the *locally-installed* `Diablo IV.exe` (no
+  third-party-JSON dependency; names are absent from SNO data by design
+  but embedded in the client binary's reflection registry). **FR §2.3
+  answered with evidence:** per-rarity colour is the bound `rgbaTint`
+  on the neutral disc (rarity swatches + orange ornate absent) — the
+  consumer's recipe model is correct. Still open and explicitly NOT
+  guessed: the per-widget *bound instance values* (the rect ints) and
+  their reproduction of the §10.8 67.7 px/grid anchor → the typed
+  `ParagonRenderLayout`; no pitch number asserted until proven. The
+  consumer ask's document-target reference (`casc-format.md`) predates
+  the spec split; this D4-layer format is owned here.
 - **CL-10 — FR-C7 board rotation is NOT a fixed ~45° (decode it).** The
   FR §2.4 "in-game the board is rotated ~45°" does not hold for the
   *Warlock Start* calibration view: the consumer's 2D lattice
