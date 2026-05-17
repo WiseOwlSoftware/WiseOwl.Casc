@@ -143,8 +143,19 @@ decision.
    out of the current pipeline. IP rule stands: never trace third-party
    imagery into a shipped mark; match the pipeline to the source kind
    (trace line art, composite a finished design).
-8. CHANGELOG/devlog/ARTICLE-SOURCE upkeep each session.
-9. Later: future `.Wow`/`.Overwatch`/`.D2R` modules (core designed for them).
+8. **CI/release pipeline** (devlog 0008; runbook `docs/RELEASING.md`):
+   `ci.yml` = validation only, PR-into-`main` + push-`main`, doc/asset
+   `paths-ignore`, `concurrency: cancel-in-progress`; work branches carry
+   NO trigger (feature-branch/PR model). `publish.yml` publishes BOTH
+   packages and fires ONLY on `release: published` — four gates: release
+   trigger, `nuget` Environment required-reviewer approval, tag ==
+   committed `<Version>` guard, `--skip-duplicate` idempotency. Auth =
+   NuGet.org Trusted Publishing (OIDC), **no stored key**. NOTHING
+   published yet; one-time setup (GitHub `nuget` env + required reviewer,
+   `NUGET_USER` repo var, nuget.org Trusted-Publishing policy for both
+   ids) is the owner's to do before the first release — see the runbook.
+9. CHANGELOG/devlog/ARTICLE-SOURCE upkeep each session.
+10. Later: future `.Wow`/`.Overwatch`/`.D2R` modules (core designed for them).
 
 ## Gotchas
 
@@ -157,3 +168,9 @@ decision.
 - Re-verify trigger: `.build.info` Build Key change (seasonal). Re-run
   integration tests; update the relevant correction log on drift
   (`casc-format.md` for transport, `casc-diablo4-format.md` for D4).
+- A published NuGet version is immutable & permanent (unlist-only, never
+  delete/re-upload). Never publish ad hoc — only via the gated
+  `publish.yml` (GitHub Release → env approval). To release: bump
+  `Directory.Build.props` `<Version>`, land on `main`, then
+  `gh release create v<Version>`. Tag must equal `<Version>` or the job
+  fails pre-pack. Full procedure: `docs/RELEASING.md`.

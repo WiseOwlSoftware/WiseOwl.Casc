@@ -1,0 +1,102 @@
+name: Publish
+
+# Publishes BOTH packages to NuGet.org. A NuGet version is immutable and
+# permanent — it can be unlisted but never deleted or re-uploaded — so the
+# path to a push is deliberately narrow:
+#
+#   1. The ONLY trigger is "a GitHub Release was published". An interim
+#      commit, a branch push, even a bare tag push cannot reach this
+#      workflow — you must explicitly create a Release.
+#   2. The job runs in the `nuget` Environment, which carries a required
+#      reviewer. Publishing pauses for a human approval click before any
+#      package leaves the runner.
+#   3. The release tag version must equal the committed
+#      Directory.Build.props <Version>, or the job fails before packing —
+#      you cannot ship a number the repo hasn't recorded.
+#   4. `dotnet nuget push --skip-duplicate` makes a re-run idempotent: an
+#      already-published version is a no-op, never an overwrite or error.
+#
+# Auth is NuGet.org Trusted Publishing (OIDC): GitHub mints a short-lived
+# token at run time and exchanges it for a single-use API key. No
+# long-lived NuGet secret is stored in this repository.
+
+on:
+  release:
+    types: [published]
+
+# id-token: write is required for the OIDC token exchange. Nothing here
+# needs write access to repository contents.
+permissions:
+  id-token: write
+  contents: read
+
+# Never run two publishes for the same release tag at once; do NOT cancel
+# an in-flight publish (a half-cancelled push is exactly the hazard we are
+# avoiding).
+concurrency:
+  group: publish-${{ github.event.release.tag_name }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Pack & publish to NuGet.org
+    runs-on: ubuntu-latest
+    environment: nuget
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Derive & verify version from the release tag
+        id: ver
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${{ github.event.release.tag_name }}"
+          VERSION="${TAG#v}"
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Release tag '$TAG' is not valid SemVer (expected vX.Y.Z or vX.Y.Z-suffix)."
+            exit 1
+          fi
+          PROPS_VERSION="$(grep -oP '(?<=<Version>)[^<]+' Directory.Build.props | head -n1)"
+          if [[ "$VERSION" != "$PROPS_VERSION" ]]; then
+            echo "::error::Tag version '$VERSION' != Directory.Build.props <Version> '$PROPS_VERSION'. Bump <Version>, commit, then tag the release."
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Releasing version $VERSION"
+
+      - name: Restore
+        run: dotnet restore WiseOwl.Casc.slnx
+
+      - name: Build
+        run: dotnet build WiseOwl.Casc.slnx -c Release --no-restore
+
+      # Self-skipping integration tests (no game bytes in CI) — never
+      # publish an unvalidated build.
+      - name: Test
+        run: dotnet test WiseOwl.Casc.slnx -c Release --no-build --verbosity normal
+
+      - name: Pack (.nupkg + .snupkg)
+        run: >
+          dotnet pack WiseOwl.Casc.slnx -c Release --no-build
+          -o artifacts/publish
+          -p:Version=${{ steps.ver.outputs.version }}
+
+      - name: NuGet Trusted Publishing login (OIDC)
+        id: nugetlogin
+        uses: NuGet/login@v1
+        with:
+          # The nuget.org account that owns the WiseOwl.* prefix. Not a
+          # secret (a username is not sensitive); set as a repo variable.
+          user: ${{ vars.NUGET_USER }}
+
+      - name: Push to NuGet.org
+        run: >
+          dotnet nuget push "artifacts/publish/*.nupkg"
+          --api-key "${{ steps.nugetlogin.outputs.NUGET_API_KEY }}"
+          --source https://api.nuget.org/v3/index.json
+          --skip-duplicate
