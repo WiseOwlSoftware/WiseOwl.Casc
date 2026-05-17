@@ -699,11 +699,55 @@ name; the 34 `fieldHash` member-ids resolve once the binary
 string-extract is run and matched — the next concrete step.)
 
 Route 1 (external name list) was closed; this **route 1′ (own-binary
-extraction)** reopens recovery *standalone*. Until a field→meaning is
-*proven* (matched name **and**/or the 67.7 anchor via route 2), no
-pitch/scale/anchor number is asserted — schema, id scheme, type enum,
-and now the exact hash are decoded; the named geometry is not, and is
-not faked.
+extraction)** reopens recovery *standalone*.
+
+### 10.8 Vocabulary recovered (standalone, from our own binary)
+
+Executed route 1′: string-extracted identifiers from the locally
+installed `Diablo IV.exe` (285,479 unique tokens, processed in-tool),
+hashed with the verified `typeHash`/`fieldHash`, matched the observed
+ids. **Hash impl self-verified**: `gbidHash("ParagonNodeCoreStat_
+Normal") = 0x42C16A1B` (the project's independently-known-good GBID).
+Zero guessing, zero d4data-JSON dependency.
+
+**Type system (`typeHash`) — the triplet reframed:**
+
+| id | name | meaning |
+|---|---|---|
+| `0x1332C78D` | **`DT_BINDABLEPROPERTY`** | the "separator" — every widget field is a *bindable property* |
+| `0xA4C42E02` | **`DT_INT`** | (the dominant payload — a type, not an "object ref") |
+| `0xE549F591` | `DT_CSTRING` | |
+| `0x8E266332` | `DT_RGBACOLOR` | rarity/tint colour type (relevant to §3) |
+| `0xA4C45887` | `DT_SNO` | SNO reference |
+| `0x2B0285C0` | `StringLabelHandleEx` | localized-string handle |
+
+So a schema entry is `fieldName : DT_BINDABLEPROPERTY` of an underlying
+`DT_*` — D4's UI **data-binding** system. The §10.3 "triplet
+`(memberHash, 0x1332C78D, payload)`" is precisely
+`(fieldHash(name), typeHash("DT_BINDABLEPROPERTY"), typeHash(DT_*type))`.
+
+**Geometry fields (`fieldHash`) — the layout rect, recovered:**
+
+| id | name |
+|---|---|
+| `0x07F1EF79` | **`nLeft`** |
+| `0x069EA64C` | **`nRight`** |
+| `0x0594CC83` | **`nBottom`** |
+| `0x06F9158E` | **`nWidth`** |
+| `0x02D88AE7` | **`nHeight`** |
+| `0x0204DBB8` | `hTooltipText` |
+
+The widget rect is `nLeft/nRight/nBottom/nWidth/nHeight` as
+`DT_INT` **bindable** properties — not literal constants in the schema
+(hence §10.3's "no px in the structure region": the *values* are bound
+at runtime / stored in the instance-data section keyed by these field
+hashes). FR-C7's cell pitch / element sizes are these bound ints,
+resolved against the §10.4 67.7 px/grid anchor. Remaining field-ids
+resolve by widening the candidate set (other client modules + D4
+`n/fl/h/e/b/sno/pt`-prefix conventions); the geometry spine is now
+named. **No pitch number asserted until the bound instance values are
+read and reproduce the 67.7 anchor** — but the vocabulary is no longer
+unknown, and was recovered clean-room.
 
 ### 10.4 Reconnaissance instrument
 
