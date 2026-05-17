@@ -273,3 +273,36 @@ Consumer is on HOLD for C7; library has the full oracle set + the
 absolute anchor and proceeds to vocabulary mapping → reader, no
 blockers. We will ping only if the RE's decoded pitch disagrees with
 67.7 at this exact provenance (then a re-shoot).
+
+## 9. Update — format DECODED standalone (vocabulary recovered)
+
+Major progress (`casc-diablo4-format.md` §10, fully consolidated):
+
+- **The D4 serialization hash is cracked**: DJB2 core with **seed 0**
+  (not 5381) — `fieldHash` 28-bit-masked, `typeHash` full, `gbidHash`
+  lowercased (= our existing `Diablo4.GbidHash`). Self-verified vs the
+  known GBID `0x42C16A1B`. This is a **library-wide** capability now,
+  not just FR-C7.
+- **`0xE4825AB8` is D4's UI data-binding format**: each widget field is
+  a `DT_BINDABLEPROPERTY` of a `DT_*` type; objects are hash-addressed.
+- **`ParagonBoard` schema recovered clean-room** by string-extracting
+  the *locally-installed* `Diablo IV.exe` (names are absent from SNO
+  data by design but embedded in the client binary; **no third-party
+  data dependency**). FR-critical fields named: the layout rect
+  **`nLeft/nRight/nTop/nBottom/nWidth/nHeight`** (DT_INT, *bindable*),
+  **`rgbaTint`** (DT_RGBACOLOR), `dwAlpha`, `hText`/`hTooltipText`, and
+  the **`DT_SNO`** texture-binding fields. Every field is type-
+  classified even where the name is still being refined.
+- **§2.3 reconfirmed with the named field**: per-rarity colour is the
+  bound `rgbaTint` `DT_RGBACOLOR` on the *neutral* disc — not a
+  per-rarity texture. Your recipe model stands; the tint is a readable
+  bound colour.
+
+What this means for you: unchanged plan, higher confidence. The rect is
+*bindable* (values in the instance-data section, not literal) — exactly
+consistent with the §7 "no authored px; normalised + grid + native-size
++ runtime scale" model. Still no pitch number until the bound instance
+values are read and reproduce the 67.7 anchor; that (instance-data
+section → values → anchor → `ParagonRenderLayout`) is the remaining
+work, well-defined and dependency-free. Consumer stays on HOLD; no new
+input required.
