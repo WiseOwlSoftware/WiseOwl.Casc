@@ -51,8 +51,8 @@ public sealed class StringListTable
 /// <para>The per-locale file is the same <c>0x44CF00F5</c> combined-meta
 /// container as the texture catalog, but each entry's body is a
 /// <b>StringListDefinition</b> and the per-entry base differs (see
-/// <c>docs/casc-format.md §9</c> — fully reverse-engineered and validated
-/// bundle-wide against the live build):</para>
+/// <c>docs/casc-diablo4-format.md §6.3</c> — fully reverse-engineered and
+/// validated bundle-wide against the live build):</para>
 /// <list type="bullet">
 /// <item><c>u32 magic (0x44CF00F5); u32 count; count × { i32 sno; u32 size }</c></item>
 /// <item>per entry <c>i</c> (in index order), with <c>prevEnd</c> starting at

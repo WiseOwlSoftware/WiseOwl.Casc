@@ -40,7 +40,7 @@ public sealed record AttributeFormula(
 /// the calibrated engine intrinsics are permanently the consumer's.
 /// </summary>
 /// <remarks>
-/// Byte layout per the canonical reference (<c>docs/casc-format.md</c>,
+/// Byte layout per the canonical reference (<c>docs/casc-diablo4-format.md §8</c>,
 /// migrated/verified from upstream <c>d4-binary-formats.md §7.3-VERIFIED</c>).
 /// Payload base <c>0x10</c>; <c>eGameBalanceType</c> at payload <c>+8</c>
 /// must be <b>22</b> (AttributeFormulas) — other GameBalance table types

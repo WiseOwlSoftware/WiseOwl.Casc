@@ -8,7 +8,7 @@ namespace WiseOwl.Casc.Diablo4;
 /// group 111). Raw fields only.
 /// </summary>
 /// <remarks>
-/// Byte layout per the canonical reference (<c>docs/casc-format.md</c>,
+/// Byte layout per the canonical reference (<c>docs/casc-diablo4-format.md §7.3</c>,
 /// migrated/verified from upstream <c>d4-binary-formats.md §5</c> — the
 /// corrected glyph layout): payload base <c>0x10</c>; <c>snoId@0</c>; the
 /// glyph's affixes are a fixed set of up to three <c>DT_SNO</c> ids at

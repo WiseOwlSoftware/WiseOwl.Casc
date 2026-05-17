@@ -19,7 +19,7 @@ public sealed class ParagonGlyphAffixDefinition
 
 ## Remarks
 
-Byte layout per the canonical reference (`docs/casc-format.md`, migrated/verified from upstream `d4-binary-formats.md §5`, `ParagonGlyphAffixDefinition — VERIFIED`, formatHash 353797140): payload base `0x10`; `snoId@0`; `eAffectedNodeRarity@24` (DT_ENUM, Maxroll-compact 1=Normal/2=Magic/3=Rare); `eBonusOperation@48` (DT_ENUM); `flStartingBonusScalar@76` (DT_FLOAT, == Maxroll `base`); `flAddedBonusScalarPerLevel@80` (DT_FLOAT, == Maxroll `perLevel`). Op-5 (`Power_*`) carries no base/per — its magnitude is in the threshold chain (consumer concern).
+Byte layout per the canonical reference (`docs/casc-diablo4-format.md §7.4`, migrated/verified from upstream `d4-binary-formats.md §5`, `ParagonGlyphAffixDefinition — VERIFIED`, formatHash 353797140): payload base `0x10`; `snoId@0`; `eAffectedNodeRarity@24` (DT_ENUM, Maxroll-compact 1=Normal/2=Magic/3=Rare); `eBonusOperation@48` (DT_ENUM); `flStartingBonusScalar@76` (DT_FLOAT, == Maxroll `base`); `flAddedBonusScalarPerLevel@80` (DT_FLOAT, == Maxroll `perLevel`). Op-5 (`Power_*`) carries no base/per — its magnitude is in the threshold chain (consumer concern).
 
 ## See Also
 

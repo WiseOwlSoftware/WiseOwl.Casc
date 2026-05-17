@@ -1,8 +1,10 @@
 # Resume prompt — WiseOwl.Casc
 
 > Full-context handoff. After a compaction or a new session, read this
-> end-to-end before continuing. Companion docs: `docs/casc-format.md`
-> (self-contained transport spec + correction log), `docs/devlog/` (the
+> end-to-end before continuing. Companion docs: the two canonical
+> byte-format specs `docs/casc-format.md` (CASC/TACT/TVFS/BLTE transport)
+> and `docs/casc-diablo4-format.md` (Diablo IV SNO/container/record
+> layer) — each with its own correction log; `docs/devlog/` (the
 > narrative), `docs/ARTICLE-SOURCE.md` (wiseowl.com article source).
 
 ## What this project is
@@ -98,8 +100,8 @@ decision.
    on RE). **FR-13 StringList: REVERSE-ENGINEERED, implemented & proven**
    — per-locale `0x44CF00F5` bundle `base/StringList-Text-<locale>.dat`;
    `StringListCatalog` / `Diablo4Storage.GetStrings(locale)` /
-   `TryGetString`. Definitive spec: `casc-format.md §9` + CL-7; narrative
-   `devlog/0003`. (Container = texture combined-meta family but body at
+   `TryGetString`. Definitive spec: `casc-diablo4-format.md §6.3` + CL-7;
+   narrative `devlog/0003`. (Container = texture combined-meta family but body at
    `B=alignUp8(prevEnd)`, no `+8`, SNO positional from index.)
 4. Round-3 typed readers (B1–B6) — **DONE & PROVEN** (converged design,
    owner-approved): `ParagonBoardDefinition`/`ParagonNodeDefinition`
@@ -110,13 +112,17 @@ decision.
    acceptance matrix passes verbatim (201912=1038 entries, CoreStat_Normal
    →"5"). **Library scope FROZEN at "B1–B6 + existing"** for the
    eliminate-D4Extract goal. Typed Item/Affix/Power/Class deferred (C6).
-5. **SPEC AUTHORITY: `e:\Casc\docs\casc-format.md` is the single canonical
-   CASC+D4 byte-format reference** (§§1–14 + §15 provenance map + CL-* log).
-   Upstream `e:\Paragon\docs\d4-binary-formats.md` §3–§8.15 is SUPERSEDED
-   for layouts (frozen, history/article source only). Policy carve-out (6
+5. **SPEC AUTHORITY: TWO canonical byte-format docs (mirror the two
+   packages), each with its own CL-* log:** `docs/casc-format.md`
+   (CASC/TACT/TVFS/BLTE transport) and `docs/casc-diablo4-format.md`
+   (Diablo IV SNO/container/record; has the provenance & migration map +
+   library boundary appendices). Upstream
+   `e:\Paragon\docs\d4-binary-formats.md` §3–§8.15 is SUPERSEDED for
+   layouts (frozen, history/article source only). Policy carve-out (6
    intrinsic values, scoring, relight, JSON schema) referenced, never
-   absorbed. Keep this file definitive; never re-introduce a second
-   layout doc.
+   absorbed. Keep these two docs definitive (transport facts →
+   `casc-format.md`; D4 facts → `casc-diablo4-format.md`); do not
+   re-merge them or re-introduce the frozen upstream as a layout source.
 6. **API docs** = generated from XML comments into `docs/api/` (per
    package, per type/member) via pinned `xmldocmd`
    (`.config/dotnet-tools.json`); regen `scripts/gen-api-docs.{sh,ps1}`;
@@ -135,4 +141,5 @@ decision.
 - Encoding header `ESpecBlockSize` is at byte **18** (correction CL-1).
 - Git on Windows warns LF→CRLF; harmless.
 - Re-verify trigger: `.build.info` Build Key change (seasonal). Re-run
-  integration tests; update `docs/casc-format.md` correction log on drift.
+  integration tests; update the relevant correction log on drift
+  (`casc-format.md` for transport, `casc-diablo4-format.md` for D4).

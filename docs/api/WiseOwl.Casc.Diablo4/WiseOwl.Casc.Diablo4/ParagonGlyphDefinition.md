@@ -16,7 +16,7 @@ public sealed class ParagonGlyphDefinition
 
 ## Remarks
 
-Byte layout per the canonical reference (`docs/casc-format.md`, migrated/verified from upstream `d4-binary-formats.md §5` — the corrected glyph layout): payload base `0x10`; `snoId@0`; the glyph's affixes are a fixed set of up to three `DT_SNO` ids at payload `+104 / +108 / +112` (the 3 glyph power components — scaling mod / threshold / legendary). `0` and `0xFFFFFFFF` slots are treated as "no affix" and omitted.
+Byte layout per the canonical reference (`docs/casc-diablo4-format.md §7.3`, migrated/verified from upstream `d4-binary-formats.md §5` — the corrected glyph layout): payload base `0x10`; `snoId@0`; the glyph's affixes are a fixed set of up to three `DT_SNO` ids at payload `+104 / +108 / +112` (the 3 glyph power components — scaling mod / threshold / legendary). `0` and `0xFFFFFFFF` slots are treated as "no affix" and omitted.
 
 ## See Also
 

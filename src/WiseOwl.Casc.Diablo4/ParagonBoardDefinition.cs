@@ -8,12 +8,11 @@ namespace WiseOwl.Casc.Diablo4;
 /// A decoded Diablo IV <c>ParagonBoardDefinition</c> (<c>.pbd</c>, SNO
 /// group 108): the square node grid for one paragon board. Raw fields
 /// only — no scoring, no evaluation (see the library boundary in
-/// <c>docs/casc-format.md §10</c>).
+/// <c>docs/casc-diablo4-format.md</c> Appendix C).
 /// </summary>
 /// <remarks>
-/// Byte layout is the authoritative upstream record
-/// (<c>e:\Paragon\docs\d4-binary-formats.md §5</c>,
-/// <c>ParagonBoardDefinition — VERIFIED</c>): payload base <c>0x10</c>;
+/// Byte layout per the canonical reference
+/// (<c>docs/casc-diablo4-format.md §7.1</c>): payload base <c>0x10</c>;
 /// <c>snoId</c> at payload <c>0</c>; <c>nWidth</c> (DT_UINT) at payload
 /// <c>12</c>; <c>arEntries</c> (<c>DT_VARIABLEARRAY[DT_SNO]</c>) descriptor
 /// at payload <c>16</c>. Cells are <c>dataSize/4</c> little-endian

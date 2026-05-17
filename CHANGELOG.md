@@ -49,6 +49,23 @@ Semantic Versioning once it reaches `1.0.0`.
   documents the library/consumer boundary (FR-5) and the deferred
   `CoreTOCReplacedSnosMapping` (FR-6).
 
+### Byte-format spec restructured & split (two docs)
+- The single `casc-format.md` was rewritten into standard
+  format-reference shape (Scope → Conventions → Overview diagram →
+  structures in dependency order with offset/size/type tables &
+  byte-map diagrams → algorithms → appendices) and **split to mirror the
+  two packages**: [`docs/casc-format.md`](docs/casc-format.md) =
+  game-agnostic CASC/TACT/TVFS/BLTE transport (`WiseOwl.Casc`);
+  [`docs/casc-diablo4-format.md`](docs/casc-diablo4-format.md) = Diablo IV
+  SNO/container/record layer (`WiseOwl.Casc.Diablo4`), with the
+  provenance-&-migration map and library-boundary appendices. Each owns
+  its own `CL-*` correction log. Pure reorganization — **no byte fact
+  changed** (all content remains the empirically-verified data). Revises
+  converged decision F.1 (one file → two); the ParagonOptimizer
+  "authoritative byte spec" pointer should target `casc-diablo4-format.md`
+  for the §5–§8 layouts and `casc-format.md` for transport. Source XML
+  doc comments + all cross-references repointed; narrative `devlog/0006`.
+
 ### API documentation
 - Complete generated API reference under [`docs/api/`](docs/api/) for both
   shippable packages (per-type + per-member Markdown, namespace-organized,

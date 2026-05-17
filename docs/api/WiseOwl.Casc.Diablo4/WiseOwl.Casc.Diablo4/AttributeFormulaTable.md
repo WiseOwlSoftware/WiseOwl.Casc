@@ -20,7 +20,7 @@ public sealed class AttributeFormulaTable
 
 ## Remarks
 
-Byte layout per the canonical reference (`docs/casc-format.md`, migrated/verified from upstream `d4-binary-formats.md §7.3-VERIFIED`). Payload base `0x10`; `eGameBalanceType` at payload `+8` must be 22 (AttributeFormulas) — other GameBalance table types have different element structs and are out of scope here. The walk: `ptData` polymorphic variable-array at payload `+16` (`dataOffset@+8`); element region at `dataOffset`; an 8-byte type tag precedes the table struct (`tableBase = dataOffset + 8`); `tEntries` variable-array at `tableBase+16` (entry stride 280); each entry: inline `szName[256]@+0`, `gbid@+256`, `arRanges` variable-array `@+264` (range stride 48); each range: `nItemPowerRangeStart@+0`, two floats `@+4/+8`, `tFormula``DT_STRING_FORMULA@+16` (`FormulaOffset@+8`, `FormulaSize@+12`; text is ASCII at payload `FormulaOffset`).
+Byte layout per the canonical reference (`docs/casc-diablo4-format.md §8`, migrated/verified from upstream `d4-binary-formats.md §7.3-VERIFIED`). Payload base `0x10`; `eGameBalanceType` at payload `+8` must be 22 (AttributeFormulas) — other GameBalance table types have different element structs and are out of scope here. The walk: `ptData` polymorphic variable-array at payload `+16` (`dataOffset@+8`); element region at `dataOffset`; an 8-byte type tag precedes the table struct (`tableBase = dataOffset + 8`); `tEntries` variable-array at `tableBase+16` (entry stride 280); each entry: inline `szName[256]@+0`, `gbid@+256`, `arRanges` variable-array `@+264` (range stride 48); each range: `nItemPowerRangeStart@+0`, two floats `@+4/+8`, `tFormula``DT_STRING_FORMULA@+16` (`FormulaOffset@+8`, `FormulaSize@+12`; text is ASCII at payload `FormulaOffset`).
 
 ## See Also
 

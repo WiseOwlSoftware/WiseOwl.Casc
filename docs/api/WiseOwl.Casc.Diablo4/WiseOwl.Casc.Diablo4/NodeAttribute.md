@@ -1,6 +1,6 @@
 # NodeAttribute structure
 
-One attribute grant on a paragon node (an `AttributeSpecifier`, stride 88). Raw decoded fields only — the magnitude is produced by evaluating [`InlineFormula`](./NodeAttribute/InlineFormula.md) or the GameBalance formula named by [`FormulaGbid`](./NodeAttribute/FormulaGbid.md); evaluation and the calibrated intrinsics are the consumer's, not the library's (see `docs/casc-format.md` library boundary).
+One attribute grant on a paragon node (an `AttributeSpecifier`, stride 88). Raw decoded fields only — the magnitude is produced by evaluating [`InlineFormula`](./NodeAttribute/InlineFormula.md) or the GameBalance formula named by [`FormulaGbid`](./NodeAttribute/FormulaGbid.md); evaluation and the calibrated intrinsics are the consumer's, not the library's (see `docs/casc-diablo4-format.md` Appendix C, library boundary).
 
 ```csharp
 public struct NodeAttribute : IEquatable<NodeAttribute>
@@ -18,7 +18,7 @@ public struct NodeAttribute : IEquatable<NodeAttribute>
 
 | name | description |
 | --- | --- |
-| [NodeAttribute](NodeAttribute/NodeAttribute.md)(…) | One attribute grant on a paragon node (an `AttributeSpecifier`, stride 88). Raw decoded fields only — the magnitude is produced by evaluating [`InlineFormula`](./NodeAttribute/InlineFormula.md) or the GameBalance formula named by [`FormulaGbid`](./NodeAttribute/FormulaGbid.md); evaluation and the calibrated intrinsics are the consumer's, not the library's (see `docs/casc-format.md` library boundary). |
+| [NodeAttribute](NodeAttribute/NodeAttribute.md)(…) | One attribute grant on a paragon node (an `AttributeSpecifier`, stride 88). Raw decoded fields only — the magnitude is produced by evaluating [`InlineFormula`](./NodeAttribute/InlineFormula.md) or the GameBalance formula named by [`FormulaGbid`](./NodeAttribute/FormulaGbid.md); evaluation and the calibrated intrinsics are the consumer's, not the library's (see `docs/casc-diablo4-format.md` Appendix C, library boundary). |
 | [AttributeId](NodeAttribute/AttributeId.md) { get; set; } | `eAttribute` at specifier `+0` — the attribute id (== Maxroll attribute numeric key). |
 | [FormulaGbid](NodeAttribute/FormulaGbid.md) { get; set; } | `gbidFormula` at specifier `+48` (DT_GBID). `0xFFFFFFFF` means "no shared formula — use [`InlineFormula`](./NodeAttribute/InlineFormula.md)"; otherwise it is `GbidHash(formulaName)` resolvable through [`AttributeFormulaTable`](./AttributeFormulaTable.md). |
 | [InlineFormula](NodeAttribute/InlineFormula.md) { get; set; } | The node's own formula source text (read at specifier `+24` offset / `+28` size, payload-relative) when [`FormulaGbid`](./NodeAttribute/FormulaGbid.md) is `0xFFFFFFFF`; otherwise empty. |

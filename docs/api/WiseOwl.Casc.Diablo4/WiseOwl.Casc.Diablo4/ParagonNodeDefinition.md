@@ -23,7 +23,7 @@ public sealed class ParagonNodeDefinition
 
 ## Remarks
 
-Byte layout per the canonical reference (`docs/casc-format.md`, migrated/verified from the upstream `d4-binary-formats.md §5`): payload base `0x10`; `snoId@0`; `hIcon@8` (DT_UINT); `hIconMask@12` (DT_UINT); `eRarityOverride@20` (0/2/3/4); `snoPassivePower@24` (DT_SNO, group 29 Power); `ptAttributes``DT_VARIABLEARRAY[AttributeSpecifier]` descriptor `@32` (`dataOffset` payload-relative `@+8`, `dataSize@+12`; element stride 88); `bHasSocket@80`; `bIsGate@84`.
+Byte layout per the canonical reference (`docs/casc-diablo4-format.md §7.2`, migrated/verified from the upstream `d4-binary-formats.md §5`): payload base `0x10`; `snoId@0`; `hIcon@8` (DT_UINT); `hIconMask@12` (DT_UINT); `eRarityOverride@20` (0/2/3/4); `snoPassivePower@24` (DT_SNO, group 29 Power); `ptAttributes``DT_VARIABLEARRAY[AttributeSpecifier]` descriptor `@32` (`dataOffset` payload-relative `@+8`, `dataSize@+12`; element stride 88); `bHasSocket@80`; `bIsGate@84`.
 
 ## See Also
 

@@ -27,8 +27,8 @@ public enum ParagonRarity
 /// stride 88). Raw decoded fields only — the magnitude is produced by
 /// evaluating <see cref="InlineFormula"/> or the GameBalance formula named
 /// by <see cref="FormulaGbid"/>; evaluation and the calibrated intrinsics
-/// are the consumer's, not the library's (see <c>docs/casc-format.md</c>
-/// library boundary).
+/// are the consumer's, not the library's (see
+/// <c>docs/casc-diablo4-format.md</c> Appendix C, library boundary).
 /// </summary>
 /// <param name="AttributeId"><c>eAttribute</c> at specifier <c>+0</c> — the
 /// attribute id (== Maxroll attribute numeric key).</param>
@@ -67,7 +67,7 @@ public readonly record struct NodeAttribute(
 /// scoring (that interpretation is permanently the consumer's).
 /// </summary>
 /// <remarks>
-/// Byte layout per the canonical reference (<c>docs/casc-format.md</c>,
+/// Byte layout per the canonical reference (<c>docs/casc-diablo4-format.md §7.2</c>,
 /// migrated/verified from the upstream <c>d4-binary-formats.md §5</c>):
 /// payload base <c>0x10</c>; <c>snoId@0</c>; <c>hIcon@8</c> (DT_UINT);
 /// <c>hIconMask@12</c> (DT_UINT); <c>eRarityOverride@20</c> (0/2/3/4);

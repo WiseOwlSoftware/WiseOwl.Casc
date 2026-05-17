@@ -20,7 +20,7 @@ public sealed class StringListCatalog
 
 ## Remarks
 
-The per-locale file is the same `0x44CF00F5` combined-meta container as the texture catalog, but each entry's body is a StringListDefinition and the per-entry base differs (see `docs/casc-format.md §9` — fully reverse-engineered and validated bundle-wide against the live build):
+The per-locale file is the same `0x44CF00F5` combined-meta container as the texture catalog, but each entry's body is a StringListDefinition and the per-entry base differs (see `docs/casc-diablo4-format.md §6.3` — fully reverse-engineered and validated bundle-wide against the live build):
 
 * `u32 magic (0x44CF00F5); u32 count; count × { i32 sno; u32 size }`
 * per entry `i` (in index order), with `prevEnd` starting at `8 + count*8`: `B = alignUp8(prevEnd)` (the body base — no`+8`, and the SNO id comes from the index, not the body); `prevEnd = B + size[i]`.

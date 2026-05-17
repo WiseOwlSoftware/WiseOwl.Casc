@@ -12,7 +12,7 @@ public static uint GbidHash(string name)
 
 ## Remarks
 
-Verified: `GbidHash("ParagonNodeCoreStat_Normal") == 0x42C16A1B` (upstream `d4-binary-formats.md §7.1`). Parsing the tables that these GBIDs key into is consumer domain logic (see the boundary in `docs/casc-format.md`); this hash is the one piece that is generic and stable enough to be the library's canonical home.
+Verified: `GbidHash("ParagonNodeCoreStat_Normal") == 0x42C16A1B` (upstream `d4-binary-formats.md §7.1`). Parsing the tables that these GBIDs key into is consumer domain logic (see the boundary in `docs/casc-diablo4-format.md` Appendix C); this hash is the one piece that is generic and stable enough to be the library's canonical home.
 
 ## See Also
 

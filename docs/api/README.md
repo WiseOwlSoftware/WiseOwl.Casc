@@ -72,8 +72,12 @@ goes through `CascStorage` / `Diablo4Storage` instead.
 
 ## See also
 
-- [`docs/casc-format.md`](../casc-format.md) — the canonical **byte-format**
-  reference (CASC + Diablo IV layouts, correction log). The API docs say
-  *what the types are*; the format spec says *what the bytes mean*.
+- The canonical **byte-format** references (the API docs say *what the
+  types are*; these say *what the bytes mean*):
+  [`docs/casc-format.md`](../casc-format.md) (CASC/TACT/TVFS/BLTE
+  transport — `WiseOwl.Casc`) and
+  [`docs/casc-diablo4-format.md`](../casc-diablo4-format.md) (Diablo IV
+  SNO/container/record layer — `WiseOwl.Casc.Diablo4`). Each has its own
+  correction log.
 - [`README.md`](../../README.md) — quickstart. [`samples/`](../../samples/)
   — a runnable console.

@@ -8,7 +8,7 @@ namespace WiseOwl.Casc.Diablo4;
 /// semantics, level scaling, thresholds) stays with the consumer.
 /// </summary>
 /// <remarks>
-/// Byte layout per the canonical reference (<c>docs/casc-format.md</c>,
+/// Byte layout per the canonical reference (<c>docs/casc-diablo4-format.md §7.4</c>,
 /// migrated/verified from upstream <c>d4-binary-formats.md §5</c>,
 /// <c>ParagonGlyphAffixDefinition — VERIFIED</c>, formatHash 353797140):
 /// payload base <c>0x10</c>; <c>snoId@0</c>;

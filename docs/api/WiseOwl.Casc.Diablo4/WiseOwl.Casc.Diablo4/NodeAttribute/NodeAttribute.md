@@ -1,6 +1,6 @@
 # NodeAttribute constructor
 
-One attribute grant on a paragon node (an `AttributeSpecifier`, stride 88). Raw decoded fields only — the magnitude is produced by evaluating [`InlineFormula`](./InlineFormula.md) or the GameBalance formula named by [`FormulaGbid`](./FormulaGbid.md); evaluation and the calibrated intrinsics are the consumer's, not the library's (see `docs/casc-format.md` library boundary).
+One attribute grant on a paragon node (an `AttributeSpecifier`, stride 88). Raw decoded fields only — the magnitude is produced by evaluating [`InlineFormula`](./InlineFormula.md) or the GameBalance formula named by [`FormulaGbid`](./FormulaGbid.md); evaluation and the calibrated intrinsics are the consumer's, not the library's (see `docs/casc-diablo4-format.md` Appendix C, library boundary).
 
 ```csharp
 public NodeAttribute(int AttributeId, int NParam, int ParamPlus12, uint FormulaGbid, 

@@ -1,6 +1,6 @@
 # ParagonBoardDefinition class
 
-A decoded Diablo IV `ParagonBoardDefinition` (`.pbd`, SNO group 108): the square node grid for one paragon board. Raw fields only — no scoring, no evaluation (see the library boundary in `docs/casc-format.md §10`).
+A decoded Diablo IV `ParagonBoardDefinition` (`.pbd`, SNO group 108): the square node grid for one paragon board. Raw fields only — no scoring, no evaluation (see the library boundary in `docs/casc-diablo4-format.md` Appendix C).
 
 ```csharp
 public sealed class ParagonBoardDefinition
@@ -19,7 +19,7 @@ public sealed class ParagonBoardDefinition
 
 ## Remarks
 
-Byte layout is the authoritative upstream record (`e:\Paragon\docs\d4-binary-formats.md §5`, `ParagonBoardDefinition — VERIFIED`): payload base `0x10`; `snoId` at payload `0`; `nWidth` (DT_UINT) at payload `12`; `arEntries` (`DT_VARIABLEARRAY[DT_SNO]`) descriptor at payload `16`. Cells are `dataSize/4` little-endian UInt32 SNO ids, row-major (`index = row*Width + col`); `0xFFFFFFFF` marks an empty cell.
+Byte layout per the canonical reference (`docs/casc-diablo4-format.md §7.1`): payload base `0x10`; `snoId` at payload `0`; `nWidth` (DT_UINT) at payload `12`; `arEntries` (`DT_VARIABLEARRAY[DT_SNO]`) descriptor at payload `16`. Cells are `dataSize/4` little-endian UInt32 SNO ids, row-major (`index = row*Width + col`); `0xFFFFFFFF` marks an empty cell.
 
 ## See Also
 

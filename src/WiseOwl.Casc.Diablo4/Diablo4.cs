@@ -16,7 +16,7 @@ public static class Diablo4
     /// Verified: <c>GbidHash("ParagonNodeCoreStat_Normal") == 0x42C16A1B</c>
     /// (upstream <c>d4-binary-formats.md §7.1</c>). Parsing the tables that
     /// these GBIDs key into is consumer domain logic (see the boundary in
-    /// <c>docs/casc-format.md</c>); this hash is the one piece that is
+    /// <c>docs/casc-diablo4-format.md</c> Appendix C); this hash is the one piece that is
     /// generic and stable enough to be the library's canonical home.
     /// </remarks>
     /// <param name="name">The reference name (ASCII).</param>

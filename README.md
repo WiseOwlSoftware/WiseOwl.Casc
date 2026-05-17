@@ -70,8 +70,11 @@ See [`samples/`](samples/) for a runnable console.
 - **[API reference](docs/api/)** — complete, generated per-type/per-member
   docs for both packages ([WiseOwl.Casc](docs/api/WiseOwl.Casc/WiseOwl.Casc.md),
   [WiseOwl.Casc.Diablo4](docs/api/WiseOwl.Casc.Diablo4/WiseOwl.Casc.Diablo4.md)).
-- **[Byte-format spec](docs/casc-format.md)** — the canonical CASC +
-  Diablo IV binary-layout reference (with correction log).
+- **Byte-format specs** — the canonical binary-layout references (each
+  with its own correction log), mirroring the two packages:
+  [`casc-format.md`](docs/casc-format.md) (CASC/TACT/TVFS/BLTE transport)
+  and [`casc-diablo4-format.md`](docs/casc-diablo4-format.md) (Diablo IV
+  SNO/container/record layer).
 - **[Dev logs](docs/devlog/)** — how each piece was built and why.
 
 ## Status
