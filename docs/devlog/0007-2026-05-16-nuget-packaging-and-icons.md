@@ -105,3 +105,19 @@ drawing, composite a finished design; don't force one through the
 other. `OwlTrace` stays in the repo for line-art sources but is out of
 the org-mark pipeline; `scripts/gen-icons` now drives TileIcon (org) +
 Lettermark (CASC) + IconGen (SVG package marks).
+
+Org-avatar close-out: the same dark-tile `wiseowl-org` mark is now the
+profile image on **both** nuget.org and `github.com/WiseOwlSoftware`
+(owner uploaded the 512 px PNG). The transparent-vs-host-theme question
+was settled empirically: `build/TileIcon` gained a `bg` arg
+(`tile` default | `none` transparent | `#rrggbb` solid) so transparent
+and white comparison ladders could be rendered side by side. The
+re-encoded 512 px PNGs were all ~230–245 KB regardless of background, so
+the source's 1.26 MB size (an unoptimised export) was never a real
+constraint — the deciding factor was theme behaviour: a transparent
+mark's near-black owl outline dissolves into a dark-theme page, whereas
+the self-contained tile renders identically on any host. The dark tile
+won on consistency; the scratch variants were discarded (the committed
+ladder is tile-only). The `bg` option is kept as a general capability;
+`scripts/gen-icons` still calls TileIcon with the default, so the
+pipeline output is unchanged.
