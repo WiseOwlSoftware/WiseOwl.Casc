@@ -1,6 +1,6 @@
 # UiScene record
 
-A decoded Diablo IV UI-scene SNO (CoreTOC group `46`, format hash `0xE4825AB8`) — the reflection / data-binding widget graph behind screens such as the paragon board. This is the raw graph only: per widget, its name, class id, and the schema + bound field values exactly as serialized. No evaluation, imaging, layout, or policy is applied (that boundary is the consumer's — see `docs/casc-diablo4-format.md` Appendix C and §10). For the typed paragon projection use `Diablo4Storage.ReadParagonRenderLayout` (§7.1 of the FR-C7 contract).
+A decoded Diablo IV UI-scene SNO (CoreTOC group `46`, format hash `0xE4825AB8`) — the reflection / data-binding widget graph behind screens such as the paragon board. This is the raw graph only: per widget, its name, class id, and the schema + bound field values exactly as serialized. No evaluation, imaging, layout, or policy is applied (that boundary is the consumer's — see `docs/casc-diablo4-format.md` Appendix C and §10). For the typed paragon projection use [`ReadParagonRenderLayout`](./Diablo4Storage/ReadParagonRenderLayout.md) (§7.1 of the FR-C7 contract).
 
 ```csharp
 public record UiScene
@@ -10,7 +10,7 @@ public record UiScene
 
 | name | description |
 | --- | --- |
-| [UiScene](UiScene/UiScene.md)(…) | A decoded Diablo IV UI-scene SNO (CoreTOC group `46`, format hash `0xE4825AB8`) — the reflection / data-binding widget graph behind screens such as the paragon board. This is the raw graph only: per widget, its name, class id, and the schema + bound field values exactly as serialized. No evaluation, imaging, layout, or policy is applied (that boundary is the consumer's — see `docs/casc-diablo4-format.md` Appendix C and §10). For the typed paragon projection use `Diablo4Storage.ReadParagonRenderLayout` (§7.1 of the FR-C7 contract). |
+| [UiScene](UiScene/UiScene.md)(…) | A decoded Diablo IV UI-scene SNO (CoreTOC group `46`, format hash `0xE4825AB8`) — the reflection / data-binding widget graph behind screens such as the paragon board. This is the raw graph only: per widget, its name, class id, and the schema + bound field values exactly as serialized. No evaluation, imaging, layout, or policy is applied (that boundary is the consumer's — see `docs/casc-diablo4-format.md` Appendix C and §10). For the typed paragon projection use [`ReadParagonRenderLayout`](./Diablo4Storage/ReadParagonRenderLayout.md) (§7.1 of the FR-C7 contract). |
 | static [Parse](UiScene/Parse.md)(…) | Decode a UI-scene SNO blob (the `Meta` bytes, including the 16-byte `SNOFileHeader`). Raw graph only; never throws on unknown fields — unrecognised type ids are surfaced as their raw hash so the contract stays lossless. |
 | [SnoId](UiScene/SnoId.md) { get; set; } |  |
 | [Widgets](UiScene/Widgets.md) { get; set; } |  |

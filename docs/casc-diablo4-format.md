@@ -628,30 +628,33 @@ its salient points:
 
 ### 10.11 Outstanding (assembly only — no external dependency)
 
-The format is fully decoded and the assembly now reads real bound
-values. Decoded directly from the instance records (build
-`3.0.2.71886`, `SnoScan widgets`; schema-run-anchored, header-model
-independent — robust to CL-13):
+The format is fully decoded and the shipped, header-pinned
+`Diablo4Storage.ReadUiScene` reads real bound values. Authoritative
+values (build `3.0.2.71886`, the correct parser — *not* the exploratory
+`SnoScan widgets` heuristic, which over-attributed by nearest name; see
+CL-14):
 
 | Widget | Bound rect (UI ref units) |
 |---|---|
-| `ParagonBoard_main` (root) | `nWidth 1920`, `nHeight 1200` ⇒ **CanvasRef = 1920×1200** |
-| `Template_ParagonBoard` | `nWidth 2300`, `nHeight 1200` |
-| `Content` | all `0` (fill-parent / bound at runtime) |
-| `ParagonNodes` (node container) | `nWidth 450`, `nHeight 1115`, `nTop 80`, `nBottom 50` |
+| `ParagonBoard_main` (root) | `nWidth 1920`, `nHeight 1200` ⇒ **CanvasRef = 1920×1200** (both parsers agree) |
+| `ContentBG` | `nWidth 2300` (the board content backing) |
+| `ParagonNodes` (node container) | own rect **runtime-bound (0)** — not an authored constant (the bindable-rect premise, §10.7) |
+| `Template_Node_Common` | **`nWidth ≈ 100`** — the per-node element template |
+| `SidePanel_Content` | `nWidth 450` (chrome — *not* the node grid; the value earlier mis-attributed to `ParagonNodes`) |
+| per-state / overlay | named widgets `Common_Node_BG_Black` / `Common_Node_Revealed` / `Node_Purchasable` / `Arrow_{Top,Right,Bottom,Left}` (pointer triangles) / `Connector_{Top,Right,Bottom,Left}` (connector bars) |
 
-These are facts (read from the `+0x08` slot of the positional 56-byte
-`0x22` records), not inferences. Remaining:
+These are facts from the `+0x08` slot of the positional 56-byte `0x22`
+records via the authoritative header-pinned parser. Remaining:
 
-1. Read the node-template element rect + its `DT_SNO`/`rgbaTint`
-   (the widget bearing texture field `0x07DB38D3` + full rect).
-2. Derive `pitchRef` from the `ParagonNodes` container extent + the
-   `ParagonBoardDefinition` Warlock-Start grid extent (§7.1, already
-   decoded); verify `pitchRef × (renderH ÷ CanvasRefH) × zoom₀`
-   reproduces ≈67.7 px/grid at the §10.8 provenance and is cross-widget
-   consistent. `RenderRatios.Provisional` stays `true` until this
-   passes — no pitch number asserted before it (the oracle is the
-   *check*, never the source).
+1. Map the named per-state/overlay widgets above to the §7.2 18-row
+   matrix (their `DT_SNO` texture handles + `rgbaTint` + rects); add
+   rows only when decode-proven (no fabricated rows).
+2. Derive `pitchRef` from the `Template_Node_Common` element + the node
+   layout + the `ParagonBoardDefinition` Warlock-Start grid (§7.1);
+   verify it reproduces ≈67.7 px/grid at the §10.8 provenance and is
+   cross-widget consistent. `RenderRatios.Provisional` stays `true`
+   until this passes — no pitch number asserted before it (the oracle
+   is the *check*, never the source).
 3. Resolve residual unnamed field-ids (type already known; a
    refinement, non-blocking).
 4. Implement the §10.10 agreed contract + the verbatim 18-row
@@ -758,6 +761,22 @@ true value (the sections above already state the corrected truth).
   `classOff+0x08` — verified across four widgets of name lengths
   12/17/21/22 (§10.3). The over-generalised model is fully superseded;
   a correct (non-heuristic) parser is now possible.
+- **CL-14 — exploratory `SnoScan widgets` over-attributed rects; the
+  header-pinned `ReadUiScene` is authoritative.** The exploratory tool
+  associated a schema run with the *nearest preceding name*, which
+  mis-attributed `nWidth 450 / nHeight 1115` to `ParagonNodes`; the
+  shipped header-pinned `ReadUiScene` (correct parser, validated by the
+  `0xFFFFFFFF` sentinel at `classOff+0x08`) shows that `450` is
+  `SidePanel_Content` (chrome) and `ParagonNodes`'s own rect is
+  runtime-bound (0) — consistent with the bindable-rect premise
+  (§10.7). The real per-node element is `Template_Node_Common`
+  (`nWidth ≈ 100`); the per-state/overlay widgets are named
+  (`Common_Node_*`, `Node_Purchasable`, `Arrow_*`, `Connector_*`).
+  `CanvasRef = 1920×1200` is unaffected (both parsers agree). Caught
+  when the typed-projection integration test asserted the
+  exploratory-derived `450` and the correct parser returned `0` —
+  the §10.11 table was corrected to the authoritative values and the
+  exploratory tool is downgraded to recon-only.
 
 ## Appendix B — provenance & migration map
 

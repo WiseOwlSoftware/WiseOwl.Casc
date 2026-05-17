@@ -175,4 +175,47 @@ public sealed class Diablo4StorageIntegrationTests
         Assert.Contains(scene.Widgets, w =>
             w.Fields.Any(f => f.TypeHash == Diablo4.TypeHash("DT_INT")));
     }
+
+    /// <summary>FR-C7 §7.1: the typed paragon projection over
+    /// <c>ReadUiScene</c>. Asserts the spec §10 proven facts: CanvasRef
+    /// 1920×1200, the ParagonNodes container rect, the 90°-quadrant
+    /// rotation (0 at the Warlock-Start provenance, CL-10), and the
+    /// staged-delivery contract (`Ratios.Provisional` = true; no pitch
+    /// number asserted). Self-skips with no install.</summary>
+    [SkippableFact]
+    public void ReadParagonRenderLayout_decodes_proven_structure()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+
+        var rl = d4.ReadParagonRenderLayout();
+
+        // CanvasRef = the root ParagonBoard_main rect — confirmed by
+        // BOTH the header-pinned ReadUiScene and the exploratory tool
+        // (§10 decoded fact, the authoritative value).
+        Assert.Equal(1920, rl.CanvasReference.Width);
+        Assert.Equal(1200, rl.CanvasReference.Height);
+
+        // The per-node element is `Template_Node_Common` (~100² ref
+        // units), per the authoritative header-pinned parse (CL-14;
+        // the earlier "ParagonNodes 450×1115" was an exploratory-tool
+        // nearest-name mis-attribution — 450 is SidePanel_Content).
+        Assert.Equal(100, rl.NodeTemplate.Width);
+
+        // The container's own rect is runtime-bound (bindable premise,
+        // §10.7) — truthfully 0, not an authored constant.
+        Assert.Equal(0, rl.NodeContainer.Width);
+
+        // CL-10: 90°-multiple quadrant only; Warlock-Start = 0
+        // (45° is unrepresentable by the int type).
+        Assert.InRange(rl.BoardRotationQuadrant, 0, 3);
+        Assert.Equal(0, rl.BoardRotationQuadrant);
+
+        // Staged-delivery contract: ratios Provisional until the §10.8
+        // 67.7 anchor reproduces — no pitch number asserted yet; the
+        // 18-row State matrix is filled only with decode-proven rows.
+        Assert.True(rl.Ratios.Provisional);
+        Assert.Equal(0d, rl.Ratios.PitchRef);
+    }
 }

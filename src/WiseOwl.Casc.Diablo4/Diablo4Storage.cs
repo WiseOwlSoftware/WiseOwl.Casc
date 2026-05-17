@@ -302,6 +302,19 @@ public sealed class Diablo4Storage : IDisposable
     public UiScene ReadUiScene(int snoId) =>
         UiScene.Parse(snoId, ReadSno(UiScene.Group, snoId));
 
+    /// <summary>
+    /// The typed paragon-board render projection (FR-C7) over the
+    /// generic <see cref="ReadUiScene"/> decode of <c>ParagonBoard</c>
+    /// (SNO 657304). Raw decoded geometry only; the absolute
+    /// resolution/zoom scale is permanently the consumer's. See
+    /// <see cref="ParagonRenderLayout"/> for the staged-delivery
+    /// contract (<c>Ratios.Provisional</c>; the 18-row state matrix is
+    /// filled as the per-state assembly is decode-proven — no
+    /// fabricated rows).
+    /// </summary>
+    public ParagonRenderLayout ReadParagonRenderLayout() =>
+        ParagonRenderProjection.Project(ReadUiScene(657304));
+
     /// <summary>Read + decode a <see cref="ParagonBoardDefinition"/> by SNO
     /// id (group 108).</summary>
     public ParagonBoardDefinition ReadParagonBoard(int id) =>
