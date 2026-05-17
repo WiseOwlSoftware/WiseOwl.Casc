@@ -1,10 +1,14 @@
 # Diablo4Storage.ReadParagonGlyph method
 
-Read + decode a [`ParagonGlyphDefinition`](../ParagonGlyphDefinition.md) by SNO id (group 111).
+Read + decode a [`ParagonGlyphDefinition`](../ParagonGlyphDefinition.md) by SNO id (group 111), with its class membership resolved ([`UsableByClassSnoIds`](../ParagonGlyphDefinition/UsableByClassSnoIds.md) — FR-D3).
 
 ```csharp
 public ParagonGlyphDefinition ReadParagonGlyph(int id)
 ```
+
+## Remarks
+
+The record's `fUsableByClass` boolean fixed array (payload `+0x24`) is indexed by eClass rank (see PlayerClassRanks); membership = the §6.5 PlayerClass SNO ids whose rank slot is non-zero. Only resolved for a structurally well-formed glyph (the affix descriptor at payload `+0x50` == 104); malformed/placeholder records get an empty set (honest sentinel, per the durable opaque-id boundary — Appendix C / CL-18). Raw decoded values only.
 
 ## See Also
 

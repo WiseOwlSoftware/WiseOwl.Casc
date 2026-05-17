@@ -18,7 +18,10 @@ namespace WiseOwl.Casc.Diablo4;
 /// </remarks>
 public sealed class ParagonGlyphDefinition
 {
+    private static readonly int[] NoClasses = [];
+
     private readonly int[] _affixSnoIds;
+    private int[] _usableByClassSnoIds = NoClasses;
 
     private ParagonGlyphDefinition(int snoId, int[] affixSnoIds)
     {
@@ -31,6 +34,35 @@ public sealed class ParagonGlyphDefinition
 
     /// <summary>The glyph's ParagonGlyphAffix SNO ids (0..3, in slot order).</summary>
     public IReadOnlyList<int> AffixSnoIds => _affixSnoIds;
+
+    /// <summary>
+    /// The set of classes that may socket this glyph, as
+    /// <see cref="SnoGroup.PlayerClass"/> SNO ids — the shared class key
+    /// (== <see cref="CharacterClass.SnoId"/> /
+    /// <see cref="ParagonBoardDefinition.ClassSnoId"/>; FR-D3). Empty if
+    /// decoded via the byte-only <see cref="Parse(ReadOnlySpan{byte})"/>
+    /// (no <see cref="CoreToc"/> to resolve the class ordering), or for a
+    /// malformed/placeholder glyph record (honest empty sentinel — never a
+    /// silently-wrong class).
+    /// </summary>
+    /// <remarks>
+    /// Decoded clean-room (<c>docs/casc-diablo4-format.md §7.3</c>,
+    /// Appendix A CL-18). The record carries a per-class boolean fixed
+    /// array <c>fUsableByClass</c> at payload <c>+0x24</c>; the slot index
+    /// for a class is that class's <b>eClass rank</b> — the position of the
+    /// class when the §6.5 PlayerClass roster is ordered ascending by the
+    /// class's <c>eClass</c> ordinal (PlayerClass record payload <c>+16</c>).
+    /// Per the durable opaque-id principle (Appendix C) this ordering is a
+    /// data mapping decoded once, library-side, exposed typed — never a
+    /// consumer bit-order guess. Populated by
+    /// <see cref="Diablo4Storage.ReadParagonGlyph(int)"/>.
+    /// </remarks>
+    public IReadOnlyList<int> UsableByClassSnoIds => _usableByClassSnoIds;
+
+    /// <summary>Attach the resolved class membership (internal — set by
+    /// <see cref="Diablo4Storage.ReadParagonGlyph(int)"/>).</summary>
+    internal void SetUsableByClassSnoIds(int[] classSnoIds) =>
+        _usableByClassSnoIds = classSnoIds;
 
     /// <summary>Decode a ParagonGlyph from its raw SNO blob.</summary>
     public static ParagonGlyphDefinition Parse(ReadOnlySpan<byte> blob)
