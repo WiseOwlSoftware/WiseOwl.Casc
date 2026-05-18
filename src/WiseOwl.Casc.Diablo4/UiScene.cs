@@ -141,26 +141,29 @@ public sealed record UiScene(int SnoId, IReadOnlyList<UiWidget> Widgets)
                     q < values.Count ? values[q] : 0u,
                     q < values.Count);
 
-            // Pass 2c (FR-C8): some widgets — notably the start/gate node
-            // templates — bind their layer values not as 56-byte 0x22
-            // records but as a distinct fixed 0x58-byte block:
-            //   +0x00 u32 tag (2 = bound layer value)
-            //   +0x04 u32 0
-            //   +0x08 u32 value (the bound value, e.g. a texture handle)
-            //   +0x20 u32 owner class id   +0x28 u32 0xFFFFFFFF sentinel
-            // The §10.3 0x22/56-byte scan does not model this shape, so
-            // these values were dropped (the start/gate decode gap,
-            // CL-23/FR-C8). Capture them losslessly, in serialized order.
-            const int Blk = 0x58;
+            // Pass 2c (FR-C8/FR-C9): the "bound-layer block" — a value
+            // bound NOT as a 56-byte 0x22 record but as the shape
+            //   +0x00 u32 tag = 2   +0x04 u32 0   +0x08 u32 value
+            // (start/gate frames, rare/leg ornate, grey ring, …). The
+            // FR-C8/CL-23 model over-fit two example blocks
+            // (owner-class-id @+0x20, 0xFFFFFFFF @+0x28); those words are
+            // NOT universal (other blocks carry a pointer / zeros there),
+            // and the *last* block of a widget straddles the next
+            // nameStart so its tail is unreadable anyway — exactly the
+            // CL-24 lesson, generalised (FR-C9, CL-26). The only stable,
+            // self-validating marker is `tag==2, +4==0, value@+8`;
+            // capture every such block's value losslessly (the typed
+            // projection / the consumer catalog-validate — raw stays
+            // raw). Bound on the value field (p+12), never the full
+            // block, so no straddling tail is dropped.
             var extra = new List<uint>();
-            for (int p = from; p + Blk <= to; )
+            for (int p = from; p + 12 <= to; )
             {
-                if (U32(blob, p) == 2u && U32(blob, p + 4) == 0u &&
-                    U32(blob, p + 0x28) == Sentinel)
+                if (U32(blob, p) == 2u && U32(blob, p + 4) == 0u)
                 {
                     uint v = U32(blob, p + 8);
                     if (v is not 0u and not Sentinel) extra.Add(v);
-                    p += Blk;
+                    p += 12;
                 }
                 else p += 4;
             }

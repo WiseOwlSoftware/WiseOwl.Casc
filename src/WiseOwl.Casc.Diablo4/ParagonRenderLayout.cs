@@ -32,6 +32,35 @@ public sealed record ParagonRenderLayout(
     NodeElement Symbol,
     IReadOnlyList<StateElements> States);
 
+/// <summary>
+/// The <b>exhaustive</b> paragon render-model (FR-C9): the role-assigned
+/// <see cref="Layout"/> (FR-C7/C8 typed projection) plus, for every
+/// paragon UI-scene, every widget that binds at least one real atlas
+/// texture handle — with the handle, its decoded
+/// <see cref="WidgetRect"/>, and alpha. This is the one-shot audit
+/// surface: the library guarantees it is <b>complete</b> (no binding
+/// shape dropped — proven by the FR-C9 coverage gate); the consumer
+/// owns role/state classification (FR-C7 §6 boundary).
+/// </summary>
+public sealed record ParagonRenderModel(
+    ParagonRenderLayout Layout,
+    IReadOnlyList<ParagonSceneModel> Scenes);
+
+/// <summary>One paragon UI-scene's complete atlas-binding model: every
+/// widget that binds ≥1 real atlas handle.</summary>
+/// <param name="SnoId">The UI-scene SNO (657304 ParagonBoard /
+/// 964599 ParagonBoardSelect).</param>
+/// <param name="Widgets">Every binding widget, in scene order.</param>
+public sealed record ParagonSceneModel(
+    int SnoId, IReadOnlyList<ParagonBoundWidget> Widgets);
+
+/// <summary>A scene widget that binds ≥1 real atlas texture handle:
+/// its name, class id, and the bound layers (handle + decoded rect +
+/// alpha) regardless of binding shape (0x22 field or the 0x58 block).
+/// Raw + complete; the consumer assigns role/state.</summary>
+public sealed record ParagonBoundWidget(
+    string Name, uint ClassId, IReadOnlyList<NodeElement> Layers);
+
 /// <summary>The UI design space the raw rects are authored in (decoded
 /// from the root <c>ParagonBoard_main</c> widget; verified
 /// 1920×1200).</summary>
@@ -360,5 +389,44 @@ internal static class ParagonRenderProjection
             boardRotationQuadrant,
             Disc: disc, Symbol: default,
             States: states);
+    }
+
+    /// <summary>
+    /// FR-C9: the exhaustive per-scene atlas-binding model. Every widget
+    /// that binds ≥1 real atlas handle — from <b>either</b> shape (a
+    /// 0x22 field value or a 0x58 block value, both surfaced losslessly
+    /// by <see cref="UiScene"/>) — with the handle, the widget's decoded
+    /// rect, and alpha. Shape-agnostic and complete: a future binding
+    /// shape that <see cref="UiScene"/> still surfaces appears here too;
+    /// the FR-C9 coverage gate proves none is dropped.
+    /// </summary>
+    public static ParagonSceneModel SceneModel(
+        UiScene scene, Func<uint, bool> isTextureHandle)
+    {
+        uint AlphaOf(UiWidget w)
+        {
+            foreach (var f in w.Fields)
+                if (f.HasValue && f.FieldHash == Diablo4.FieldHash("dwAlpha"))
+                    return (byte)f.RawValue;
+            return 0;
+        }
+
+        var widgets = new List<ParagonBoundWidget>();
+        foreach (var w in scene.Widgets)
+        {
+            var rect = Rect(w);
+            var alpha = (byte)AlphaOf(w);
+            var seen = new HashSet<uint>();
+            var layers = new List<NodeElement>();
+            foreach (var f in w.Fields)
+                if (f.HasValue && isTextureHandle(f.RawValue) && seen.Add(f.RawValue))
+                    layers.Add(new NodeElement(f.RawValue, rect, alpha));
+            foreach (var v in w.ExtraLayerValues)
+                if (isTextureHandle(v) && seen.Add(v))
+                    layers.Add(new NodeElement(v, rect, alpha));
+            if (layers.Count > 0)
+                widgets.Add(new ParagonBoundWidget(w.Name, w.ClassId, layers));
+        }
+        return new ParagonSceneModel(scene.SnoId, widgets);
     }
 }

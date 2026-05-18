@@ -1048,6 +1048,51 @@ the contract is amendable — CL-25). Verified by
 `ReadParagonRenderLayout_decodes_proven_structure` (rare ⊇
 `0xB71BD068`, ∌ `0x4A901508`; `overlay.availableGlow` ⊇ `0x4A901508`).
 
+### 10.14 Exhaustive render-model + the lossless-decode guarantee (FR-C9, CL-26)
+
+FR-C8 took nine rounds because each was the same shape: a binding
+`Project()` *silently dropped*, found only as a visual defect. FR-C9
+makes completeness structural.
+
+**The two binding-record value shapes (the published schema).** A
+widget's bound values are at the `+0x08` slot of exactly one of:
+
+| Shape | Marker | Value |
+|---|---|---|
+| 56-byte `0x22` record | `byte/u32 @+0 == 0x22` | `u32 @+0x08` (positionally keyed to the schema) |
+| bound-layer block | `u32 @+0 == 2`, `u32 @+0x04 == 0` | `u32 @+0x08` |
+
+The FR-C8/CL-23 block model over-fit two examples (it required
+`ownerClassId @+0x20` and `0xFFFFFFFF @+0x28`); those words are **not
+universal** — other blocks carry a pointer or zeros there, and a
+widget's *last* block straddles the next `nameStart` so its tail is
+unreadable. The only stable, self-validating marker is
+`tag==2, +4==0, value@+8` (the same lesson CL-24 taught for the `0x22`
+tail). `UiScene.Parse` now captures **every** such value (both shapes,
+bounded on the value field, never the full record) — so raw
+`ReadUiScene` is **lossless** for texture bindings.
+
+**Structural definition + guarantee.** A *texture-binding* is, shape-
+agnostically, any handle-magnitude `u32` (≥ `0x10000`; D4 handles are
+32-bit hashes — smaller atlas-resolving values are field ints/enums,
+never bindings) that resolves via the icon catalog
+(`Diablo4Storage.IsParagonTextureHandle`). The library **guarantees**:
+for `ParagonBoard` 657304 and `ParagonBoardSelect` 964599, every
+texture-binding present anywhere in the raw scene is surfaced by
+`ReadParagonRenderModel()` — and this is **enforced by casc's own
+acceptance suite** (`ParagonRenderModel_covers_every_bound_atlas_
+handle`): a future projection/parse gap fails the library's CI, not
+the consumer's eyeballs. The canonical FR-C7-era miss (grey rim ring
+`0x87A89F86`, "not in data") is now present with its rect.
+
+**Surface.** `Diablo4Storage.ReadParagonRenderModel()` →
+`ParagonRenderModel(Layout, Scenes)`: `Layout` is the role-assigned
+FR-C7/C8 projection; `Scenes` (657304, 964599) lists every binding
+widget with `{Name, ClassId, Layers[{handle, rect, alpha}]}` — the
+one-shot exhaustive audit surface. The library owns *complete faithful
+decode + the gate*; role/state classification stays the consumer's
+(FR-C7 §6). See Appendix A CL-26.
+
 ## 11. Non-paragon typed record readers (C6)
 
 The B1–B6 scope-freeze was **lifted by owner decision 2026-05-17**
@@ -1395,6 +1440,24 @@ true value (the sections above already state the corrected truth).
   rare ornate — it was the mis-labelled glow, now its own row, distinct
   from `0xB71BD068`. Asserted by
   `ReadParagonRenderLayout_decodes_proven_structure`.
+
+- **CL-26 — bound-layer block over-fit; raw decode now lossless +
+  structurally gated (FR-C9).** §10.14. The CL-23 `0x58` block model
+  required `ownerClassId @+0x20` + `0xFFFFFFFF @+0x28`; those are not
+  universal (other blocks carry a pointer/zeros) and a widget's last
+  block straddles the next `nameStart` — so a class of real bindings
+  (e.g. grey ring `0x87A89F86`, FR-C7 "not in data") was still dropped.
+  Generalised the CL-24 lesson: the only stable marker is
+  `tag==2, +4==0, value@+8`; `UiScene.Parse` captures every such value
+  bounded on the value field (no straddle drop) ⇒ raw `ReadUiScene` is
+  **lossless** for texture bindings. New `ReadParagonRenderModel()`
+  (exhaustive per-scene `{handle, rect, alpha}` for 657304/964599) +
+  `IsParagonTextureHandle` (the shared structural test: handle-
+  magnitude ≥`0x10000` ∧ catalog-resolvable). **Coverage gate**
+  `ParagonRenderModel_covers_every_bound_atlas_handle` asserts (shape-
+  agnostically) every handle-magnitude atlas-resolvable u32 in the raw
+  scenes is surfaced — a future gap fails casc CI, not consumer
+  eyeballs. Schema published in §10.14.
 
 ## Appendix B — provenance & migration map
 
