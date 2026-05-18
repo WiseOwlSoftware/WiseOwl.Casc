@@ -207,8 +207,21 @@ decision.
    per-node glow pulse is engine-driven (no authored timing;
    `Storyboard_*` are UI transitions) — `AnimSpec=null` reaffirmed,
    bake a static frame. Reopen only with an in-game oracle showing
-   authored timing. Legendary/socket *composition* UNCHANGED (FR-C7
-   Common path).
+   authored timing. **R7/R8** select/deselect brightness/colour =
+   definitively not authored (engine shader; `Tint`/`LitTint=null`
+   the decoded answer; CL-24(d)). **R9 (PR #18, 31f33ce, CL-25 — an
+   FR-C7 correction):** FR-C7's r3/r4 "ornate" (`Elem("NodeAvailable
+   Glow")`=`0x4A901508`) was the SAME projection gap as start/gate —
+   it never read `Template_Node_Rare`/`_Legendary`'s own `0x58` layer.
+   Corrected: r3/r4 now `disc` + the template's own decode-true ornate
+   (Rare `0xB71BD068`, catalog-validated `LayersOf`); `0x4A901508` is
+   `NodeAvailableGlow` = the **selectable/available glow** (state, any
+   rarity) → new **`overlay.availableGlow`** State (handle+Rect). §7.2
+   matrix now **19 rows** (pre-publish amendment). Spec §10.11/§10.13.
+   **R10 consumer action pending:** this revises FR-C7 r3/r4 the
+   consumer validated in R3/R4 (switch rare/leg ornate to corrected
+   `States.Layers`, add the glow overlay). Legendary/socket Common-path
+   pulse composition otherwise unchanged.
 9b. **FR-C7 (DELIVERED — RE complete, all gates met; devlogs 0010/0011,
    spec §10 + CL-9..CL-14, consumer contract `docs/fr-c7-api-proposal.md`
    §7).** D4 UI-scene format (group 46 = type `UI`, hash `0xE4825AB8`;
