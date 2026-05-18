@@ -1,5 +1,7 @@
 # UiWidget.Name property
 
+The widget's inline name.
+
 ```csharp
 public string Name { get; set; }
 ```

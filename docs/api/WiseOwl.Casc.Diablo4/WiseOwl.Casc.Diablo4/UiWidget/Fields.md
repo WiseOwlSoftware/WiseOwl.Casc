@@ -1,5 +1,7 @@
 # UiWidget.Fields property
 
+Bound fields (56-byte 0x22 path), in order.
+
 ```csharp
 public IReadOnlyList<UiField> Fields { get; set; }
 ```

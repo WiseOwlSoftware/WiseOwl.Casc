@@ -1,6 +1,6 @@
 # UiWidget record
 
-One widget in a [`UiScene`](./UiScene.md): its inline name, its class id (`= Diablo4.TypeHash(class name)`), and its bound fields in serialized order.
+One widget in a [`UiScene`](./UiScene.md): its inline name, its class id (`= Diablo4.TypeHash(class name)`), its bound fields in serialized order, and any [`ExtraLayerValues`](./UiWidget/ExtraLayerValues.md) bound via the 0x58-block shape (FR-C8 — the start/gate composite layers).
 
 ```csharp
 public record UiWidget
@@ -10,10 +10,11 @@ public record UiWidget
 
 | name | description |
 | --- | --- |
-| [UiWidget](UiWidget/UiWidget.md)(…) | One widget in a [`UiScene`](./UiScene.md): its inline name, its class id (`= Diablo4.TypeHash(class name)`), and its bound fields in serialized order. |
-| [ClassId](UiWidget/ClassId.md) { get; set; } |  |
-| [Fields](UiWidget/Fields.md) { get; set; } |  |
-| [Name](UiWidget/Name.md) { get; set; } |  |
+| [UiWidget](UiWidget/UiWidget.md)(…) | One widget in a [`UiScene`](./UiScene.md): its inline name, its class id (`= Diablo4.TypeHash(class name)`), its bound fields in serialized order, and any [`ExtraLayerValues`](./UiWidget/ExtraLayerValues.md) bound via the 0x58-block shape (FR-C8 — the start/gate composite layers). |
+| [ClassId](UiWidget/ClassId.md) { get; set; } | The class id (`= Diablo4.TypeHash(class)`). |
+| [ExtraLayerValues](UiWidget/ExtraLayerValues.md) { get; set; } | Values bound via the fixed 0x58-block shape (tag 2, sentinel at +0x28), in serialized order — the layer stack for templates like `Template_Node_Starter` / `Template_Node_Quest` whose composites the §10.3 0x22 scan does not model. Raw values (e.g. texture handles); interpretation is the consumer's / the typed projection's. |
+| [Fields](UiWidget/Fields.md) { get; set; } | Bound fields (56-byte 0x22 path), in order. |
+| [Name](UiWidget/Name.md) { get; set; } | The widget's inline name. |
 
 ## See Also
 

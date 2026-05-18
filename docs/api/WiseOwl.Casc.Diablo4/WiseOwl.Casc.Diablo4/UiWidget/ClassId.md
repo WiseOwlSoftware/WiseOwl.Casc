@@ -1,5 +1,7 @@
 # UiWidget.ClassId property
 
+The class id (`= Diablo4.TypeHash(class)`).
+
 ```csharp
 public uint ClassId { get; set; }
 ```
