@@ -3,8 +3,10 @@
 The **Diablo IV** game module for [`WiseOwl.Casc`](https://www.nuget.org/packages/WiseOwl.Casc) —
 modern .NET. CoreTOC, SNO read-by-id, shared-payload
 resolution, the `0x44CF00F5` combined-meta family (textures + the
-per-locale StringList catalog), BC1/BC3 decode, and typed paragon /
-GameBalance record decoders.
+per-locale StringList catalog), BC1/BC3 decode, and typed record
+decoders — paragon boards/nodes/glyphs, character classes,
+powers/affixes/items, and the paragon UI render layout (raw fields
+only).
 
 > **Unofficial.** Not affiliated with or endorsed by Blizzard
 > Entertainment. Diablo and Diablo IV are trademarks of Blizzard
