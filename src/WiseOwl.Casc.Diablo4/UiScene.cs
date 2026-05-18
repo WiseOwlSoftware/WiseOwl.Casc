@@ -112,11 +112,27 @@ public sealed record UiScene(int SnoId, IReadOnlyList<UiWidget> Widgets)
                 }
 
             var values = new List<uint>();
-            for (int p = from; p + RecordSize <= to; )
+            for (int p = from; p + 12 <= to; )
             {
-                if (blob[p] == RecordTag && U32(blob, p) == RecordTag)
-                { values.Add(U32(blob, p + 8)); p += RecordSize; }
-                else p += 4;
+                bool tag = blob[p] == RecordTag && U32(blob, p) == RecordTag;
+                if (p + RecordSize <= to)
+                {
+                    // Full record fits — original positional behaviour
+                    // (unchanged, so the FR-C7 decode is byte-identical).
+                    if (tag) { values.Add(U32(blob, p + 8)); p += RecordSize; }
+                    else p += 4;
+                }
+                else
+                {
+                    // Tail: the *last* record of a widget can straddle
+                    // the next widget's nameStart (`to` is the name
+                    // boundary, not the record boundary). Its value
+                    // (+0x08) still fits; collect that one and stop, so
+                    // a widget whose final field is the texture handle
+                    // (e.g. Arrow_*) is not dropped (FR-C8 R6 / CL-24).
+                    if (tag) { values.Add(U32(blob, p + 8)); break; }
+                    p += 4;
+                }
             }
 
             var uf = new UiField[fields.Count];
