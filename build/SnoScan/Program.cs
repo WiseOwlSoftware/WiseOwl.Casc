@@ -431,6 +431,18 @@ switch (cmd)
         }
         return 0;
     }
+    case "childpaths":
+    {
+        // FR-14 recon: every TVFS path under Base\Child\ (uncapped).
+        int max = argv.Count > 1 ? int.Parse(argv[1]) : 40;
+        var paths = d4.Casc.DiagnosticPaths(
+            p => p.Replace('/', '\\').IndexOf("\\child\\",
+                StringComparison.OrdinalIgnoreCase) >= 0);
+        Console.WriteLine($"{paths.Count} child path(s)");
+        for (int i = 0; i < paths.Count && i < max; i++)
+            Console.WriteLine(paths[i]);
+        return 0;
+    }
     default:
         Console.Error.WriteLine($"unknown command '{cmd}'");
         return 2;

@@ -397,6 +397,31 @@ populates `ParagonBoardDefinition.ClassSnoId` (the §6.5 stable key),
 derives from the name, not the bytes — honest sentinels, documented).
 See Appendix A CL-16.
 
+### 6.7 Generalized sibling-StringList convention (CL-20)
+
+§6.4 (ParagonBoard name) is one instance of a **general D4 convention**:
+a record's localized text lives in a group-42
+(`SnoGroup.StringList`) SNO whose CoreTOC name is
+`"<TypePrefix>_" + recordSnoName`, resolved **strictly name-keyed** via
+`CoreToc` (the two SNO ids are unrelated — never an offset). Verified
+prefixes/labels on build `3.0.2.71886`:
+
+| Record group | Type prefix | Label(s) | Anchor |
+|---|---|---|---|
+| 108 ParagonBoard | `ParagonBoard_` | `Name` | `Paragon_Warlock_00` → `Start` (§6.4) |
+| 73 Item | `Item_` | `Name`, `Flavor`, `TransmogName`, `Description` | `1HAxe_Unique_Generic_001` (223287) → `Item_1HAxe_Unique_Generic_001` (941704) → Name `The Butcher's Cleaver` |
+| 104 Affix | `Affix_` | `Desc` | `Talisman_Charm_Affix_1HAxe_Unique_Generic_001` (2586362) → `Affix_…` (2586361) → Desc `Your attacks Critically Strike …` |
+| 29 Power | `Power_` | `name`, `desc` (lowercase) | `Paragon_Warlock_Legendary_001` (2521393) → `Power_…` (2521392) → name `Fathomless` |
+
+(Character-class names are the parallel §6.5 case — the `General`
+table, not a per-SNO sibling.) Raw decoded text only — D4 markup
+intact; an absent sibling table / label returns empty (honest
+sentinel; the consumer owns any fallback). The library exposes this via
+the typed C6 readers (§11) and `Diablo4Storage.TryReadParagonBoardName`;
+all share one internal resolver. Per the durable opaque-id principle
+(Appendix C) this convention is decoded once, library-side. See
+Appendix A CL-20.
+
 ## 7. Paragon record layouts (SNO groups 106 / 108 / 111 / 112)
 
 All offsets payload-relative (base `0x10`).
@@ -874,6 +899,64 @@ Remaining:
    acceptance matrix. The consumer is on HOLD; no public surface is
    added before step 2 passes.
 
+## 11. Non-paragon typed record readers (C6)
+
+The B1–B6 scope-freeze was **lifted by owner decision 2026-05-17**
+(Appendix C). C6 adds typed readers for the non-paragon record groups
+the consumer needs to eliminate `D4Extract`. Consistent with the
+library boundary, these decode **identity + localized text only** —
+the deep gameplay records (multi-KB skill/item engine structs) remain
+the consumer's stat-effect model; the library does not fabricate a
+model it cannot verify. Localized fields use the §6.7 sibling
+convention (empty when absent — honest sentinel). All offsets
+payload-relative (base `0x10`).
+
+### 11.1 `PlayerClassDefinition` (group 74, `.prd`)
+
+| Offset | Type | Field |
+|---|---|---|
+| 0 | DT_INT | `snoId` |
+| 16 | DT_INT | `eClass` — internal class enum ordinal |
+
+`eClass` is sparse but stable (Sorcerer 0, Barbarian 1, Rogue 3,
+Druid 5, Necromancer 6, Spiritborn 7, Paladin 9, Warlock 10 on build
+`3.0.2.71886`); ranking the real-class roster by it gives the glyph
+`fUsableByClass` slot order (§7.3 / FR-D3 — this is the same field
+CL-18 relies on, now exposed typed). Surface:
+`Diablo4Storage.ReadPlayerClass(int)`. CL-21.
+
+### 11.2 `PowerDefinition` (group 29, `.pow`)
+
+Identity (`snoId@0`) + localized `Name`/`Description` from the §6.7
+sibling table `Power_<snoName>`, labels `name`/`desc`. The power's
+gameplay record (≈6 KB) is **not** decoded — consumer domain. (Note:
+an inline `szName` exists at payload `+8` for *some* powers but is
+absent for many — e.g. `CAMP_*` — so the sibling table is the reliable
+name source, not that offset.) Anchor: power `2521393` →
+`name` `Fathomless`. Surface: `Diablo4Storage.ReadPower(int, locale)`.
+CL-22.
+
+### 11.3 `AffixDefinition` (group 104, `.aff`)
+
+Identity (`snoId@0`) + localized `Description` from sibling
+`Affix_<snoName>`, label `Desc`. Affix magnitude/operation modeling is
+the consumer's (glyph-affix magnitudes are §7.4). Anchor: affix
+`2586362` → Desc `Your attacks Critically Strike …`. Surface:
+`Diablo4Storage.ReadAffix(int, locale)`. CL-22.
+
+### 11.4 `ItemDefinition` (group 73, `.itm`)
+
+Identity (`snoId@0`) + localized `Name`/`Flavor`/`TransmogName` from
+sibling `Item_<snoName>`. Item stat/affix/power modeling is consumer
+domain. Anchor: item `223287` (`1HAxe_Unique_Generic_001`) → Name
+`The Butcher's Cleaver`, TransmogName `Cadaver Chopper`. Surface:
+`Diablo4Storage.ReadItem(int, locale)`. CL-22.
+
+All four: byte-only `Parse(blob)` yields identity only (localized
+fields empty — they need `CoreToc`); the deep binary beyond the
+documented fields is deliberately not decoded (boundary, not a gap —
+no fabricated values, mirroring the FR-C7 discipline).
+
 ## Appendix A — correction log (Diablo IV errata)
 
 What was found wrong/omitted during empirical implementation, and the
@@ -1064,6 +1147,39 @@ true value (the sections above already state the corrected truth).
   populated by `Diablo4Storage.ReadParagonGlyph(int)`; byte-only
   `Parse(blob)` leaves it empty.
 
+- **CL-19 — FR-14 `SnoFolder.Child` acceptance pinned.** The
+  id-keyed resolver was always folder-generic; the gated acceptance is
+  now closed with a concrete build-`3.0.2.71886` anchor: SNO `1015186`
+  (group 71, `AmbS_EMT_Dungeon_AncientsSand`) resolves
+  `Base\Child\1015186-0` to non-empty bytes; a non-existent sub-id is a
+  clean miss (no throw). The full census is ≈547,244
+  `base/child/<id>-<n>` paths (`CascStorage.DiagnosticPaths`; SnoScan
+  `childpaths` recon). The `Resolves_child_folder_by_id` test no longer
+  self-skips. Re-verify trigger: Appendix D.
+
+- **CL-20 — sibling-StringList convention generalized (FR-D1 → C6).**
+  §6.4 (ParagonBoard `Name`) is one case of the general rule recorded
+  in §6.7: localized text is the group-42 SNO `"<TypePrefix>_" +
+  recordSnoName`, name-keyed via `CoreToc`. Verified prefixes/labels:
+  `Item_`(Name/Flavor/TransmogName/Description), `Affix_`(Desc),
+  `Power_`(name/desc), `ParagonBoard_`(Name). One internal resolver
+  backs `TryReadParagonBoardName` + the C6 readers; raw text, honest
+  empty when absent.
+
+- **CL-21 — `PlayerClassDefinition.eClass` typed (C6, §11.1).** The
+  class enum ordinal at PlayerClass payload `+16` (the field CL-18
+  ranks for the glyph slot order) is now exposed via
+  `Diablo4Storage.ReadPlayerClass(int)`. Anchors: Warlock 2207749→10,
+  Sorcerer 131965→0, Necromancer 199277→6 (consistent with CL-18).
+
+- **CL-22 — Power/Affix/Item typed readers (C6, §11.2–11.4).**
+  Identity + §6.7 sibling-localized text only; deep gameplay records
+  not decoded (boundary, not a gap — no fabricated values). Anchors
+  (build `3.0.2.71886`, enUS): Power `2521393`→`Fathomless`; Affix
+  `2586362`→Desc `Your attacks Critically Strike …`; Item
+  `223287`→Name `The Butcher's Cleaver`, Transmog `Cadaver Chopper`.
+  Asserted by `C6_typed_readers_decode_identity_and_localized_text`.
+
 ## Appendix B — provenance & migration map
 
 Auditable mapping of every upstream `d4-binary-formats.md §3–§8.15`
@@ -1099,8 +1215,9 @@ combined-meta family (`TextureDefinition` + StringList), image-library-
 agnostic BC1/BC3 decode (`DecodeMip0` → raw straight-alpha RGBA32; the
 caller crops with `TexFrame.PixelRect` and owns any imaging/PNG/
 compositing), the game-wide `GbidHash`, the per-locale StringList
-catalog, and the typed paragon/GameBalance **record decoders** (§§7–8) —
-**raw fields only**.
+catalog, and the typed paragon/GameBalance **record decoders** (§§7–8)
+plus the **C6 non-paragon readers** (§11: PlayerClass/Power/Affix/Item
+— identity + sibling-localized text) — **raw fields only**.
 
 It does **not** own (consumer policy, authoritative in `e:\Paragon`):
 formula evaluation/recursion, the 6 calibrated engine intrinsics, the
@@ -1108,11 +1225,14 @@ scoring/objective model, the relight/disc+symbol composite calibration,
 or the app's bundled-JSON schema. The library ships **no formula
 evaluator at all**, by decision.
 
-**FR-16.** Item / Affix / Power / Class / GameBalance → stat-effect
-*modeling* is a ParagonOptimizer **domain spec** built on the library's
-id-keyed read + record decoders + `GbidHash` + StringList. The library
-will not grow scoring/evaluation APIs. Round-2/3 feature requests and
-their disposition are tracked in `docs/feature-backlog.md`.
+**FR-16 / C6 (scope-freeze lifted 2026-05-17, owner).** The earlier
+"B1–B6 + existing, FROZEN" line is superseded: C6 typed readers ship
+(§11). The boundary still holds at *modeling* — the library decodes
+**identity + the verifiable raw/localized fields**; it does **not**
+fabricate a stat-effect model of the multi-KB Power/Item engine
+records (that, plus scoring/evaluation, stays the ParagonOptimizer
+domain spec). The library will not grow scoring/evaluation APIs.
+Round-2/3 + C6 disposition is tracked in `docs/feature-backlog.md`.
 
 **Durable principle — SNO names are opaque ids (2026-05-17, owner;
 mirrored here from `fr-d1-paragon-board-name.md §3` /
@@ -1125,7 +1245,8 @@ as a byte layout**: decoded **once, library-side**, documented with a
 never re-implemented as a consumer regex that drifts silently when
 Blizzard renames/relocalizes/extends it. *"It's a readable string not
 bytes" does not move the boundary.* Applied: §6.4 (board name, CL-15),
-§6.6 (board class/index, CL-16), §6.5 (class roster, CL-17). Decoding
+§6.6 (board class/index, CL-16), §6.5 (class roster, CL-17), §6.7
+(sibling convention generalized, CL-20), §11 (C6 readers). Decoding
 such a convention library-side is in-boundary; "Readable string not
 bytes" never makes name-parsing a consumer concern.
 
@@ -1138,3 +1259,12 @@ bytes" never makes name-parsing a consumer concern.
   Key `522f2f30f1eb0e32af225966b8ac91d1`).
 - **Re-verify trigger:** the `.build.info` Build Key changes (seasonal
   patch). Re-run the integration tests; update Appendix A on any drift.
+- **FR-14 / C6 acceptance anchors (build `3.0.2.71886`, enUS):**
+  Child — SNO `1015186` (group 71) `Base\Child\1015186-0` non-empty.
+  PlayerClass — `2207749`→eClass 10, `131965`→0, `199277`→6.
+  Power — `2521393`→`Fathomless`. Affix — `2586362`→Desc
+  `Your attacks Critically Strike …`. Item — `223287`→Name
+  `The Butcher's Cleaver`, Transmog `Cadaver Chopper`. These are the
+  `Resolves_child_folder_by_id` /
+  `C6_typed_readers_decode_identity_and_localized_text` assertions;
+  a season may relocalize the strings (re-pin from the live build).

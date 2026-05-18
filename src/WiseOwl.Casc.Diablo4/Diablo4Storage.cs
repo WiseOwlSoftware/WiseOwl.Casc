@@ -444,16 +444,32 @@ public sealed class Diablo4Storage : IDisposable
     /// <param name="locale">Locale (default <see cref="DefaultLocale"/>).</param>
     /// <returns><see langword="true"/> iff a localized name was decoded.</returns>
     public bool TryReadParagonBoardName(
-        int boardSnoId, out string name, string locale = DefaultLocale)
+        int boardSnoId, out string name, string locale = DefaultLocale) =>
+        TryReadSiblingString(
+            SnoGroup.ParagonBoard, boardSnoId,
+            ParagonBoardStringTablePrefix, ParagonBoardNameLabel,
+            locale, out name);
+
+    /// <summary>
+    /// The generalized D4 <b>sibling-StringList convention</b> (FR-D1
+    /// §6.4 generalized to §6.7 / CL-20): a record's localized text lives
+    /// in the group-<see cref="SnoGroup.StringList"/> (42) SNO whose
+    /// CoreTOC name is <c><paramref name="tablePrefix"/> + recordSnoName</c>,
+    /// under <paramref name="label"/>. Strictly name-keyed via
+    /// <see cref="CoreToc"/> (the SNO ids are unrelated). Raw decoded
+    /// value only — no fallback policy; returns <see langword="false"/>
+    /// (and <see cref="string.Empty"/>) when the record SNO name is
+    /// unknown, the sibling table is absent, or the label is missing
+    /// (honest sentinel; the consumer owns any fallback).
+    /// </summary>
+    private bool TryReadSiblingString(
+        SnoGroup recordGroup, int recordSnoId, string tablePrefix,
+        string label, string locale, out string text)
     {
-        name = string.Empty;
-        if (!CoreToc.TryGetName(SnoGroup.ParagonBoard, boardSnoId, out var boardName))
-            return false;
-        if (!CoreToc.TryGetId(
-                SnoGroup.StringList, ParagonBoardStringTablePrefix + boardName,
-                out var tableSno))
-            return false;
-        return GetStrings(locale).TryGet(tableSno, ParagonBoardNameLabel, out name);
+        text = string.Empty;
+        return CoreToc.TryGetName(recordGroup, recordSnoId, out var n)
+            && CoreToc.TryGetId(SnoGroup.StringList, tablePrefix + n, out var t)
+            && GetStrings(locale).TryGet(t, label, out text);
     }
 
     /// <summary>
@@ -670,6 +686,65 @@ public sealed class Diablo4Storage : IDisposable
     /// calibrated intrinsics stay with the consumer.</summary>
     public AttributeFormulaTable ReadAttributeFormulas(int id = 201912) =>
         AttributeFormulaTable.Parse(ReadSno(SnoGroup.GameBalance, id));
+
+    // ----- C6 typed record readers (identity + localized text) ----------
+    // Scope-unfrozen by owner 2026-05-17. Raw decoded data only; deep
+    // gameplay modeling remains the consumer's domain (Appendix C). The
+    // localized fields use the generalized sibling-StringList convention
+    // (§6.7 / CL-20).
+
+    /// <summary>Read + decode a <see cref="PlayerClassDefinition"/> by SNO
+    /// id (group <see cref="SnoGroup.PlayerClass"/> = 74) — <c>SnoId</c> +
+    /// the binary <c>eClass</c> ordinal (§11.1 / CL-21).</summary>
+    public PlayerClassDefinition ReadPlayerClass(int id) =>
+        PlayerClassDefinition.Parse(ReadSno(SnoGroup.PlayerClass, id));
+
+    /// <summary>Read + decode a <see cref="PowerDefinition"/> by SNO id
+    /// (group <see cref="SnoGroup.Power"/> = 29): identity + the localized
+    /// <c>name</c>/<c>desc</c> from the sibling <c>Power_&lt;snoName&gt;</c>
+    /// StringList table (§11.2 / CL-22). Localized fields are empty (honest
+    /// sentinel) when the power has no sibling table.</summary>
+    /// <param name="id">The Power SNO id.</param>
+    /// <param name="locale">Locale (default <see cref="DefaultLocale"/>).</param>
+    public PowerDefinition ReadPower(int id, string locale = DefaultLocale)
+    {
+        var p = PowerDefinition.Parse(ReadSno(SnoGroup.Power, id));
+        TryReadSiblingString(SnoGroup.Power, id, "Power_", "name", locale, out var n);
+        TryReadSiblingString(SnoGroup.Power, id, "Power_", "desc", locale, out var d);
+        p.SetStrings(n, d);
+        return p;
+    }
+
+    /// <summary>Read + decode an <see cref="AffixDefinition"/> by SNO id
+    /// (group <see cref="SnoGroup.Affix"/> = 104): identity + the localized
+    /// <c>Desc</c> from the sibling <c>Affix_&lt;snoName&gt;</c> StringList
+    /// table (§11.3 / CL-22).</summary>
+    /// <param name="id">The Affix SNO id.</param>
+    /// <param name="locale">Locale (default <see cref="DefaultLocale"/>).</param>
+    public AffixDefinition ReadAffix(int id, string locale = DefaultLocale)
+    {
+        var a = AffixDefinition.Parse(ReadSno(SnoGroup.Affix, id));
+        TryReadSiblingString(SnoGroup.Affix, id, "Affix_", "Desc", locale, out var d);
+        a.SetDescription(d);
+        return a;
+    }
+
+    /// <summary>Read + decode an <see cref="ItemDefinition"/> by SNO id
+    /// (group <see cref="SnoGroup.Item"/> = 73): identity + the localized
+    /// <c>Name</c>/<c>Flavor</c>/<c>TransmogName</c> from the sibling
+    /// <c>Item_&lt;snoName&gt;</c> StringList table (§11.4 / CL-22). Each
+    /// field is empty when absent.</summary>
+    /// <param name="id">The Item SNO id.</param>
+    /// <param name="locale">Locale (default <see cref="DefaultLocale"/>).</param>
+    public ItemDefinition ReadItem(int id, string locale = DefaultLocale)
+    {
+        var it = ItemDefinition.Parse(ReadSno(SnoGroup.Item, id));
+        TryReadSiblingString(SnoGroup.Item, id, "Item_", "Name", locale, out var nm);
+        TryReadSiblingString(SnoGroup.Item, id, "Item_", "Flavor", locale, out var fl);
+        TryReadSiblingString(SnoGroup.Item, id, "Item_", "TransmogName", locale, out var tm);
+        it.SetStrings(nm, fl, tm);
+        return it;
+    }
 
     /// <summary>
     /// Resolve a node icon handle (<see cref="ParagonNodeDefinition.HIconMask"/>
