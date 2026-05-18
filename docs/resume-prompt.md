@@ -173,7 +173,21 @@ decision.
    published yet; one-time setup (GitHub `nuget` env + required reviewer,
    `NUGET_USER` repo var, nuget.org Trusted-Publishing policy for both
    ids) is the owner's to do before the first release — see the runbook.
-9. **FR-C7 (DELIVERED — RE complete, all gates met; devlogs 0010/0011,
+9. **FR-C8 (DELIVERED 2026-05-18, PR #16, CL-23 — an FR-C7
+   correction; devlog 0016, `docs/fr-c8-response.md`).** Start/gate
+   composites ARE in ParagonBoard 657304 (verdict #2 located). FR-C7's
+   "no gate/start texture" was wrong: §10.3 modelled only the 56-byte
+   0x22 record; Starter/Quest bind via a fixed **0x58-byte block**
+   (tag@+0=2, value@+8, ownerClassId@+0x20, 0xFFFFFFFF@+0x28).
+   Oracle-exact (Start 0xA0F996FE/0xF8312CA8; Gate 0xA0F996FE/
+   0xC2DF4786 sel/0x0E6B6249 unsel; symbol = per-node HIconMask; no
+   disc). Shipped `UiWidget.ExtraLayerValues` (raw) + corrected typed
+   `start.*`/`gate.*` States.Layers (catalog-validated). Residual
+   (rect/scale, shader brightness, exact sel↔unsel split) default /
+   consumer-owned. Spec §10.12. **Legendary/socket composition
+   UNCHANGED (FR-C7 Common path); animation still NOT decoded
+   (AnimSpec null) — open follow-up.**
+9b. **FR-C7 (DELIVERED — RE complete, all gates met; devlogs 0010/0011,
    spec §10 + CL-9..CL-14, consumer contract `docs/fr-c7-api-proposal.md`
    §7).** D4 UI-scene format (group 46 = type `UI`, hash `0xE4825AB8`;
    `ParagonBoard` SNO 657304) fully reverse-engineered **standalone &
