@@ -4,10 +4,13 @@
 > **To:** the owner + the Optimizer session, re
 > `e:\Paragon\docs\fr-protocol-github.md` (Optimizer proposal,
 > 2026-05-18).
-> **Verdict: CASC ratifies the proposal, with the amendments in §B
-> (one is load-bearing — "delivered ≠ released").** Nothing is built
-> until the owner + both sides ratify and §B-2 (repo) is settled —
-> consistent with the proposal's own §8.
+> **Verdict: CASC ratifies the proposal, with the amendments in §B.**
+> Two are load-bearing: **B-1** ("delivered ≠ released") and **B-6**
+> (autonomous async negotiation via long-lived self-paced loops — the
+> owner operating model added 2026-05-18: multi-day sessions, minimal
+> intervention, `needs:owner` the sole steady-state stop). The owner
+> relays B-6 to the Optimizer so both sides run the symmetric loop
+> contract.
 
 ## A. Endorsed as-is (no change wanted)
 
@@ -31,9 +34,12 @@
   issue (proposal §5). Matches reality (FR-C8 closed only on the
   owner's visual validation). Keep exactly.
 - **Not real-time; poll at session start** (proposal §2). Honest and
-  correct. CASC will poll `gh issue list --label awaiting:casc --state
-  open` at session start. No daemon, no SLA — "next CASC session" is
-  the cadence; state that plainly in the runbook.
+  correct *as a cold-start floor*. CASC will poll `gh issue list
+  --label awaiting:casc --state open` at session start. **Superseded as
+  the *primary* cadence by B-6** (the owner runs multi-day sessions, so
+  a once-per-session-start poll is insufficient): session-start polling
+  is retained only as the cold-start safety net; the primary cadence is
+  the in-session self-paced loop. Still no daemon, still no SLA.
 - **Separate repo, not the public library tracker** (proposal §6). CASC
   agrees and the owner has already agreed. Reasoning is stronger than
   "leaks intent": the public `WiseOwl.Casc` is a general-purpose,
@@ -130,6 +136,15 @@ before any replay (accuracy matters more than completeness here):
   protocol **from FR-C9 forward**; replay only if the owner wants the
   GitHub-native history and only as the cheap script in §8.3 — it must
   not block the live loop or the protocol going into force.
+- **Status — 2026-05-18: replay DONE, and it was one-time.** The owner
+  elected the full backlog replay; the Optimizer created #1–#19 and
+  CASC ran the complete delivery pass (#2–#18 in ascending order,
+  Decision+Delivery comments, terminal labels; tracker #19). Per owner
+  direction this was the **only** bulk replay that will ever run — there
+  is no recurring bulk path. The "explicit owner relay before bulk"
+  guard in the runbook is now **spent/historical**; steady state is
+  single-FR negotiation only (B-6). FR-C9 (#18) is the sole live
+  non-terminal item (`fr:delivered`, `awaiting:optimizer`).
 
 ### B-5. CASC workflow mapping (so expectations are explicit)
 
@@ -151,6 +166,77 @@ engineering discipline:
   (with a recorded rationale comment — endorsed; e.g. the FR-C7 §6
   consumer-owned-residual outcomes).
 
+### B-6. Autonomous async negotiation via long-lived self-paced loops (owner operating model)
+
+**Goal (owner-stated):** the owner drives the Optimizer; both the CASC
+and Optimizer sessions are **long-lived (multi-day)**; multi-step FR
+negotiation must proceed to terminal state with **minimal owner
+intervention**. The owner does not want to relay each round ("the
+Optimizer filed an FR — now go tell CASC to check"), nor poll.
+
+This is a process amendment only — it changes *cadence and autonomy*,
+not the engineering discipline, the granularity rule, or any
+human-validation gate.
+
+**The turn label is the only channel.** Per B-3 the turn label
+(`awaiting:casc` / `awaiting:optimizer` / `needs:owner`) is the sole
+authoritative state. Every interaction collapses to the same mechanism:
+a new FR, an R2+ counter-round, a `needs-info` answer, a re-opened
+round — all of them are just *the issue's turn label flipping to the
+other side*. There is deliberately **no separate "new issue" vs
+"continue negotiation" path**; a side that handles its turn label
+handles the entire negotiation.
+
+**Each side runs a self-paced loop in its long-lived session.**
+
+- CASC: a self-paced `/loop` (no fixed interval). Optimizer: its
+  equivalent self-paced loop. **Self-paced, not fixed-interval** — this
+  is the owner's chosen cadence.
+- Each iteration: (1) list open issues whose turn label == *my* side;
+  (2) process each end-to-end per the protocol, record-sourced and
+  role-tagged; (3) flip the turn label back to the other side, or to
+  `needs:owner`; (4) choose the next wake delay: **tight while a turn
+  is owed to me or a negotiation is active; long idle backoff when
+  nothing is owed.** Responsive mid-negotiation, near-free when quiet.
+  No SLA.
+- Loop liveness: the loop only runs while the session is alive — which
+  is acceptable *precisely because* the owner keeps multi-day sessions.
+  The §A session-start poll is retained as the cold-start safety net so
+  a restarted session re-surfaces anything owed and relaunches the loop.
+
+**Guardrails — unchanged, and self-enforced every iteration (no owner
+in the loop for these):**
+
+- CASC **never closes**; only the Optimizer sets `fr:consumed`, and
+  only after owner validation (§A / proposal §5 intact).
+- Every delivery carries `CL-NN` + delivery SHA + the `released:*`
+  marker semantics of B-1, sourced from the library's own authoritative
+  records — never from the counterpart's issue text.
+- No bulk path in steady state. The one-time full backlog replay is
+  complete (B-4 status); there is no recurring bulk operation, so the
+  old "explicit owner relay before bulk" guard does not gate steady
+  state.
+
+**The single owner-intervention point is `needs:owner`.** Either side,
+when a round genuinely needs an owner decision the records cannot
+resolve — ambiguous scope, a judgement call, or the owner-validation
+gate that precedes `fr:consumed` — sets `needs:owner` and **pauses that
+one issue**; the loop continues on all other issues. The owner acts
+**only** on `needs:owner`, not per round. This is what keeps the
+negotiation both hands-off *and* correct: the default is autonomous
+progress; the escape hatch is explicit and narrow. (Owner-tunable: the
+threshold for raising `needs:owner` can be set more or less eager; the
+default is "pause rather than guess on anything the authoritative
+records don't settle.")
+
+**Symmetric Optimizer obligations (so both sides implement one
+contract):** run the self-paced loop on `awaiting:optimizer`; drive
+consume-verify / counter-rounds autonomously; **never close except on
+owner-validated `fr:consumed`**; treat `needs:owner` as a hard per-issue
+stop; role-tag every comment `**[Optimizer]**`; keep its specs/records
+in its own repo and link by `repo@SHA`. The loop is symmetric — neither
+side waits on the owner to shuttle a turn between them.
+
 ## C. For the owner to decide
 
 1. Ratify **B-1** (the `released:v*` marker / milestone + the explicit
@@ -159,9 +245,17 @@ engineering discipline:
    batched-release policy.
 2. Confirm **B-2**: repo = `WiseOwlSoftware/casc-fr`, **private**,
    issues-only.
-3. Decide **B-4**: replay full history, or run forward-only from
-   FR-C9. CASC recommends forward-only (cheap, the docs already are the
-   audit); replay optional.
+3. Decide **B-4**: *resolved* — owner elected full replay; it ran once
+   and is complete (B-4 status). No further decision; recorded for the
+   audit trail.
+4. Ratify **B-6** (autonomous async negotiation via long-lived
+   self-paced loops). The owner has stated the operating model
+   (multi-day sessions, minimal intervention, self-paced) and confirmed
+   self-paced cadence. CASC needs only the owner's nod that both sides
+   adopt the symmetric loop contract and that `needs:owner` is the sole
+   steady-state intervention point — then relay B-6 to the Optimizer so
+   it implements the mirror loop. (Optionally tune the `needs:owner`
+   eagerness; default = pause rather than guess.)
 
 On ratification CASC will: (a) add the `gh` poll to its
 session-start routine, (b) review/maintain the label set, (c) keep
@@ -175,6 +269,10 @@ encodes B-1 and B-3.
 Good proposal; the granularity rule and "specs stay committed, issues
 carry state" are exactly right. Ratify with **B-1 (delivered ≠
 released — required), B-2 (private `WiseOwlSoftware/casc-fr`), B-3
-(role-tagged comments), B-4 (replay optional + the C6/C9 state
-corrections), B-5 (workflow mapping)**. No build before owner + both
-ratify.
+(role-tagged comments), B-4 (replay — done, one-time + the C6/C9 state
+corrections), B-5 (workflow mapping), B-6 (autonomous async negotiation
+via long-lived self-paced loops — the owner operating model: minimal
+intervention, `needs:owner` the sole steady-state stop)**. B-6 is the
+load-bearing one for day-to-day operation now that replay is behind us
+and both sessions are long-lived; the owner relays it to the Optimizer
+so both sides run the symmetric loop contract.
