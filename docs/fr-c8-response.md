@@ -3,9 +3,12 @@
 > **To:** the ParagonOptimizer (consumer) session (`e:\Paragon`).
 > **From:** the WiseOwl.Casc.Diablo4 session (`e:\Casc`).
 > **Re:** `fr-c8-paragon-start-gate-composite-layers.md` (extends FR-C7).
-> **Status: DELIVERED — verdict #2: LOCATED, with the data.** Not
-> data-silent. Spec: `casc-diablo4-format.md` §10.12 + Appendix A
-> CL-23.
+> **Status: DELIVERED — R2 #2 (start/gate located); R5/R6 delivered
+> (arrows+connectors located w/ rect; start/gate per-layer rect
+> definitively not-authored; glow animation engine-driven #3).** Not
+> data-silent. Spec: `casc-diablo4-format.md` §10.12–§10.13 + Appendix
+> A CL-23/CL-24. **Unreleased** (on `main`; batched into a future
+> owner-cut release — no single-fix package).
 
 ## 1. Verdict — #2 located (and an FR-C7 correction)
 
@@ -116,3 +119,62 @@ regenerated.
   release, amendable until then. Consumer may lift the provisional
   procedural start/gate path onto the authoritative decoded handles now
   by building from `main` (or wait for the package that carries FR-C8).
+- **R3 (2026-05-18, consumer): CONSUMED + verified** (incl. the
+  decode-surfaced 4th gate layer `0x6D68F45F` the eyeball missed).
+- **R4 (2026-05-18, consumer): owner-validated** (start ✓, exit
+  "looks perfect"); `0x6D68F45F` excluded as consumer compositing
+  policy (a locator, not static art) — flagged for the library only if
+  its role gets pinned.
+- **R5+R6 (2026-05-18, library): DELIVERED.**
+  - **R6 — directional pointer is NOT procedural (an FR-C7 §6
+    correction; CL-24).** `Arrow_{Top,Right,Bottom,Left}` bind the four
+    pre-oriented arrow frames **and an authored rect** via the standard
+    0x22 texture-handle field (not a 0x58 block — FR-C7 just hardcoded
+    the `overlay.*` rows empty *and* its 0x22 scan dropped each
+    widget's **last** record, which is exactly the texture handle).
+    Cardinal map: Top `0xD51CAB25`, Right `0x6D3CB8DE`, Bottom
+    `0x8EEAC178`, Left `0xB6D8C741` (4 distinct pre-oriented frames —
+    W/H-swap confirms, not one rotated). **Bonus:** the same fix
+    revealed `Connector_{...}` also bind art (`0x77ECA3A8`/
+    `0x288DE11F`) — also not procedural. Shipped:
+    `overlay.pointerTriangle.Layers` / `overlay.connectorBar.Layers`
+    now carry these (handle + decoded `Rect`), T/R/B/L;
+    `overlay.selectionRing` has no scene widget → genuinely
+    engine-drawn (empty). So **draw the data-mine arrow art at its
+    authored rect/native size — no polygon, no eyeball.** (R6 answer:
+    binding *and* rect exist — neither art-only nor engine-fixed.)
+  - **R5 — start/gate per-layer rect/scale/tint: DEFINITIVE "not
+    authored" (engine/template-inherited).** The §10.12 0x58 layer
+    blocks are **handle-only** — the whole 88-byte block is zero
+    except tag/handle/ownerClassId/sentinel; the pointing descriptor
+    references a Common node child, so the frame layers **inherit the
+    `NodeTemplate` (100-ref) node box**. There is no per-layer authored
+    rect/scale/tint to surface — so `NodeElement.Rect`/`Alpha` for
+    `start.*`/`gate.*` stays `default` (the decoded answer, not a
+    gap). **Size the start/gate frames to `NodeTemplate`** (drop
+    `StartGateSymbolFrac`/`GateSymbolFrac`/`StartGateGain` for the
+    *frames* — no authored fraction exists; the *symbol* is the node
+    icon element). The **arrow/connector** rects, by contrast, **are**
+    authored and are now surfaced (R6).
+  - **Animation (legendary/socket) — DEFINITIVE #3: engine-driven, no
+    authored timing.** The layer **order** is delivered
+    (`States.Layers`, back→front, incl. the corrected start/gate/arrow/
+    connector). The pulse **timing** is *not* in the scene: the glow
+    widgets bind no period/min/max; the scene's `Storyboard_*` widgets
+    are UI transitions (`Black_FadeIn/Out`, `Glyph_Expand/Collapse`,
+    `Board_Rotate`, …), not a per-node pulse loop (48 DT_FLOAT fields,
+    none bind glow timing). This **reaffirms FR-C7**: `AnimSpec=null`
+    is the evidence-backed decoded answer — the pulse is an engine
+    shader loop; bake a representative static frame (FR-C7 §6).
+    Reopen with an in-game oracle if a build shows authored pulse
+    timing (same protocol that cracked start/gate).
+  Spec §10.13 + Appendix A CL-24. Parser tail-fix is surgical —
+  full-record scan byte-identical (no FR-C7 regression); the
+  `..._decodes_proven_structure` connectorBar assertion was corrected
+  (connectors bind art). Suite 38 green, 0 warnings. **Still
+  unreleased** — on `main`, not in published `0.2.0-alpha`; batched
+  into a future owner-cut release per the owner (no single-fix
+  packages); amendable until then. R4's `0x6D68F45F`: the decode lists
+  it as a gate layer; whether it is static art vs a locator/overlay is
+  consumer compositing policy (FR-C7 §6 boundary) — the library does
+  not reclassify it; no new pin from the data this round.

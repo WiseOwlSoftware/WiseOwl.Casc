@@ -948,6 +948,63 @@ are the consumer's confirmed RE; the data-side state binding is
 located-but-not-pinned). Verdict: **#2 located, with the data** — not
 data-silent.
 
+### 10.13 Directional arrows / connectors + per-layer rect + animation (FR-C8 R5/R6, CL-24)
+
+**R6 — directional pointer & connectors are NOT procedural (FR-C7 §6
+correction).** The four `Arrow_{Top,Right,Bottom,Left}` widgets bind
+the pre-oriented red arrow art, and `Connector_{Top,Right,Bottom,Left}`
+bind the connector art, each with an **authored rect**, via the
+standard texture-handle field (`0x0C152636` / type `0x6B1C5D9C`) on the
+ordinary §10.3 **0x22** path — *not* a 0x58 block. FR-C7 missed them
+for two compounding reasons: (a) it hardcoded the `overlay.*` rows
+empty, and (b) the texture handle is each widget's **last** 0x22
+record, whose 56-byte body straddles the next widget's `nameStart`, so
+`UiScene.Parse`'s `p + RecordSize <= to` bound dropped it. Fixed
+surgically: the tail record's value (`+0x08`) is collected when it
+fits even though the body straddles (the full-record scan for every
+other record is byte-identical — no FR-C7 regression). Cardinal map
+(scene-decoded, build `3.0.2.71886`):
+
+| Widget | Handle | Atlas frame (2DUI_Paragon_transparentElements 2061536) |
+|---|---|---|
+| `Arrow_Top` | `0xD51CAB25` | 107×86, points up |
+| `Arrow_Right` | `0x6D3CB8DE` | 86×106 |
+| `Arrow_Bottom` | `0x8EEAC178` | 106×86 |
+| `Arrow_Left` | `0xB6D8C741` | 87×106 |
+| `Connector_*` | `0x77ECA3A8` / `0x288DE11F` | connector bars |
+
+`overlay.pointerTriangle.Layers` / `overlay.connectorBar.Layers` now
+carry these (handle + decoded `Rect`), T/R/B/L. `overlay.selectionRing`
+has no scene widget → genuinely engine-drawn (stays empty — honest, not
+fabricated).
+
+**R5 — start/gate per-layer rect/scale/tint: definitively NOT
+authored.** The §10.12 0x58 layer blocks are **handle-only**: the
+entire 88-byte block is `{tag@+0, value@+0x08, ownerClassId@+0x20,
+0xFFFFFFFF@+0x28}` with every other word zero — no rect, scale, alpha
+or tint. The pointing descriptor record references a Common-template
+node child, so the start/gate frame layers **inherit the referenced
+node-element box** (the `NodeTemplate` 100-ref box, §10.11); there is
+no per-layer authored rect to surface. So `NodeElement.Rect`/`Alpha`
+for `start.*`/`gate.*` layers stays `default` (the honest decoded
+answer — size them to `NodeTemplate`, no eyeballed fraction needed and
+none exists in the data). The arrow/connector widgets (above) **do**
+carry an authored rect — surfaced.
+
+**Animation (legendary/socket glow pulse): engine-driven — reaffirmed,
+not authored.** The looping per-node glow pulse has no authored
+frame-order/period in `ParagonBoard`: the glow widgets bind no
+period/min/max float, and the scene's `Storyboard_*` widgets are UI
+transitions (`Black_FadeIn/Out`, `Glyph_Expand/Collapse`,
+`Board_Rotate`, `RefundAll_*`, `ScaleTest`, `CoreStatsActive`), not a
+per-node pulse loop (48 DT_FLOAT fields scene-wide, none binding the
+glow timing). This reaffirms FR-C7 (`AnimSpec = null` is the
+evidence-backed decoded answer): the layer **order** is delivered
+(`States.Layers` back→front); the pulse **timing** is an engine shader
+loop — the consumer bakes a representative static frame (FR-C7 §6).
+Definitive #3 for the timing; reopen with an in-game oracle if a build
+shows authored pulse timing. See Appendix A CL-24.
+
 ## 11. Non-paragon typed record readers (C6)
 
 The B1–B6 scope-freeze was **lifted by owner decision 2026-05-17**
@@ -1247,6 +1304,29 @@ true value (the sections above already state the corrected truth).
   (consumer-owned, FR-C7 §6 precedent). Asserted by
   `ReadParagonRenderLayout_decodes_start_gate_composites`. Verdict:
   **#2 located, with the data** (not data-silent).
+
+- **CL-24 — directional arrows + connectors are bound, not procedural;
+  start/gate per-layer rect is not authored; glow animation is
+  engine-driven (FR-C8 R5/R6).** §10.13. (a) `Arrow_*` bind the four
+  cardinal arrow handles (`0xD51CAB25`/`0x6D3CB8DE`/`0x8EEAC178`/
+  `0xB6D8C741`) and `Connector_*` the connector handles (`0x77ECA3A8`/
+  `0x288DE11F`), each with an authored rect, via the standard 0x22
+  texture-handle field — FR-C7's "overlays procedural / not in data"
+  was wrong (a CL-23-family miss). Root parser cause: a widget's
+  **last** 0x22 record straddles the next `nameStart`; the
+  `p+RecordSize<=to` bound dropped it — fixed surgically (full-record
+  scan byte-identical; only the straddling tail value is now also
+  collected). `overlay.pointerTriangle`/`overlay.connectorBar` now
+  populated; `overlay.selectionRing` genuinely empty (no widget). (b)
+  start/gate 0x58 blocks are handle-only ⇒ no per-layer rect/scale/tint
+  authored (inherit the `NodeTemplate` box) — definitive, `Rect`/
+  `Alpha` stay `default`. (c) the per-node glow pulse has no authored
+  timing (no period float; the `Storyboard_*` widgets are UI
+  transitions) ⇒ engine-driven, `AnimSpec=null` reaffirmed (FR-C7) —
+  definitive #3; layer *order* is delivered, *timing* is an engine
+  shader loop. Asserted by
+  `ReadParagonRenderLayout_decodes_directional_arrows` (+ the corrected
+  `..._decodes_proven_structure` connectorBar assertion).
 
 ## Appendix B — provenance & migration map
 

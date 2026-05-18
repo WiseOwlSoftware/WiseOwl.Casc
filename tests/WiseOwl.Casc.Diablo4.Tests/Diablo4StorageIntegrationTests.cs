@@ -254,8 +254,7 @@ public sealed class Diablo4StorageIntegrationTests
             rl.States.Select(s => (s.RarityOverride, s.State)).ToArray());
 
         // Decode-true layers: disc = Node_IconBase base disc handle;
-        // Rare/Legendary add the gold ornate; overlays are app-drawn
-        // (empty layers, §10.11).
+        // Rare/Legendary add the gold ornate.
         Assert.Equal(0x1D166DC7u, rl.Disc.TextureHandle);
         var rare = rl.States.First(s => s.RarityOverride == 3 && s.State == "unselected");
         Assert.Contains(rare.Layers, e => e.TextureHandle == 0x1D166DC7u);
@@ -263,7 +262,11 @@ public sealed class Diablo4StorageIntegrationTests
         var common = rl.States.First(s => s.RarityOverride == 0 && s.State == "unselected");
         Assert.Contains(common.Layers, e => e.TextureHandle == 0x1D166DC7u);
         Assert.DoesNotContain(common.Layers, e => e.TextureHandle == 0x4A901508u);
-        Assert.Empty(rl.States.First(s => s.State == "overlay.connectorBar").Layers);
+        // CL-24 (FR-C8 R6): connectorBar is NOT empty — the FR-C7-era
+        // "overlays app-drawn / not in data" was wrong for the
+        // connector bars too (their bound art was the dropped last
+        // 0x22 record). See ReadParagonRenderLayout_decodes_directional_arrows.
+        Assert.NotEmpty(rl.States.First(s => s.State == "overlay.connectorBar").Layers);
     }
 
     /// <summary>FR-C8: the start/gate composites ARE in ParagonBoard
@@ -318,6 +321,54 @@ public sealed class Diablo4StorageIntegrationTests
         var starter = scene.Widgets.First(w => w.Name == "Template_Node_Starter");
         Assert.Contains(0xA0F996FEu, starter.ExtraLayerValues);
         Assert.Contains(0xF8312CA8u, starter.ExtraLayerValues);
+    }
+
+    private static readonly uint[] ExpectedCardinalArrows =
+        { 0xD51CAB25u, 0x6D3CB8DEu, 0x8EEAC178u, 0xB6D8C741u };
+    private static readonly uint[] ConnectorHandles =
+        { 0x77ECA3A8u, 0x288DE11Fu };
+
+    /// <summary>FR-C8 R6 (CL-24): the directional pointer is NOT
+    /// pure-procedural — <c>Arrow_{Top,Right,Bottom,Left}</c> bind the
+    /// pre-oriented arrow art + an authored rect (the FR-C7 0x22 path
+    /// FR-C7 never projected). <c>overlay.pointerTriangle</c> now carries
+    /// the four cardinal arrows; <c>connectorBar</c>/<c>selectionRing</c>
+    /// stay empty (no bound art — engine/procedural, FR-C7 correct).</summary>
+    [SkippableFact]
+    public void ReadParagonRenderLayout_decodes_directional_arrows()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+
+        var rl = d4.ReadParagonRenderLayout();
+        var ptr = rl.States.First(s => s.State == "overlay.pointerTriangle").Layers;
+
+        // Four cardinal arrows, decoded T/R/B/L, oracle-exact handles.
+        Assert.Equal(ExpectedCardinalArrows,
+            ptr.Select(e => e.TextureHandle).ToArray());
+
+        // R6/R5: the arrow rect IS authored (unlike the start/gate 0x58
+        // frame layers) — at least one non-default rect dimension.
+        Assert.Contains(ptr, e =>
+            e.Rect.Width != 0 || e.Rect.Height != 0 ||
+            e.Rect.Left != 0 || e.Rect.Top != 0);
+
+        // Connectors ALSO bind scene art (same dropped-last-record
+        // cause, CL-24) — the catalogued connector handles. Selection
+        // ring has no scene widget → genuinely engine-drawn (empty).
+        var conn = rl.States.First(s => s.State == "overlay.connectorBar").Layers
+            .Select(e => e.TextureHandle).ToArray();
+        Assert.NotEmpty(conn);
+        Assert.All(conn, h => Assert.Contains(h, ConnectorHandles));
+        Assert.Empty(rl.States.First(s => s.State == "overlay.selectionRing").Layers);
+
+        // R5 (definitive): the start/gate 0x58 frame-layer blocks are
+        // handle-only — no per-layer rect authored (engine/template-
+        // inherited, sized to NodeTemplate). Honest default, not eyeballed.
+        var startL = rl.States.First(s => s.State == "start.unselected").Layers;
+        Assert.All(startL, e => Assert.Equal(default, e.Rect));
+        Assert.True(rl.NodeTemplate.Width > 0); // the size hint for those frames
     }
 
     /// <summary>FR-D1: a ParagonBoard's localized display name resolves

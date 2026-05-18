@@ -298,16 +298,35 @@ internal static class ParagonRenderProjection
         states.Add(new StateElements(-1, "start.selected",
             startLayers.Length > 0 ? startLayers : L(disc), null, null, null));
 
-        // Rows 16–18: overlays are app-drawn / procedural — absent from
-        // the scene data (§10.11, FR §2.5). Present with empty layers so
-        // the contract's 18 keys are 1:1; the consumer keeps its
-        // catalogued procedural handles for these (as anticipated).
+        // Rows 16–18: overlays. CORRECTION (FR-C8 R6, CL-24): the
+        // directional pointer AND the connector bars are NOT
+        // pure-procedural. `Arrow_{Top,Right,Bottom,Left}` bind the
+        // pre-oriented red arrow art (Top 0xD51CAB25, Right 0x6D3CB8DE,
+        // Bottom 0x8EEAC178, Left 0xB6D8C741); `Connector_{...}` bind
+        // the connector art (0x77ECA3A8 / 0x288DE11F) — each with an
+        // authored rect, via the standard texture-handle field on the
+        // FR-C7 0x22 path. FR-C7 missed both because the texture handle
+        // is each widget's *last* 0x22 record, which straddled the
+        // widget boundary and was dropped (UiScene.Parse tail fix,
+        // CL-24) — and FR-C7 also hardcoded these rows empty. So
+        // `overlay.pointerTriangle` / `overlay.connectorBar` now carry
+        // their real T/R/B/L bound layers (handle + decoded Rect).
+        // `overlay.selectionRing` has no scene widget → genuinely
+        // engine-drawn, stays empty. No fabrication — empty rows stay
+        // empty, the arrows/connectors are the real decoded values.
+        NodeElement[] Overlay(params string[] widgets) =>
+            L(widgets.Select(Elem).ToArray());
+
         states.Add(new StateElements(-1, "overlay.selectionRing",
             Array.Empty<NodeElement>(), null, null, null));
         states.Add(new StateElements(-1, "overlay.connectorBar",
-            Array.Empty<NodeElement>(), null, null, null));
+            Overlay("Connector_Top", "Connector_Right",
+                    "Connector_Bottom", "Connector_Left"),
+            null, null, null));
         states.Add(new StateElements(-1, "overlay.pointerTriangle",
-            Array.Empty<NodeElement>(), null, null, null));
+            Overlay("Arrow_Top", "Arrow_Right",
+                    "Arrow_Bottom", "Arrow_Left"),
+            null, null, null));
 
         return new ParagonRenderLayout(
             ratios, canvas,
