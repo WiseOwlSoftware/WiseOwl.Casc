@@ -316,7 +316,13 @@ public sealed class Diablo4Storage : IDisposable
     /// fabricated rows).
     /// </summary>
     public ParagonRenderLayout ReadParagonRenderLayout() =>
-        ParagonRenderProjection.Project(ReadUiScene(657304));
+        ParagonRenderProjection.Project(
+            ReadUiScene(657304),
+            // FR-C8: validate start/gate 0x58-block layer values against
+            // the texture catalog so only real atlas handles are emitted
+            // (the blocks also carry small int params). No fabrication —
+            // every emitted layer resolves to a frame.
+            isTextureHandle: h => TryGetIconFrame(h, out _, out _));
 
     /// <summary>
     /// Read + decode a <see cref="ParagonBoardDefinition"/> by SNO id (group

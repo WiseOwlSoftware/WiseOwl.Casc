@@ -124,7 +124,32 @@ public sealed record UiScene(int SnoId, IReadOnlyList<UiWidget> Widgets)
                 uf[q] = new UiField(fields[q].f, fields[q].t,
                     q < values.Count ? values[q] : 0u,
                     q < values.Count);
-            widgets.Add(new UiWidget(starts[w].name, starts[w].classId, uf));
+
+            // Pass 2c (FR-C8): some widgets — notably the start/gate node
+            // templates — bind their layer values not as 56-byte 0x22
+            // records but as a distinct fixed 0x58-byte block:
+            //   +0x00 u32 tag (2 = bound layer value)
+            //   +0x04 u32 0
+            //   +0x08 u32 value (the bound value, e.g. a texture handle)
+            //   +0x20 u32 owner class id   +0x28 u32 0xFFFFFFFF sentinel
+            // The §10.3 0x22/56-byte scan does not model this shape, so
+            // these values were dropped (the start/gate decode gap,
+            // CL-23/FR-C8). Capture them losslessly, in serialized order.
+            const int Blk = 0x58;
+            var extra = new List<uint>();
+            for (int p = from; p + Blk <= to; )
+            {
+                if (U32(blob, p) == 2u && U32(blob, p + 4) == 0u &&
+                    U32(blob, p + 0x28) == Sentinel)
+                {
+                    uint v = U32(blob, p + 8);
+                    if (v is not 0u and not Sentinel) extra.Add(v);
+                    p += Blk;
+                }
+                else p += 4;
+            }
+
+            widgets.Add(new UiWidget(starts[w].name, starts[w].classId, uf, extra));
         }
 
         return new UiScene(snoId, widgets);
@@ -133,11 +158,22 @@ public sealed record UiScene(int SnoId, IReadOnlyList<UiWidget> Widgets)
 
 /// <summary>
 /// One widget in a <see cref="UiScene"/>: its inline name, its class id
-/// (<c>= Diablo4.TypeHash(class name)</c>), and its bound fields in
-/// serialized order.
+/// (<c>= Diablo4.TypeHash(class name)</c>), its bound fields in
+/// serialized order, and any <see cref="ExtraLayerValues"/> bound via
+/// the 0x58-block shape (FR-C8 — the start/gate composite layers).
 /// </summary>
+/// <param name="Name">The widget's inline name.</param>
+/// <param name="ClassId">The class id (<c>= Diablo4.TypeHash(class)</c>).</param>
+/// <param name="Fields">Bound fields (56-byte 0x22 path), in order.</param>
+/// <param name="ExtraLayerValues">Values bound via the fixed 0x58-block
+/// shape (tag 2, sentinel at +0x28), in serialized order — the layer
+/// stack for templates like <c>Template_Node_Starter</c> /
+/// <c>Template_Node_Quest</c> whose composites the §10.3 0x22 scan does
+/// not model. Raw values (e.g. texture handles); interpretation is the
+/// consumer's / the typed projection's.</param>
 public sealed record UiWidget(
-    string Name, uint ClassId, IReadOnlyList<UiField> Fields);
+    string Name, uint ClassId, IReadOnlyList<UiField> Fields,
+    IReadOnlyList<uint> ExtraLayerValues);
 
 /// <summary>
 /// One bound field of a <see cref="UiWidget"/>: the field-name hash

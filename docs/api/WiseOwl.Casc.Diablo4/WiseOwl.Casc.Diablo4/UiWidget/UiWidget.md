@@ -1,10 +1,18 @@
 # UiWidget constructor
 
-One widget in a [`UiScene`](../UiScene.md): its inline name, its class id (`= Diablo4.TypeHash(class name)`), and its bound fields in serialized order.
+One widget in a [`UiScene`](../UiScene.md): its inline name, its class id (`= Diablo4.TypeHash(class name)`), its bound fields in serialized order, and any [`ExtraLayerValues`](./ExtraLayerValues.md) bound via the 0x58-block shape (FR-C8 — the start/gate composite layers).
 
 ```csharp
-public UiWidget(string Name, uint ClassId, IReadOnlyList<UiField> Fields)
+public UiWidget(string Name, uint ClassId, IReadOnlyList<UiField> Fields, 
+    IReadOnlyList<uint> ExtraLayerValues)
 ```
+
+| parameter | description |
+| --- | --- |
+| Name | The widget's inline name. |
+| ClassId | The class id (`= Diablo4.TypeHash(class)`). |
+| Fields | Bound fields (56-byte 0x22 path), in order. |
+| ExtraLayerValues | Values bound via the fixed 0x58-block shape (tag 2, sentinel at +0x28), in serialized order — the layer stack for templates like `Template_Node_Starter` / `Template_Node_Quest` whose composites the §10.3 0x22 scan does not model. Raw values (e.g. texture handles); interpretation is the consumer's / the typed projection's. |
 
 ## See Also
 

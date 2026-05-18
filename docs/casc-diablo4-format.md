@@ -899,6 +899,55 @@ Remaining:
    acceptance matrix. The consumer is on HOLD; no public surface is
    added before step 2 passes.
 
+### 10.12 Start/gate composite — the 0x58-block binding (FR-C8, CL-23)
+
+FR-C7 §10.11 / the FR-C7 `Project()` concluded "no distinct gate/start
+texture is bound in ParagonBoard" and collapsed `start.*`/`gate.*` to
+the neutral disc. **That was wrong** — it followed from the §10.3
+decode modelling only the **56-byte `0x22`** instance record. The
+start/gate node templates bind their composite layers via a **distinct
+fixed 0x58-byte (88-byte) block**:
+
+```
++0x00  u32  tag        (2 = a bound layer value; 0x22 = a flag/other)
++0x04  u32  0
++0x08  u32  value       (the bound value — e.g. a texture handle)
++0x20  u32  ownerClassId (the owning widget's class id, back-ref)
++0x28  u32  0xFFFFFFFF   (sentinel — validates the block)
+```
+
+These blocks live inside the `Template_Node_Starter`
+(ClassId `0x1E3077C7`) and `Template_Node_Quest` widget spans of
+**ParagonBoard SNO 657304** (a descriptor table of ~0x28-stride entries
+points at them). The `0x22`/56-byte scan never matched them, so they
+were dropped (the consumer's "1 of 17 fields has a value").
+
+Decoded ordered scene handles (build `3.0.2.71886`, raw-byte verified,
+matching the consumer's owner-verified atlas oracle **exactly**):
+
+| Template | Ordered tag-2 handles (back→front) | Atlas / role |
+|---|---|---|
+| `Template_Node_Starter` (Start) | `0xA0F996FE`, `0xF8312CA8` | filigree (`2DUI_Paragon_transparentElements`), grey hexagon (`2DUI_ParagonNodes`) |
+| `Template_Node_Quest` (Gate/Exit) | `0xA0F996FE`, `0xC2DF4786`, `0x0E6B6249` | filigree; ornate square **selected** `0xC2DF4786` / **unselected** `0x0E6B6249` |
+
+The per-node **symbol** drawn on top (`0x35B6E536` spider for Start
+node 2458702; `0xE1316816` portal for Gate node 994337) is the
+`ParagonNode.HIconMask` (§7.2) — correctly **not** a scene layer
+(per-node, already exposed via `ParagonNodeDefinition` /
+`TryGetIconFrame`). Start/gate use **no disc** (`0x1D166DC7` absent).
+
+**Surfaced:** `UiWidget.ExtraLayerValues` (lossless raw, scope-B — the
+ordered 0x58-block values per widget) and the typed
+`ParagonRenderLayout` `start.*`/`gate.*` `States.Layers` (handles only;
+catalog-validated by `ReadParagonRenderLayout` so int params like `20`
+that share tag 2 are excluded — no fabrication). **Not decoded** (left
+default, honest — consumer owns, FR-C7 §6 precedent): per-layer
+rect/scale, the shader brightness/tint pass, and the exact
+unselected↔selected ornate-square state split (the handle *identities*
+are the consumer's confirmed RE; the data-side state binding is
+located-but-not-pinned). Verdict: **#2 located, with the data** — not
+data-silent.
+
 ## 11. Non-paragon typed record readers (C6)
 
 The B1–B6 scope-freeze was **lifted by owner decision 2026-05-17**
@@ -1179,6 +1228,25 @@ true value (the sections above already state the corrected truth).
   `2586362`→Desc `Your attacks Critically Strike …`; Item
   `223287`→Name `The Butcher's Cleaver`, Transmog `Cadaver Chopper`.
   Asserted by `C6_typed_readers_decode_identity_and_localized_text`.
+
+- **CL-23 — start/gate composite IS in ParagonBoard; the FR-C7
+  "no gate/start texture" was wrong (FR-C8).** §10.3 modelled only the
+  56-byte `0x22` instance record; the start/gate node templates bind
+  their layers via a distinct fixed **0x58-byte block** (tag@+0,
+  value@+8, ownerClassId@+0x20, `0xFFFFFFFF`@+0x28) the scan never
+  matched, so `Project()` collapsed `start.*`/`gate.*` to the neutral
+  disc and the raw `UiScene` surfaced the templates as near-empty.
+  Located, raw-byte verified, oracle-exact (§10.12):
+  `Template_Node_Starter` → `0xA0F996FE`,`0xF8312CA8`;
+  `Template_Node_Quest` → `0xA0F996FE`,`0xC2DF4786`,`0x0E6B6249`; the
+  per-node symbol is `HIconMask` (not a scene layer); no disc.
+  Shipped: `UiWidget.ExtraLayerValues` (lossless raw) + the corrected
+  typed `start.*`/`gate.*` `States.Layers` (catalog-validated, no
+  fabrication). Per-layer rect/scale, shader brightness, and the exact
+  unselected↔selected split are **located-not-pinned** → left default
+  (consumer-owned, FR-C7 §6 precedent). Asserted by
+  `ReadParagonRenderLayout_decodes_start_gate_composites`. Verdict:
+  **#2 located, with the data** (not data-silent).
 
 ## Appendix B — provenance & migration map
 

@@ -124,10 +124,35 @@ internal static class ParagonRenderProjection
             Val(w, FnLeft), Val(w, FnRight), Val(w, FnTop),
             Val(w, FnBottom), Val(w, FnWidth), Val(w, FnHeight));
 
-    public static ParagonRenderLayout Project(UiScene scene)
+    public static ParagonRenderLayout Project(
+        UiScene scene, Func<uint, bool>? isTextureHandle = null)
     {
         UiWidget? ByName(string n) =>
             scene.Widgets.FirstOrDefault(w => w.Name == n);
+
+        // FR-C8: the start/gate composite layers are bound on
+        // Template_Node_Starter / Template_Node_Quest via the 0x58-block
+        // shape (UiWidget.ExtraLayerValues) — not the 0x22 path. Keep the
+        // ordered values that are real texture handles (validated against
+        // the texture catalog when a validator is supplied by
+        // Diablo4Storage; otherwise a conservative magnitude guard — the
+        // 0x58 blocks also carry small int params like 20). Never
+        // fabricated: every emitted handle is literally in the scene and
+        // (when validated) resolves to an atlas frame.
+        bool IsHandle(uint v) => v is not 0u and not 0xFFFFFFFFu &&
+            (isTextureHandle?.Invoke(v) ?? v > 0xFFFFu);
+
+        NodeElement[] LayersOf(string widget)
+        {
+            var x = ByName(widget);
+            if (x is null) return Array.Empty<NodeElement>();
+            var seen = new HashSet<uint>();
+            var list = new List<NodeElement>();
+            foreach (var v in x.ExtraLayerValues)
+                if (IsHandle(v) && seen.Add(v))
+                    list.Add(new NodeElement(v, default, 0));
+            return list.ToArray();
+        }
 
         var root      = ByName("ParagonBoard_main");
         var container = ByName("ParagonNodes");          // own rect is runtime-bound
@@ -249,12 +274,29 @@ internal static class ParagonRenderProjection
         states.Add(new StateElements(-1, "socket.socketed",
             L(disc), null, null, null));
 
-        // Rows 12–15: gate / start. No distinct gate/start texture is
-        // bound in ParagonBoard (shared node element + state).
-        states.Add(new StateElements(-1, "gate.unselected",  L(disc), null, null, null));
-        states.Add(new StateElements(-1, "gate.selected",    L(disc), null, null, null));
-        states.Add(new StateElements(-1, "start.unselected", L(disc), null, null, null));
-        states.Add(new StateElements(-1, "start.selected",   L(disc), null, null, null));
+        // Rows 12–15: gate / start. CORRECTION (FR-C8, CL-23): the
+        // FR-C7-era "no distinct gate/start texture is bound" was wrong —
+        // it followed from the §10.3 0x22 scan missing the 0x58-block
+        // bindings. The composites ARE in ParagonBoard 657304:
+        // Template_Node_Starter → filigree 0xA0F996FE + grey hexagon
+        // 0xF8312CA8; Template_Node_Quest → filigree 0xA0F996FE + ornate
+        // squares 0xC2DF4786 / 0x0E6B6249. The per-node SYMBOL on top is
+        // the ParagonNode HIconMask (already exposed; correctly NOT in
+        // the scene). Layers carry the decoded ordered scene handles
+        // (back→front); per-layer rect/scale/tint and the exact
+        // unselected↔selected ornate-square split are not decoded → left
+        // default (honest, not fabricated — consumer owns the shader
+        // brightness pass per FR-C7 §6, and the symbol via HIconMask).
+        var startLayers = LayersOf("Template_Node_Starter");
+        var gateLayers  = LayersOf("Template_Node_Quest");
+        states.Add(new StateElements(-1, "gate.unselected",
+            gateLayers.Length > 0 ? gateLayers : L(disc), null, null, null));
+        states.Add(new StateElements(-1, "gate.selected",
+            gateLayers.Length > 0 ? gateLayers : L(disc), null, null, null));
+        states.Add(new StateElements(-1, "start.unselected",
+            startLayers.Length > 0 ? startLayers : L(disc), null, null, null));
+        states.Add(new StateElements(-1, "start.selected",
+            startLayers.Length > 0 ? startLayers : L(disc), null, null, null));
 
         // Rows 16–18: overlays are app-drawn / procedural — absent from
         // the scene data (§10.11, FR §2.5). Present with empty layers so

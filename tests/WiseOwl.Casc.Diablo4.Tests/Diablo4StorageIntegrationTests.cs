@@ -266,6 +266,60 @@ public sealed class Diablo4StorageIntegrationTests
         Assert.Empty(rl.States.First(s => s.State == "overlay.connectorBar").Layers);
     }
 
+    /// <summary>FR-C8: the start/gate composites ARE in ParagonBoard
+    /// 657304 (Template_Node_Starter / _Quest, 0x58-block bindings the
+    /// FR-C7 0x22 scan dropped). The decoded scene handles must match the
+    /// consumer's owner-verified oracle exactly (CL-23). The per-node
+    /// symbol on top is the ParagonNode HIconMask — correctly NOT a scene
+    /// layer (already exposed via ParagonNodeDefinition).</summary>
+    [SkippableFact]
+    public void ReadParagonRenderLayout_decodes_start_gate_composites()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+
+        var rl = d4.ReadParagonRenderLayout();
+        uint[] H(string key) => rl.States.First(s => s.State == key)
+            .Layers.Select(e => e.TextureHandle).ToArray();
+
+        // Start: filigree 0xA0F996FE + grey hexagon 0xF8312CA8
+        // (Template_Node_Starter), no disc (NOT 0x1D166DC7).
+        foreach (var key in new[] { "start.unselected", "start.selected" })
+        {
+            Assert.Contains(0xA0F996FEu, H(key));
+            Assert.Contains(0xF8312CA8u, H(key));
+            Assert.DoesNotContain(0x1D166DC7u, H(key)); // not the common disc
+        }
+
+        // Gate/Exit: filigree 0xA0F996FE + ornate squares 0xC2DF4786
+        // (selected) / 0x0E6B6249 (unselected) (Template_Node_Quest).
+        foreach (var key in new[] { "gate.unselected", "gate.selected" })
+        {
+            var h = H(key);
+            Assert.Contains(0xA0F996FEu, h);
+            Assert.Contains(0xC2DF4786u, h);
+            Assert.Contains(0x0E6B6249u, h);
+            Assert.DoesNotContain(0x1D166DC7u, h);
+        }
+
+        // The symbol handles are the per-node HIconMask, NOT scene layers
+        // (start spider 0x35B6E536 / gate portal 0xE1316816).
+        Assert.Equal(0x35B6E536u, d4.ReadParagonNode(2458702).HIconMask);
+        Assert.Equal(0xE1316816u, d4.ReadParagonNode(994337).HIconMask);
+        foreach (var key in new[] { "start.unselected", "gate.unselected" })
+        {
+            Assert.DoesNotContain(0x35B6E536u, H(key));
+            Assert.DoesNotContain(0xE1316816u, H(key));
+        }
+
+        // Lossless raw path also surfaces them (scope-B).
+        var scene = d4.ReadUiScene(657304);
+        var starter = scene.Widgets.First(w => w.Name == "Template_Node_Starter");
+        Assert.Contains(0xA0F996FEu, starter.ExtraLayerValues);
+        Assert.Contains(0xF8312CA8u, starter.ExtraLayerValues);
+    }
+
     /// <summary>FR-D1: a ParagonBoard's localized display name resolves
     /// first-party from the board's sibling StringList table
     /// (<c>ParagonBoard_&lt;boardSnoName&gt;</c>, label <c>Name</c>) — the
