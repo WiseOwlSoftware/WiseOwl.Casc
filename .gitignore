@@ -8,6 +8,9 @@ artifacts/
 .idea/
 .vscode/
 .claude/
+# Local agent instructions — intentionally local-only (like .claude/),
+# not part of the published library.
+CLAUDE.md
 *.user
 *.suo
 *.lscache
