@@ -222,6 +222,24 @@ decision.
    consumer validated in R3/R4 (switch rare/leg ornate to corrected
    `States.Layers`, add the glow overlay). Legendary/socket Common-path
    pulse composition otherwise unchanged.
+9a. **FR-C9 (DELIVERED 2026-05-18, PR #19 fafcb35, CL-26 — devlog
+   0019, `docs/fr-c9-response.md`).** Made completeness *structural*
+   so there's no FR-C8-style R10/R11. Root cause: the CL-23 `0x58`
+   block model over-fit (required ownerClassId@+0x20 + sentinel@+0x28;
+   not universal; last block straddles next nameStart) → a class of
+   real bindings still dropped (grey ring `0x87A89F86` et al.).
+   **CL-26:** `UiScene.Parse` Pass-2c relaxed to the only stable
+   marker `tag==2,+4==0,value@+8`, value-bounded ⇒ raw `ReadUiScene`
+   **lossless** for texture bindings. Shipped
+   `ReadParagonRenderModel()` (`ParagonRenderModel{Layout,Scenes}` —
+   657304+964599, every binding widget `{handle,rect,alpha}`,
+   shape-agnostic; one-shot manifest), `IsParagonTextureHandle` (the
+   shared structural test: ≥`0x10000` ∧ catalog-resolvable), and the
+   **coverage gate** `ParagonRenderModel_covers_every_bound_atlas_
+   handle` (scans every 4-aligned u32 in both raw scenes → asserts all
+   surfaced; a future gap fails casc CI). Spec §10.14 (published
+   binding-record schema + losslessness guarantee). Boundary unchanged
+   (consumer owns role/state classification).
 9b. **FR-C7 (DELIVERED — RE complete, all gates met; devlogs 0010/0011,
    spec §10 + CL-9..CL-14, consumer contract `docs/fr-c7-api-proposal.md`
    §7).** D4 UI-scene format (group 46 = type `UI`, hash `0xE4825AB8`;
