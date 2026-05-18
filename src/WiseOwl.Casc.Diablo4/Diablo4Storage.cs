@@ -322,7 +322,37 @@ public sealed class Diablo4Storage : IDisposable
             // the texture catalog so only real atlas handles are emitted
             // (the blocks also carry small int params). No fabrication —
             // every emitted layer resolves to a frame.
-            isTextureHandle: h => TryGetIconFrame(h, out _, out _));
+            isTextureHandle: IsParagonTextureHandle);
+
+    /// <summary>
+    /// FR-C9: the <b>exhaustive</b> paragon render-model — the
+    /// role-assigned <see cref="ReadParagonRenderLayout"/> plus, for
+    /// <c>ParagonBoard</c> 657304 and <c>ParagonBoardSelect</c> 964599,
+    /// every widget binding ≥1 real atlas handle (handle + decoded rect
+    /// + alpha), regardless of binding shape. The library guarantees
+    /// completeness: no atlas-resolving binding record is dropped — the
+    /// FR-C9 coverage gate (the integration suite) fails if any future
+    /// shape regresses this. The consumer audits this once and owns
+    /// role/state classification (FR-C7 §6 boundary).
+    /// </summary>
+    public ParagonRenderModel ReadParagonRenderModel()
+    {
+        var scenes = new List<ParagonSceneModel>(2);
+        foreach (var id in new[] { 657304, 964599 })
+            scenes.Add(ParagonRenderProjection.SceneModel(
+                ReadUiScene(id), IsParagonTextureHandle));
+        return new ParagonRenderModel(ReadParagonRenderLayout(), scenes);
+    }
+
+    /// <summary>The structural "is a real atlas texture handle" test
+    /// (FR-C9): handle-magnitude (≥ <c>0x10000</c> — D4 handles are
+    /// 32-bit hashes; smaller atlas-resolving values are field
+    /// ints/enums, never bindings) and resolvable via the icon
+    /// catalog. Used by the typed projection, the exhaustive model, and
+    /// the coverage gate so all three share one sound definition.</summary>
+    public bool IsParagonTextureHandle(uint handle) =>
+        handle >= 0x10000u && handle != 0xFFFFFFFFu &&
+        TryGetIconFrame(handle, out _, out _);
 
     /// <summary>
     /// Read + decode a <see cref="ParagonBoardDefinition"/> by SNO id (group

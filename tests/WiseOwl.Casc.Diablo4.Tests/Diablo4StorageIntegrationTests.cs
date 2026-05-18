@@ -617,4 +617,60 @@ public sealed class Diablo4StorageIntegrationTests
             d4.ReadCharacterClasses().First(c => c.SnoName == "Warlock").SnoId,
             warlock.SnoId);
     }
+
+    /// <summary>FR-C9 #2 — the coverage gate (the decisive part).
+    /// Shape-agnostic: every handle-magnitude u32 anywhere in the raw
+    /// paragon scenes that resolves to a real atlas frame MUST be
+    /// surfaced by the exhaustive render-model. A future binding shape
+    /// that drops a real handle fails casc's own CI here — not the
+    /// consumer's eyeballs months later (the CL-23/24/25/26 lesson made
+    /// structural). Includes the canonical previously-dropped handles
+    /// (e.g. the grey rim ring 0x87A89F86, FR-C7-era "not in data").</summary>
+    [SkippableFact]
+    public void ParagonRenderModel_covers_every_bound_atlas_handle()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+
+        var model = d4.ReadParagonRenderModel();
+        Assert.Equal(new[] { 657304, 964599 },
+            model.Scenes.Select(s => s.SnoId).ToArray());
+        Assert.NotNull(model.Layout);
+
+        foreach (var sno in new[] { 657304, 964599 })
+        {
+            var blob = d4.ReadSno(UiScene.Group, sno);
+            // Structural texture-binding set: every 4-aligned, handle-
+            // magnitude u32 in the raw scene that resolves to an atlas
+            // frame (shape-agnostic — not tied to 0x22 / 0x58).
+            var rawHandles = new HashSet<uint>();
+            for (var p = 0; p + 4 <= blob.Length; p += 4)
+            {
+                var v = (uint)(blob[p] | (blob[p + 1] << 8) |
+                               (blob[p + 2] << 16) | (blob[p + 3] << 24));
+                if (d4.IsParagonTextureHandle(v)) rawHandles.Add(v);
+            }
+
+            var modelHandles = model.Scenes.First(s => s.SnoId == sno)
+                .Widgets.SelectMany(w => w.Layers)
+                .Select(e => e.TextureHandle).ToHashSet();
+
+            var dropped = rawHandles.Where(h => !modelHandles.Contains(h))
+                .Select(h => $"0x{h:X8}").ToArray();
+            Assert.True(dropped.Length == 0,
+                $"scene {sno}: render-model dropped bound atlas handles: " +
+                string.Join(", ", dropped));
+            Assert.NotEmpty(rawHandles); // sanity: the gate actually ran
+        }
+
+        // The exhaustive model carries handle + decoded rect; the grey
+        // rim ring (0x87A89F86 — CL-26, the FR-C7 "not in data" miss)
+        // is now present with its widget rect.
+        var all = model.Scenes.SelectMany(s => s.Widgets)
+            .SelectMany(w => w.Layers).ToArray();
+        Assert.Contains(all, e => e.TextureHandle == 0x87A89F86u);
+        Assert.Contains(all, e => e.Rect.Width != 0 || e.Rect.Height != 0 ||
+                                  e.Rect.Left != 0 || e.Rect.Top != 0);
+    }
 }

@@ -443,6 +443,34 @@ switch (cmd)
             Console.WriteLine(paths[i]);
         return 0;
     }
+    case "rendercover":
+    {
+        // FR-C9 recon: for a UI-scene SNO, the set of every 4-aligned
+        // u32 in the raw blob that resolves to a real atlas frame
+        // (structural "texture-binding") vs the set ReadUiScene
+        // surfaces (Fields values + ExtraLayerValues). Delta = dropped
+        // bindings (a still-unmodelled shape). Recon only.
+        int sc = argv.Count > 1 ? int.Parse(argv[1]) : 657304;
+        if (!d4.TryReadSno(46, sc, SnoFolder.Meta, out var sb)) { Console.WriteLine("no scene"); return 1; }
+        var rawH = new SortedSet<uint>();
+        for (int p = 0; p + 4 <= sb.Length; p += 4)
+        {
+            uint v = BitConverter.ToUInt32(sb, p);
+            if (v is not 0 and not 0xFFFFFFFF && d4.TryGetIconFrame(v, out _, out _))
+                rawH.Add(v);
+        }
+        var seen = new SortedSet<uint>();
+        foreach (var w in d4.ReadUiScene(sc).Widgets)
+        {
+            foreach (var f in w.Fields) if (f.HasValue) seen.Add(f.RawValue);
+            foreach (var e in w.ExtraLayerValues) seen.Add(e);
+        }
+        var dropped = new SortedSet<uint>(rawH);
+        dropped.ExceptWith(seen);
+        Console.WriteLine($"scene {sc}: atlas-resolvable-in-raw={rawH.Count} surfaced-by-ReadUiScene={seen.Count} DROPPED={dropped.Count}");
+        foreach (var h in dropped) Console.WriteLine($"  DROPPED 0x{h:X8}");
+        return 0;
+    }
     default:
         Console.Error.WriteLine($"unknown command '{cmd}'");
         return 2;
