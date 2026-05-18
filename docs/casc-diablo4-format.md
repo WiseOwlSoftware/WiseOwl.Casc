@@ -864,7 +864,7 @@ widgets:
 | Widget | Bound handle | §2.2 role |
 |---|---|---|
 | `Node_IconBase` | `0x1D166DC7` | base disc |
-| `NodeAvailableGlow` | `0x4A901508` | gold ornate (Rare/Legendary) |
+| `NodeAvailableGlow` | `0x4A901508` | ~~gold ornate (Rare/Legendary)~~ → **selectable/available glow** (state-driven, any rarity — FR-C8 R9 / CL-25 correction; the genuine Rare ornate is `Template_Node_Rare`'s own `0xB71BD068`) |
 | `GlyphNodeGlow_Revealed` / `_Purchased`, `Usage_Slot_2` | `0xBED4CF21` | socket pulse ring |
 
 Only these are bound in `ParagonBoard`. The grey rim ring
@@ -1021,6 +1021,32 @@ delta — consumer-owned, the same pass applied to the
 null` is the decoded answer, not a gap. Reopen only with an in-game
 oracle showing a node *recolouring* (not just swapping the glow layer)
 on select.
+
+**R9 — the selectable glow, and an FR-C7 per-rarity-ornate
+correction (CL-25).** FR-C7's `Project()` used
+`Elem("NodeAvailableGlow")` (`0x4A901508`) as the r3/r4 "gold ornate"
+— the *same projection gap* CL-23 fixed for start/gate: it never read
+`Template_Node_Rare`/`_Legendary`'s **own** `0x58`-bound layer. The
+data is decisive: `NodeAvailableGlow` (widget [105], ClassId
+`0x145F2056`) binds `0x4A901508` (unique in the scene) with an
+authored rect — and per the owner oracle it is the **selectable/
+available glow** (the yellow pulsing perimeter outline on every
+*unselected* node that is cardinally adjacent to a selected one, **any
+rarity**), *not* a per-rarity decoration. The genuine per-rarity
+static ornate is `Template_Node_Rare`'s own `0x58` block (handle
+**`0xB71BD068`**) and `Template_Node_Legendary`'s own block
+(catalog-validated `LayersOf`). So: r3/r4 now carry `disc` + their
+template's own decode-true ornate (`0x4A901508` removed from the baked
+rows), and `NodeAvailableGlow` is surfaced as a new
+`overlay.availableGlow` State (handle + decoded Rect, one perimeter
+frame). **Cross-check answer:** `0x4A901508` is **not** a distinct
+rare ornate — it *was* `NodeAvailableGlow` mis-labelled; it is now its
+own selectable-state overlay, distinct from the true rare ornate
+`0xB71BD068`. The §7.2 matrix is **19 rows** (the 18 + the
+pre-publish-amended `overlay.availableGlow`; FR-C8 is unreleased so
+the contract is amendable — CL-25). Verified by
+`ReadParagonRenderLayout_decodes_proven_structure` (rare ⊇
+`0xB71BD068`, ∌ `0x4A901508`; `overlay.availableGlow` ⊇ `0x4A901508`).
 
 ## 11. Non-paragon typed record readers (C6)
 
@@ -1351,6 +1377,24 @@ true value (the sections above already state the corrected truth).
   Selection = a widget swap (`States`) under the fixed engine shader
   pass (§2.3/§10.7) — `Tint`/`LitTint=null` is the decoded answer.
   Definitive #3 (§10.13).
+
+- **CL-25 — `NodeAvailableGlow` is the selectable glow, not the
+  per-rarity ornate; FR-C7 r3/r4 attribution corrected (FR-C8 R9).**
+  §10.13. FR-C7's `Project()` read `Elem("NodeAvailableGlow")`
+  (`0x4A901508`) as the Rare/Legendary "gold ornate" — the CL-23
+  projection gap again (it never read `Template_Node_Rare`/
+  `_Legendary`'s own `0x58`-bound layer). Decisive: `NodeAvailableGlow`
+  (ClassId `0x145F2056`) binds `0x4A901508` (unique) + a rect and is
+  the **selectable/available glow** (state-driven, any rarity — owner
+  oracle); the genuine Rare ornate is `Template_Node_Rare`'s own
+  `0xB71BD068`. Shipped: r3/r4 now carry `disc` + their template's own
+  catalog-validated ornate (`0x4A901508` removed from the baked rows);
+  new **`overlay.availableGlow`** State (handle + Rect, one perimeter
+  frame) ⇒ §7.2 matrix = **19 rows** (pre-publish contract amendment;
+  FR-C8 unreleased). Cross-check: `0x4A901508` is **not** a distinct
+  rare ornate — it was the mis-labelled glow, now its own row, distinct
+  from `0xB71BD068`. Asserted by
+  `ReadParagonRenderLayout_decodes_proven_structure`.
 
 ## Appendix B — provenance & migration map
 
