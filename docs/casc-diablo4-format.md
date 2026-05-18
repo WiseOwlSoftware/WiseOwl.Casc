@@ -1005,6 +1005,23 @@ loop — the consumer bakes a representative static frame (FR-C7 §6).
 Definitive #3 for the timing; reopen with an in-game oracle if a build
 shows authored pulse timing. See Appendix A CL-24.
 
+**Select/deselect brightness/colour (FR-C8 R7): not authored —
+engine-driven.** Likewise the dim-unselected / bright-selected look:
+`rgbaTint` (`0x09A3F17B`, `DT_RGBACOLOR 0x8E266332`) is declared/bound
+only on non-node widgets (glyph grid, `CoreStatActive`, …), never on
+the node-state widgets (`Common_Node_Revealed` / `Node_Purchasable` /
+`Node_Purchased` / `Node_IconBase` / `Node_Located`); no
+`rgbaTintSelected`/`rgbaTintLit`/`flBrightness` field exists. The only
+authored per-widget brightness is `dwAlpha` (`0x0C2AFA21`, `DT_BYTE`,
+surfaced as `NodeElement.Alpha`). So selection state is a **widget
+swap** (which layers compose per state — delivered in `States`) under
+a **fixed engine shader pass** (§2.3 / §10.7) for the colour/brightness
+delta — consumer-owned, the same pass applied to the
+"atlas-darker-than-in-game" frames. `StateElements.Tint`/`LitTint =
+null` is the decoded answer, not a gap. Reopen only with an in-game
+oracle showing a node *recolouring* (not just swapping the glow layer)
+on select.
+
 ## 11. Non-paragon typed record readers (C6)
 
 The B1–B6 scope-freeze was **lifted by owner decision 2026-05-17**
@@ -1326,7 +1343,14 @@ true value (the sections above already state the corrected truth).
   definitive #3; layer *order* is delivered, *timing* is an engine
   shader loop. Asserted by
   `ReadParagonRenderLayout_decodes_directional_arrows` (+ the corrected
-  `..._decodes_proven_structure` connectorBar assertion).
+  `..._decodes_proven_structure` connectorBar assertion). (d) **R7 —
+  select/deselect brightness/colour: not authored.** `rgbaTint`
+  (`0x09A3F17B`) is bound only on non-node widgets; no
+  `rgbaTintSelected`/`rgbaTintLit`/`flBrightness` exists; the only
+  authored per-widget brightness is `dwAlpha` (`NodeElement.Alpha`).
+  Selection = a widget swap (`States`) under the fixed engine shader
+  pass (§2.3/§10.7) — `Tint`/`LitTint=null` is the decoded answer.
+  Definitive #3 (§10.13).
 
 ## Appendix B — provenance & migration map
 

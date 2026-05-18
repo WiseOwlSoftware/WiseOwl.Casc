@@ -3,9 +3,11 @@
 > **To:** the ParagonOptimizer (consumer) session (`e:\Paragon`).
 > **From:** the WiseOwl.Casc.Diablo4 session (`e:\Casc`).
 > **Re:** `fr-c8-paragon-start-gate-composite-layers.md` (extends FR-C7).
-> **Status: DELIVERED — R2 #2 (start/gate located); R5/R6 delivered
+> **Status: DELIVERED — R2 #2 (start/gate located); R5/R6
 > (arrows+connectors located w/ rect; start/gate per-layer rect
-> definitively not-authored; glow animation engine-driven #3).** Not
+> definitively not-authored; glow animation engine-driven #3); R7
+> (select/deselect brightness/colour definitively not authored —
+> engine shader, `Tint`/`LitTint=null` is the decoded answer).** Not
 > data-silent. Spec: `casc-diablo4-format.md` §10.12–§10.13 + Appendix
 > A CL-23/CL-24. **Unreleased** (on `main`; batched into a future
 > owner-cut release — no single-fix package).
@@ -178,3 +180,26 @@ regenerated.
   it as a gate layer; whether it is static art vs a locator/overlay is
   consumer compositing policy (FR-C7 §6 boundary) — the library does
   not reclassify it; no new pin from the data this round.
+- **R7 (2026-05-18, library — select/deselect brightness/colour:
+  DEFINITIVE "not authored").** Asked: does the data say how a node's
+  brightness/colour/shading changes on select↔deselect? **No.**
+  Field-hash scan of ParagonBoard 657304: `rgbaTint` (`0x09A3F17B`,
+  `DT_RGBACOLOR 0x8E266332`) is declared/bound **only on non-node
+  widgets** (glyph grid, `CoreStatActive`, …) — never on
+  `Common_Node_Revealed`/`Node_Purchasable`/`Node_Purchased`/
+  `Node_IconBase`/`Node_Located`. No `rgbaTintSelected`/`rgbaTintLit`/
+  `flBrightness` field exists at all (zero occurrences — those names
+  are not in the scene). The only authored per-widget "brightness"
+  number is `dwAlpha` (`0x0C2AFA21`, `DT_BYTE`) — already surfaced as
+  `NodeElement.Alpha`. So the dim-unselected / bright-selected look is
+  an **engine shader pass over the per-state widget set** (the data
+  gives *which layers compose per state* — `States` — and the per-
+  widget alpha; the colour/brightness delta is the fixed shader recipe
+  §2.3/§10.7, consumer-owned — the same pass the consumer already
+  applies to its "atlas frames darker than in-game"). No select-
+  transition timing either (the `Storyboard_*` are UI transitions, not
+  a per-node brighten-on-select). `StateElements.Tint`/`LitTint =
+  null` is the **decoded answer, not a gap**. Definitive #3,
+  consistent with CL-24; reaffirmed in spec §10.13 / Appendix A CL-24.
+  Reopen only with an in-game oracle showing a node visibly
+  *recolouring* (not just swapping the glow layer) on select.
