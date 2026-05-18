@@ -16,7 +16,7 @@ reverse-engineering workstream (no spec yet) rather than ship unproven RE.
 | **FR-11** Read any group by id + int escape hatch | **DONE** | `SnoGroup` now names `Power=29, Item=73, PlayerClass=74, ItemType=98, Affix=104` (+ existing `GameBalance=20`). `Diablo4Storage.ReadSno(int groupId,int id,SnoFolder)` / `TryReadSno(int…)` overloads (the TVFS address is id-only; group is informational). Raw bytes + `SnoRecord` only — no typed readers (FR-5/FR-16). |
 | **FR-12** GameBalance enumeration + GBID hash | **DONE** | `CoreToc.EntriesInGroup(SnoGroup.GameBalance)` already enumerates *all* GameBalance SNOs (generic by group, not just 201912). Added `static uint Diablo4.GbidHash(string)` — case-insensitive DJB2; verified `GbidHash("ParagonNodeCoreStat_Normal") == 0x42C16A1B` (upstream §7.1). Table parsing stays consumer-side. |
 | **FR-13** StringList / localized names | **DONE & PROVEN** (RE workstream completed 2026-05-16) | Reverse-engineered end to end and validated bundle-wide (58,286 tables / 175,014 strings; walk lands at EOF). Per-locale consolidated `0x44CF00F5` bundle `base/StringList-Text-<locale>.dat`; differs from the texture catalog (body at `B=alignUp8(prevEnd)`, no `+8`, SNO positional from index; `infoLength@B+20`, 40-byte entries, UTF-8). Full spec in `docs/casc-diablo4-format.md §6.3` (+ CL-7). API: `Diablo4Storage.GetStrings(locale="enUS")` → `StringListCatalog` (cached per locale); `TryGetString(tableSno,label,...)` / `TryGetString(label,...)`. Proven: `d4.TryGetString(4087,"ChatLink_WhisperedTo")` == `"{s1} whispers: {s2}"`; table 4080 `AttributeDescriptions` = 646 entries. CI-safe synthetic test + live test. Reference cross-check: `alkhdaniel/diablo-4-string-parser` (standalone `.stl`). |
-| **FR-14** `SnoFolder.Child` (and PayMed/PayLow) by id | **MECHANISM DONE; acceptance gated** | The FR-1 resolver is folder-generic — `SnoPath(id, SnoFolder.Child[, subId])` → `Base\Child\<id>[-<subId>]` (the `<id>-<subId>` form, per the ~16k `base:child\<id>-<n>` census); `PayLow`/`PayMed` likewise. It is the **identical proven code path** as Meta/Payload. No new code needed. A *concrete* Child-bearing SNO id was not pinned in sampled ranges — that requires the deferred RE (which SNOs carry children); the FR-14 acceptance test self-skips honestly until then rather than fake a pass. |
+| **FR-14** `SnoFolder.Child` (and PayMed/PayLow) by id | **DONE (acceptance pinned 2026-05-17, CL-19)** | Folder-generic FR-1 resolver — `SnoPath(id, SnoFolder.Child[, subId])` → `Base\Child\<id>[-<subId>]`; identical proven path as Meta/Payload. Concrete anchor pinned: SNO `1015186` (group 71, `AmbS_EMT_Dungeon_AncientsSand`) → `Base\Child\1015186-0` non-empty; bad sub-id = clean miss. Census ≈547,244 `base/child/<id>-<n>` via `CascStorage.DiagnosticPaths` (SnoScan `childpaths`). `Resolves_child_folder_by_id` no longer self-skips. |
 | **FR-15** Bulk group streaming | **DONE** | `Diablo4Storage.ReadGroup(SnoGroup, SnoFolder)` → `IEnumerable<(int Id, byte[] Bytes)>`, skips legitimately-absent ids, reuses the resident local index / encoding table / cached archive handles (FR-9) so a full-group sweep does not re-open storage. |
 | **FR-16** Boundary doc (no code) | **DONE** | Recorded here and in `docs/casc-diablo4-format.md` (Appendix C, the FR-5/FR-16 boundary): Item / Affix / Power / Class / GameBalance → stat-effect *modeling* is a **ParagonOptimizer domain spec** built on FR-11…FR-15. The library provides transport + CoreTOC + combined-meta + `SnoRecord` primitives + BCn + GBID hash + StringList (when FR-13 lands) and **will not grow typed game-record APIs**. The future split is unambiguous. |
 
@@ -56,10 +56,33 @@ names; resolves the `SnoGroup` enum collision). Delivery: static
 tests + live §8 acceptance matrix (verbatim, passes). Spec:
 `casc-diablo4-format.md` §§6–8 + CL-8; **spec authority transferred to the
 two canonical docs** (`casc-diablo4-format.md` Appendix B provenance
-map; upstream §3–§8.15 frozen for layouts). **Library scope is now FROZEN
-at "B1–B6 + existing"** — nothing further for the eliminate-D4Extract
-goal. Typed Item/Affix/Power/Class readers stay deferred (C6) until that
-RE exists.
+map; upstream §3–§8.15 frozen for layouts). ~~**Library scope is now
+FROZEN at "B1–B6 + existing"**~~ — **superseded: scope-freeze lifted by
+owner 2026-05-17; C6 delivered (below).**
+
+## Round 4 — C6 typed non-paragon readers — DONE & PROVEN
+
+Scope-freeze **lifted by owner 2026-05-17** ("complete all backlog
+items"). C6 ships typed readers for the non-paragon record groups,
+honoring the boundary: **identity + verifiable raw/localized fields
+only** — the multi-KB Power/Item gameplay engine records are *not*
+modeled (no fabricated values; that stays the consumer's stat-effect
+domain spec, Appendix C). Localized text uses the generalized
+sibling-StringList convention (§6.7 / CL-20).
+
+| Item | Status | Notes |
+|---|---|---|
+| `PlayerClassDefinition` + `ReadPlayerClass` | DONE | `SnoId` + binary `eClass`@payload+16 (the field the glyph slot rank uses, FR-D3). §11.1/CL-21. Warlock→10, Sorcerer→0, Necromancer→6. |
+| `PowerDefinition` + `ReadPower(id,locale)` | DONE | `SnoId` + sibling `Power_<n>` `name`/`desc`. §11.2/CL-22. `2521393`→`Fathomless`. |
+| `AffixDefinition` + `ReadAffix(id,locale)` | DONE | `SnoId` + sibling `Affix_<n>` `Desc`. §11.3/CL-22. `2586362`→"Your attacks Critically Strike …". |
+| `ItemDefinition` + `ReadItem(id,locale)` | DONE | `SnoId` + sibling `Item_<n>` `Name`/`Flavor`/`TransmogName`. §11.4/CL-22. `223287`→"The Butcher's Cleaver". |
+
+Boundary preserved: byte-only `Parse(blob)` = identity only; the
+library still ships **no formula evaluator** and does not model the
+deep gameplay records. Acceptance: `C6_typed_readers_decode_identity_
+and_localized_text` (live `3.0.2.71886`, 0 skipped). The
+eliminate-D4Extract goal now also covers class/power/affix/item
+identity + names; deeper stat-effect modeling remains the consumer's.
 
 ## When the d4-character-model workstream starts
 

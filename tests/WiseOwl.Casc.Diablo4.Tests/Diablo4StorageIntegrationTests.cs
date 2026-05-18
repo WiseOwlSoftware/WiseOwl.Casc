@@ -450,4 +450,56 @@ public sealed class Diablo4StorageIntegrationTests
         Assert.Contains(d4.ReadCharacterClasses(),
             c => c.SnoId == warlock && c.SnoName == "Warlock");
     }
+
+    /// <summary>C6 (scope-unfrozen 2026-05-17): typed PlayerClass / Power
+    /// / Affix / Item readers — identity + localized text via the
+    /// generalized sibling-StringList convention (§8 / CL-20..22).</summary>
+    [SkippableFact]
+    public void C6_typed_readers_decode_identity_and_localized_text()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+
+        // PlayerClass (group 74): SnoId + binary eClass (§8.1 / CL-21).
+        var warlock = d4.ReadPlayerClass(2207749);
+        Assert.Equal(2207749, warlock.SnoId);
+        Assert.Equal(10, warlock.EClass);
+        Assert.Equal(0, d4.ReadPlayerClass(131965).EClass);   // Sorcerer
+        Assert.Equal(6, d4.ReadPlayerClass(199277).EClass);   // Necromancer
+
+        // Power (group 29): sibling Power_<snoName> labels name/desc.
+        var pow = d4.ReadPower(2521393);    // Paragon_Warlock_Legendary_001
+        Assert.Equal(2521393, pow.SnoId);
+        Assert.Equal("Fathomless", pow.Name);
+        Assert.StartsWith("Each demon", pow.Description);
+
+        // Affix (group 104): sibling Affix_<snoName> label Desc.
+        var aff = d4.ReadAffix(2586362);    // Talisman_Charm_Affix_1HAxe_Unique_Generic_001
+        Assert.Equal(2586362, aff.SnoId);
+        Assert.StartsWith("Your attacks Critically Strike", aff.Description);
+
+        // Item (group 73): sibling Item_<snoName> Name/Flavor/TransmogName.
+        var item = d4.ReadItem(223287);     // 1HAxe_Unique_Generic_001
+        Assert.Equal(223287, item.SnoId);
+        Assert.Equal("The Butcher's Cleaver", item.Name);
+        Assert.Equal("Cadaver Chopper", item.TransmogName);
+        Assert.False(string.IsNullOrEmpty(item.Flavor));
+
+        // Locale-aware (sibling catalog is per-locale).
+        Assert.NotEqual(pow.Name, d4.ReadPower(2521393, "deDE").Name);
+
+        // Byte-only Parse = identity only (localized fields need CoreTOC)
+        // — honest empty sentinel, no fabrication.
+        var bo = PowerDefinition.Parse(d4.ReadSno(SnoGroup.Power, 2521393));
+        Assert.Equal(2521393, bo.SnoId);
+        Assert.Equal(string.Empty, bo.Name);
+        Assert.Equal(string.Empty,
+            ItemDefinition.Parse(d4.ReadSno(SnoGroup.Item, 223287)).Name);
+
+        // C6 eClass matches the FR-D2/D3 shared roster key.
+        Assert.Equal(
+            d4.ReadCharacterClasses().First(c => c.SnoName == "Warlock").SnoId,
+            warlock.SnoId);
+    }
 }

@@ -102,8 +102,11 @@ decision.
 3. Round-2 consumer FRs (`docs/feature-backlog.md`) — ALL done, none
    deferred. FR-11/12/15 (named groups + int escape hatch;
    `Diablo4.GbidHash` == `0x42C16A1B`; `ReadGroup` streaming);
-   FR-14 mechanism done (folder-generic resolver; concrete Child id gated
-   on RE). **FR-13 StringList: REVERSE-ENGINEERED, implemented & proven**
+   **FR-14 DONE** (folder-generic resolver; concrete Child anchor pinned
+   2026-05-17 — SNO 1015186/group 71 → `Base\Child\1015186-0`, CL-19;
+   ≈547k census via `CascStorage.DiagnosticPaths` / SnoScan
+   `childpaths`; test no longer self-skips). **FR-13 StringList:
+   REVERSE-ENGINEERED, implemented & proven**
    — per-locale `0x44CF00F5` bundle `base/StringList-Text-<locale>.dat`;
    `StringListCatalog` / `Diablo4Storage.GetStrings(locale)` /
    `TryGetString`. Definitive spec: `casc-diablo4-format.md §6.3` + CL-7;
@@ -116,8 +119,18 @@ decision.
    /`AttributeFormulaTable` + `Diablo4Storage.Read*` + `TryGetIconFrame`.
    Raw fields only; **library ships NO formula evaluator** (decided). §7
    acceptance matrix passes verbatim (201912=1038 entries, CoreStat_Normal
-   →"5"). **Library scope FROZEN at "B1–B6 + existing"** for the
-   eliminate-D4Extract goal. Typed Item/Affix/Power/Class deferred (C6).
+   →"5"). ~~Library scope FROZEN at "B1–B6"~~ — **scope-freeze LIFTED
+   by owner 2026-05-17; C6 DELIVERED** (devlog 0015): typed
+   `PlayerClassDefinition`(+`ReadPlayerClass`; SnoId+`eClass`@payload+16,
+   CL-21) / `PowerDefinition` / `AffixDefinition` / `ItemDefinition`
+   (+`ReadPower`/`ReadAffix`/`ReadItem(id,locale)`; identity +
+   localized text via the **generalized sibling-StringList convention**
+   §6.7/CL-20 — `<TypePrefix>_<snoName>` group-42, `Item_`Name/Flavor/
+   TransmogName, `Affix_`Desc, `Power_`name/desc; CL-22). Boundary
+   intact: identity + verifiable raw/localized fields only — deep
+   Power/Item gameplay records NOT modeled, **still no formula
+   evaluator**. Test `C6_typed_readers_decode_identity_and_localized_
+   text` (live 3.0.2.71886). Backlog now fully DONE, nothing deferred.
 5. **SPEC AUTHORITY: TWO canonical byte-format docs (mirror the two
    packages), each with its own CL-* log:** `docs/casc-format.md`
    (CASC/TACT/TVFS/BLTE transport) and `docs/casc-diablo4-format.md`

@@ -115,7 +115,29 @@ public sealed class FeatureBacklogRound2Tests
         Assert.Equal(@"Base\Child\1234", Diablo4Storage.SnoPath(1234, SnoFolder.Child));
         Assert.Equal(@"Base\Child\1234-0", Diablo4Storage.SnoPath(1234, SnoFolder.Child, 0));
 
-        // Child sub-blobs are addressed Base\Child\<id>-<subId>.
+        // Concrete pinned acceptance (build 3.0.2.71886): SNO 1015186
+        // (group 71, "AmbS_EMT_Dungeon_AncientsSand") carries Child
+        // sub-blobs addressed Base\Child\<id>-<subId> (CL-19). The
+        // ~547k base/child/<id>-<n> census is exposed via
+        // CascStorage.DiagnosticPaths; SnoScan `childpaths` is the
+        // recon instrument.
+        const int childGroup = 71;
+        const int childId = 1015186;
+        Assert.Equal(childId, d4.CoreToc.GetId((SnoGroup)childGroup,
+            "AmbS_EMT_Dungeon_AncientsSand"));
+        Assert.True(d4.Casc.TryResolvePath(
+            Diablo4Storage.SnoPath(childId, SnoFolder.Child, 0), out _),
+            "Base\\Child\\1015186-0 must resolve on the pinned build.");
+        Assert.True(d4.TryReadSno(childGroup, childId, SnoFolder.Child,
+            out var child0, subId: 0));
+        Assert.NotEmpty(child0);
+
+        // The id-keyed Child path is the identical resolver as Meta/
+        // Payload — a non-existent sub-blob is a clean miss, not a throw.
+        Assert.False(d4.TryReadSno(childGroup, childId, SnoFolder.Child,
+            out _, subId: 999999));
+
+        // Still folder-generic for the rich groups too, when present.
         var found = false;
         foreach (var g in new[] { SnoGroup.Power, SnoGroup.Item, SnoGroup.Texture })
         {
@@ -131,7 +153,8 @@ public sealed class FeatureBacklogRound2Tests
             }
             if (found) break;
         }
-        Skip.IfNot(found, "No Child sub-blob in the sampled ranges on this build.");
+        // Informational only — the pinned id above is the hard acceptance.
+        _ = found;
     }
 
     /// <summary>FR-15: bulk group streaming reuses resident state (no
