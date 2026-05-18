@@ -194,9 +194,21 @@ decision.
    consumer-owned. Spec §10.12. **UNRELEASED — `0.2.0-alpha` was
    published from PR #15 (`ce9f778`) BEFORE FR-C8 (PR #16); FR-C8 is on
    `main`, in no package, and per owner is NOT released on its own
-   (batched into a future owner-cut release). Legendary/socket
-   composition UNCHANGED (FR-C7 Common path); animation still NOT
-   decoded (AnimSpec null) — open follow-up.**
+   (batched into a future owner-cut release).** **R5/R6 (PR #17,
+   ddeb52d, CL-24, §10.13):** `Arrow_*` + `Connector_*` bind real art +
+   authored rect (FR-C7 §6 correction — they were dropped by a
+   last-0x22-record-straddle bug in `UiScene.Parse`, now surgically
+   fixed; `overlay.pointerTriangle`/`connectorBar` populated,
+   `selectionRing` genuinely empty). Arrows: Top `0xD51CAB25`/Right
+   `0x6D3CB8DE`/Bottom `0x8EEAC178`/Left `0xB6D8C741`; connectors
+   `0x77ECA3A8`/`0x288DE11F`. **R5 definitive:** start/gate 0x58 blocks
+   are handle-only — no per-layer rect authored (inherit `NodeTemplate`
+   box); `Rect`/`Alpha` stays default. **Animation definitive #3:**
+   per-node glow pulse is engine-driven (no authored timing;
+   `Storyboard_*` are UI transitions) — `AnimSpec=null` reaffirmed,
+   bake a static frame. Reopen only with an in-game oracle showing
+   authored timing. Legendary/socket *composition* UNCHANGED (FR-C7
+   Common path).
 9b. **FR-C7 (DELIVERED — RE complete, all gates met; devlogs 0010/0011,
    spec §10 + CL-9..CL-14, consumer contract `docs/fr-c7-api-proposal.md`
    §7).** D4 UI-scene format (group 46 = type `UI`, hash `0xE4825AB8`;
