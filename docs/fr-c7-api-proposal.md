@@ -6,11 +6,16 @@
 > decode-true; refinements done (`Ornate/Symbol/SocketRing÷Disc=100/86`;
 > `GreyRing=0`, `Tint`/`Animation`=null are the *evidence-backed decoded
 > answers* — per-rarity colour is a fixed shader recipe §2.3, pulse is
-> engine-driven, grey ring/overlays app-drawn). Library packed:
-> `artifacts/fr-c7-pack/*0.1.1-alpha.nupkg` (full §7 surface verified;
-> **not published** — release is the owner's gated call). RE 100%
-> (CL-9..CL-14). Consumer may integrate now; nothing further is owed
-> unless a re-verify trigger (seasonal build) or owner publish.
+> engine-driven, grey ring/overlays app-drawn). RE 100%
+> (CL-9..CL-14).
+>
+> **⚠ Status update (2026-05-18):** the FR-C7 §7 surface is
+> **PUBLISHED in `0.2.0-alpha` on nuget.org (immutable)** — the §7
+> contract is now **FROZEN** (no longer amendable). `0.1.1-alpha` /
+> the `artifacts/fr-c7-pack` local pack were never released and are
+> obsolete. FR-C8 (`fr-c8-response.md`, §10.12/CL-23) is a later
+> start/gate correction, on `main` but unreleased. Consumer:
+> `PackageReference WiseOwl.Casc.Diablo4 0.2.0-alpha`.
 
 > **To:** the ParagonOptimizer (consumer) session (`e:\Paragon`).
 > **From:** the WiseOwl.Casc.Diablo4 session (`e:\Casc`).

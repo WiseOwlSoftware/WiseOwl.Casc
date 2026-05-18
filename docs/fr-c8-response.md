@@ -81,8 +81,10 @@ guessed:
   located-but-not-pinned, so both `gate.*` States expose the full
   ordered set rather than a state split I cannot yet prove from bytes.
   Compose unselected vs selected using your confirmed identities; the
-  library will tighten this if/when the state binding is pinned (this
-  contract is amendable until the next NuGet publish — FR-C7 §7).
+  library will tighten this if/when the state binding is pinned. FR-C8
+  is **unreleased** (on `main`, not in the published `0.2.0-alpha` —
+  which is frozen by NuGet immutability); its contract stays amendable
+  until FR-C8 actually ships in a future owner-batched release.
 
 The symbol layer: take it from `ParagonNodeDefinition.HIconMask` of the
 specific Start/Gate node (2458702 / 994337), drawn small/centred over
@@ -108,6 +110,9 @@ regenerated.
   `ParagonRenderLayout` `start.*`/`gate.*` `States.Layers`
   (catalog-validated); oracle-exact, tested. Residual (per-layer
   rect/tint, exact selected/unselected state binding) honestly
-  located-not-pinned, consumer-owned per the FR-C7 §6 precedent,
-  amendable until publish. Consumer may lift the provisional procedural
-  start/gate path onto the authoritative decoded handles now.
+  located-not-pinned, consumer-owned per the FR-C7 §6 precedent.
+  FR-C8 is on `main` but **unreleased** — `0.2.0-alpha` (published,
+  immutable) does not contain it; it ships in a later owner-batched
+  release, amendable until then. Consumer may lift the provisional
+  procedural start/gate path onto the authoritative decoded handles now
+  by building from `main` (or wait for the package that carries FR-C8).

@@ -3,16 +3,20 @@
 > **To:** the ParagonOptimizer (consumer) session (`e:\Paragon`).
 > **From:** the WiseOwl.Casc.Diablo4 session (`e:\Casc`).
 > **Purpose:** the authoritative snapshot of the *entire* shipped
-> Diablo IV public surface after FR-C7, FR-D1/D2/D3, and the backlog
-> completion (FR-11..16, B1–B6, FR-14, C6). Supersedes the per-FR
-> response docs as the single integration reference.
-> **Package version:** `0.1.1-alpha` (local pack
-> `artifacts/fr-c7-pack/*`; **not yet published** — the gated NuGet
-> release is the owner's call. Reference the local pack or await
-> publish). **Verified build:** Diablo IV `3.0.2.71886`.
-> Byte/string spec of record: `casc-diablo4-format.md` (`CL-*`). The
-> §7-style amend-until-next-publish contract still applies — reopen a
-> round here for a shape change before the release is cut.
+> Diablo IV public surface after FR-C7, FR-D1/D2/D3, the backlog
+> completion (FR-11..16, B1–B6, FR-14, C6), and FR-C8. Supersedes the
+> per-FR response docs as the single integration reference.
+> **Published:** **`0.2.0-alpha`** on nuget.org — both
+> `WiseOwl.Casc` and `WiseOwl.Casc.Diablo4` (PackageReference it; the
+> old `artifacts/fr-c7-pack` local pack is obsolete — ignore it). It
+> contains FR-C7, FR-D1/D2/D3, FR-14, and C6; that surface is **frozen
+> by NuGet immutability** (no longer amendable).
+> **Unreleased on `main` (not in any package yet): FR-C8** (start/gate
+> composite, §10.12/CL-23 — see `fr-c8-response.md`). It ships in a
+> future owner-batched release (version TBD); only FR-C8 is still
+> contract-amendable, until *that* release. **Verified build:**
+> Diablo IV `3.0.2.71886`. Byte/string spec: `casc-diablo4-format.md`
+> (`CL-*`).
 
 ---
 
@@ -223,6 +227,11 @@ Imaging/PNG/compositing/relight stay consumer-side.
 - **FR-14** `SnoFolder.Child` acceptance pinned.
 - **C6** scope-freeze lifted: `ReadPlayerClass`/`ReadPower`/`ReadAffix`/
   `ReadItem` + the generalized sibling-string convention.
+- **FR-C8** (*on `main`, unreleased — not in `0.2.0-alpha`*):
+  `UiWidget.ExtraLayerValues` + corrected `start.*`/`gate.*`
+  `States.Layers` (§10.12 / CL-23; `fr-c8-response.md`). Available only
+  if you build from source; the published `0.2.0-alpha` does **not**
+  have it (NuGet immutability — it ships in a later batched release).
 
 Backlog (`docs/feature-backlog.md`): FR-11..16 + B1–B6 + C6 all DONE —
 **nothing deferred**. The boundary held (no evaluator, no fabricated
@@ -230,8 +239,10 @@ gameplay model).
 
 ## 9. Integration checklist
 
-1. Reference the `0.1.1-alpha` pack (or the published package once the
-   owner cuts the gated release).
+1. `PackageReference` **`WiseOwl.Casc.Diablo4` `0.2.0-alpha`** (and
+   `WiseOwl.Casc 0.2.0-alpha`) from nuget.org — published & immutable.
+   (FR-C8 is not in it; build from `main` if you need start/gate
+   composites before the next release.)
 2. Class identity: one key — `CharacterClass.SnoId`. Join boards
    (`ClassSnoId`), glyphs (`UsableByClassSnoIds`), `ReadPlayerClass`.
 3. Delete the retired consumer code (board regex, ParagonClass enum,

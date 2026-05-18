@@ -46,6 +46,12 @@ atlas oracle exactly: Start = filigree `0xA0F996FE` → hexagon
 - Spec §10.12 + Appendix A CL-23 (an FR-C7 correction); test
   `ReadParagonRenderLayout_decodes_start_gate_composites` vs live
   `3.0.2.71886`; full suite green (37 pass, 0 skipped, 0 warnings).
-  Response: `docs/fr-c8-response.md`. Contract amendable until the next
-  publish (FR-C7 §7) — relevant since 0.2.0-alpha is release-prepped
-  but not yet published.
+  Response: `docs/fr-c8-response.md`.
+
+**Release status.** `0.2.0-alpha` was published to nuget.org on
+2026-05-18 from PR #15 (commit `ce9f778`) — it does **not** contain
+FR-C8 (PR #16 landed after the tag). That published surface (FR-C7,
+FR-D1/D2/D3, FR-14, C6) is now frozen by NuGet immutability. FR-C8
+stays on `main`, unreleased; per the owner it is **not** released on
+its own — it batches into a future owner-cut release (no single-fix
+packages). Its contract is amendable until that release.

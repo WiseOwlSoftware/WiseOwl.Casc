@@ -169,10 +169,17 @@ decision.
    packages and fires ONLY on `release: published` — four gates: release
    trigger, `nuget` Environment required-reviewer approval, tag ==
    committed `<Version>` guard, `--skip-duplicate` idempotency. Auth =
-   NuGet.org Trusted Publishing (OIDC), **no stored key**. NOTHING
-   published yet; one-time setup (GitHub `nuget` env + required reviewer,
-   `NUGET_USER` repo var, nuget.org Trusted-Publishing policy for both
-   ids) is the owner's to do before the first release — see the runbook.
+   NuGet.org Trusted Publishing (OIDC), **no stored key**. **PUBLISHED:
+   `0.1.0-alpha` (2026-05-17) and `0.2.0-alpha` (2026-05-18) — both
+   packages live on nuget.org, immutable.** `0.2.0-alpha` = FR-C7 +
+   FR-D1/D2/D3 + FR-14 + C6 (tag → `ce9f778`/PR #15). One-time infra
+   (env + reviewer, `NUGET_USER`, Trusted-Publishing policy) is done &
+   proven. **Release cadence is owner-driven & batched — never
+   prep/bump/cut a release for a single fix without an explicit
+   "release now" (memory `feedback_release-cadence`).** `main`'s
+   `<Version>` is still `0.2.0-alpha` (the immutable published number);
+   it gets bumped only when the owner decides to cut the next batched
+   release.
 9. **FR-C8 (DELIVERED 2026-05-18, PR #16, CL-23 — an FR-C7
    correction; devlog 0016, `docs/fr-c8-response.md`).** Start/gate
    composites ARE in ParagonBoard 657304 (verdict #2 located). FR-C7's
@@ -184,9 +191,12 @@ decision.
    disc). Shipped `UiWidget.ExtraLayerValues` (raw) + corrected typed
    `start.*`/`gate.*` States.Layers (catalog-validated). Residual
    (rect/scale, shader brightness, exact sel↔unsel split) default /
-   consumer-owned. Spec §10.12. **Legendary/socket composition
-   UNCHANGED (FR-C7 Common path); animation still NOT decoded
-   (AnimSpec null) — open follow-up.**
+   consumer-owned. Spec §10.12. **UNRELEASED — `0.2.0-alpha` was
+   published from PR #15 (`ce9f778`) BEFORE FR-C8 (PR #16); FR-C8 is on
+   `main`, in no package, and per owner is NOT released on its own
+   (batched into a future owner-cut release). Legendary/socket
+   composition UNCHANGED (FR-C7 Common path); animation still NOT
+   decoded (AnimSpec null) — open follow-up.**
 9b. **FR-C7 (DELIVERED — RE complete, all gates met; devlogs 0010/0011,
    spec §10 + CL-9..CL-14, consumer contract `docs/fr-c7-api-proposal.md`
    §7).** D4 UI-scene format (group 46 = type `UI`, hash `0xE4825AB8`;
@@ -218,10 +228,11 @@ decision.
    Shipped public API (`Diablo4Storage`): `ReadUiScene(snoId)` (raw
    widget graph), `ReadParagonRenderLayout()` (typed §7.1 projection,
    18-row §7.2 `States`), `Diablo4.TypeHash/FieldHash`. PRs #5–#10
-   merged; library packed `artifacts/fr-c7-pack/*0.1.1-alpha.nupkg`
-   (NOT published — release is the owner's gated call). **Remaining:**
-   repack at the completed state + final consumer note; optionally
-   release `0.1.1-alpha` via the gated pipeline. **Working with the
+   merged; **PUBLISHED in `0.2.0-alpha` on nuget.org (immutable) — the
+   FR-C7 §7 contract is now FROZEN for that surface.** (The old
+   `artifacts/fr-c7-pack/*0.1.1-alpha.nupkg` local pack is obsolete;
+   `0.1.1-alpha` was never released — superseded by `0.2.0-alpha`.)
+   **Working with the
    optimizer:** FR loop; consumer is on HOLD (durable record
    `e:\Paragon\docs\fr-c7-paragon-render-layout.md` Round-11/12);
    `docs/fr-c7-api-proposal.md` §7 is the converged frozen-until-publish

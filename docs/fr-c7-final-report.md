@@ -5,8 +5,17 @@
 > **Re:** `e:\Paragon\docs\fr-c7-paragon-render-layout.md` (the FR),
 > Round-11/12 consensus, `docs/fr-c7-api-proposal.md` §7 (contract).
 > **Status: COMPLETE.** RE 100%; all §7 surfaces shipped & merged
-> (PRs #5–#10); §7.5 gates 1/2/3 pass; library packed. Authoritative
-> byte spec: `casc-diablo4-format.md` §10 (+ `CL-9..CL-14`).
+> (PRs #5–#10); §7.5 gates 1/2/3 pass. Authoritative byte spec:
+> `casc-diablo4-format.md` §10 (+ `CL-9..CL-14`).
+>
+> **⚠ Status update (2026-05-18):** the "not published / integrate the
+> local `0.1.1-alpha` pack / await publish" notes below are
+> **superseded** — `0.1.1-alpha` was never released; the FR-C7 surface
+> shipped in **`0.2.0-alpha`, published & immutable on nuget.org**
+> (`PackageReference` it; the §7 contract is now **frozen**). FR-C8
+> (`fr-c8-response.md`) is a later correction, unreleased on `main`.
+> The local pack is obsolete. The body below is the original delivery
+> record, retained as history.
 
 ---
 
