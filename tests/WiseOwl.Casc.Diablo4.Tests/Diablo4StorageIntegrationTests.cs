@@ -238,7 +238,8 @@ public sealed class Diablo4StorageIntegrationTests
         Assert.All(rl.States, s => Assert.Null(s.Tint));
         Assert.All(rl.States, s => Assert.Null(s.Animation));
 
-        // §7.5 gate 1: exactly the 18 §7.2 rows, verbatim keys.
+        // §7.5 gate 1: the §7.2 rows + the FR-C8 R9 availableGlow row
+        // (19; contract amended pre-publish — CL-25), verbatim keys.
         var expected = new (int r, string s)[]
         {
             (0,"unselected"),(0,"selected"),(2,"unselected"),(2,"selected"),
@@ -247,21 +248,30 @@ public sealed class Diablo4StorageIntegrationTests
             (-1,"gate.unselected"),(-1,"gate.selected"),
             (-1,"start.unselected"),(-1,"start.selected"),
             (-1,"overlay.selectionRing"),(-1,"overlay.connectorBar"),
-            (-1,"overlay.pointerTriangle"),
+            (-1,"overlay.pointerTriangle"),(-1,"overlay.availableGlow"),
         };
-        Assert.Equal(18, rl.States.Count);
+        Assert.Equal(19, rl.States.Count);
         Assert.Equal(expected,
             rl.States.Select(s => (s.RarityOverride, s.State)).ToArray());
 
-        // Decode-true layers: disc = Node_IconBase base disc handle;
-        // Rare/Legendary add the gold ornate.
+        // CL-25 (FR-C8 R9): the disc is the base; the genuine
+        // Rare/Legendary ornate is Template_Node_Rare/_Legendary's OWN
+        // bound layer (Rare → 0xB71BD068), NOT NodeAvailableGlow's
+        // 0x4A901508 (that is the selectable glow — its own overlay row,
+        // below). FR-C7 conflated them; this is the corrected decode.
         Assert.Equal(0x1D166DC7u, rl.Disc.TextureHandle);
         var rare = rl.States.First(s => s.RarityOverride == 3 && s.State == "unselected");
         Assert.Contains(rare.Layers, e => e.TextureHandle == 0x1D166DC7u);
-        Assert.Contains(rare.Layers, e => e.TextureHandle == 0x4A901508u);
+        Assert.Contains(rare.Layers, e => e.TextureHandle == 0xB71BD068u);
+        Assert.DoesNotContain(rare.Layers, e => e.TextureHandle == 0x4A901508u);
         var common = rl.States.First(s => s.RarityOverride == 0 && s.State == "unselected");
         Assert.Contains(common.Layers, e => e.TextureHandle == 0x1D166DC7u);
-        Assert.DoesNotContain(common.Layers, e => e.TextureHandle == 0x4A901508u);
+        Assert.DoesNotContain(common.Layers, e => e.TextureHandle == 0xB71BD068u);
+        // The selectable glow is its own overlay row, handle 0x4A901508
+        // + a decoded Rect — distinct from the rarity ornate (R9 #2).
+        var glow = rl.States.First(s => s.State == "overlay.availableGlow").Layers;
+        Assert.Contains(glow, e => e.TextureHandle == 0x4A901508u);
+        Assert.DoesNotContain(rare.Layers, e => e.TextureHandle == 0x4A901508u);
         // CL-24 (FR-C8 R6): connectorBar is NOT empty — the FR-C7-era
         // "overlays app-drawn / not in data" was wrong for the
         // connector bars too (their bound art was the dropped last

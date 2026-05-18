@@ -244,23 +244,39 @@ internal static class ParagonRenderProjection
         }
 
         var disc   = Elem("Node_IconBase");        // 0x1D166DC7
-        var ornate = Elem("NodeAvailableGlow");    // 0x4A901508 (Rare/Legendary)
         var pulse  = Elem("GlyphNodeGlow_Revealed"); // 0xBED4CF21 (socket)
 
         static NodeElement[] L(params NodeElement[] xs) =>
             xs.Where(e => e.TextureHandle != 0).ToArray();
 
-        var states = new List<StateElements>(18);
+        // CORRECTION (FR-C8 R9, CL-25). FR-C7 used
+        // Elem("NodeAvailableGlow") (0x4A901508) as the r3/r4 "gold
+        // ornate" — the same projection gap CL-23 fixed for start/gate:
+        // it never read Template_Node_Rare/_Legendary's OWN 0x58-bound
+        // layers. The genuine per-rarity static ornate is those (Rare →
+        // 0xB71BD068, Legendary → its own); `NodeAvailableGlow`
+        // (0x4A901508) is NOT a per-rarity ornate at all — it is the
+        // SELECTABLE/available glow (state-driven, any rarity; owner
+        // oracle), now surfaced as `overlay.availableGlow`. So r3/r4
+        // carry disc + their own decode-true ornate (catalog-validated
+        // LayersOf, no fabrication); 0x4A901508 leaves the baked rows.
+        var rareL = LayersOf("Template_Node_Rare");
+        var legL  = LayersOf("Template_Node_Legendary");
 
-        // Rows 1–8: rarity {0,2,3,4} × {unselected,selected}. Layers are
-        // the shared decode-true elements (disc, + gold ornate for
-        // Rare/Legendary); per-rarity colour is rgbaTint (not decoded
-        // per-rarity ⇒ Tint/LitTint left null, not fabricated).
+        var states = new List<StateElements>(19);
+
+        // Rows 1–8: rarity {0,2,3,4} × {unselected,selected}. Layers =
+        // disc, + the rarity template's own bound ornate for
+        // Rare/Legendary (decode-true, §10.11/CL-25). Per-rarity colour
+        // is the fixed shader recipe (Tint/LitTint null — not fabricated,
+        // CL-24 R7).
         foreach (var rar in new[] { 0, 2, 3, 4 })
             foreach (var st in new[] { "unselected", "selected" })
                 states.Add(new StateElements(
                     rar, st,
-                    rar >= 3 ? L(disc, ornate) : L(disc),
+                    rar == 3 ? L(disc).Concat(rareL).ToArray()
+                  : rar == 4 ? L(disc).Concat(legL).ToArray()
+                  :            L(disc),
                     Tint: null, LitTint: null, Animation: null));
 
         // Rows 9–11: socket. Pulse present when unselected; dropped on
@@ -327,6 +343,16 @@ internal static class ParagonRenderProjection
             Overlay("Arrow_Top", "Arrow_Right",
                     "Arrow_Bottom", "Arrow_Left"),
             null, null, null));
+        // Row 19: the selectable/available glow (FR-C8 R9, CL-25). The
+        // yellow pulsing perimeter outline drawn on every UNSELECTED
+        // node that is selectable (cardinally adjacent to a selected
+        // node), ANY rarity — `NodeAvailableGlow` (handle 0x4A901508 +
+        // authored Rect, single perimeter frame). This is what FR-C7
+        // mis-labelled as the r3/r4 "ornate"; it is a selectable-STATE
+        // overlay, not a rarity decoration — now its own row, distinct
+        // from the genuine Rare/Legendary ornate (rareL/legL above).
+        states.Add(new StateElements(-1, "overlay.availableGlow",
+            Overlay("NodeAvailableGlow"), null, null, null));
 
         return new ParagonRenderLayout(
             ratios, canvas,

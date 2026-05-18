@@ -7,9 +7,12 @@
 > (arrows+connectors located w/ rect; start/gate per-layer rect
 > definitively not-authored; glow animation engine-driven #3); R7
 > (select/deselect brightness/colour definitively not authored —
-> engine shader, `Tint`/`LitTint=null` is the decoded answer).** Not
-> data-silent. Spec: `casc-diablo4-format.md` §10.12–§10.13 + Appendix
-> A CL-23/CL-24. **Unreleased** (on `main`; batched into a future
+> engine shader); R9 #2 (`NodeAvailableGlow` = selectable glow →
+> new `overlay.availableGlow`; FR-C7's r3/r4 "ornate" corrected — the
+> real Rare ornate is `0xB71BD068`, distinct from the glow's
+> `0x4A901508`; matrix now 19 rows, CL-25).** Not
+> data-silent. Spec: `casc-diablo4-format.md` §10.11–§10.13 + Appendix
+> A CL-23/CL-24/CL-25. **Unreleased** (on `main`; batched into a future
 > owner-cut release — no single-fix package).
 
 ## 1. Verdict — #2 located (and an FR-C7 correction)
@@ -203,3 +206,39 @@ regenerated.
   consistent with CL-24; reaffirmed in spec §10.13 / Appendix A CL-24.
   Reopen only with an in-game oracle showing a node visibly
   *recolouring* (not just swapping the glow layer) on select.
+- **R9 (2026-05-18, library — `NodeAvailableGlow`: DELIVERED #2 + an
+  FR-C7 correction, CL-25).** Decoded `NodeAvailableGlow` (widget
+  [105], ClassId `0x145F2056` — the decimal `341778518` you cited;
+  `0x14606016` was a transcription slip): it binds handle
+  **`0x4A901508`** (unique in scene 657304) + an authored Rect, a
+  **single perimeter frame** (not per-edge). **Cross-check (#2) —
+  decisive, and it overturns the premise:** `0x4A901508` is **NOT** a
+  distinct rare/leg static ornate. It *is* `NodeAvailableGlow`, and
+  per your owner oracle that widget is the **selectable/available
+  glow** (any rarity). FR-C7 mis-attributed it: `Project()` read
+  `Elem("NodeAvailableGlow")` for the r3/r4 "ornate" — the *same
+  projection gap* CL-23 fixed for start/gate (it never read
+  `Template_Node_Rare`/`_Legendary`'s OWN `0x58`-bound layer). The
+  **genuine** Rare static ornate is `Template_Node_Rare`'s own block,
+  handle **`0xB71BD068`** (Legendary: its own, catalog-validated). So:
+  - **New `overlay.availableGlow` State** (19th row) — handle
+    `0x4A901508` + decoded Rect, same shape/contract as
+    `overlay.pointerTriangle`/`connectorBar`. This is the
+    selectable-state outline; draw it on every unselected node
+    cardinally adjacent to a selected one, any rarity.
+  - **r3/r4 corrected:** now `disc` + `Template_Node_Rare`/
+    `_Legendary`'s own decode-true ornate (`0xB71BD068` for Rare);
+    `0x4A901508` **removed** from the baked rarity rows. So the rare
+    medallion (`0xB71BD068`) and the selectable glow (`0x4A901508`)
+    are now cleanly distinct — exactly the conflation you flagged.
+  ⚠ **Consumer action (R10):** this revises FR-C7 r3/r4 you validated
+  in R3/R4 — if your rare/leg composite used `0x4A901508` as the
+  "ornate", switch it to the r3/r4 `States.Layers` (now `0xB71BD068`
+  etc.) and add the new `overlay.availableGlow` for the selectable
+  outline. The §7.2 matrix is now **19 rows** (pre-publish amendment,
+  CL-25; FR-C8 still unreleased so the contract is amendable). Spec
+  §10.11/§10.13 + Appendix A CL-25; verified by
+  `ReadParagonRenderLayout_decodes_proven_structure`. Suite 38 green,
+  0 warnings. **Not released** — on `main`, batched into a future
+  owner-cut release; consumer builds from the `ProjectReference`
+  source so it is already live there.
