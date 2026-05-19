@@ -1189,6 +1189,62 @@ scene-bindings view (§10.14) — per-rarity composites must be
 authored scene art, never fabricated. Pre-existing CL-26 / CL-27
 gates remain green.
 
+### 10.16 Paragon board chrome (FR-C11)
+
+The paragon board's chrome — the dark textured background field drawn
+behind the node grid in `ParagonBoard` (657304), the preview-frame
+backing + filigree band of `ParagonBoardSelect` (964599), and the
+animated rim fire border — is surfaced as
+`ParagonRenderModel.BoardChrome` (`ParagonBoardChrome`). The scope
+widens the FR-C7 §6 split: board chrome was previously consumer-owned
+("not reproduced") and is now part of CASC's decode (owner ruling,
+2026-05-19); the per-node art boundary (§10.15) is unchanged.
+
+**Scene-bound chrome (surfaced).**
+
+| Layer | Widget | Handle | Atlas SNO | Native px |
+|---|---|---|---|---|
+| `MainBoardBackground` (657304) | `Template_Board_Background_Center` | `0x2954DF0C` | 447106 (`2DUI_Paragon`) | 1200 × 1200 |
+| `BoardSelectChrome[0]`, `[1]` (964599) | `Board_BG` 0x58-block | `0xDE8B9881`, `0x368C511E` | 2061536 (`2DUI_Paragon_transparentElements`), 1208406 (`2DUI_ParagonNodes`) | 275 × 278, 135 × 135 |
+| `BoardSelectChrome[2]` (964599) | `Board_Icon_Filigrees` | `0x71C3ECC9` | 838456 | 1458 × 334 |
+
+Each surfaced layer is a full `NodeElement` carrying handle, atlas
+SNO, and native pixel size. **All chrome widgets author rect-zero
+(`Rect = default`) in the scene**: the engine fills the parent canvas
+at native pixel size — the "21×21 board" coordinate space the
+consumer composites against is engine-internal positioning, not
+scene-authored sub-rects. The consumer scales native px to the
+runtime board-rect at its chosen zoom.
+
+**Animated fire border — engine-internal (CL-28 / CL-30 discipline).**
+The candidate atlas frames listed in FR-C11 R1 (`0x6CFA1668`,
+`0x749F8139`, `0xAA7571AB`, `0xB5C007F8`, `0xC1473C21`) live in
+`2DUI_Paragon` (SNO 447106) and visually match a multi-frame
+fire/ember pattern, but **no widget in scene 657304 or 964599 binds
+them as fire-border art**: `0xB5C007F8` is scene-bound to
+`Template_GlyphAura_Tile` (a glyph aura tile, not a board overlay);
+`0xC1473C21` is bound to `Common_Node_BG_Black`/`_Revealed` (per-node
+background art, not board overlay); the other three are atlas-only
+with no scene binding. The animation order, timing, and frame set
+are not authored in scene-data — the engine references and animates
+these frames internally. Per CL-28 / CL-30 no-fabrication discipline,
+the typed `ParagonBoardChrome` model does not surface candidate atlas
+frames in lieu of an authored sequence; the consumer composites the
+border procedurally or sources frames from the atlas catalog
+directly. `UI_Paragon_FrameGlow` (SNO 1364280, single-frame texture
+with handle `0x00000000`) is similarly engine-referenced — no scene
+widget binds it.
+
+**Acceptance.**
+`ReadParagonBoardChrome_surfaces_scene_bound_chrome` asserts the
+background handle / atlas / native size and the board-select chrome
+layer shape, and asserts that no fire-border catalog handle leaks
+into the typed model.
+`ReadParagonBoardChrome_layers_are_scene_bound` (gate, parity with
+CL-26 / CL-27 / CL-28 / CL-30) cross-references every chrome layer's
+`TextureHandle` against its scene's per-widget bindings — catches a
+future projection that drops to a fabricated catalog handle.
+
 ## 11. Non-paragon typed record readers (C6)
 
 The B1–B6 scope-freeze was **lifted by owner decision 2026-05-17**
@@ -1625,6 +1681,32 @@ true value (the sections above already state the corrected truth).
   bindings (the exhaustive `Scenes` view) — catches a recipe layer
   that references an atlas frame no scene widget binds (the
   CL-29-class regression).
+
+- **CL-31 — paragon board chrome render model (FR-C11 R1).** §10.16.
+  Owner re-scoped board chrome from "consumer-owned, not reproduced"
+  (FR-C7 §6) to library-decoded; the per-node art boundary stays
+  consumer-owned (§10.15 unchanged). Added
+  `ParagonRenderModel.BoardChrome` (typed `ParagonBoardChrome`
+  record) carrying the dark textured board background from scene
+  657304 (`Template_Board_Background_Center → 0x2954DF0C`) and the
+  board-select panel chrome from 964599 (`Board_BG`'s two block
+  handles + `Board_Icon_Filigrees`). All chrome widgets author
+  rect-zero — the engine positions them at native pixel size; the
+  "21×21 board" coordinate space the consumer composites against is
+  engine-internal positioning, not scene-authored. The animated rim
+  fire border is engine-internal: the candidate atlas frames listed
+  in FR-C11 R1 are either bound to non-board widgets
+  (`0xB5C007F8` → `Template_GlyphAura_Tile`,
+  `0xC1473C21` → `Common_Node_BG_Black`/`_Revealed`) or have no scene
+  binding at all (`0x6CFA1668`, `0x749F8139`, `0xAA7571AB`); animation
+  order/timing is not authored in scene-data. Per CL-28 / CL-30
+  no-fabrication discipline the typed model does not surface
+  unverified catalog frames; the consumer composites the border
+  procedurally or pulls frames from the atlas catalog directly.
+  `UI_Paragon_FrameGlow` (SNO 1364280) is similarly engine-referenced.
+  New gate `ReadParagonBoardChrome_layers_are_scene_bound` (parity
+  with CL-26 / CL-27 / CL-28 / CL-30) cross-references each chrome
+  layer's handle against its scene's per-widget bindings.
 
 ## Appendix B — provenance & migration map
 

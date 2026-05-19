@@ -11,6 +11,7 @@ public record ParagonRenderModel
 | name | description |
 | --- | --- |
 | [ParagonRenderModel](ParagonRenderModel/ParagonRenderModel.md)(…) | The exhaustive paragon render-model (FR-C9): the role-assigned [`Layout`](./ParagonRenderModel/Layout.md) (FR-C7/C8 typed projection) plus, for every paragon UI-scene, every widget that binds at least one real atlas texture handle — with the handle, its decoded [`WidgetRect`](./WidgetRect.md), and alpha. This is the one-shot audit surface: the library guarantees it is complete (no binding shape dropped — proven by the FR-C9 coverage gate); the consumer owns role/state classification (FR-C7 §6 boundary). |
+| [BoardChrome](ParagonRenderModel/BoardChrome.md) { get; set; } |  |
 | [Layout](ParagonRenderModel/Layout.md) { get; set; } |  |
 | [Scenes](ParagonRenderModel/Scenes.md) { get; set; } |  |
 
