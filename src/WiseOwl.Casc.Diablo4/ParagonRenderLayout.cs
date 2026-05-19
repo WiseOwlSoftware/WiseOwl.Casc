@@ -343,27 +343,29 @@ internal static class ParagonRenderProjection
         states.Add(new StateElements(-1, "start.selected",
             startLayers.Length > 0 ? startLayers : L(disc), null, null, null));
 
-        // Rows 16–18: overlays. CORRECTION (FR-C8 R6, CL-24): the
-        // directional pointer AND the connector bars are NOT
-        // pure-procedural. `Arrow_{Top,Right,Bottom,Left}` bind the
-        // pre-oriented red arrow art (Top 0xD51CAB25, Right 0x6D3CB8DE,
-        // Bottom 0x8EEAC178, Left 0xB6D8C741); `Connector_{...}` bind
-        // the connector art (0x77ECA3A8 / 0x288DE11F) — each with an
-        // authored rect, via the standard texture-handle field on the
-        // FR-C7 0x22 path. FR-C7 missed both because the texture handle
-        // is each widget's *last* 0x22 record, which straddled the
-        // widget boundary and was dropped (UiScene.Parse tail fix,
-        // CL-24) — and FR-C7 also hardcoded these rows empty. So
-        // `overlay.pointerTriangle` / `overlay.connectorBar` now carry
-        // their real T/R/B/L bound layers (handle + decoded Rect).
-        // `overlay.selectionRing` has no scene widget → genuinely
-        // engine-drawn, stays empty. No fabrication — empty rows stay
-        // empty, the arrows/connectors are the real decoded values.
+        // Rows 16–18: the node-overlay states (§10.13). Each binds its
+        // scene widget(s) via the standard 0x6B1C5D9C-typed texture-
+        // handle field on the 0x22 path (handle + decoded `Rect` where
+        // authored; otherwise default ⇒ `NodeTemplate`-inherited size,
+        // like start/gate).
+        //   - selectionRing  → Node_SearchResultHighlight (0x49FDA722,
+        //                     handle shared with Glyph_GridItem_*; per-
+        //                     record gate, §10.14, asserts this row is
+        //                     non-empty even though CL-26 dedups by
+        //                     handle)
+        //   - connectorBar   → Connector_{T,R,B,L} (0x77ECA3A8 /
+        //                     0x288DE11F)
+        //   - pointerTriangle→ Arrow_{T,R,B,L} (0xD51CAB25, 0x6D3CB8DE,
+        //                     0x8EEAC178, 0xB6D8C741)
+        // Role/state classification stays consumer-owned (FR-C7 §6) —
+        // CASC surfaces the decoded binding; the consumer decides how to
+        // render it (e.g. as the in-game red ring on selected nodes, the
+        // search-result highlight, or both).
         NodeElement[] Overlay(params string[] widgets) =>
             L(widgets.Select(Elem).ToArray());
 
         states.Add(new StateElements(-1, "overlay.selectionRing",
-            Array.Empty<NodeElement>(), null, null, null));
+            Overlay("Node_SearchResultHighlight"), null, null, null));
         states.Add(new StateElements(-1, "overlay.connectorBar",
             Overlay("Connector_Top", "Connector_Right",
                     "Connector_Bottom", "Connector_Left"),
