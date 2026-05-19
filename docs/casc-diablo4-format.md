@@ -866,10 +866,22 @@ widgets:
 | `Node_IconBase` | `0x1D166DC7` | base disc |
 | `NodeAvailableGlow` | `0x4A901508` | selectable/available glow (state-driven, any rarity — distinct from the per-rarity static ornate, which is each `Template_Node_*` widget's own bound layer) |
 | `GlyphNodeGlow_Revealed` / `_Purchased`, `Usage_Slot_2` | `0xBED4CF21` | socket pulse ring |
-| `Node_SearchResultHighlight` | `0x49FDA722` | node-overlay ring (180×180 frame, `NodeTemplate`-inherited rect) |
+| `Node_SearchResultHighlight` | `0x49FDA722` | search-result decoration (spiked ring; user-typed glyph-search match, **not** the selected-state ring) |
 | `Node_Located` | `0x87A89F86` | grey rim ring |
 | `Arrow_{Top,Right,Bottom,Left}` | `0xD51CAB25` / `0x6D3CB8DE` / `0x8EEAC178` / `0xB6D8C741` | directional pointer art (T/R/B/L), each with authored rect |
 | `Connector_{Top,Right,Bottom,Left}` | `0x77ECA3A8` / `0x288DE11F` | connector bar art (T/B share, R/L share), each with authored rect |
+
+**The selected-state red ring is engine-internal / per-rarity composite,
+not a separate scene-widget overlay.** For rarity 2/3/4 the smooth red
+ring lives composited inside each `Template_Node_{Magic,Rare,Legendary}`
+selected-variant disc (e.g. Magic-selected `0x72C29402`, Rare-selected
+`0x03EDABAB`, Legendary-selected `0xBD27FB7C` — all bound via the 0x58
+block, §10.12). For Common rarity the engine references the standalone
+red-ring atlas frame `0xB732F921` (96×95 in
+`2DUI_Paragon_transparentElements` SNO 2061536) directly — it is in the
+catalog but no scene widget binds it. Accordingly the
+`overlay.selectionRing` state row carries empty `Layers` with
+`Unresolved = true` (§10.14 per-record gate).
 
 The §10.12/10.13/10.14 sections cover the additional binding shapes
 (0x58 block, dropped-tail values, and the exhaustive whole-scene
@@ -957,14 +969,10 @@ other record is byte-identical — no FR-C7 regression). Cardinal map
 
 `overlay.pointerTriangle.Layers` / `overlay.connectorBar.Layers` carry
 these (handle + decoded `Rect`), T/R/B/L. `overlay.selectionRing.Layers`
-binds `Node_SearchResultHighlight` → `0x49FDA722` (SNO 1332563, 180×180
-atlas frame; no authored rect ⇒ inherits `NodeTemplate` like
-start/gate/availableGlow; alpha `0xFF`) via the standard
-`0x6B1C5D9C`-typed texture-handle field on the 0x22 path. The handle is
-also bound on `Glyph_GridItem_SearchResultHighlight` (panel chrome,
-unrelated draw site); the typed `States` projection captures the
-node-side binding only — `Scenes` carries the exhaustive per-widget
-view (§10.14).
+is empty with `Unresolved = true` — see §10.11 for where the
+selected-state red ring actually comes from (per-rarity selected-variant
+disc composite for rarity 2/3/4; engine-internal atlas frame `0xB732F921`
+for Common rarity).
 
 **R5 — start/gate per-layer rect/scale/tint: definitively NOT
 authored.** The §10.12 0x58 layer blocks are **handle-only**: the
@@ -1092,10 +1100,15 @@ two independent shapes, asserted by casc's own acceptance suite:
 2. **Per-binding-record coverage** —
    `ParagonRenderLayout_every_enumerated_state_has_layers`: every
    enumerated state in `ReadParagonRenderLayout().States` carries at
-   least one bound layer (or is explicitly structurally unresolved).
-   Catches a *record-level* drop — a state row the projection
-   enumerates without populating, which the handle gate cannot see if
-   the dropped binding's handle is also bound elsewhere.
+   least one bound layer **or** is explicitly marked
+   `StateElements.Unresolved = true`. `Unresolved` is the structural
+   exception for rows the schema enumerates but no scene widget binds
+   (engine-internal art, or art composited inside another row's
+   bindings — see `overlay.selectionRing` in §10.11). Catches a
+   *record-level* drop — a state row the projection enumerates and
+   leaves empty without acknowledging it as `Unresolved`, which the
+   handle gate cannot see if the dropped binding's handle is also bound
+   elsewhere.
 
 Both gates are shape-agnostic; together they make the FR-C8
 nine-round "discovered as a visual defect months later" pattern fail
@@ -1467,22 +1480,41 @@ true value (the sections above already state the corrected truth).
   scenes is surfaced — a future gap fails casc CI, not consumer
   eyeballs. Schema published in §10.14.
 
-- **CL-27 — `overlay.selectionRing` binding surfaced; per-binding-record
-  gate complements the handle gate (FR-C9 R3).** §10.14. The CL-26
-  handle-level gate dedups by atlas handle: when a state row dropped
-  by `Project()` shared its handle with another widget, the gate stayed
-  green. Fixed by (a) surfacing `Node_SearchResultHighlight` →
-  `0x49FDA722` (the previously dropped binding; standard `0x6B1C5D9C`
-  texture-handle field; handle also bound on
-  `Glyph_GridItem_SearchResultHighlight`, hence the CL-26 blind spot)
-  under `overlay.selectionRing`, and (b) adding the per-binding-record
-  gate `ParagonRenderLayout_every_enumerated_state_has_layers`,
-  asserting every enumerated state row carries at least one bound
-  layer (or is structurally unresolved). The two gates are
-  complementary: CL-26 catches *handle-level* drops (a new binding
-  shape orphaning a handle); CL-27 catches *record-level* drops (a
-  state row enumerated but unpopulated). Role/state classification
-  stays consumer-owned per FR-C7 §6.
+- **CL-27 — per-binding-record gate complements the handle gate
+  (FR-C9 R3).** §10.14. The CL-26 handle-level gate dedups by atlas
+  handle: when a state row dropped by `Project()` shared its handle
+  with another widget, the gate stayed green. Added
+  `ParagonRenderLayout_every_enumerated_state_has_layers`, the
+  per-binding-record gate asserting every enumerated state row carries
+  at least one bound layer **or** is explicitly marked
+  `StateElements.Unresolved = true`. The two gates are complementary:
+  CL-26 catches *handle-level* drops (a new binding shape orphaning a
+  handle); CL-27 catches *record-level* drops (a state row enumerated
+  but unpopulated without acknowledgement). Initial CL-27 also tried
+  to map `overlay.selectionRing` to `Node_SearchResultHighlight`
+  (`0x49FDA722`) — the only widget-name candidate from a pure
+  record-name search — but the visual oracle later proved that widget
+  is the search-result decoration (a spiked corona, not a smooth red
+  ring); see CL-28.
+
+- **CL-28 — `overlay.selectionRing` is engine-internal /
+  per-rarity-composite, not a separate scene-widget overlay
+  (FR-C9 R4).** §10.11 / §10.14. Atlas-frame inspection of every
+  candidate handle showed the smooth red selected-node ring is the
+  standalone frame `0xB732F921` (96×95 in
+  `2DUI_Paragon_transparentElements` SNO 2061536) — present in the
+  catalog but bound to **no** scene widget. For rarity 2/3/4 the same
+  ring lives composited inside each `Template_Node_{Magic,Rare,Legendary}`
+  selected-variant disc (Magic-selected `0x72C29402`, Rare-selected
+  `0x03EDABAB`, Legendary-selected `0xBD27FB7C`; bound via the 0x58
+  block, §10.12). For Common rarity the engine references `0xB732F921`
+  directly. The `overlay.selectionRing` row accordingly carries empty
+  `Layers` with `Unresolved = true`. `Node_SearchResultHighlight`
+  (`0x49FDA722`) is the search-result decoration role, surfaced by
+  `ReadParagonRenderModel().Scenes` via the exhaustive widget list —
+  not under any `States` row. New record field
+  `StateElements.Unresolved` is the structural exception the per-record
+  gate honors (§10.14).
 
 ## Appendix B — provenance & migration map
 

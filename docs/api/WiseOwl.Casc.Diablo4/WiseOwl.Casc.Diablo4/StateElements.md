@@ -1,6 +1,6 @@
 # StateElements structure
 
-One row of the §7.2 state contract (15 baked + 3 overlay = 18): the back→front layer list for a (rarity, state) or a kind/overlay.
+One row of the §7.2 state contract: the back→front layer list for a (rarity, state) or a kind/overlay. Rows with no scene-widget binding (engine-internal art) carry [`Layers`](./StateElements/Layers.md) empty and [`Unresolved`](./StateElements/Unresolved.md) = `true` — they are enumerated for schema completeness, not omitted.
 
 ```csharp
 public struct StateElements : IEquatable<StateElements>
@@ -10,22 +10,24 @@ public struct StateElements : IEquatable<StateElements>
 | --- | --- |
 | RarityOverride | 0/2/3/4, or −1 for socket/gate/start/overlay. |
 | State | The canonical §7.2 key (e.g. `unselected`, `socket.unselected`, `overlay.connectorBar`). |
-| Layers | Back→front draw layers. |
+| Layers | Back→front draw layers. Empty when [`Unresolved`](./StateElements/Unresolved.md) is `true`. |
 | Tint | The bound per-rarity×state `rgbaTint` (`null` if none ⇒ fixed-shader, consumer recipe). |
 | LitTint | The second `DT_RGBACOLOR` (relit colour) on `selected` keys, if authored. |
 | Animation | Pulse/rotate spec, or `null`. |
+| Unresolved | `true` when the row is enumerated by the schema but no scene widget binds its art (the engine draws it internally, or the art lives composited inside another row's bindings). The per-record completeness gate (§10.14) permits empty [`Layers`](./StateElements/Layers.md) exactly when this is `true`. |
 
 ## Public Members
 
 | name | description |
 | --- | --- |
-| [StateElements](StateElements/StateElements.md)(…) | One row of the §7.2 state contract (15 baked + 3 overlay = 18): the back→front layer list for a (rarity, state) or a kind/overlay. |
+| [StateElements](StateElements/StateElements.md)(…) | One row of the §7.2 state contract: the back→front layer list for a (rarity, state) or a kind/overlay. Rows with no scene-widget binding (engine-internal art) carry [`Layers`](./StateElements/Layers.md) empty and [`Unresolved`](./StateElements/Unresolved.md) = `true` — they are enumerated for schema completeness, not omitted. |
 | [Animation](StateElements/Animation.md) { get; set; } | Pulse/rotate spec, or `null`. |
-| [Layers](StateElements/Layers.md) { get; set; } | Back→front draw layers. |
+| [Layers](StateElements/Layers.md) { get; set; } | Back→front draw layers. Empty when [`Unresolved`](./StateElements/Unresolved.md) is `true`. |
 | [LitTint](StateElements/LitTint.md) { get; set; } | The second `DT_RGBACOLOR` (relit colour) on `selected` keys, if authored. |
 | [RarityOverride](StateElements/RarityOverride.md) { get; set; } | 0/2/3/4, or −1 for socket/gate/start/overlay. |
 | [State](StateElements/State.md) { get; set; } | The canonical §7.2 key (e.g. `unselected`, `socket.unselected`, `overlay.connectorBar`). |
 | [Tint](StateElements/Tint.md) { get; set; } | The bound per-rarity×state `rgbaTint` (`null` if none ⇒ fixed-shader, consumer recipe). |
+| [Unresolved](StateElements/Unresolved.md) { get; set; } | `true` when the row is enumerated by the schema but no scene widget binds its art (the engine draws it internally, or the art lives composited inside another row's bindings). The per-record completeness gate (§10.14) permits empty [`Layers`](./StateElements/Layers.md) exactly when this is `true`. |
 
 ## See Also
 

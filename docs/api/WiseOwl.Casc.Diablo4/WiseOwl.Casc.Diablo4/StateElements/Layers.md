@@ -1,6 +1,6 @@
 # StateElements.Layers property
 
-Back→front draw layers.
+Back→front draw layers. Empty when [`Unresolved`](./Unresolved.md) is `true`.
 
 ```csharp
 public IReadOnlyList<NodeElement> Layers { get; set; }

@@ -338,17 +338,15 @@ public sealed class Diablo4StorageIntegrationTests
     private static readonly uint[] ConnectorHandles =
         { 0x77ECA3A8u, 0x288DE11Fu };
 
-    /// <summary>The four node-overlay state rows
-    /// (<c>overlay.{pointerTriangle,connectorBar,selectionRing,availableGlow}</c>)
-    /// each bind their scene widget(s) via the standard
-    /// <c>0x6B1C5D9C</c>-typed texture-handle field. The directional
-    /// arrows (<c>Arrow_{Top,Right,Bottom,Left}</c>) carry the
-    /// pre-oriented red arrow art with authored rect; the connector
-    /// bars (<c>Connector_{T,R,B,L}</c>) carry the connector art with
-    /// authored rect; the selection-ring overlay
-    /// (<c>Node_SearchResultHighlight</c>) carries handle
-    /// <c>0x49FDA722</c> with no authored rect (<c>NodeTemplate</c>-
-    /// inherited, like start/gate/availableGlow).</summary>
+    /// <summary>The node-overlay state rows. The directional arrows
+    /// (<c>Arrow_{Top,Right,Bottom,Left}</c>) bind the pre-oriented red
+    /// arrow art with authored rect; the connector bars
+    /// (<c>Connector_{T,R,B,L}</c>) bind the connector art with
+    /// authored rect; the selection ring has no scene-widget binding
+    /// (engine-internal — the smooth red ring is composited inside the
+    /// per-rarity selected-variant disc, or drawn from a standalone
+    /// atlas frame for Common rarity), surfaced as
+    /// <c>Unresolved = true</c> with empty <c>Layers</c>.</summary>
     [SkippableFact]
     public void ReadParagonRenderLayout_decodes_directional_arrows()
     {
@@ -376,15 +374,11 @@ public sealed class Diablo4StorageIntegrationTests
         Assert.NotEmpty(conn);
         Assert.All(conn, h => Assert.Contains(h, ConnectorHandles));
 
-        // overlay.selectionRing — single layer on Node_SearchResultHighlight
-        // (handle 0x49FDA722, no authored rect ⇒ inherits NodeTemplate,
-        // alpha 0xFF). Per-record completeness is asserted separately
-        // by ParagonRenderLayout_every_enumerated_state_has_layers.
-        var sel = rl.States.First(s => s.State == "overlay.selectionRing").Layers;
-        Assert.Single(sel);
-        Assert.Equal(0x49FDA722u, sel[0].TextureHandle);
-        Assert.Equal(default, sel[0].Rect); // template-inherited
-        Assert.Equal(0xFF, sel[0].Alpha);
+        // overlay.selectionRing has no scene-widget binding — surfaced
+        // as Unresolved=true with empty Layers (engine-internal art).
+        var selRow = rl.States.First(s => s.State == "overlay.selectionRing");
+        Assert.Empty(selRow.Layers);
+        Assert.True(selRow.Unresolved);
 
         // R5 (definitive): the start/gate 0x58 frame-layer blocks are
         // handle-only — no per-layer rect authored (engine/template-
@@ -691,12 +685,14 @@ public sealed class Diablo4StorageIntegrationTests
     /// to <see cref="ParagonRenderModel_covers_every_bound_atlas_handle"/>).
     /// Every enumerated state in
     /// <see cref="ParagonRenderLayout.States"/> must carry at least one
-    /// bound layer (or be explicitly structurally unresolved). The
-    /// handle-level gate dedups by atlas handle, so a state row with
-    /// <c>Layers=[0]</c> can stay green when its handle appears under
-    /// another widget; this gate is shape-agnostic and catches that
-    /// case — a future projection that enumerates a state but leaves
-    /// it empty fails casc CI regardless of where its handle appears.</summary>
+    /// bound layer or be explicitly marked
+    /// <see cref="StateElements.Unresolved"/> (engine-internal art).
+    /// The handle-level gate dedups by atlas handle, so a state row
+    /// with <c>Layers=[0]</c> can stay green when its handle appears
+    /// under another widget; this gate is shape-agnostic and catches
+    /// that case — a future projection that enumerates a state but
+    /// leaves it both empty and not-marked-unresolved fails casc CI
+    /// regardless of where its handle appears.</summary>
     [SkippableFact]
     public void ParagonRenderLayout_every_enumerated_state_has_layers()
     {
@@ -708,12 +704,21 @@ public sealed class Diablo4StorageIntegrationTests
         Assert.NotEmpty(rl.States); // sanity: the gate actually ran
 
         var empty = rl.States
-            .Where(s => s.Layers.Count == 0)
+            .Where(s => s.Layers.Count == 0 && !s.Unresolved)
             .Select(s => $"r{s.RarityOverride} {s.State}")
             .ToArray();
         Assert.True(empty.Length == 0,
             "per-binding-record gate: enumerated state rows have " +
-            "Layers=[0] (CL-26 handle-level gate cannot catch shared-handle " +
-            "drops): " + string.Join(", ", empty));
+            "Layers=[0] without Unresolved=true: " +
+            string.Join(", ", empty));
+
+        // Belt-and-braces: Unresolved rows must in fact have empty Layers.
+        var inconsistent = rl.States
+            .Where(s => s.Unresolved && s.Layers.Count > 0)
+            .Select(s => $"r{s.RarityOverride} {s.State}")
+            .ToArray();
+        Assert.True(inconsistent.Length == 0,
+            "Unresolved=true rows must have empty Layers: " +
+            string.Join(", ", inconsistent));
     }
 }

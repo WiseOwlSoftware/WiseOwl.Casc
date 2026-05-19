@@ -102,24 +102,35 @@ public readonly record struct RenderRatios(
     double GreyRingOverDisc, double SocketRingOverDisc);
 
 /// <summary>
-/// One row of the §7.2 state contract (15 baked + 3 overlay = 18):
-/// the back→front layer list for a (rarity, state) or a kind/overlay.
+/// One row of the §7.2 state contract: the back→front layer list for a
+/// (rarity, state) or a kind/overlay. Rows with no scene-widget binding
+/// (engine-internal art) carry <see cref="Layers"/> empty and
+/// <see cref="Unresolved"/> = <see langword="true"/> — they are
+/// enumerated for schema completeness, not omitted.
 /// </summary>
 /// <param name="RarityOverride">0/2/3/4, or −1 for
 /// socket/gate/start/overlay.</param>
 /// <param name="State">The canonical §7.2 key (e.g. <c>unselected</c>,
 /// <c>socket.unselected</c>, <c>overlay.connectorBar</c>).</param>
-/// <param name="Layers">Back→front draw layers.</param>
+/// <param name="Layers">Back→front draw layers. Empty when
+/// <see cref="Unresolved"/> is <see langword="true"/>.</param>
 /// <param name="Tint">The bound per-rarity×state <c>rgbaTint</c>
 /// (<see langword="null"/> if none ⇒ fixed-shader, consumer recipe).</param>
 /// <param name="LitTint">The second <c>DT_RGBACOLOR</c> (relit colour)
 /// on <c>selected</c> keys, if authored.</param>
 /// <param name="Animation">Pulse/rotate spec, or
 /// <see langword="null"/>.</param>
+/// <param name="Unresolved"><see langword="true"/> when the row is
+/// enumerated by the schema but no scene widget binds its art (the
+/// engine draws it internally, or the art lives composited inside
+/// another row's bindings). The per-record completeness gate
+/// (§10.14) permits empty <see cref="Layers"/> exactly when this is
+/// <see langword="true"/>.</param>
 public readonly record struct StateElements(
     int RarityOverride, string State,
     IReadOnlyList<NodeElement> Layers,
-    RgbaTint? Tint, RgbaTint? LitTint, AnimSpec? Animation);
+    RgbaTint? Tint, RgbaTint? LitTint, AnimSpec? Animation,
+    bool Unresolved = false);
 
 /// <summary>An authored animation parameter set (raw; the consumer
 /// bakes one representative static frame).</summary>
@@ -343,29 +354,30 @@ internal static class ParagonRenderProjection
         states.Add(new StateElements(-1, "start.selected",
             startLayers.Length > 0 ? startLayers : L(disc), null, null, null));
 
-        // Rows 16–18: the node-overlay states (§10.13). Each binds its
-        // scene widget(s) via the standard 0x6B1C5D9C-typed texture-
-        // handle field on the 0x22 path (handle + decoded `Rect` where
-        // authored; otherwise default ⇒ `NodeTemplate`-inherited size,
-        // like start/gate).
-        //   - selectionRing  → Node_SearchResultHighlight (0x49FDA722,
-        //                     handle shared with Glyph_GridItem_*; per-
-        //                     record gate, §10.14, asserts this row is
-        //                     non-empty even though CL-26 dedups by
-        //                     handle)
+        // Rows 16–18: the node-overlay states (§10.13). connectorBar
+        // and pointerTriangle bind their scene widgets via the standard
+        // 0x6B1C5D9C-typed texture-handle field on the 0x22 path
+        // (handle + decoded Rect):
         //   - connectorBar   → Connector_{T,R,B,L} (0x77ECA3A8 /
         //                     0x288DE11F)
         //   - pointerTriangle→ Arrow_{T,R,B,L} (0xD51CAB25, 0x6D3CB8DE,
         //                     0x8EEAC178, 0xB6D8C741)
-        // Role/state classification stays consumer-owned (FR-C7 §6) —
-        // CASC surfaces the decoded binding; the consumer decides how to
-        // render it (e.g. as the in-game red ring on selected nodes, the
-        // search-result highlight, or both).
+        // selectionRing has no scene-widget binding — the smooth red
+        // ring atlas frame (0xB732F921, 96² in 2DUI_Paragon_transparentElements)
+        // is referenced engine-internally for Common rarity; for
+        // rarity 2/3/4 the red ring lives composited inside each
+        // Template_Node_{Magic,Rare,Legendary} selected-variant disc
+        // (e.g. Magic-selected 0x72C29402, Rare-selected 0x03EDABAB,
+        // Legendary-selected 0xBD27FB7C — surfaced in the rarity
+        // selected rows above). Marked Unresolved=true so the
+        // per-record completeness gate (§10.14) recognises this as
+        // intentional, not a projection drop.
         NodeElement[] Overlay(params string[] widgets) =>
             L(widgets.Select(Elem).ToArray());
 
         states.Add(new StateElements(-1, "overlay.selectionRing",
-            Overlay("Node_SearchResultHighlight"), null, null, null));
+            Array.Empty<NodeElement>(), null, null, null,
+            Unresolved: true));
         states.Add(new StateElements(-1, "overlay.connectorBar",
             Overlay("Connector_Top", "Connector_Right",
                     "Connector_Bottom", "Connector_Left"),
