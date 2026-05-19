@@ -883,15 +883,18 @@ catalog but no scene widget binds it. Accordingly the
 `overlay.selectionRing` state row carries empty `Layers` with
 `Unresolved = true` (§10.14 per-record gate).
 
-The §10.12/10.13/10.14 sections cover the additional binding shapes
-(0x58 block, dropped-tail values, and the exhaustive whole-scene
-model). Per-rarity differentiation combines the bound `rgbaTint`
-(§10.7 / §2.3 — shader tint on the shared neutral disc, not per-rarity
-textures) with each `Template_Node_*` widget's own bound layer values
-(per-rarity ornate / disc-variant art; §10.12). The §7.2 19-row state
-matrix maps to a small set of shared decode-true elements (disc +
-ornate + pulse + the four overlay rows) × per-rarity `rgbaTint` and
-per-rarity template layers — not 19 distinct baked layer-lists.
+The §10.12 / §10.13 / §10.14 / §10.15 sections cover the additional
+binding shapes (0x58 block, dropped-tail values, the exhaustive
+whole-scene model, and the per-rarity node composite recipe).
+Per-rarity differentiation is **authored as art** in each rarity's
+`Template_Node_*` 0x58 block — an interior-fill frame (per-rarity
+colour) for Magic/Rare/Legendary, plus an ornate outer frame for
+Rare/Legendary. There is no shader tint on a shared neutral disc;
+`StateElements.Tint` stays `null` and the colour comes from the
+authored fills (§10.15). The §7.2 19-row state matrix maps to that
+small set of authored elements (grey base disc + per-rarity fill +
+per-rarity ornate where applicable + socket pulse + the four overlay
+rows) — not 19 distinct baked layer-lists.
 
 ### 10.12 Start/gate composite — the 0x58-block binding (FR-C8, CL-23)
 
@@ -1113,6 +1116,64 @@ two independent shapes, asserted by casc's own acceptance suite:
 Both gates are shape-agnostic; together they make the FR-C8
 nine-round "discovered as a visual defect months later" pattern fail
 casc CI, not consumer eyeballs.
+
+### 10.15 Paragon node composite recipe (FR-C10)
+
+The per-rarity node in `ParagonBoard` is not a single disc with a
+shader tint — it is an ordered atlas-frame composite: a shared grey
+metal base disc with two raised concentric ridges, then a per-rarity
+**interior fill** that sits inset in the recessed centre (at the
+fill frame's native pixel size, centred on the disc anchor — there
+is no authored sub-rect in the scene), then for Rare/Legendary an
+**ornate outer frame** that extends to/beyond the disc edge, then on
+the selected state either a swap of the ornate for its red-ring
+composite variant (Rare/Legendary — the red ring is baked into the
+ornate frame) or the standalone engine-internal red ring
+(Common/Magic — the engine references atlas frame `0xB732F921`
+directly; no scene widget binds it). Per-rarity colour comes from
+each rarity's authored interior-fill frame, not a shader tint on the
+shared disc (`StateElements.Tint` stays `null`).
+
+The composite is surfaced as the `Layers` of each per-rarity
+`(RarityOverride, State)` row in `ReadParagonRenderLayout().States`.
+Each layer carries `NodeElement.{TextureHandle, AtlasSno,
+NativeWidth, NativeHeight, EngineInternal}` so the consumer
+composites at the engine's authoritative native scale without a
+second catalog walk; `EngineInternal = true` flags the standalone
+red ring (catalog-resolvable but unbound by any scene widget — the
+exhaustive scene-binding gate of §10.14 will not see it, hence the
+explicit per-layer flag).
+
+| Rarity | Unselected layers (back → front) | Selected layers |
+|---|---|---|
+| 0 Common | `0x1D166DC7` (grey base disc, 154²) | `0x1D166DC7`, `0xB732F921` (red ring, 96², engine-internal) |
+| 2 Magic | `0x1D166DC7`, `0xFEC31E48` (blue interior fill, 135²) | `0x1D166DC7`, `0xFEC31E48`, `0xB732F921` (engine-internal) |
+| 3 Rare | `0x1D166DC7`, `0xF8373491` (interior fill, 135²), `0xB71BD068` (yellow ornate frame, 154²) | `0x1D166DC7`, `0xF8373491`, `0x03EDABAB` (yellow ornate + red ring composite, 153²) |
+| 4 Legendary | `0x1D166DC7`, `0x006ED182` (interior fill, 136²), `0x232DF7F9` (orange spike ornate, 189²) | `0x1D166DC7`, `0x006ED182`, `0xBD27FB7C` (orange ornate + red ring composite, 189²) |
+
+The per-rarity ornate (Rare/Legendary) is **swapped** on the selected
+state — the engine-internal red ring is *not* added separately
+because the selected-variant ornate already carries it in the same
+atlas frame. The Common/Magic path is the opposite: no per-rarity
+ornate at all, so the engine-internal red ring is added as a
+separate layer flagged `EngineInternal = true`.
+
+**Positioning.** The base disc draws at its authored
+`Node_IconBase` rect (fills the `NodeTemplate` 100-ref box minus
+authored insets). The interior fill draws at its atlas frame's
+native pixel size, centred on the disc — no authored sub-rect
+exists in the scene. The ornate frame (Rare/Legendary) draws
+centred on the disc at the ornate frame's native pixel size (Rare
+154² matches the disc; Legendary 189² extends ~17% beyond). The
+engine-internal red ring (Common/Magic) draws centred at its native
+96² (it sits in the inter-ridge channel of the base disc by its own
+geometry — no authored size).
+
+**Acceptance.** `ReadParagonRenderLayout_decodes_node_composite_recipe`
+asserts the per-rarity layer counts, handles, swap-on-select for
+Rare/Legendary, separate-engine-internal-ring for Common/Magic, and
+that every emitted layer carries a non-zero `AtlasSno` and native
+size. The pre-existing CL-26 / CL-27 gates remain green.
 
 ## 11. Non-paragon typed record readers (C6)
 
@@ -1515,6 +1576,31 @@ true value (the sections above already state the corrected truth).
   not under any `States` row. New record field
   `StateElements.Unresolved` is the structural exception the per-record
   gate honors (§10.14).
+
+- **CL-29 — paragon node composite recipe (FR-C10 R1).** §10.15.
+  Per-rarity nodes are not a shader-tinted shared disc; they are
+  ordered atlas-frame composites: grey base disc `0x1D166DC7` +
+  per-rarity interior fill (Magic `0xFEC31E48`, Rare `0xF8373491`,
+  Legendary `0x006ED182`) + per-rarity ornate frame on Rare
+  (`0xB71BD068` unselected / `0x03EDABAB` selected with red-ring
+  composited) and Legendary (`0x232DF7F9` / `0xBD27FB7C`). On the
+  selected state, Common/Magic add the standalone engine-internal red
+  ring `0xB732F921` as a separate layer (flagged
+  `NodeElement.EngineInternal = true`); Rare/Legendary swap the
+  ornate for its selected variant (red ring already composited into
+  the frame), no separate ring layer. Per-rarity colour comes from
+  the authored interior-fill frame, not a shader tint — `Tint` stays
+  `null`. `NodeElement` gained `AtlasSno`, `NativeWidth`,
+  `NativeHeight`, and `EngineInternal` so consumers composite at the
+  engine's authoritative native pixel scale without a second catalog
+  walk. Magic recipe is owner-oracle-confirmed (calibration
+  screenshots, build `3.0.2.71886`); Rare/Legendary mapping is
+  CASC-inferred from atlas-frame visual inspection + in-game
+  screenshot match, pending owner per-rarity visual oracle in a
+  subsequent FR round if needed. The exhaustive scene-binding gate
+  (§10.14) does not see the engine-internal ring (no scene widget
+  binds `0xB732F921`); the explicit per-layer flag is the structural
+  exception.
 
 ## Appendix B — provenance & migration map
 
