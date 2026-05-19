@@ -857,6 +857,37 @@ public sealed class Diablo4StorageIntegrationTests
             h => Assert.DoesNotContain(h, fireBorderCatalog));
     }
 
+    /// <summary>FR-C11 R3 §2 — per-node-cell background tile.
+    /// <c>Common_Node_BG_Revealed</c> (handle <c>0xC1473C21</c>,
+    /// authored rect L=R=T=B=3 inside the 100-pitch NodeTemplate
+    /// box → 94×94 tile centred in the 100×100 cell, inter-tile gap
+    /// ~6 ref units) is surfaced on
+    /// <see cref="ParagonRenderLayout.NodeCellBackground"/>. Drawn
+    /// beneath the rarity-specific node composite (§10.15); empty
+    /// lattice cells stay bare.</summary>
+    [SkippableFact]
+    public void ReadParagonRenderLayout_surfaces_per_node_cell_background()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+
+        var rl = d4.ReadParagonRenderLayout();
+        var bg = rl.NodeCellBackground;
+
+        Assert.Equal(0xC1473C21u, bg.TextureHandle);
+        Assert.Equal(447106, bg.AtlasSno);
+        Assert.True(bg.NativeWidth > 0);
+        Assert.True(bg.NativeHeight > 0);
+        // Authored rect: 100-pitch cell with 3-ref inset on each side.
+        Assert.Equal(3, bg.Rect.Left);
+        Assert.Equal(3, bg.Rect.Right);
+        Assert.Equal(3, bg.Rect.Top);
+        Assert.Equal(3, bg.Rect.Bottom);
+        Assert.Equal(100, bg.Rect.Width);
+        Assert.Equal(100, bg.Rect.Height);
+    }
+
     /// <summary>Per-rarity layer scene-bindedness gate. Every layer
     /// in a per-rarity (rarity 0/2/3/4) <see cref="StateElements"/>
     /// row must be bound by some widget in scene 657304 — the
@@ -895,6 +926,45 @@ public sealed class Diablo4StorageIntegrationTests
             "whose handle is not bound by any widget in scene 657304 " +
             "(per-rarity composites must be authored scene art, never " +
             "fabricated): " + string.Join(", ", unbound));
+    }
+
+    /// <summary>FR-C12 §4 — special-node (rarity-override -1) layer
+    /// scene-bindedness gate. Parity with the per-rarity gate, but
+    /// extended to socket / start / gate / overlay rows. Cross-references
+    /// against the raw scene 657304 widget data via
+    /// <see cref="Diablo4Storage.ReadUiScene"/>, not the
+    /// icon-catalog-filtered <c>Scenes</c> view — the CL-31 → CL-32
+    /// lesson, applied to special nodes.</summary>
+    [SkippableFact]
+    public void ParagonRenderLayout_special_node_layers_are_scene_bound()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+
+        var rl = d4.ReadParagonRenderLayout();
+        var scene = d4.ReadUiScene(657304);
+
+        var raw = new HashSet<uint>();
+        foreach (var w in scene.Widgets)
+        {
+            foreach (var f in w.Fields)
+                if (f.HasValue && f.RawValue is not 0 and not 0xFFFFFFFFu)
+                    raw.Add(f.RawValue);
+            foreach (var v in w.ExtraLayerValues)
+                if (v is not 0 and not 0xFFFFFFFFu) raw.Add(v);
+        }
+
+        var unbound = rl.States
+            .Where(s => s.RarityOverride < 0)
+            .SelectMany(s => s.Layers.Select(l => (Row: s, Layer: l)))
+            .Where(x => !raw.Contains(x.Layer.TextureHandle))
+            .Select(x => $"{x.Row.State} 0x{x.Layer.TextureHandle:X8}")
+            .ToArray();
+        Assert.True(unbound.Length == 0,
+            "special-node layer scene-bindedness gate: layers whose " +
+            "handle does not appear in the raw scene 657304 widget data: "
+            + string.Join(", ", unbound));
     }
 
     /// <summary>The per-binding-record completeness gate (complement

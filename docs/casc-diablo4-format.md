@@ -1271,6 +1271,71 @@ board-select layers against `Scenes` per-widget bindings, and the
 4 rim handles against the raw scene-657304 widget data (their
 target is non-icon-catalog so `Scenes` filters them out).
 
+### 10.17 Per-node-cell background + special-node addendum (FR-C11 R3 / FR-C12)
+
+**Per-node-cell background tile (FR-C11 R3 §2).** Drawn beneath every
+revealed/visible node-cell composite (§10.15). Bound on
+`Common_Node_Revealed` (handle `0xC1473C21`, catalog-resolvable in
+2DUI atlas SNO 447106) via the standard `0x6B1C5D9C` texture-handle
+field, with authored rect `L=R=T=B=3` inside the 100-pitch
+`NodeTemplate` box → a 94×94 tile centred in the 100×100 cell with a
+~6-ref-unit inter-tile gap (the lighter board field showing through
+between adjacent cells — no drawn grey border grid, owner oracle
+2026-05-19). The atlas frame carries its own semi-transparent alpha;
+the widget records `dwAlpha = 0xFF`, so the consumer composites at
+the frame's authored opacity. `Common_Node_BG_Black` is the sibling
+hidden-state variant (same handle, same rect — pre-revelation
+state). Empty lattice cells (no node) draw neither widget. Surfaced
+as `ParagonRenderLayout.NodeCellBackground` (single `NodeElement`).
+
+**`NodeAvailableGlow` authored extent (FR-C11 R3 §3).** The
+selectable-glow widget's authored rect is genuinely all-zero — the
+widget inherits `NodeTemplate`'s 100-pitch parent box, *but* the
+bound atlas frame (handle `0x4A901508`, atlas SNO 2061536) is **325 ×
+326 px** — over 3× the cell pitch. The engine renders the frame at
+native pixel size centred on the cell, so the yellow glow nearly
+touches adjacent cells in-game. The consumer should compose at
+`NodeElement.NativeWidth` / `NativeHeight` (the CL-29 fields, already
+populated), not at the cell rect — drawing at 1 cell under-draws the
+glow.
+
+**Special-node composite recipes (FR-C12 §3).** Recorded for parity
+with the §10.15 per-rarity table. Surfaced via `States` rows with
+`RarityOverride = -1`.
+
+| State | Layers (back → front) | Source |
+|---|---|---|
+| `socket.unselected` | `Node_IconBase` `0x1D166DC7` + `GlyphNodeGlow_Revealed` `0xBED4CF21` (pulse ring) | scene-bound |
+| `socket.selected` | `Node_IconBase` `0x1D166DC7` | scene-bound |
+| `socket.socketed` | `Node_IconBase` `0x1D166DC7` + per-node glyph image (`HIconMask`) | scene-bound; glyph from `ParagonNodeDefinition` |
+| `start.unselected` / `start.selected` | `Template_Node_Starter` 0x58 block: filigree `0xA0F996FE` + grey hexagon `0xF8312CA8` | scene-bound; selected variant authored as same handles (no visual change) |
+| `gate.unselected` / `gate.selected` | `Template_Node_Quest` 0x58 block: filigree `0xA0F996FE` + ornate-squares `0xC2DF4786` / `0x0E6B6249` | scene-bound; CL-23 mapped `0xC2DF4786 → selected`, `0x0E6B6249 → unselected` from visual inspection (state-flag bytes in the 0x58 block not RE'd — re-verify on owner visual oracle if a state-specific render is required) |
+
+`GlyphNodeGlow_Revealed` is the **complete** scene-bound socket ring
+(handle `0xBED4CF21`, atlas frame 135² with the perimeter-bead
+decorations baked into the texture itself — no additional scene
+widget binds extra glyph-socket perimeter art in scene 657304; the
+icon-catalog-filter pattern that dropped board-rim sides in CL-32
+does not apply here because `0xBED4CF21` is catalog-resolvable and
+already surfaced). If the consumer's rendered socket ring is missing
+beads, the issue is on the consumer composite side (crop, scale, or
+alpha), not a CASC decode gap. Honest CL-28-grade report.
+
+**Selected-node red ring re-verify (FR-C12 §2).** No change from
+CL-30: the selected-state red ring is part of each per-rarity
+selected composite (Magic-selected `0x72C29402`, Rare-selected
+`0x03EDABAB`, Legendary-selected `0xBD27FB7C`; Common-selected
+`0xD3051CCA` on `Node_Purchased`). The standalone `0xB732F921` from
+CL-28 is in the icon catalog but bound to no scene widget and not
+referenced by any per-rarity recipe.
+
+**Special-node scene-bind gate (FR-C12 §4).**
+`ParagonRenderLayout_special_node_layers_are_scene_bound` cross-
+references every layer in a `RarityOverride < 0` row against the
+raw scene 657304 widget data via `ReadUiScene` (parity with the
+per-rarity scene-bind gate; raw widget data rather than the
+icon-catalog-filtered `Scenes` view — the CL-31 → CL-32 lesson).
+
 ## 11. Non-paragon typed record readers (C6)
 
 The B1–B6 scope-freeze was **lifted by owner decision 2026-05-17**
@@ -1742,6 +1807,33 @@ true value (the sections above already state the corrected truth).
   `ReadParagonBoardChrome_layers_are_scene_bound` extends to assert
   the 4 rim-side handles against the raw scene-657304 widget data
   (the icon-catalog-filtered `Scenes` view doesn't see them).
+
+- **CL-33 — per-node-cell background + special-node addendum (FR-C11
+  R3 §2/§3, FR-C12 §1/§2/§3/§4).** §10.17. Added
+  `ParagonRenderLayout.NodeCellBackground` (single `NodeElement`)
+  carrying `Common_Node_Revealed`'s binding (handle `0xC1473C21`,
+  authored rect `L=R=T=B=3` inside the 100-pitch `NodeTemplate` →
+  94×94 cell tile, ~6-ref inter-cell gap, semi-transparent alpha in
+  the atlas frame). Documented `NodeAvailableGlow`'s authored rect is
+  genuinely all-zero (`NodeTemplate`-inherit) but the bound atlas
+  frame is 325 × 326 — over 3× cell pitch — so the consumer must
+  compose at `NodeElement.NativeWidth/Height` (the CL-29 fields,
+  already populated) not at the cell rect; drawing at 1 cell
+  under-draws the glow. Documented start/gate composite recipes in
+  §10.17 (parity with the §10.15 per-rarity table) and confirmed
+  CL-30 selected-state attribution unchanged. Honest CL-28-grade
+  report on the glyph socket: `GlyphNodeGlow_Revealed → 0xBED4CF21`
+  is the **complete** scene-bound socket ring — the perimeter bead
+  decorations are baked into the 135² atlas frame itself; no
+  additional glyph-socket perimeter widget binds in 657304, and the
+  icon-catalog-filter pattern from CL-32 does not apply
+  (`0xBED4CF21` is catalog-resolvable and already surfaced). Added
+  gate `ParagonRenderLayout_special_node_layers_are_scene_bound` —
+  parity with the per-rarity gate (CL-30) and the board-chrome gate
+  (CL-31/32), cross-references every `RarityOverride < 0` row's
+  layers against the raw scene 657304 widget data via `ReadUiScene`
+  (the icon-catalog-filtered `Scenes` view drops some special-node
+  bindings; raw widget data is the authoritative source).
 
 ## Appendix B — provenance & migration map
 
