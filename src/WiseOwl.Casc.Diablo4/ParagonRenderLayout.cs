@@ -62,21 +62,34 @@ public sealed record ParagonSceneModel(
 public sealed record ParagonBoundWidget(
     string Name, uint ClassId, IReadOnlyList<NodeElement> Layers);
 
-/// <summary>The paragon board chrome render model (§10.16). The
-/// <see cref="MainBoardBackground"/> layer is the dark textured field
-/// drawn behind the node grid in scene 657304 (bound on
-/// <c>Template_Board_Background_Center</c>);
+/// <summary>The paragon board chrome render model (§10.16). The main
+/// board (scene 657304) composes a 5-piece chrome: a centre
+/// background field (<see cref="BackgroundCenter"/>) plus a
+/// 4-cardinal-side rim — <see cref="BorderTop"/> /
+/// <see cref="BorderBottom"/> share one band texture,
+/// <see cref="BorderLeft"/> / <see cref="BorderRight"/> share another.
 /// <see cref="BoardSelectChrome"/> carries the board-select panel's
-/// preview frame and filigree band from scene 964599. All chrome
+/// preview frame + filigree band from scene 964599. All chrome
 /// layers carry no authored sub-rect — the scene leaves them
-/// engine-positioned at native pixel size. The animated rim
-/// "fire border" of the main board is **engine-internal**: its
-/// candidate atlas frames live in <c>2DUI_Paragon</c> (SNO 447106) but
-/// no scene widget in either scene binds them — CASC does not
-/// fabricate a typed sequence for engine-internal art (CL-28 / CL-30
-/// discipline), so they are not surfaced in this model.</summary>
+/// engine-positioned at native pixel size. The rim-band handles
+/// (<see cref="BorderTop"/>'s, etc.) are scene-bound via the
+/// standard <c>0x6B1C5D9C</c> texture-handle field but resolve
+/// through a non-icon-catalog path CASC does not currently index, so
+/// their <see cref="NodeElement.AtlasSno"/> /
+/// <see cref="NodeElement.NativeWidth"/> /
+/// <see cref="NodeElement.NativeHeight"/> are <c>0</c> (consumer
+/// uses a different texture-resolution path or a procedural
+/// equivalent). Any rim animation (the engine-animated "fire" the
+/// game shows on the rim) is **engine-internal** — scene data has
+/// no blend mode, frame order, or timing for it; per CL-28 / CL-30
+/// no-fabrication discipline CASC does not surface a fabricated
+/// sequence.</summary>
 public sealed record ParagonBoardChrome(
-    NodeElement MainBoardBackground,
+    NodeElement BackgroundCenter,
+    NodeElement BorderTop,
+    NodeElement BorderRight,
+    NodeElement BorderBottom,
+    NodeElement BorderLeft,
     IReadOnlyList<NodeElement> BoardSelectChrome);
 
 /// <summary>The UI design space the raw rects are authored in (decoded
@@ -577,7 +590,11 @@ internal static class ParagonRenderProjection
             h == 0 || h == 0xFFFFFFFFu ? (0, 0, 0)
             : frameLookup?.Invoke(h) ?? (0, 0, 0);
 
-        NodeElement WidgetLayers(UiWidget? w)
+        // Catalog-filtered binding: only surface handles
+        // <paramref name="isTextureHandle"/> accepts (the icon catalog
+        // index). Used for Center + the board-select panel where every
+        // bound texture is multi-frame-atlas resolvable.
+        NodeElement CatalogBinding(UiWidget? w)
         {
             if (w is null) return default;
             uint handle = 0;
@@ -588,6 +605,28 @@ internal static class ParagonRenderProjection
             foreach (var v in w.ExtraLayerValues)
                 if (isTextureHandle(v) && handle == 0)
                     handle = v;
+            if (handle == 0) return default;
+            var (sno, fw, fh) = Frame(handle);
+            return new NodeElement(handle, Rect(w), 0xFF, sno, fw, fh);
+        }
+
+        // Scene-bound binding (unfiltered): surface the first bound
+        // texture-handle from the widget's standard 0x6B1C5D9C field,
+        // regardless of whether the icon catalog resolves it. The
+        // 4 board-rim widgets bind via this field but their target
+        // handles route through a non-icon-catalog path CASC does not
+        // currently index — <see cref="NodeElement.AtlasSno"/> and the
+        // native size come back zero, the handle itself stays
+        // authoritative.
+        NodeElement SceneBinding(UiWidget? w)
+        {
+            if (w is null) return default;
+            uint handle = 0;
+            foreach (var f in w.Fields)
+                if (f.HasValue && f.TypeHash == TexHandleType &&
+                    f.RawValue is not 0 and not 0xFFFFFFFFu &&
+                    handle == 0)
+                    handle = f.RawValue;
             if (handle == 0) return default;
             var (sno, fw, fh) = Frame(handle);
             return new NodeElement(handle, Rect(w), 0xFF, sno, fw, fh);
@@ -618,13 +657,20 @@ internal static class ParagonRenderProjection
         UiWidget? ByName(UiScene s, string n) =>
             s.Widgets.FirstOrDefault(w => w.Name == n);
 
-        // Main board background — scene 657304's
-        // Template_Board_Background_Center binds the dark textured
-        // field (0x2954DF0C, 1200² in 2DUI_Paragon). The widget's
-        // authored rect is all-zero: the engine fills the parent
-        // canvas at native size.
-        var background = WidgetLayers(
+        // Main board (657304): a 5-piece chrome composite — a centre
+        // background field plus a 4-cardinal-side rim. Center binds
+        // 0x2954DF0C (1200² icon-catalog atlas frame). The rim sides
+        // bind handles that resolve via a non-icon-catalog texture
+        // path (Top/Bottom share 0x900C7D87; Left/Right share
+        // 0x225F2DA8); CASC surfaces the handles as-is and leaves
+        // AtlasSno/native px at zero so the consumer knows to use a
+        // non-icon-catalog resolution path or a procedural equivalent.
+        var center = CatalogBinding(
             ByName(mainBoard, "Template_Board_Background_Center"));
+        var top    = SceneBinding(ByName(mainBoard, "Template_Board_Background_Top"));
+        var right  = SceneBinding(ByName(mainBoard, "Template_Board_Background_Right"));
+        var bottom = SceneBinding(ByName(mainBoard, "Template_Board_Background_Bottom"));
+        var left   = SceneBinding(ByName(mainBoard, "Template_Board_Background_Left"));
 
         // Board-select panel chrome — scene 964599's preview-frame
         // backing (Board_BG) and the filigree band
@@ -638,6 +684,7 @@ internal static class ParagonRenderProjection
             ByName(boardSelect, "Board_Icon_Filigrees")))
             selectLayers.Add(le);
 
-        return new ParagonBoardChrome(background, selectLayers);
+        return new ParagonBoardChrome(
+            center, top, right, bottom, left, selectLayers);
     }
 }

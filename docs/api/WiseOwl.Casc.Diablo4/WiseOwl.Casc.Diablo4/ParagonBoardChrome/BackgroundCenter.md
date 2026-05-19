@@ -1,7 +1,7 @@
-# ParagonBoardChrome.MainBoardBackground property
+# ParagonBoardChrome.BackgroundCenter property
 
 ```csharp
-public NodeElement MainBoardBackground { get; set; }
+public NodeElement BackgroundCenter { get; set; }
 ```
 
 ## See Also
