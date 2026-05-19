@@ -30,7 +30,8 @@ public sealed record ParagonRenderLayout(
     int BoardRotationQuadrant,
     NodeElement Disc,
     NodeElement Symbol,
-    IReadOnlyList<StateElements> States);
+    IReadOnlyList<StateElements> States,
+    NodeElement NodeCellBackground);
 
 /// <summary>
 /// The <b>exhaustive</b> paragon render-model (FR-C9): the role-assigned
@@ -510,12 +511,29 @@ internal static class ParagonRenderProjection
         states.Add(new StateElements(-1, "overlay.availableGlow",
             Overlay("NodeAvailableGlow"), null, null, null));
 
+        // FR-C11 R3 §2: per-node-cell background tile drawn beneath
+        // every revealed/visible node-cell composite. Bound on
+        // `Common_Node_Revealed` (handle 0xC1473C21) via the standard
+        // 0x6B1C5D9C texture-handle field, with authored rect
+        // L=R=T=B=3 inside the 100-pitch NodeTemplate box (a 94×94
+        // tile centred in the 100×100 cell — inter-tile gap is
+        // ~6 ref units, the lighter board field showing through). The
+        // atlas frame itself carries semi-transparent alpha; the
+        // widget records `dwAlpha = 0xFF`, so consumer composites at
+        // the frame's authored opacity. Drawn beneath the
+        // rarity-specific node composite (§10.15); empty lattice
+        // cells stay bare. `Common_Node_BG_Black` is the sibling
+        // hidden-state variant — same texture, same rect; the
+        // Revealed widget is the one used when the cell is visible.
+        var nodeCellBg = Elem("Common_Node_Revealed");
+
         return new ParagonRenderLayout(
             ratios, canvas,
             Rect(container), Rect(template),
             boardRotationQuadrant,
             Disc: disc, Symbol: default,
-            States: states);
+            States: states,
+            NodeCellBackground: nodeCellBg);
     }
 
     /// <summary>

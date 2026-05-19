@@ -14,6 +14,7 @@ public record ParagonRenderLayout
 | [BoardRotationQuadrant](ParagonRenderLayout/BoardRotationQuadrant.md) { get; set; } |  |
 | [CanvasReference](ParagonRenderLayout/CanvasReference.md) { get; set; } |  |
 | [Disc](ParagonRenderLayout/Disc.md) { get; set; } |  |
+| [NodeCellBackground](ParagonRenderLayout/NodeCellBackground.md) { get; set; } |  |
 | [NodeContainer](ParagonRenderLayout/NodeContainer.md) { get; set; } |  |
 | [NodeTemplate](ParagonRenderLayout/NodeTemplate.md) { get; set; } |  |
 | [Ratios](ParagonRenderLayout/Ratios.md) { get; set; } |  |
