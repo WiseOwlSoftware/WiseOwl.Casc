@@ -342,11 +342,12 @@ public sealed class Diablo4StorageIntegrationTests
     /// (<c>Arrow_{Top,Right,Bottom,Left}</c>) bind the pre-oriented red
     /// arrow art with authored rect; the connector bars
     /// (<c>Connector_{T,R,B,L}</c>) bind the connector art with
-    /// authored rect; the selection ring has no scene-widget binding
-    /// (engine-internal — the smooth red ring is composited inside the
-    /// per-rarity selected-variant disc, or drawn from a standalone
-    /// atlas frame for Common rarity), surfaced as
-    /// <c>Unresolved = true</c> with empty <c>Layers</c>.</summary>
+    /// authored rect; <c>overlay.selectionRing</c> is enumerated for
+    /// schema completeness but has no scene-widget binding — the
+    /// selected-state red ring lives baked into each per-rarity
+    /// selected composite (§10.15), not as a separate overlay — and
+    /// is surfaced as <c>Unresolved = true</c> with empty
+    /// <c>Layers</c>.</summary>
     [SkippableFact]
     public void ReadParagonRenderLayout_decodes_directional_arrows()
     {
@@ -374,8 +375,11 @@ public sealed class Diablo4StorageIntegrationTests
         Assert.NotEmpty(conn);
         Assert.All(conn, h => Assert.Contains(h, ConnectorHandles));
 
-        // overlay.selectionRing has no scene-widget binding — surfaced
-        // as Unresolved=true with empty Layers (engine-internal art).
+        // overlay.selectionRing is enumerated for schema completeness
+        // but has no scene-widget binding — the selected-state ring is
+        // baked into each per-rarity selected composite (§10.15), not
+        // a separate overlay. Surfaced as Unresolved=true with empty
+        // Layers.
         var selRow = rl.States.First(s => s.State == "overlay.selectionRing");
         Assert.Empty(selRow.Layers);
         Assert.True(selRow.Unresolved);
@@ -681,15 +685,17 @@ public sealed class Diablo4StorageIntegrationTests
                                   e.Rect.Left != 0 || e.Rect.Top != 0);
     }
 
-    /// <summary>FR-C10 R1 (CL-29) — the paragon node composite recipe.
-    /// Per (rarity × state) the layers compose grey base disc
-    /// (<c>0x1D166DC7</c>) + (rarity-specific interior fill, if the
-    /// rarity template's 0x58 block binds it) + (ornate frame for
-    /// Rare/Legendary, swapped on the selected state; engine-internal
-    /// red ring <c>0xB732F921</c> for Common/Magic selected). Each
-    /// surfaced <see cref="NodeElement"/> carries its atlas SNO and
-    /// native pixel size; the engine-internal red ring is flagged
-    /// <see cref="NodeElement.EngineInternal"/> = <see langword="true"/>.</summary>
+    /// <summary>The paragon node composite recipe (§10.15). Per
+    /// (rarity × state) the layers compose the shared grey base disc
+    /// (<c>0x1D166DC7</c>) + (rarity-specific interior fill, when the
+    /// rarity template's 0x58 block binds one) + (the rarity's
+    /// selected-state composite when <c>state == "selected"</c>):
+    /// <c>0x72C29402</c> for Magic / <c>0x03EDABAB</c> for Rare /
+    /// <c>0xBD27FB7C</c> for Legendary (all bound on
+    /// <c>Template_Node_&lt;rarity&gt;</c>'s 0x58 block), or
+    /// <c>0xD3051CCA</c> on the separate <c>Node_Purchased</c> widget
+    /// for Common. Each surfaced <see cref="NodeElement"/> carries its
+    /// atlas SNO and native pixel size.</summary>
     [SkippableFact]
     public void ReadParagonRenderLayout_decodes_node_composite_recipe()
     {
@@ -701,38 +707,38 @@ public sealed class Diablo4StorageIntegrationTests
         StateElements Row(int r, string s) =>
             rl.States.First(x => x.RarityOverride == r && x.State == s);
 
-        // Common (r0): just the grey base disc when unselected; +
-        // engine-internal red ring 0xB732F921 when selected.
+        // Common (r0): just the grey base disc when unselected; selected
+        // swaps to Node_Purchased's 0xD3051CCA (153² dark disc + perimeter
+        // ring composite — scene-bound, NOT the standalone engine-internal
+        // ring which would draw a small centred ring instead).
         var commonUn = Row(0, "unselected").Layers;
         Assert.Single(commonUn);
         Assert.Equal(0x1D166DC7u, commonUn[0].TextureHandle);
-        Assert.False(commonUn[0].EngineInternal);
 
         var commonSel = Row(0, "selected").Layers;
         Assert.Equal(2, commonSel.Count);
         Assert.Equal(0x1D166DC7u, commonSel[0].TextureHandle);
-        Assert.Equal(0xB732F921u, commonSel[1].TextureHandle);
-        Assert.True(commonSel[1].EngineInternal);
+        Assert.Equal(0xD3051CCAu, commonSel[1].TextureHandle);
 
         // Magic (r2): grey base + 0xFEC31E48 (135² blue interior fill,
-        // owner-confirmed); + engine-internal red ring on selected.
+        // owner-confirmed); selected adds 0x72C29402 (Template_Node_Magic's
+        // 0x58-block 154² blue disc + perimeter ring composite — the
+        // game-correct selected art, matching the Rare/Legendary pattern
+        // of a scene-bound selected-variant composite).
         var magicUn = Row(2, "unselected").Layers;
         Assert.Equal(2, magicUn.Count);
         Assert.Equal(0x1D166DC7u, magicUn[0].TextureHandle);
         Assert.Equal(0xFEC31E48u, magicUn[1].TextureHandle);
-        Assert.False(magicUn[1].EngineInternal);
 
         var magicSel = Row(2, "selected").Layers;
         Assert.Equal(3, magicSel.Count);
         Assert.Equal(0xFEC31E48u, magicSel[1].TextureHandle);
-        Assert.Equal(0xB732F921u, magicSel[2].TextureHandle);
-        Assert.True(magicSel[2].EngineInternal);
+        Assert.Equal(0x72C29402u, magicSel[2].TextureHandle);
 
         // Rare (r3): grey base + 0xF8373491 (interior fill) +
         // 0xB71BD068 (yellow ornate, unselected) → swap ornate to
-        // 0x03EDABAB on selected (yellow ornate + red ring composite —
-        // the engine-internal ring is NOT added separately for Rare/Leg
-        // because the selected-variant ornate already carries it).
+        // 0x03EDABAB on selected (yellow ornate + red perimeter ring
+        // composite — the ring is baked into the selected-variant).
         var rareUn = Row(3, "unselected").Layers;
         Assert.Contains(rareUn, e => e.TextureHandle == 0x1D166DC7u);
         Assert.Contains(rareUn, e => e.TextureHandle == 0xF8373491u);
@@ -742,7 +748,6 @@ public sealed class Diablo4StorageIntegrationTests
         var rareSel = Row(3, "selected").Layers;
         Assert.Contains(rareSel, e => e.TextureHandle == 0x03EDABABu);
         Assert.DoesNotContain(rareSel, e => e.TextureHandle == 0xB71BD068u);
-        Assert.DoesNotContain(rareSel, e => e.EngineInternal); // no separate ring
 
         // Legendary (r4): grey base + 0x006ED182 (interior fill) +
         // 0x232DF7F9 (orange spike ornate) → swap ornate to 0xBD27FB7C
@@ -756,7 +761,6 @@ public sealed class Diablo4StorageIntegrationTests
         var legSel = Row(4, "selected").Layers;
         Assert.Contains(legSel, e => e.TextureHandle == 0xBD27FB7Cu);
         Assert.DoesNotContain(legSel, e => e.TextureHandle == 0x232DF7F9u);
-        Assert.DoesNotContain(legSel, e => e.EngineInternal);
 
         // Every surfaced layer carries AtlasSno and native px (the
         // engine's authoritative composite-extent, since the scene
@@ -770,18 +774,59 @@ public sealed class Diablo4StorageIntegrationTests
             }
     }
 
+    /// <summary>Per-rarity layer scene-bindedness gate. Every layer
+    /// in a per-rarity (rarity 0/2/3/4) <see cref="StateElements"/>
+    /// row must be bound by some widget in scene 657304 — the
+    /// per-rarity composite (including the selected-state perimeter
+    /// ring) is always authored scene art, never a fabricated catalog
+    /// reference. Cross-references each layer's
+    /// <see cref="NodeElement.TextureHandle"/> against
+    /// <see cref="Diablo4Storage.ReadParagonRenderModel"/>'s exhaustive
+    /// per-widget bindings; a layer whose handle does not appear in
+    /// the scene fails CI.</summary>
+    [SkippableFact]
+    public void ParagonRenderLayout_per_rarity_layers_are_scene_bound()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+
+        var rl = d4.ReadParagonRenderLayout();
+        var model = d4.ReadParagonRenderModel();
+        var sceneBound = new HashSet<uint>(
+            model.Scenes.First(s => s.SnoId == 657304)
+                .Widgets.SelectMany(w => w.Layers)
+                .Select(l => l.TextureHandle));
+
+        var perRarity = rl.States.Where(s => s.RarityOverride >= 0).ToArray();
+        Assert.NotEmpty(perRarity); // sanity: the gate actually ran
+
+        var unbound = perRarity
+            .SelectMany(s => s.Layers.Select(l => (Row: s, Layer: l)))
+            .Where(x => !sceneBound.Contains(x.Layer.TextureHandle))
+            .Select(x => $"r{x.Row.RarityOverride} {x.Row.State} " +
+                         $"0x{x.Layer.TextureHandle:X8}")
+            .ToArray();
+        Assert.True(unbound.Length == 0,
+            "per-rarity layer scene-bindedness gate: per-rarity layers " +
+            "whose handle is not bound by any widget in scene 657304 " +
+            "(per-rarity composites must be authored scene art, never " +
+            "fabricated): " + string.Join(", ", unbound));
+    }
+
     /// <summary>The per-binding-record completeness gate (complement
     /// to <see cref="ParagonRenderModel_covers_every_bound_atlas_handle"/>).
     /// Every enumerated state in
     /// <see cref="ParagonRenderLayout.States"/> must carry at least one
     /// bound layer or be explicitly marked
-    /// <see cref="StateElements.Unresolved"/> (engine-internal art).
-    /// The handle-level gate dedups by atlas handle, so a state row
-    /// with <c>Layers=[0]</c> can stay green when its handle appears
-    /// under another widget; this gate is shape-agnostic and catches
-    /// that case — a future projection that enumerates a state but
-    /// leaves it both empty and not-marked-unresolved fails casc CI
-    /// regardless of where its handle appears.</summary>
+    /// <see cref="StateElements.Unresolved"/> (a row enumerated for
+    /// schema completeness whose art is composited inside another
+    /// row's bindings — e.g. <c>overlay.selectionRing</c>'s red ring
+    /// lives inside each per-rarity selected composite). The
+    /// handle-level gate dedups by atlas handle, so a state row with
+    /// <c>Layers=[0]</c> can stay green when its handle appears under
+    /// another widget; this gate is shape-agnostic and catches that
+    /// case.</summary>
     [SkippableFact]
     public void ParagonRenderLayout_every_enumerated_state_has_layers()
     {

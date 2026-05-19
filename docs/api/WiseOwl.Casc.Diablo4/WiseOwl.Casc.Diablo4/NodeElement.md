@@ -1,6 +1,6 @@
 # NodeElement structure
 
-A drawable element of the paragon node composite recipe: its raw texture handle (`== TexFrame.ImageHandle`; `0xFFFFFFFF`/0 ⇒ none, never pre-resolved), the atlas SNO that hosts the frame, the frame's native pixel size (the layer's authoritative draw extent when no widget rect is authored — the engine draws at native px size centred on the disc anchor), the authored reference-unit rect (`default` ⇒ inherits `NodeTemplate` at native px), raw `dwAlpha`, and [`EngineInternal`](./NodeElement/EngineInternal.md) = `true` when the layer is referenced by the engine but not bound to any scene widget (e.g. the selected-state red ring `0xB732F921` on Common / Magic — the engine renders it directly from the icon catalog; [`ReadParagonRenderModel`](./Diablo4Storage/ReadParagonRenderModel.md)'s exhaustive scene-binding gate will not see it, hence the explicit flag).
+A drawable element of the paragon node composite recipe: its raw texture handle (`== TexFrame.ImageHandle`; `0xFFFFFFFF`/0 ⇒ none, never pre-resolved), the atlas SNO that hosts the frame, the frame's native pixel size (the layer's authoritative draw extent when no widget rect is authored — the engine draws at native px size centred on the disc anchor), the authored reference-unit rect (`default` ⇒ inherits `NodeTemplate` at native px), and raw `dwAlpha`.
 
 ```csharp
 public struct NodeElement : IEquatable<NodeElement>
@@ -10,10 +10,9 @@ public struct NodeElement : IEquatable<NodeElement>
 
 | name | description |
 | --- | --- |
-| [NodeElement](NodeElement/NodeElement.md)(…) | A drawable element of the paragon node composite recipe: its raw texture handle (`== TexFrame.ImageHandle`; `0xFFFFFFFF`/0 ⇒ none, never pre-resolved), the atlas SNO that hosts the frame, the frame's native pixel size (the layer's authoritative draw extent when no widget rect is authored — the engine draws at native px size centred on the disc anchor), the authored reference-unit rect (`default` ⇒ inherits `NodeTemplate` at native px), raw `dwAlpha`, and [`EngineInternal`](./NodeElement/EngineInternal.md) = `true` when the layer is referenced by the engine but not bound to any scene widget (e.g. the selected-state red ring `0xB732F921` on Common / Magic — the engine renders it directly from the icon catalog; [`ReadParagonRenderModel`](./Diablo4Storage/ReadParagonRenderModel.md)'s exhaustive scene-binding gate will not see it, hence the explicit flag). |
+| [NodeElement](NodeElement/NodeElement.md)(…) | A drawable element of the paragon node composite recipe: its raw texture handle (`== TexFrame.ImageHandle`; `0xFFFFFFFF`/0 ⇒ none, never pre-resolved), the atlas SNO that hosts the frame, the frame's native pixel size (the layer's authoritative draw extent when no widget rect is authored — the engine draws at native px size centred on the disc anchor), the authored reference-unit rect (`default` ⇒ inherits `NodeTemplate` at native px), and raw `dwAlpha`. |
 | [Alpha](NodeElement/Alpha.md) { get; set; } |  |
 | [AtlasSno](NodeElement/AtlasSno.md) { get; set; } |  |
-| [EngineInternal](NodeElement/EngineInternal.md) { get; set; } |  |
 | [NativeHeight](NodeElement/NativeHeight.md) { get; set; } |  |
 | [NativeWidth](NodeElement/NativeWidth.md) { get; set; } |  |
 | [Rect](NodeElement/Rect.md) { get; set; } |  |

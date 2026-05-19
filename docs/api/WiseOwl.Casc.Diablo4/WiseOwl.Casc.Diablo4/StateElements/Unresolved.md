@@ -1,6 +1,6 @@
 # StateElements.Unresolved property
 
-`true` when the row is enumerated by the schema but no scene widget binds its art (the engine draws it internally, or the art lives composited inside another row's bindings). The per-record completeness gate (§10.14) permits empty [`Layers`](./Layers.md) exactly when this is `true`.
+`true` when the row is enumerated by the schema but no scene widget binds its art (the art lives composited inside another row's bindings, e.g. `overlay.selectionRing`'s red ring is baked into each per-rarity selected composite). The per-record completeness gate (§10.14) permits empty [`Layers`](./Layers.md) exactly when this is `true`.
 
 ```csharp
 public bool Unresolved { get; set; }
