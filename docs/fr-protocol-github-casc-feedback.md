@@ -264,15 +264,23 @@ Shared contract:
    bash tool) is what makes `bash -c` source the script — do **not**
    rely on a Windows `BASH_ENV` var (a running VS Code predates it / it
    may be stripped).
-3. **Allow rules use colon-star, not space-star**: `Bash(gh issue
-   list:*)`, `view:*`, `comment:*`, `edit:*`, `close:*` (Optimizer
-   only), `Bash(gh label list:*|create:*)`, `Bash(gh api user:*)`,
-   `Bash(echo:*)`. Space-star (`Bash(gh … *)`) silently matches nothing.
+3. **Prompt suppression = bypass mode, NOT allow-rules** (superseded
+   2026-05-18, proven both sides). Allow-rules do **not** reliably
+   auto-approve Bash in this Claude Code build — colon-star *and*
+   space-star alike; compound `;` and arg-prefix matching keep
+   prompting. The standard, in each project's
+   `.claude/settings.local.json`:
+   `"permissions": { "defaultMode": "bypassPermissions", … }` **plus**
+   top-level `"skipDangerousModePermissionPrompt": true` (pre-accepts
+   the one-time dangerous-mode dialog → genuinely hands-off).
+   `settings.json` stays hook-only. The colon-star `allow` list is kept
+   only as optional defense-in-depth, not the suppression mechanism.
 4. **Loop commands are bare `gh …`** — no `export`, no `unset`, no
-   decorative `echo`/`$()` (every extra segment is another prompt
-   surface).
-5. Loading requires a **full VS Code quit** (not "Reload Window"):
-   `env`/permissions load at session start only.
+   decorative `echo`/`$()`. (Belt-and-braces under bypass mode; keeps
+   commands clean and the bot identity unambiguous.)
+5. Loading requires a **full VS Code quit** (not "Reload Window") on
+   **both** sessions: `env`, `permissions`, and the bypass/skip flags
+   load at session start only.
 
 Net: the loop self-authenticates as the right bot per session with zero
 prompts, no secret in any repo file, and **identical** mechanics on
