@@ -338,12 +338,16 @@ public sealed class Diablo4StorageIntegrationTests
     private static readonly uint[] ConnectorHandles =
         { 0x77ECA3A8u, 0x288DE11Fu };
 
-    /// <summary>FR-C8 R6 (CL-24): the directional pointer is NOT
-    /// pure-procedural — <c>Arrow_{Top,Right,Bottom,Left}</c> bind the
-    /// pre-oriented arrow art + an authored rect (the FR-C7 0x22 path
-    /// FR-C7 never projected). <c>overlay.pointerTriangle</c> now carries
-    /// the four cardinal arrows; <c>connectorBar</c>/<c>selectionRing</c>
-    /// stay empty (no bound art — engine/procedural, FR-C7 correct).</summary>
+    /// <summary>FR-C8 R6 (CL-24) + FR-C9 R3 (CL-27): the directional
+    /// pointer / connector bars / selection ring are all bound scene art,
+    /// not engine-procedural. <c>Arrow_{Top,Right,Bottom,Left}</c> bind
+    /// the pre-oriented arrow art + authored rect (the FR-C7 0x22 path
+    /// FR-C7 never projected); <c>Connector_{T,R,B,L}</c> bind the
+    /// connector art (same dropped-last-record cause, CL-24); and
+    /// <c>Node_SearchResultHighlight</c> binds the node-overlay ring
+    /// handle <c>0x49FDA722</c> (CL-27 — the binding record FR-C7/C8
+    /// missed because the CL-26 handle-level gate dedups by handle and
+    /// this one is shared with <c>Glyph_GridItem_SearchResultHighlight</c>).</summary>
     [SkippableFact]
     public void ReadParagonRenderLayout_decodes_directional_arrows()
     {
@@ -365,13 +369,24 @@ public sealed class Diablo4StorageIntegrationTests
             e.Rect.Left != 0 || e.Rect.Top != 0);
 
         // Connectors ALSO bind scene art (same dropped-last-record
-        // cause, CL-24) — the catalogued connector handles. Selection
-        // ring has no scene widget → genuinely engine-drawn (empty).
+        // cause, CL-24) — the catalogued connector handles.
         var conn = rl.States.First(s => s.State == "overlay.connectorBar").Layers
             .Select(e => e.TextureHandle).ToArray();
         Assert.NotEmpty(conn);
         Assert.All(conn, h => Assert.Contains(h, ConnectorHandles));
-        Assert.Empty(rl.States.First(s => s.State == "overlay.selectionRing").Layers);
+
+        // CL-27: overlay.selectionRing is also bound — single layer on
+        // Node_SearchResultHighlight (handle 0x49FDA722, no authored
+        // rect ⇒ inherits NodeTemplate, alpha 0xFF). The CL-26 handle
+        // gate stayed green because this handle is shared with
+        // Glyph_GridItem_SearchResultHighlight (now caught by the new
+        // per-record gate; see ParagonRenderLayout_every_enumerated_
+        // state_has_layers below).
+        var sel = rl.States.First(s => s.State == "overlay.selectionRing").Layers;
+        Assert.Single(sel);
+        Assert.Equal(0x49FDA722u, sel[0].TextureHandle);
+        Assert.Equal(default, sel[0].Rect); // template-inherited
+        Assert.Equal(0xFF, sel[0].Alpha);
 
         // R5 (definitive): the start/gate 0x58 frame-layer blocks are
         // handle-only — no per-layer rect authored (engine/template-
@@ -672,5 +687,39 @@ public sealed class Diablo4StorageIntegrationTests
         Assert.Contains(all, e => e.TextureHandle == 0x87A89F86u);
         Assert.Contains(all, e => e.Rect.Width != 0 || e.Rect.Height != 0 ||
                                   e.Rect.Left != 0 || e.Rect.Top != 0);
+    }
+
+    /// <summary>FR-C9 R3 (CL-27) — the per-binding-record gate (the
+    /// decisive structural strengthening of CL-26's handle-level gate).
+    /// CL-26 dedups by atlas handle, so a state row with
+    /// <c>Layers=[0]</c> stayed green when its handle appeared under
+    /// another widget — exactly how <c>overlay.selectionRing</c>'s
+    /// <c>Node_SearchResultHighlight</c> binding stayed dropped from R2
+    /// (handle <c>0x49FDA722</c> shared with
+    /// <c>Glyph_GridItem_SearchResultHighlight</c>). The per-record
+    /// gate is shape-agnostic and complementary to CL-26: every
+    /// enumerated state in <see cref="ParagonRenderLayout.States"/> must
+    /// carry at least one bound layer (or be explicitly structurally
+    /// unresolved — none currently are). A future state row that the
+    /// projection enumerates but leaves empty fails casc CI, regardless
+    /// of whether the handle appears elsewhere.</summary>
+    [SkippableFact]
+    public void ParagonRenderLayout_every_enumerated_state_has_layers()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+
+        var rl = d4.ReadParagonRenderLayout();
+        Assert.NotEmpty(rl.States); // sanity: the gate actually ran
+
+        var empty = rl.States
+            .Where(s => s.Layers.Count == 0)
+            .Select(s => $"r{s.RarityOverride} {s.State}")
+            .ToArray();
+        Assert.True(empty.Length == 0,
+            "per-binding-record gate: enumerated state rows have " +
+            "Layers=[0] (CL-26 handle-level gate cannot catch shared-handle " +
+            "drops): " + string.Join(", ", empty));
     }
 }

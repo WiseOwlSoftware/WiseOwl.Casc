@@ -356,14 +356,33 @@ internal static class ParagonRenderProjection
         // CL-24) — and FR-C7 also hardcoded these rows empty. So
         // `overlay.pointerTriangle` / `overlay.connectorBar` now carry
         // their real T/R/B/L bound layers (handle + decoded Rect).
-        // `overlay.selectionRing` has no scene widget → genuinely
-        // engine-drawn, stays empty. No fabrication — empty rows stay
-        // empty, the arrows/connectors are the real decoded values.
+        //
+        // CORRECTION (FR-C9 R3, CL-27): `overlay.selectionRing` was
+        // hardcoded empty with the comment "no scene widget → genuinely
+        // engine-drawn" — that comment was wrong. Scene 657304 binds the
+        // node-overlay ring on widget `Node_SearchResultHighlight`
+        // (handle `0x49FDA722`, ClassId `0x1E3077C7`, alpha `0xFF`, no
+        // authored rect → inherits `NodeTemplate` like start/gate/
+        // availableGlow), via the standard `0x6B1C5D9C`-typed texture-
+        // handle field on the 0x22 path — exactly the same shape as the
+        // three sibling overlays. The handle is shared with
+        // `Glyph_GridItem_SearchResultHighlight` (a panel-chrome
+        // widget), so the CL-26 *handle-level* coverage gate stayed
+        // green even though this binding-record was dropped — the
+        // structural reason CL-27 adds the per-record gate
+        // (`ParagonRenderLayout_every_enumerated_state_has_layers`):
+        // any enumerated state with `Layers.Count == 0` is a gate
+        // failure regardless of whether its handle appears under
+        // another widget. Atlas frame: SNO 1332563, 180×180 (ring-sized
+        // node overlay). Role/state classification (whether the
+        // consumer renders this as the in-game red ring on selected
+        // nodes, the search-result highlight, or both) stays consumer-
+        // owned per FR-C7 §6.
         NodeElement[] Overlay(params string[] widgets) =>
             L(widgets.Select(Elem).ToArray());
 
         states.Add(new StateElements(-1, "overlay.selectionRing",
-            Array.Empty<NodeElement>(), null, null, null));
+            Overlay("Node_SearchResultHighlight"), null, null, null));
         states.Add(new StateElements(-1, "overlay.connectorBar",
             Overlay("Connector_Top", "Connector_Right",
                     "Connector_Bottom", "Connector_Left"),
