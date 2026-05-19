@@ -262,25 +262,32 @@ Shared contract:
    `"env": { "FR_ROLE": "casc"|"optimizer", "BASH_ENV": "/c/Users/brent/.bash_env.sh" }`.
    Injecting `BASH_ENV` via the Claude `env` block (proven to reach the
    bash tool) is what makes `bash -c` source the script — do **not**
-   rely on a Windows `BASH_ENV` var (a running VS Code predates it / it
-   may be stripped).
-3. **Prompt suppression = bypass mode, NOT allow-rules** (superseded
-   2026-05-18, proven both sides). Allow-rules do **not** reliably
-   auto-approve Bash in this Claude Code build — colon-star *and*
-   space-star alike; compound `;` and arg-prefix matching keep
-   prompting. The standard, in each project's
-   `.claude/settings.local.json`:
-   `"permissions": { "defaultMode": "bypassPermissions", … }` **plus**
-   top-level `"skipDangerousModePermissionPrompt": true` (pre-accepts
-   the one-time dangerous-mode dialog → genuinely hands-off).
-   `settings.json` stays hook-only. The colon-star `allow` list is kept
-   only as optional defense-in-depth, not the suppression mechanism.
+   rely on a Windows-level `BASH_ENV` var (a running host may predate
+   it or strip it; the Claude `env` block is the reliable carrier).
+3. **Prompt suppression = `claude --dangerously-skip-permissions`
+   launched in a regular terminal — NOT the VS Code extension**
+   (superseded 2026-05-18, proven both sides). Settings-file bypass
+   (`permissions.defaultMode: "bypassPermissions"` +
+   `skipDangerousModePermissionPrompt: true` in `.claude/settings.local.json`)
+   did **not** suppress prompts in the VS Code extension even after a
+   full quit + sole instance — almost certainly by design (a repo cannot
+   silence its own prompts). Allow-rules also do not reliably
+   auto-approve Bash in this Claude Code build (colon- *and* space-star;
+   compound `;` and arg-prefix matching keep prompting). The standard:
+   launch each side's dedicated FR-loop session as `claude
+   --dangerously-skip-permissions` from a regular terminal. The VS Code
+   extension remains fine for normal interactive work; it is not used
+   for the long-lived unattended loop. `settings.json` stays hook-only;
+   the colon-star `allow` list and any `permissions.defaultMode` setting
+   are kept only as optional defense-in-depth, not the suppression
+   mechanism.
 4. **Loop commands are bare `gh …`** — no `export`, no `unset`, no
-   decorative `echo`/`$()`. (Belt-and-braces under bypass mode; keeps
-   commands clean and the bot identity unambiguous.)
-5. Loading requires a **full VS Code quit** (not "Reload Window") on
-   **both** sessions: `env`, `permissions`, and the bypass/skip flags
-   load at session start only.
+   decorative `echo`/`$()`. (Keeps commands clean, the bot identity
+   unambiguous, and dodges the `export …$*_TOKEN` un-allow-listable
+   special case.)
+5. Loading: `env` and `permissions` keys in `.claude/settings.local.json`
+   load at session start only — relaunch the terminal `claude` after any
+   edit on **both** sessions; mid-session edits do not hot-reload.
 
 Net: the loop self-authenticates as the right bot per session with zero
 prompts, no secret in any repo file, and **identical** mechanics on
