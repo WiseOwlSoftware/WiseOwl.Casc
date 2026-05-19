@@ -78,18 +78,11 @@ public readonly record struct WidgetRect(
 /// authoritative draw extent when no widget rect is authored — the
 /// engine draws at native px size centred on the disc anchor), the
 /// authored reference-unit rect (<see langword="default"/> ⇒ inherits
-/// <c>NodeTemplate</c> at native px), raw <c>dwAlpha</c>, and
-/// <see cref="EngineInternal"/> = <see langword="true"/> when the layer
-/// is referenced by the engine but not bound to any scene widget
-/// (e.g. the selected-state red ring <c>0xB732F921</c> on Common /
-/// Magic — the engine renders it directly from the icon catalog;
-/// <see cref="Diablo4Storage.ReadParagonRenderModel"/>'s exhaustive
-/// scene-binding gate will not see it, hence the explicit flag).</summary>
+/// <c>NodeTemplate</c> at native px), and raw <c>dwAlpha</c>.</summary>
 public readonly record struct NodeElement(
     uint TextureHandle, WidgetRect Rect, byte Alpha,
     int AtlasSno = 0,
-    int NativeWidth = 0, int NativeHeight = 0,
-    bool EngineInternal = false);
+    int NativeWidth = 0, int NativeHeight = 0);
 
 /// <summary>A raw bound <c>DT_RGBACOLOR</c> value.</summary>
 public readonly record struct RgbaTint(byte R, byte G, byte B, byte A);
@@ -116,10 +109,12 @@ public readonly record struct RenderRatios(
 
 /// <summary>
 /// One row of the §7.2 state contract: the back→front layer list for a
-/// (rarity, state) or a kind/overlay. Rows with no scene-widget binding
-/// (engine-internal art) carry <see cref="Layers"/> empty and
-/// <see cref="Unresolved"/> = <see langword="true"/> — they are
-/// enumerated for schema completeness, not omitted.
+/// (rarity, state) or a kind/overlay. Rows the schema enumerates but
+/// no scene widget binds (e.g. <c>overlay.selectionRing</c> — the
+/// selected-state red ring lives composited inside each per-rarity
+/// selected variant, not as a separate overlay) carry
+/// <see cref="Layers"/> empty and <see cref="Unresolved"/> =
+/// <see langword="true"/>.
 /// </summary>
 /// <param name="RarityOverride">0/2/3/4, or −1 for
 /// socket/gate/start/overlay.</param>
@@ -135,8 +130,9 @@ public readonly record struct RenderRatios(
 /// <see langword="null"/>.</param>
 /// <param name="Unresolved"><see langword="true"/> when the row is
 /// enumerated by the schema but no scene widget binds its art (the
-/// engine draws it internally, or the art lives composited inside
-/// another row's bindings). The per-record completeness gate
+/// art lives composited inside another row's bindings, e.g.
+/// <c>overlay.selectionRing</c>'s red ring is baked into each
+/// per-rarity selected composite). The per-record completeness gate
 /// (§10.14) permits empty <see cref="Layers"/> exactly when this is
 /// <see langword="true"/>.</param>
 public readonly record struct StateElements(
@@ -316,29 +312,27 @@ internal static class ParagonRenderProjection
 
         // FR-C10 node composite recipe (§10.15). Each rarity composites
         // grey-base + (optional rarity-specific interior fill) +
-        // (optional ornate outer frame). The selected state either swaps
-        // the ornate for the rarity's selected-variant (Rare/Legendary
-        // — red ring composited into the disc art) or adds the
-        // standalone engine-internal red ring (Common/Magic — referenced
-        // directly from the catalog, no scene widget binds it).
+        // (selected variant: a pre-composited full-disc frame with the
+        // red ring at the disc perimeter, bound in the scene). Every
+        // selected state references a scene-bound composite — no
+        // standalone engine-internal ring is added to a per-rarity row.
         // Per-rarity handle roles, build-stable on 3.0.2.71886, sourced
         // from atlas-frame visual inspection + owner visual oracle for
-        // Magic (FR-C10 R1, oracle calibration screenshots).
-        const uint EngineInternalRing = 0xB732F921u; // 96² 2DUI_Paragon_transparentElements
-        const uint MagicInteriorFill  = 0xFEC31E48u; // 135² blue interior — owner-confirmed
-        const uint RareInteriorFill   = 0xF8373491u; // 135² rare interior
-        const uint RareOrnateUnsel    = 0xB71BD068u; // 154² yellow ornate frame
-        const uint RareOrnateSel      = 0x03EDABABu; // 153² yellow ornate + red ring composite
-        const uint LegInteriorFill    = 0x006ED182u; // 136² legendary interior
-        const uint LegOrnateUnsel     = 0x232DF7F9u; // 189² orange spike ornate frame
-        const uint LegOrnateSel       = 0xBD27FB7Cu; // 189² orange ornate + red ring composite
+        // Magic (FR-C10 R1) and the FR-C10 R2 root-cause analysis.
+        const uint MagicInteriorFill   = 0xFEC31E48u; // 135² blue interior — owner-confirmed
+        const uint MagicSelComposite   = 0x72C29402u; // 154² blue disc + perimeter ring composite (Template_Node_Magic 0x58 block)
+        const uint RareInteriorFill    = 0xF8373491u; // 135² rare interior
+        const uint RareOrnateUnsel     = 0xB71BD068u; // 154² yellow ornate frame
+        const uint RareOrnateSel       = 0x03EDABABu; // 153² yellow ornate + perimeter ring composite
+        const uint LegInteriorFill     = 0x006ED182u; // 136² legendary interior
+        const uint LegOrnateUnsel      = 0x232DF7F9u; // 189² orange spike ornate frame
+        const uint LegOrnateSel        = 0xBD27FB7Cu; // 189² orange spike ornate + perimeter ring composite
 
-        NodeElement Layer(uint handle, bool engineInternal = false)
+        NodeElement Layer(uint handle)
         {
             if (handle == 0) return default;
             var (sno, fw, fh) = Frame(handle);
-            return new NodeElement(
-                handle, default, 0xFF, sno, fw, fh, engineInternal);
+            return new NodeElement(handle, default, 0xFF, sno, fw, fh);
         }
 
         // Decode-true: only surface a per-rarity handle when its
@@ -352,28 +346,36 @@ internal static class ParagonRenderProjection
         var legBlockHandles   = new HashSet<uint>(
             LayersOf("Template_Node_Legendary").Select(e => e.TextureHandle));
 
+        // Common's selected composite lives on a separate widget
+        // (`Node_Purchased`, the "allocated/spent" indicator) rather
+        // than the per-rarity Template_Node_* block — scene-bound, not
+        // engine-internal.
+        var purchased = Elem("Node_Purchased"); // 0xD3051CCA — 153² dark disc + perimeter ring
+
         NodeElement[] RarityComposite(int rar, bool selected)
         {
             var layers = new List<NodeElement>();
             if (disc.TextureHandle != 0) layers.Add(disc);
             switch (rar)
             {
-                case 0: // Common — base disc only; engine adds the ring on selected.
-                    if (selected) layers.Add(Layer(EngineInternalRing, engineInternal: true));
+                case 0: // Common — base disc; selected swaps to Node_Purchased's composite (dark disc + perimeter ring).
+                    if (selected && purchased.TextureHandle != 0)
+                        layers.Add(purchased);
                     break;
-                case 2: // Magic — grey base + blue interior fill; + engine ring on selected.
+                case 2: // Magic — base + blue interior; selected adds Template_Node_Magic's 0x72C29402 composite (blue disc + perimeter ring).
                     if (magicBlockHandles.Contains(MagicInteriorFill))
                         layers.Add(Layer(MagicInteriorFill));
-                    if (selected) layers.Add(Layer(EngineInternalRing, engineInternal: true));
+                    if (selected && magicBlockHandles.Contains(MagicSelComposite))
+                        layers.Add(Layer(MagicSelComposite));
                     break;
-                case 3: // Rare — grey base + interior fill + ornate frame (swapped on selected).
+                case 3: // Rare — base + interior + ornate (swapped on selected for the ornate + perimeter-ring composite).
                     if (rareBlockHandles.Contains(RareInteriorFill))
                         layers.Add(Layer(RareInteriorFill));
                     var rareOrnate = selected ? RareOrnateSel : RareOrnateUnsel;
                     if (rareBlockHandles.Contains(rareOrnate))
                         layers.Add(Layer(rareOrnate));
                     break;
-                case 4: // Legendary — grey base + interior fill + larger spike ornate (swapped on selected).
+                case 4: // Legendary — base + interior + larger spike ornate (swapped on selected).
                     if (legBlockHandles.Contains(LegInteriorFill))
                         layers.Add(Layer(LegInteriorFill));
                     var legOrnate = selected ? LegOrnateSel : LegOrnateUnsel;
@@ -388,11 +390,12 @@ internal static class ParagonRenderProjection
 
         // Rows 1–8: rarity {0,2,3,4} × {unselected,selected}. Recipe
         // per §10.15: grey-base + (rarity-specific interior fill if
-        // bound) + (ornate frame, swapped on selected for Rare/Legendary,
-        // engine-internal red ring added on selected for Common/Magic).
-        // Per-rarity tint stays null — the per-rarity colour comes from
-        // the bound interior-fill atlas frame (already coloured), not a
-        // shader tint on a shared disc.
+        // bound) + (selected-state composite — Template_Node_<rarity>'s
+        // 0x58-block selected-variant for Magic/Rare/Legendary, or
+        // Node_Purchased's binding for Common — each carrying the red
+        // perimeter ring in its disc art). Per-rarity tint stays null —
+        // the per-rarity colour comes from the bound interior-fill
+        // atlas frame, not a shader tint on a shared disc.
         foreach (var rar in new[] { 0, 2, 3, 4 })
             foreach (var sel in new[] { false, true })
                 states.Add(new StateElements(
@@ -443,14 +446,12 @@ internal static class ParagonRenderProjection
         //                     0x288DE11F)
         //   - pointerTriangle→ Arrow_{T,R,B,L} (0xD51CAB25, 0x6D3CB8DE,
         //                     0x8EEAC178, 0xB6D8C741)
-        // selectionRing has no scene-widget binding — the smooth red
-        // ring atlas frame (0xB732F921, 96² in 2DUI_Paragon_transparentElements)
-        // is referenced engine-internally for Common rarity; for
-        // rarity 2/3/4 the red ring lives composited inside each
-        // Template_Node_{Magic,Rare,Legendary} selected-variant disc
-        // (e.g. Magic-selected 0x72C29402, Rare-selected 0x03EDABAB,
-        // Legendary-selected 0xBD27FB7C — surfaced in the rarity
-        // selected rows above). Marked Unresolved=true so the
+        // overlay.selectionRing has no scene-widget binding because the
+        // selected-state red ring is not a separate overlay — it is
+        // baked into each per-rarity selected composite (Template_Node_*'s
+        // 0x58-block selected-variant; Node_Purchased's binding for
+        // Common — see §10.15). The row stays in the §7.2 enumeration
+        // for schema completeness and is marked Unresolved=true so the
         // per-record completeness gate (§10.14) recognises this as
         // intentional, not a projection drop.
         NodeElement[] Overlay(params string[] widgets) =>

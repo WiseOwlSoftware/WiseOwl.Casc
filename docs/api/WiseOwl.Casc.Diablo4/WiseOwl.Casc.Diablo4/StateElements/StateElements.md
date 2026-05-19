@@ -1,6 +1,6 @@
 # StateElements constructor
 
-One row of the §7.2 state contract: the back→front layer list for a (rarity, state) or a kind/overlay. Rows with no scene-widget binding (engine-internal art) carry [`Layers`](./Layers.md) empty and [`Unresolved`](./Unresolved.md) = `true` — they are enumerated for schema completeness, not omitted.
+One row of the §7.2 state contract: the back→front layer list for a (rarity, state) or a kind/overlay. Rows the schema enumerates but no scene widget binds (e.g. `overlay.selectionRing` — the selected-state red ring lives composited inside each per-rarity selected variant, not as a separate overlay) carry [`Layers`](./Layers.md) empty and [`Unresolved`](./Unresolved.md) = `true`.
 
 ```csharp
 public StateElements(int RarityOverride, string State, IReadOnlyList<NodeElement> Layers, 
@@ -15,7 +15,7 @@ public StateElements(int RarityOverride, string State, IReadOnlyList<NodeElement
 | Tint | The bound per-rarity×state `rgbaTint` (`null` if none ⇒ fixed-shader, consumer recipe). |
 | LitTint | The second `DT_RGBACOLOR` (relit colour) on `selected` keys, if authored. |
 | Animation | Pulse/rotate spec, or `null`. |
-| Unresolved | `true` when the row is enumerated by the schema but no scene widget binds its art (the engine draws it internally, or the art lives composited inside another row's bindings). The per-record completeness gate (§10.14) permits empty [`Layers`](./Layers.md) exactly when this is `true`. |
+| Unresolved | `true` when the row is enumerated by the schema but no scene widget binds its art (the art lives composited inside another row's bindings, e.g. `overlay.selectionRing`'s red ring is baked into each per-rarity selected composite). The per-record completeness gate (§10.14) permits empty [`Layers`](./Layers.md) exactly when this is `true`. |
 
 ## See Also
 
