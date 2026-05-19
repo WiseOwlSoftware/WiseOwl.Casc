@@ -1,9 +1,10 @@
 # ParagonBoardChrome constructor
 
-The paragon board chrome render model (§10.16). The [`MainBoardBackground`](./MainBoardBackground.md) layer is the dark textured field drawn behind the node grid in scene 657304 (bound on `Template_Board_Background_Center`); [`BoardSelectChrome`](./BoardSelectChrome.md) carries the board-select panel's preview frame and filigree band from scene 964599. All chrome layers carry no authored sub-rect — the scene leaves them engine-positioned at native pixel size. The animated rim "fire border" of the main board is **engine-internal**: its candidate atlas frames live in `2DUI_Paragon` (SNO 447106) but no scene widget in either scene binds them — CASC does not fabricate a typed sequence for engine-internal art (CL-28 / CL-30 discipline), so they are not surfaced in this model.
+The paragon board chrome render model (§10.16). The main board (scene 657304) composes a 5-piece chrome: a centre background field ([`BackgroundCenter`](./BackgroundCenter.md)) plus a 4-cardinal-side rim — [`BorderTop`](./BorderTop.md) / [`BorderBottom`](./BorderBottom.md) share one band texture, [`BorderLeft`](./BorderLeft.md) / [`BorderRight`](./BorderRight.md) share another. [`BoardSelectChrome`](./BoardSelectChrome.md) carries the board-select panel's preview frame + filigree band from scene 964599. All chrome layers carry no authored sub-rect — the scene leaves them engine-positioned at native pixel size. The rim-band handles ([`BorderTop`](./BorderTop.md)'s, etc.) are scene-bound via the standard `0x6B1C5D9C` texture-handle field but resolve through a non-icon-catalog path CASC does not currently index, so their [`AtlasSno`](../NodeElement/AtlasSno.md) / [`NativeWidth`](../NodeElement/NativeWidth.md) / [`NativeHeight`](../NodeElement/NativeHeight.md) are `0` (consumer uses a different texture-resolution path or a procedural equivalent). Any rim animation (the engine-animated "fire" the game shows on the rim) is **engine-internal** — scene data has no blend mode, frame order, or timing for it; per CL-28 / CL-30 no-fabrication discipline CASC does not surface a fabricated sequence.
 
 ```csharp
-public ParagonBoardChrome(NodeElement MainBoardBackground, 
+public ParagonBoardChrome(NodeElement BackgroundCenter, NodeElement BorderTop, 
+    NodeElement BorderRight, NodeElement BorderBottom, NodeElement BorderLeft, 
     IReadOnlyList<NodeElement> BoardSelectChrome)
 ```
 

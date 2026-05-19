@@ -774,16 +774,17 @@ public sealed class Diablo4StorageIntegrationTests
             }
     }
 
-    /// <summary>FR-C11 (CL-31) — the paragon board-chrome render
-    /// model. Scene 657304's main board background is bound on
-    /// <c>Template_Board_Background_Center</c> (handle <c>0x2954DF0C</c>,
-    /// 1200² in <c>2DUI_Paragon</c>). Scene 964599's board-select
-    /// panel chrome carries the preview-frame backing
-    /// (<c>Board_BG</c>'s two block handles) + the filigree band
-    /// (<c>Board_Icon_Filigrees</c>). The animated fire-border art is
-    /// engine-internal — its candidate atlas frames live in
-    /// <c>2DUI_Paragon</c> but no scene widget binds them, so they
-    /// are NOT surfaced in this typed model (CL-28 / CL-30
+    /// <summary>The paragon board-chrome render model. Scene 657304's
+    /// main board is a 5-piece composite: centre background
+    /// (<c>Template_Board_Background_Center → 0x2954DF0C</c>, 1200²
+    /// catalog-resolvable) plus a 4-cardinal-side rim — Top + Bottom
+    /// share <c>0x900C7D87</c>, Left + Right share <c>0x225F2DA8</c>,
+    /// both bound via the standard <c>0x6B1C5D9C</c> texture-handle
+    /// field on <c>Template_Board_Background_{Top,Right,Bottom,Left}</c>.
+    /// Scene 964599's board-select panel chrome carries the
+    /// preview-frame backing (<c>Board_BG</c>'s two block handles) +
+    /// the filigree band (<c>Board_Icon_Filigrees</c>). Engine-internal
+    /// rim animation art is not surfaced (CL-28 / CL-30 / CL-32
     /// no-fabrication discipline).</summary>
     [SkippableFact]
     public void ReadParagonBoardChrome_surfaces_scene_bound_chrome()
@@ -794,16 +795,39 @@ public sealed class Diablo4StorageIntegrationTests
 
         var chrome = d4.ReadParagonRenderModel().BoardChrome;
 
-        // Main board background — handle, atlas SNO, native px all
+        // Centre background — handle, atlas SNO, native px all
         // present. Authored rect is all-zero (engine convention).
-        Assert.Equal(0x2954DF0Cu, chrome.MainBoardBackground.TextureHandle);
-        Assert.Equal(447106, chrome.MainBoardBackground.AtlasSno);
-        Assert.True(chrome.MainBoardBackground.NativeWidth > 1000);
-        Assert.True(chrome.MainBoardBackground.NativeHeight > 1000);
-        Assert.Equal(default, chrome.MainBoardBackground.Rect);
+        Assert.Equal(0x2954DF0Cu, chrome.BackgroundCenter.TextureHandle);
+        Assert.Equal(447106, chrome.BackgroundCenter.AtlasSno);
+        Assert.True(chrome.BackgroundCenter.NativeWidth > 1000);
+        Assert.True(chrome.BackgroundCenter.NativeHeight > 1000);
+        Assert.Equal(default, chrome.BackgroundCenter.Rect);
+
+        // Rim — 4 cardinal sides, Top/Bottom share one band handle,
+        // Left/Right share another. Handles are scene-bound but do
+        // NOT resolve via the icon catalog (AtlasSno / native px
+        // come back 0 — the consumer uses a non-icon-catalog texture
+        // path or a procedural equivalent).
+        Assert.Equal(0x900C7D87u, chrome.BorderTop.TextureHandle);
+        Assert.Equal(chrome.BorderTop.TextureHandle,
+                     chrome.BorderBottom.TextureHandle);
+        Assert.Equal(0x225F2DA8u, chrome.BorderRight.TextureHandle);
+        Assert.Equal(chrome.BorderRight.TextureHandle,
+                     chrome.BorderLeft.TextureHandle);
+        foreach (var side in new[]
+        {
+            chrome.BorderTop, chrome.BorderRight,
+            chrome.BorderBottom, chrome.BorderLeft,
+        })
+        {
+            Assert.NotEqual(0u, side.TextureHandle);
+            Assert.Equal(0, side.AtlasSno);       // not icon-catalog
+            Assert.Equal(0, side.NativeWidth);
+            Assert.Equal(0, side.NativeHeight);
+        }
 
         // Board-select chrome — every layer is non-zero-handle and
-        // carries an atlas SNO + native size.
+        // carries an atlas SNO + native size (catalog-resolvable).
         Assert.NotEmpty(chrome.BoardSelectChrome);
         foreach (var layer in chrome.BoardSelectChrome)
         {
@@ -814,17 +838,23 @@ public sealed class Diablo4StorageIntegrationTests
         }
 
         // Fire-border discipline: the typed model does not surface
-        // engine-internal candidates. None of the fire-border atlas
-        // frames listed in FR-C11 R1 are scene-bound, so none appear
-        // in either chrome list.
+        // unverified engine-internal frame candidates. None of the
+        // ember-strip handles the FR listed are scene-bound to any
+        // board-chrome widget, so none appear in the typed model.
         var fireBorderCatalog = new[]
         {
             0x6CFA1668u, 0x749F8139u, 0xAA7571ABu,
         };
-        Assert.DoesNotContain(chrome.MainBoardBackground.TextureHandle,
-            fireBorderCatalog);
-        Assert.All(chrome.BoardSelectChrome,
-            l => Assert.DoesNotContain(l.TextureHandle, fireBorderCatalog));
+        var chromeHandles = new[]
+        {
+            chrome.BackgroundCenter.TextureHandle,
+            chrome.BorderTop.TextureHandle,
+            chrome.BorderRight.TextureHandle,
+            chrome.BorderBottom.TextureHandle,
+            chrome.BorderLeft.TextureHandle,
+        }.Concat(chrome.BoardSelectChrome.Select(l => l.TextureHandle));
+        Assert.All(chromeHandles,
+            h => Assert.DoesNotContain(h, fireBorderCatalog));
     }
 
     /// <summary>Per-rarity layer scene-bindedness gate. Every layer
@@ -910,10 +940,15 @@ public sealed class Diablo4StorageIntegrationTests
     }
 
     /// <summary>Board-chrome scene-bindedness gate (parity with the
-    /// per-rarity gate). The main board background must be scene-bound
-    /// in 657304; every board-select chrome layer must be scene-bound
-    /// in 964599. Catches a future board-chrome projection that drops
-    /// to fabricated catalog handles.</summary>
+    /// per-rarity gate). The centre background must be scene-bound in
+    /// 657304's catalog-resolvable per-widget bindings; every
+    /// board-select chrome layer must be scene-bound in 964599's
+    /// catalog-resolvable bindings; the 4 rim-side handles must
+    /// appear in the raw scene-657304 widget data (their target
+    /// resolves via a non-icon-catalog texture path, so SceneModel
+    /// filters them out — the gate cross-references the raw scene
+    /// instead). Catches a future projection that drops to a
+    /// fabricated catalog handle.</summary>
     [SkippableFact]
     public void ReadParagonBoardChrome_layers_are_scene_bound()
     {
@@ -929,11 +964,36 @@ public sealed class Diablo4StorageIntegrationTests
         var bound657 = Bound(657304);
         var bound964 = Bound(964599);
 
-        var bg = model.BoardChrome.MainBoardBackground;
+        var bg = model.BoardChrome.BackgroundCenter;
         if (bg.TextureHandle != 0)
             Assert.Contains(bg.TextureHandle, bound657);
 
         foreach (var layer in model.BoardChrome.BoardSelectChrome)
             Assert.Contains(layer.TextureHandle, bound964);
+
+        // Rim sides: handles target a non-icon-catalog texture path,
+        // so SceneModel filters them out — verify against the raw
+        // scene 657304 widget data via ReadUiScene.
+        var scene = d4.ReadUiScene(657304);
+        var raw657 = new HashSet<uint>();
+        foreach (var w in scene.Widgets)
+        {
+            foreach (var f in w.Fields)
+                if (f.HasValue && f.RawValue is not 0 and not 0xFFFFFFFFu)
+                    raw657.Add(f.RawValue);
+            foreach (var v in w.ExtraLayerValues)
+                if (v is not 0 and not 0xFFFFFFFFu) raw657.Add(v);
+        }
+        foreach (var side in new[]
+        {
+            model.BoardChrome.BorderTop,
+            model.BoardChrome.BorderRight,
+            model.BoardChrome.BorderBottom,
+            model.BoardChrome.BorderLeft,
+        })
+        {
+            if (side.TextureHandle != 0)
+                Assert.Contains(side.TextureHandle, raw657);
+        }
     }
 }
