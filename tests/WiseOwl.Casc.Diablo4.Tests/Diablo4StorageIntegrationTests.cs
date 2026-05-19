@@ -338,16 +338,17 @@ public sealed class Diablo4StorageIntegrationTests
     private static readonly uint[] ConnectorHandles =
         { 0x77ECA3A8u, 0x288DE11Fu };
 
-    /// <summary>FR-C8 R6 (CL-24) + FR-C9 R3 (CL-27): the directional
-    /// pointer / connector bars / selection ring are all bound scene art,
-    /// not engine-procedural. <c>Arrow_{Top,Right,Bottom,Left}</c> bind
-    /// the pre-oriented arrow art + authored rect (the FR-C7 0x22 path
-    /// FR-C7 never projected); <c>Connector_{T,R,B,L}</c> bind the
-    /// connector art (same dropped-last-record cause, CL-24); and
-    /// <c>Node_SearchResultHighlight</c> binds the node-overlay ring
-    /// handle <c>0x49FDA722</c> (CL-27 — the binding record FR-C7/C8
-    /// missed because the CL-26 handle-level gate dedups by handle and
-    /// this one is shared with <c>Glyph_GridItem_SearchResultHighlight</c>).</summary>
+    /// <summary>The four node-overlay state rows
+    /// (<c>overlay.{pointerTriangle,connectorBar,selectionRing,availableGlow}</c>)
+    /// each bind their scene widget(s) via the standard
+    /// <c>0x6B1C5D9C</c>-typed texture-handle field. The directional
+    /// arrows (<c>Arrow_{Top,Right,Bottom,Left}</c>) carry the
+    /// pre-oriented red arrow art with authored rect; the connector
+    /// bars (<c>Connector_{T,R,B,L}</c>) carry the connector art with
+    /// authored rect; the selection-ring overlay
+    /// (<c>Node_SearchResultHighlight</c>) carries handle
+    /// <c>0x49FDA722</c> with no authored rect (<c>NodeTemplate</c>-
+    /// inherited, like start/gate/availableGlow).</summary>
     [SkippableFact]
     public void ReadParagonRenderLayout_decodes_directional_arrows()
     {
@@ -375,13 +376,10 @@ public sealed class Diablo4StorageIntegrationTests
         Assert.NotEmpty(conn);
         Assert.All(conn, h => Assert.Contains(h, ConnectorHandles));
 
-        // CL-27: overlay.selectionRing is also bound — single layer on
-        // Node_SearchResultHighlight (handle 0x49FDA722, no authored
-        // rect ⇒ inherits NodeTemplate, alpha 0xFF). The CL-26 handle
-        // gate stayed green because this handle is shared with
-        // Glyph_GridItem_SearchResultHighlight (now caught by the new
-        // per-record gate; see ParagonRenderLayout_every_enumerated_
-        // state_has_layers below).
+        // overlay.selectionRing — single layer on Node_SearchResultHighlight
+        // (handle 0x49FDA722, no authored rect ⇒ inherits NodeTemplate,
+        // alpha 0xFF). Per-record completeness is asserted separately
+        // by ParagonRenderLayout_every_enumerated_state_has_layers.
         var sel = rl.States.First(s => s.State == "overlay.selectionRing").Layers;
         Assert.Single(sel);
         Assert.Equal(0x49FDA722u, sel[0].TextureHandle);
@@ -689,20 +687,16 @@ public sealed class Diablo4StorageIntegrationTests
                                   e.Rect.Left != 0 || e.Rect.Top != 0);
     }
 
-    /// <summary>FR-C9 R3 (CL-27) — the per-binding-record gate (the
-    /// decisive structural strengthening of CL-26's handle-level gate).
-    /// CL-26 dedups by atlas handle, so a state row with
-    /// <c>Layers=[0]</c> stayed green when its handle appeared under
-    /// another widget — exactly how <c>overlay.selectionRing</c>'s
-    /// <c>Node_SearchResultHighlight</c> binding stayed dropped from R2
-    /// (handle <c>0x49FDA722</c> shared with
-    /// <c>Glyph_GridItem_SearchResultHighlight</c>). The per-record
-    /// gate is shape-agnostic and complementary to CL-26: every
-    /// enumerated state in <see cref="ParagonRenderLayout.States"/> must
-    /// carry at least one bound layer (or be explicitly structurally
-    /// unresolved — none currently are). A future state row that the
-    /// projection enumerates but leaves empty fails casc CI, regardless
-    /// of whether the handle appears elsewhere.</summary>
+    /// <summary>The per-binding-record completeness gate (complement
+    /// to <see cref="ParagonRenderModel_covers_every_bound_atlas_handle"/>).
+    /// Every enumerated state in
+    /// <see cref="ParagonRenderLayout.States"/> must carry at least one
+    /// bound layer (or be explicitly structurally unresolved). The
+    /// handle-level gate dedups by atlas handle, so a state row with
+    /// <c>Layers=[0]</c> can stay green when its handle appears under
+    /// another widget; this gate is shape-agnostic and catches that
+    /// case — a future projection that enumerates a state but leaves
+    /// it empty fails casc CI regardless of where its handle appears.</summary>
     [SkippableFact]
     public void ParagonRenderLayout_every_enumerated_state_has_layers()
     {

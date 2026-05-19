@@ -343,41 +343,24 @@ internal static class ParagonRenderProjection
         states.Add(new StateElements(-1, "start.selected",
             startLayers.Length > 0 ? startLayers : L(disc), null, null, null));
 
-        // Rows 16–18: overlays. CORRECTION (FR-C8 R6, CL-24): the
-        // directional pointer AND the connector bars are NOT
-        // pure-procedural. `Arrow_{Top,Right,Bottom,Left}` bind the
-        // pre-oriented red arrow art (Top 0xD51CAB25, Right 0x6D3CB8DE,
-        // Bottom 0x8EEAC178, Left 0xB6D8C741); `Connector_{...}` bind
-        // the connector art (0x77ECA3A8 / 0x288DE11F) — each with an
-        // authored rect, via the standard texture-handle field on the
-        // FR-C7 0x22 path. FR-C7 missed both because the texture handle
-        // is each widget's *last* 0x22 record, which straddled the
-        // widget boundary and was dropped (UiScene.Parse tail fix,
-        // CL-24) — and FR-C7 also hardcoded these rows empty. So
-        // `overlay.pointerTriangle` / `overlay.connectorBar` now carry
-        // their real T/R/B/L bound layers (handle + decoded Rect).
-        //
-        // CORRECTION (FR-C9 R3, CL-27): `overlay.selectionRing` was
-        // hardcoded empty with the comment "no scene widget → genuinely
-        // engine-drawn" — that comment was wrong. Scene 657304 binds the
-        // node-overlay ring on widget `Node_SearchResultHighlight`
-        // (handle `0x49FDA722`, ClassId `0x1E3077C7`, alpha `0xFF`, no
-        // authored rect → inherits `NodeTemplate` like start/gate/
-        // availableGlow), via the standard `0x6B1C5D9C`-typed texture-
-        // handle field on the 0x22 path — exactly the same shape as the
-        // three sibling overlays. The handle is shared with
-        // `Glyph_GridItem_SearchResultHighlight` (a panel-chrome
-        // widget), so the CL-26 *handle-level* coverage gate stayed
-        // green even though this binding-record was dropped — the
-        // structural reason CL-27 adds the per-record gate
-        // (`ParagonRenderLayout_every_enumerated_state_has_layers`):
-        // any enumerated state with `Layers.Count == 0` is a gate
-        // failure regardless of whether its handle appears under
-        // another widget. Atlas frame: SNO 1332563, 180×180 (ring-sized
-        // node overlay). Role/state classification (whether the
-        // consumer renders this as the in-game red ring on selected
-        // nodes, the search-result highlight, or both) stays consumer-
-        // owned per FR-C7 §6.
+        // Rows 16–18: the node-overlay states (§10.13). Each binds its
+        // scene widget(s) via the standard 0x6B1C5D9C-typed texture-
+        // handle field on the 0x22 path (handle + decoded `Rect` where
+        // authored; otherwise default ⇒ `NodeTemplate`-inherited size,
+        // like start/gate).
+        //   - selectionRing  → Node_SearchResultHighlight (0x49FDA722,
+        //                     handle shared with Glyph_GridItem_*; per-
+        //                     record gate, §10.14, asserts this row is
+        //                     non-empty even though CL-26 dedups by
+        //                     handle)
+        //   - connectorBar   → Connector_{T,R,B,L} (0x77ECA3A8 /
+        //                     0x288DE11F)
+        //   - pointerTriangle→ Arrow_{T,R,B,L} (0xD51CAB25, 0x6D3CB8DE,
+        //                     0x8EEAC178, 0xB6D8C741)
+        // Role/state classification stays consumer-owned (FR-C7 §6) —
+        // CASC surfaces the decoded binding; the consumer decides how to
+        // render it (e.g. as the in-game red ring on selected nodes, the
+        // search-result highlight, or both).
         NodeElement[] Overlay(params string[] widgets) =>
             L(widgets.Select(Elem).ToArray());
 

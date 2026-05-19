@@ -864,40 +864,22 @@ widgets:
 | Widget | Bound handle | §2.2 role |
 |---|---|---|
 | `Node_IconBase` | `0x1D166DC7` | base disc |
-| `NodeAvailableGlow` | `0x4A901508` | ~~gold ornate (Rare/Legendary)~~ → **selectable/available glow** (state-driven, any rarity — FR-C8 R9 / CL-25 correction; the genuine Rare ornate is `Template_Node_Rare`'s own `0xB71BD068`) |
+| `NodeAvailableGlow` | `0x4A901508` | selectable/available glow (state-driven, any rarity — distinct from the per-rarity static ornate, which is each `Template_Node_*` widget's own bound layer) |
 | `GlyphNodeGlow_Revealed` / `_Purchased`, `Usage_Slot_2` | `0xBED4CF21` | socket pulse ring |
+| `Node_SearchResultHighlight` | `0x49FDA722` | node-overlay ring (180×180 frame, `NodeTemplate`-inherited rect) |
+| `Node_Located` | `0x87A89F86` | grey rim ring |
+| `Arrow_{Top,Right,Bottom,Left}` | `0xD51CAB25` / `0x6D3CB8DE` / `0x8EEAC178` / `0xB6D8C741` | directional pointer art (T/R/B/L), each with authored rect |
+| `Connector_{Top,Right,Bottom,Left}` | `0x77ECA3A8` / `0x288DE11F` | connector bar art (T/B share, R/L share), each with authored rect |
 
-Only these are bound in `ParagonBoard`. The grey rim ring
-(`0x87A89F86`), the selection ring, the connector bars
-(`0x77ECA3A8`/`0x288DE11F`) and the four pointer triangles are **absent
-from the scene data** — confirming they are **app-drawn / procedural
-overlays** (consistent with FR §2.5 and the Round-11 `overlay.*` note:
-"not per-node baked"). Per-rarity differentiation is the bound
-`rgbaTint` (§10.7 / §2.3 — shader tint on the shared neutral disc, not
-per-rarity textures). So the §7.2 18-row matrix maps to a **small set
-of shared decode-true elements** (disc + gold ornate + pulse) ×
-per-rarity `rgbaTint`, with the 3 `overlay.*` rows carrying *no* bound
-scene data (the consumer keeps its catalogued procedural handles, as
-the FR anticipated) — not 18 distinct baked layer-lists.
-
-Remaining:
-
-1. Populate `StateElements` from the decode-true elements above
-   (`Node_IconBase`/`NodeAvailableGlow`/`GlyphNodeGlow_*` handles +
-   rects + the per-rarity `rgbaTint` + the pulse `AnimSpec`); overlay
-   rows carry the documented "app-drawn, not in scene data". No
-   fabricated rows.
-2. Derive `pitchRef` from the `Template_Node_Common` element + the node
-   layout + the `ParagonBoardDefinition` Warlock-Start grid (§7.1);
-   verify it reproduces ≈67.7 px/grid at the §10.8 provenance and is
-   cross-widget consistent. `RenderRatios.Provisional` stays `true`
-   until this passes — no pitch number asserted before it (the oracle
-   is the *check*, never the source).
-3. Resolve residual unnamed field-ids (type already known; a
-   refinement, non-blocking).
-4. Implement the §10.10 agreed contract + the verbatim 18-row
-   acceptance matrix. The consumer is on HOLD; no public surface is
-   added before step 2 passes.
+The §10.12/10.13/10.14 sections cover the additional binding shapes
+(0x58 block, dropped-tail values, and the exhaustive whole-scene
+model). Per-rarity differentiation combines the bound `rgbaTint`
+(§10.7 / §2.3 — shader tint on the shared neutral disc, not per-rarity
+textures) with each `Template_Node_*` widget's own bound layer values
+(per-rarity ornate / disc-variant art; §10.12). The §7.2 19-row state
+matrix maps to a small set of shared decode-true elements (disc +
+ornate + pulse + the four overlay rows) × per-rarity `rgbaTint` and
+per-rarity template layers — not 19 distinct baked layer-lists.
 
 ### 10.12 Start/gate composite — the 0x58-block binding (FR-C8, CL-23)
 
@@ -973,17 +955,16 @@ other record is byte-identical — no FR-C7 regression). Cardinal map
 | `Arrow_Left` | `0xB6D8C741` | 87×106 |
 | `Connector_*` | `0x77ECA3A8` / `0x288DE11F` | connector bars |
 
-`overlay.pointerTriangle.Layers` / `overlay.connectorBar.Layers` now
-carry these (handle + decoded `Rect`), T/R/B/L. `overlay.selectionRing`
-**also** binds scene art: `Node_SearchResultHighlight` → `0x49FDA722`
-(SNO 1332563, 180×180 atlas frame; no authored rect ⇒ inherits
-`NodeTemplate` like start/gate/availableGlow; alpha `0xFF`); the binding
-shape is the standard `0x6B1C5D9C`-typed texture-handle field on the
-0x22 path. Surfaced under CL-27 (was previously hardcoded empty under
-the wrong assumption it was engine-drawn; the CL-26 handle gate stayed
-green because the handle is shared with
-`Glyph_GridItem_SearchResultHighlight`, hence the structural fix in §10.14
-below — the per-binding-record gate).
+`overlay.pointerTriangle.Layers` / `overlay.connectorBar.Layers` carry
+these (handle + decoded `Rect`), T/R/B/L. `overlay.selectionRing.Layers`
+binds `Node_SearchResultHighlight` → `0x49FDA722` (SNO 1332563, 180×180
+atlas frame; no authored rect ⇒ inherits `NodeTemplate` like
+start/gate/availableGlow; alpha `0xFF`) via the standard
+`0x6B1C5D9C`-typed texture-handle field on the 0x22 path. The handle is
+also bound on `Glyph_GridItem_SearchResultHighlight` (panel chrome,
+unrelated draw site); the typed `States` projection captures the
+node-side binding only — `Scenes` carries the exhaustive per-widget
+view (§10.14).
 
 **R5 — start/gate per-layer rect/scale/tint: definitively NOT
 authored.** The §10.12 0x58 layer blocks are **handle-only**: the
@@ -1055,7 +1036,7 @@ the contract is amendable — CL-25). Verified by
 `ReadParagonRenderLayout_decodes_proven_structure` (rare ⊇
 `0xB71BD068`, ∌ `0x4A901508`; `overlay.availableGlow` ⊇ `0x4A901508`).
 
-### 10.14 Exhaustive render-model + the lossless-decode guarantee (FR-C9, CL-26 + CL-27)
+### 10.14 Exhaustive render-model + the lossless-decode guarantee (FR-C9)
 
 FR-C8 took nine rounds because each was the same shape: a binding
 `Project()` *silently dropped*, found only as a visual defect. FR-C9
@@ -1097,25 +1078,28 @@ the consumer's eyeballs. The canonical FR-C7-era miss (grey rim ring
 FR-C7/C8 projection; `Scenes` (657304, 964599) lists every binding
 widget with `{Name, ClassId, Layers[{handle, rect, alpha}]}` — the
 one-shot exhaustive audit surface. The library owns *complete faithful
-decode + the gate*; role/state classification stays the consumer's
-(FR-C7 §6). See Appendix A CL-26.
+decode + the gates*; role/state classification stays the consumer's
+(FR-C7 §6).
 
-**The structural strengthening — per-binding-record (CL-27, FR-C9 R3).**
-The CL-26 handle-level gate dedups by *atlas handle*, so a state row
-with `Layers=[0]` stays green when its handle appears elsewhere in the
-model. R3 reproduced exactly that gap: `overlay.selectionRing`'s
-`Node_SearchResultHighlight` binding (`0x49FDA722`) is shared with
-`Glyph_GridItem_SearchResultHighlight`, so the handle set was "fully
-covered" even though `Project()` dropped the record. The complementary
-gate `ParagonRenderLayout_every_enumerated_state_has_layers` asserts —
-shape-agnostically — that **every** enumerated state in
-`ReadParagonRenderLayout().States` carries at least one bound layer
-(or is explicitly structurally unresolved). A future projection that
-enumerates a state row but leaves it empty fails casc CI regardless of
-whether the handle appears under another widget. The two gates are
-complementary: CL-26 catches *handle-level* drops (a new binding shape
-that orphans a handle); CL-27 catches *record-level* drops (a state row
-the projection enumerates without populating). See Appendix A CL-27.
+**Two complementary structural gates.** Completeness is enforced at
+two independent shapes, asserted by casc's own acceptance suite:
+
+1. **Handle-level coverage** —
+   `ParagonRenderModel_covers_every_bound_atlas_handle`: every
+   handle-magnitude atlas-resolvable `u32` anywhere in the raw scenes
+   must appear in the exhaustive model. Catches a new *binding shape*
+   that would orphan a handle entirely.
+2. **Per-binding-record coverage** —
+   `ParagonRenderLayout_every_enumerated_state_has_layers`: every
+   enumerated state in `ReadParagonRenderLayout().States` carries at
+   least one bound layer (or is explicitly structurally unresolved).
+   Catches a *record-level* drop — a state row the projection
+   enumerates without populating, which the handle gate cannot see if
+   the dropped binding's handle is also bound elsewhere.
+
+Both gates are shape-agnostic; together they make the FR-C8
+nine-round "discovered as a visual defect months later" pattern fail
+casc CI, not consumer eyeballs.
 
 ## 11. Non-paragon typed record readers (C6)
 
@@ -1484,30 +1468,21 @@ true value (the sections above already state the corrected truth).
   eyeballs. Schema published in §10.14.
 
 - **CL-27 — `overlay.selectionRing` binding surfaced; per-binding-record
-  gate complements the handle gate (FR-C9 R3).** §10.14. CL-26 dedups
-  the coverage assertion by atlas handle, so `Project()` could drop a
-  state row's binding when its handle appeared elsewhere in the model
-  and the gate stayed green. R3 reproduced exactly that:
-  `overlay.selectionRing` was hardcoded empty under the wrong
-  assumption it was engine-drawn; in fact scene 657304 binds
-  `Node_SearchResultHighlight` → `0x49FDA722` (SNO 1332563, 180×180
-  atlas frame, no authored rect ⇒ inherits `NodeTemplate`, alpha
-  `0xFF`) via the standard `0x6B1C5D9C` texture-handle field — the
-  same shape as the three sibling overlays. The handle is shared with
-  `Glyph_GridItem_SearchResultHighlight`, which is why the CL-26 gate
-  did not catch the drop. Shipped: (a) `overlay.selectionRing.Layers`
-  now carries the bound `NodeElement` (handle + alpha; rect default by
-  design — template-inherited like start/gate/availableGlow); and
-  (b) new gate `ParagonRenderLayout_every_enumerated_state_has_layers`
-  asserts every enumerated state in
-  `ReadParagonRenderLayout().States` carries at least one bound layer
-  (or is structurally unresolved) — a future record-shape drop fails
-  casc CI regardless of handle sharing. The two gates are
-  complementary: CL-26 catches handle-level drops (a new binding shape
-  orphaning a handle); CL-27 catches record-level drops (a state row
-  enumerated but unpopulated). Role/state classification (whether the
-  consumer renders this as the in-game red ring on selected nodes, the
-  search-result highlight, or both) stays consumer-owned per FR-C7 §6.
+  gate complements the handle gate (FR-C9 R3).** §10.14. The CL-26
+  handle-level gate dedups by atlas handle: when a state row dropped
+  by `Project()` shared its handle with another widget, the gate stayed
+  green. Fixed by (a) surfacing `Node_SearchResultHighlight` →
+  `0x49FDA722` (the previously dropped binding; standard `0x6B1C5D9C`
+  texture-handle field; handle also bound on
+  `Glyph_GridItem_SearchResultHighlight`, hence the CL-26 blind spot)
+  under `overlay.selectionRing`, and (b) adding the per-binding-record
+  gate `ParagonRenderLayout_every_enumerated_state_has_layers`,
+  asserting every enumerated state row carries at least one bound
+  layer (or is structurally unresolved). The two gates are
+  complementary: CL-26 catches *handle-level* drops (a new binding
+  shape orphaning a handle); CL-27 catches *record-level* drops (a
+  state row enumerated but unpopulated). Role/state classification
+  stays consumer-owned per FR-C7 §6.
 
 ## Appendix B — provenance & migration map
 
