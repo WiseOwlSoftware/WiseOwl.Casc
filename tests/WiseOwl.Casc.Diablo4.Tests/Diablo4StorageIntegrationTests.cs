@@ -774,6 +774,59 @@ public sealed class Diablo4StorageIntegrationTests
             }
     }
 
+    /// <summary>FR-C11 (CL-31) — the paragon board-chrome render
+    /// model. Scene 657304's main board background is bound on
+    /// <c>Template_Board_Background_Center</c> (handle <c>0x2954DF0C</c>,
+    /// 1200² in <c>2DUI_Paragon</c>). Scene 964599's board-select
+    /// panel chrome carries the preview-frame backing
+    /// (<c>Board_BG</c>'s two block handles) + the filigree band
+    /// (<c>Board_Icon_Filigrees</c>). The animated fire-border art is
+    /// engine-internal — its candidate atlas frames live in
+    /// <c>2DUI_Paragon</c> but no scene widget binds them, so they
+    /// are NOT surfaced in this typed model (CL-28 / CL-30
+    /// no-fabrication discipline).</summary>
+    [SkippableFact]
+    public void ReadParagonBoardChrome_surfaces_scene_bound_chrome()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+
+        var chrome = d4.ReadParagonRenderModel().BoardChrome;
+
+        // Main board background — handle, atlas SNO, native px all
+        // present. Authored rect is all-zero (engine convention).
+        Assert.Equal(0x2954DF0Cu, chrome.MainBoardBackground.TextureHandle);
+        Assert.Equal(447106, chrome.MainBoardBackground.AtlasSno);
+        Assert.True(chrome.MainBoardBackground.NativeWidth > 1000);
+        Assert.True(chrome.MainBoardBackground.NativeHeight > 1000);
+        Assert.Equal(default, chrome.MainBoardBackground.Rect);
+
+        // Board-select chrome — every layer is non-zero-handle and
+        // carries an atlas SNO + native size.
+        Assert.NotEmpty(chrome.BoardSelectChrome);
+        foreach (var layer in chrome.BoardSelectChrome)
+        {
+            Assert.NotEqual(0u, layer.TextureHandle);
+            Assert.NotEqual(0, layer.AtlasSno);
+            Assert.True(layer.NativeWidth > 0);
+            Assert.True(layer.NativeHeight > 0);
+        }
+
+        // Fire-border discipline: the typed model does not surface
+        // engine-internal candidates. None of the fire-border atlas
+        // frames listed in FR-C11 R1 are scene-bound, so none appear
+        // in either chrome list.
+        var fireBorderCatalog = new[]
+        {
+            0x6CFA1668u, 0x749F8139u, 0xAA7571ABu,
+        };
+        Assert.DoesNotContain(chrome.MainBoardBackground.TextureHandle,
+            fireBorderCatalog);
+        Assert.All(chrome.BoardSelectChrome,
+            l => Assert.DoesNotContain(l.TextureHandle, fireBorderCatalog));
+    }
+
     /// <summary>Per-rarity layer scene-bindedness gate. Every layer
     /// in a per-rarity (rarity 0/2/3/4) <see cref="StateElements"/>
     /// row must be bound by some widget in scene 657304 — the
@@ -854,5 +907,33 @@ public sealed class Diablo4StorageIntegrationTests
         Assert.True(inconsistent.Length == 0,
             "Unresolved=true rows must have empty Layers: " +
             string.Join(", ", inconsistent));
+    }
+
+    /// <summary>Board-chrome scene-bindedness gate (parity with the
+    /// per-rarity gate). The main board background must be scene-bound
+    /// in 657304; every board-select chrome layer must be scene-bound
+    /// in 964599. Catches a future board-chrome projection that drops
+    /// to fabricated catalog handles.</summary>
+    [SkippableFact]
+    public void ReadParagonBoardChrome_layers_are_scene_bound()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+
+        var model = d4.ReadParagonRenderModel();
+        HashSet<uint> Bound(int sno) => new(model.Scenes
+            .First(s => s.SnoId == sno).Widgets
+            .SelectMany(w => w.Layers).Select(l => l.TextureHandle));
+
+        var bound657 = Bound(657304);
+        var bound964 = Bound(964599);
+
+        var bg = model.BoardChrome.MainBoardBackground;
+        if (bg.TextureHandle != 0)
+            Assert.Contains(bg.TextureHandle, bound657);
+
+        foreach (var layer in model.BoardChrome.BoardSelectChrome)
+            Assert.Contains(layer.TextureHandle, bound964);
     }
 }

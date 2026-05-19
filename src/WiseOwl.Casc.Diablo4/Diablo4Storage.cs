@@ -356,7 +356,11 @@ public sealed class Diablo4Storage : IDisposable
         foreach (var id in new[] { 657304, 964599 })
             scenes.Add(ParagonRenderProjection.SceneModel(
                 ReadUiScene(id), IsParagonTextureHandle, FrameSize));
-        return new ParagonRenderModel(ReadParagonRenderLayout(), scenes);
+        var chrome = ParagonRenderProjection.BoardChrome(
+            ReadUiScene(657304), ReadUiScene(964599),
+            IsParagonTextureHandle, FrameSize);
+        return new ParagonRenderModel(
+            ReadParagonRenderLayout(), scenes, chrome);
     }
 
     /// <summary>The structural "is a real atlas texture handle" test

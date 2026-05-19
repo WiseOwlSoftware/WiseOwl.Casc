@@ -44,7 +44,8 @@ public sealed record ParagonRenderLayout(
 /// </summary>
 public sealed record ParagonRenderModel(
     ParagonRenderLayout Layout,
-    IReadOnlyList<ParagonSceneModel> Scenes);
+    IReadOnlyList<ParagonSceneModel> Scenes,
+    ParagonBoardChrome BoardChrome);
 
 /// <summary>One paragon UI-scene's complete atlas-binding model: every
 /// widget that binds ≥1 real atlas handle.</summary>
@@ -60,6 +61,23 @@ public sealed record ParagonSceneModel(
 /// Raw + complete; the consumer assigns role/state.</summary>
 public sealed record ParagonBoundWidget(
     string Name, uint ClassId, IReadOnlyList<NodeElement> Layers);
+
+/// <summary>The paragon board chrome render model (§10.16). The
+/// <see cref="MainBoardBackground"/> layer is the dark textured field
+/// drawn behind the node grid in scene 657304 (bound on
+/// <c>Template_Board_Background_Center</c>);
+/// <see cref="BoardSelectChrome"/> carries the board-select panel's
+/// preview frame and filigree band from scene 964599. All chrome
+/// layers carry no authored sub-rect — the scene leaves them
+/// engine-positioned at native pixel size. The animated rim
+/// "fire border" of the main board is **engine-internal**: its
+/// candidate atlas frames live in <c>2DUI_Paragon</c> (SNO 447106) but
+/// no scene widget in either scene binds them — CASC does not
+/// fabricate a typed sequence for engine-internal art (CL-28 / CL-30
+/// discipline), so they are not surfaced in this model.</summary>
+public sealed record ParagonBoardChrome(
+    NodeElement MainBoardBackground,
+    IReadOnlyList<NodeElement> BoardSelectChrome);
 
 /// <summary>The UI design space the raw rects are authored in (decoded
 /// from the root <c>ParagonBoard_main</c> widget; verified
@@ -535,5 +553,91 @@ internal static class ParagonRenderProjection
                 widgets.Add(new ParagonBoundWidget(w.Name, w.ClassId, layers));
         }
         return new ParagonSceneModel(scene.SnoId, widgets);
+    }
+
+    /// <summary>
+    /// FR-C11: the typed paragon board-chrome projection (§10.16).
+    /// Surfaces the scene-bound chrome widgets for scenes 657304
+    /// (<c>ParagonBoard</c>) + 964599 (<c>ParagonBoardSelect</c>):
+    /// the dark textured board background, the board-select panel's
+    /// preview frame, and the filigree band. The animated rim
+    /// "fire border" is engine-internal (its candidate atlas frames
+    /// exist in <c>2DUI_Paragon</c> but no scene widget binds them) —
+    /// not surfaced here per the CL-28 / CL-30 no-fabrication
+    /// discipline. Boundary unchanged: library decodes scene-bound
+    /// chrome + a no-drop gate; consumer composites at runtime.
+    /// </summary>
+    public static ParagonBoardChrome BoardChrome(
+        UiScene mainBoard, UiScene boardSelect,
+        Func<uint, bool> isTextureHandle,
+        Func<uint, (int AtlasSno, int W, int H)>? frameLookup = null)
+    {
+        const uint TexHandleType = 0x6B1C5D9Cu;
+        (int AtlasSno, int W, int H) Frame(uint h) =>
+            h == 0 || h == 0xFFFFFFFFu ? (0, 0, 0)
+            : frameLookup?.Invoke(h) ?? (0, 0, 0);
+
+        NodeElement WidgetLayers(UiWidget? w)
+        {
+            if (w is null) return default;
+            uint handle = 0;
+            foreach (var f in w.Fields)
+                if (f.HasValue && f.TypeHash == TexHandleType &&
+                    isTextureHandle(f.RawValue) && handle == 0)
+                    handle = f.RawValue;
+            foreach (var v in w.ExtraLayerValues)
+                if (isTextureHandle(v) && handle == 0)
+                    handle = v;
+            if (handle == 0) return default;
+            var (sno, fw, fh) = Frame(handle);
+            return new NodeElement(handle, Rect(w), 0xFF, sno, fw, fh);
+        }
+
+        IReadOnlyList<NodeElement> WidgetAllLayers(UiWidget? w)
+        {
+            if (w is null) return Array.Empty<NodeElement>();
+            var seen = new HashSet<uint>();
+            var rect = Rect(w);
+            var list = new List<NodeElement>();
+            foreach (var f in w.Fields)
+                if (f.HasValue && f.TypeHash == TexHandleType &&
+                    isTextureHandle(f.RawValue) && seen.Add(f.RawValue))
+                {
+                    var (sno, fw, fh) = Frame(f.RawValue);
+                    list.Add(new NodeElement(f.RawValue, rect, 0xFF, sno, fw, fh));
+                }
+            foreach (var v in w.ExtraLayerValues)
+                if (isTextureHandle(v) && seen.Add(v))
+                {
+                    var (sno, fw, fh) = Frame(v);
+                    list.Add(new NodeElement(v, rect, 0xFF, sno, fw, fh));
+                }
+            return list;
+        }
+
+        UiWidget? ByName(UiScene s, string n) =>
+            s.Widgets.FirstOrDefault(w => w.Name == n);
+
+        // Main board background — scene 657304's
+        // Template_Board_Background_Center binds the dark textured
+        // field (0x2954DF0C, 1200² in 2DUI_Paragon). The widget's
+        // authored rect is all-zero: the engine fills the parent
+        // canvas at native size.
+        var background = WidgetLayers(
+            ByName(mainBoard, "Template_Board_Background_Center"));
+
+        // Board-select panel chrome — scene 964599's preview-frame
+        // backing (Board_BG) and the filigree band
+        // (Board_Icon_Filigrees). Board_Icon_Template binds the same
+        // preview-frame handles as Board_BG (drawn per board), so it
+        // is intentionally not duplicated here.
+        var selectLayers = new List<NodeElement>();
+        foreach (var le in WidgetAllLayers(ByName(boardSelect, "Board_BG")))
+            selectLayers.Add(le);
+        foreach (var le in WidgetAllLayers(
+            ByName(boardSelect, "Board_Icon_Filigrees")))
+            selectLayers.Add(le);
+
+        return new ParagonBoardChrome(background, selectLayers);
     }
 }
