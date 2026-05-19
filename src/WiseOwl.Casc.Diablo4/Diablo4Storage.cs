@@ -322,7 +322,22 @@ public sealed class Diablo4Storage : IDisposable
             // the texture catalog so only real atlas handles are emitted
             // (the blocks also carry small int params). No fabrication —
             // every emitted layer resolves to a frame.
-            isTextureHandle: IsParagonTextureHandle);
+            isTextureHandle: IsParagonTextureHandle,
+            // FR-C10: every surfaced NodeElement carries its atlas SNO +
+            // native pixel size so the consumer can composite at the
+            // engine's authoritative native scale without a second
+            // catalog walk.
+            frameLookup: FrameSize);
+
+    private (int AtlasSno, int W, int H) FrameSize(uint handle)
+    {
+        if (!TryGetIconFrame(handle, out var sno, out var frame))
+            return (0, 0, 0);
+        var meta = TextureMeta.Get(sno);
+        if (meta is null) return (sno, 0, 0);
+        var (_, _, w, h) = frame.PixelRect(meta.Width, meta.Height);
+        return (sno, w, h);
+    }
 
     /// <summary>
     /// FR-C9: the <b>exhaustive</b> paragon render-model — the
@@ -340,7 +355,7 @@ public sealed class Diablo4Storage : IDisposable
         var scenes = new List<ParagonSceneModel>(2);
         foreach (var id in new[] { 657304, 964599 })
             scenes.Add(ParagonRenderProjection.SceneModel(
-                ReadUiScene(id), IsParagonTextureHandle));
+                ReadUiScene(id), IsParagonTextureHandle, FrameSize));
         return new ParagonRenderModel(ReadParagonRenderLayout(), scenes);
     }
 

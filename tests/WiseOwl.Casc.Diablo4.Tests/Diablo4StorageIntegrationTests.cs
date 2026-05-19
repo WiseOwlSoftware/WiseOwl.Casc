@@ -681,6 +681,95 @@ public sealed class Diablo4StorageIntegrationTests
                                   e.Rect.Left != 0 || e.Rect.Top != 0);
     }
 
+    /// <summary>FR-C10 R1 (CL-29) — the paragon node composite recipe.
+    /// Per (rarity × state) the layers compose grey base disc
+    /// (<c>0x1D166DC7</c>) + (rarity-specific interior fill, if the
+    /// rarity template's 0x58 block binds it) + (ornate frame for
+    /// Rare/Legendary, swapped on the selected state; engine-internal
+    /// red ring <c>0xB732F921</c> for Common/Magic selected). Each
+    /// surfaced <see cref="NodeElement"/> carries its atlas SNO and
+    /// native pixel size; the engine-internal red ring is flagged
+    /// <see cref="NodeElement.EngineInternal"/> = <see langword="true"/>.</summary>
+    [SkippableFact]
+    public void ReadParagonRenderLayout_decodes_node_composite_recipe()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+
+        var rl = d4.ReadParagonRenderLayout();
+        StateElements Row(int r, string s) =>
+            rl.States.First(x => x.RarityOverride == r && x.State == s);
+
+        // Common (r0): just the grey base disc when unselected; +
+        // engine-internal red ring 0xB732F921 when selected.
+        var commonUn = Row(0, "unselected").Layers;
+        Assert.Single(commonUn);
+        Assert.Equal(0x1D166DC7u, commonUn[0].TextureHandle);
+        Assert.False(commonUn[0].EngineInternal);
+
+        var commonSel = Row(0, "selected").Layers;
+        Assert.Equal(2, commonSel.Count);
+        Assert.Equal(0x1D166DC7u, commonSel[0].TextureHandle);
+        Assert.Equal(0xB732F921u, commonSel[1].TextureHandle);
+        Assert.True(commonSel[1].EngineInternal);
+
+        // Magic (r2): grey base + 0xFEC31E48 (135² blue interior fill,
+        // owner-confirmed); + engine-internal red ring on selected.
+        var magicUn = Row(2, "unselected").Layers;
+        Assert.Equal(2, magicUn.Count);
+        Assert.Equal(0x1D166DC7u, magicUn[0].TextureHandle);
+        Assert.Equal(0xFEC31E48u, magicUn[1].TextureHandle);
+        Assert.False(magicUn[1].EngineInternal);
+
+        var magicSel = Row(2, "selected").Layers;
+        Assert.Equal(3, magicSel.Count);
+        Assert.Equal(0xFEC31E48u, magicSel[1].TextureHandle);
+        Assert.Equal(0xB732F921u, magicSel[2].TextureHandle);
+        Assert.True(magicSel[2].EngineInternal);
+
+        // Rare (r3): grey base + 0xF8373491 (interior fill) +
+        // 0xB71BD068 (yellow ornate, unselected) → swap ornate to
+        // 0x03EDABAB on selected (yellow ornate + red ring composite —
+        // the engine-internal ring is NOT added separately for Rare/Leg
+        // because the selected-variant ornate already carries it).
+        var rareUn = Row(3, "unselected").Layers;
+        Assert.Contains(rareUn, e => e.TextureHandle == 0x1D166DC7u);
+        Assert.Contains(rareUn, e => e.TextureHandle == 0xF8373491u);
+        Assert.Contains(rareUn, e => e.TextureHandle == 0xB71BD068u);
+        Assert.DoesNotContain(rareUn, e => e.TextureHandle == 0x03EDABABu);
+
+        var rareSel = Row(3, "selected").Layers;
+        Assert.Contains(rareSel, e => e.TextureHandle == 0x03EDABABu);
+        Assert.DoesNotContain(rareSel, e => e.TextureHandle == 0xB71BD068u);
+        Assert.DoesNotContain(rareSel, e => e.EngineInternal); // no separate ring
+
+        // Legendary (r4): grey base + 0x006ED182 (interior fill) +
+        // 0x232DF7F9 (orange spike ornate) → swap ornate to 0xBD27FB7C
+        // on selected (orange ornate + red ring composite).
+        var legUn = Row(4, "unselected").Layers;
+        Assert.Contains(legUn, e => e.TextureHandle == 0x1D166DC7u);
+        Assert.Contains(legUn, e => e.TextureHandle == 0x006ED182u);
+        Assert.Contains(legUn, e => e.TextureHandle == 0x232DF7F9u);
+        Assert.DoesNotContain(legUn, e => e.TextureHandle == 0xBD27FB7Cu);
+
+        var legSel = Row(4, "selected").Layers;
+        Assert.Contains(legSel, e => e.TextureHandle == 0xBD27FB7Cu);
+        Assert.DoesNotContain(legSel, e => e.TextureHandle == 0x232DF7F9u);
+        Assert.DoesNotContain(legSel, e => e.EngineInternal);
+
+        // Every surfaced layer carries AtlasSno and native px (the
+        // engine's authoritative composite-extent, since the scene
+        // does not author per-layer sub-rects inside the disc).
+        foreach (var row in rl.States)
+            foreach (var layer in row.Layers)
+            {
+                Assert.NotEqual(0, layer.AtlasSno);
+                Assert.True(layer.NativeWidth > 0, $"layer {layer.TextureHandle:X8} native W");
+                Assert.True(layer.NativeHeight > 0, $"layer {layer.TextureHandle:X8} native H");
+            }
+    }
+
     /// <summary>The per-binding-record completeness gate (complement
     /// to <see cref="ParagonRenderModel_covers_every_bound_atlas_handle"/>).
     /// Every enumerated state in

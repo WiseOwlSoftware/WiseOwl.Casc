@@ -71,12 +71,25 @@ public readonly record struct CanvasRef(int Width, int Height);
 public readonly record struct WidgetRect(
     int Left, int Right, int Top, int Bottom, int Width, int Height);
 
-/// <summary>A drawable element: its raw texture handle
-/// (<c>== TexFrame.ImageHandle</c>; <c>0xFFFFFFFF</c>/0 ⇒ none, never
-/// pre-resolved — Q4), its reference-unit rect, and raw
-/// <c>dwAlpha</c>.</summary>
+/// <summary>A drawable element of the paragon node composite recipe:
+/// its raw texture handle (<c>== TexFrame.ImageHandle</c>;
+/// <c>0xFFFFFFFF</c>/0 ⇒ none, never pre-resolved), the atlas SNO that
+/// hosts the frame, the frame's native pixel size (the layer's
+/// authoritative draw extent when no widget rect is authored — the
+/// engine draws at native px size centred on the disc anchor), the
+/// authored reference-unit rect (<see langword="default"/> ⇒ inherits
+/// <c>NodeTemplate</c> at native px), raw <c>dwAlpha</c>, and
+/// <see cref="EngineInternal"/> = <see langword="true"/> when the layer
+/// is referenced by the engine but not bound to any scene widget
+/// (e.g. the selected-state red ring <c>0xB732F921</c> on Common /
+/// Magic — the engine renders it directly from the icon catalog;
+/// <see cref="Diablo4Storage.ReadParagonRenderModel"/>'s exhaustive
+/// scene-binding gate will not see it, hence the explicit flag).</summary>
 public readonly record struct NodeElement(
-    uint TextureHandle, WidgetRect Rect, byte Alpha);
+    uint TextureHandle, WidgetRect Rect, byte Alpha,
+    int AtlasSno = 0,
+    int NativeWidth = 0, int NativeHeight = 0,
+    bool EngineInternal = false);
 
 /// <summary>A raw bound <c>DT_RGBACOLOR</c> value.</summary>
 public readonly record struct RgbaTint(byte R, byte G, byte B, byte A);
@@ -165,10 +178,17 @@ internal static class ParagonRenderProjection
             Val(w, FnBottom), Val(w, FnWidth), Val(w, FnHeight));
 
     public static ParagonRenderLayout Project(
-        UiScene scene, Func<uint, bool>? isTextureHandle = null)
+        UiScene scene,
+        Func<uint, bool>? isTextureHandle = null,
+        Func<uint, (int AtlasSno, int W, int H)>? frameLookup = null)
     {
         UiWidget? ByName(string n) =>
             scene.Widgets.FirstOrDefault(w => w.Name == n);
+
+        (int AtlasSno, int NativeW, int NativeH) Frame(uint handle) =>
+            handle == 0 || handle == 0xFFFFFFFFu
+                ? (0, 0, 0)
+                : (frameLookup?.Invoke(handle) ?? (0, 0, 0));
 
         // FR-C8: the start/gate composite layers are bound on
         // Template_Node_Starter / Template_Node_Quest via the 0x58-block
@@ -190,7 +210,11 @@ internal static class ParagonRenderProjection
             var list = new List<NodeElement>();
             foreach (var v in x.ExtraLayerValues)
                 if (IsHandle(v) && seen.Add(v))
-                    list.Add(new NodeElement(v, default, 0));
+                {
+                    var (sno, fw, fh) = Frame(v);
+                    list.Add(new NodeElement(
+                        v, default, 0, sno, fw, fh));
+                }
             return list.ToArray();
         }
 
@@ -280,7 +304,8 @@ internal static class ParagonRenderProjection
                 if (f.HasValue && f.FieldHash == Diablo4.FieldHash("dwAlpha"))
                     alpha = (byte)f.RawValue;
             }
-            return new NodeElement(handle, Rect(x), alpha);
+            var (sno, fw, fh) = Frame(handle);
+            return new NodeElement(handle, Rect(x), alpha, sno, fw, fh);
         }
 
         var disc   = Elem("Node_IconBase");        // 0x1D166DC7
@@ -289,34 +314,90 @@ internal static class ParagonRenderProjection
         static NodeElement[] L(params NodeElement[] xs) =>
             xs.Where(e => e.TextureHandle != 0).ToArray();
 
-        // CORRECTION (FR-C8 R9, CL-25). FR-C7 used
-        // Elem("NodeAvailableGlow") (0x4A901508) as the r3/r4 "gold
-        // ornate" — the same projection gap CL-23 fixed for start/gate:
-        // it never read Template_Node_Rare/_Legendary's OWN 0x58-bound
-        // layers. The genuine per-rarity static ornate is those (Rare →
-        // 0xB71BD068, Legendary → its own); `NodeAvailableGlow`
-        // (0x4A901508) is NOT a per-rarity ornate at all — it is the
-        // SELECTABLE/available glow (state-driven, any rarity; owner
-        // oracle), now surfaced as `overlay.availableGlow`. So r3/r4
-        // carry disc + their own decode-true ornate (catalog-validated
-        // LayersOf, no fabrication); 0x4A901508 leaves the baked rows.
-        var rareL = LayersOf("Template_Node_Rare");
-        var legL  = LayersOf("Template_Node_Legendary");
+        // FR-C10 node composite recipe (§10.15). Each rarity composites
+        // grey-base + (optional rarity-specific interior fill) +
+        // (optional ornate outer frame). The selected state either swaps
+        // the ornate for the rarity's selected-variant (Rare/Legendary
+        // — red ring composited into the disc art) or adds the
+        // standalone engine-internal red ring (Common/Magic — referenced
+        // directly from the catalog, no scene widget binds it).
+        // Per-rarity handle roles, build-stable on 3.0.2.71886, sourced
+        // from atlas-frame visual inspection + owner visual oracle for
+        // Magic (FR-C10 R1, oracle calibration screenshots).
+        const uint EngineInternalRing = 0xB732F921u; // 96² 2DUI_Paragon_transparentElements
+        const uint MagicInteriorFill  = 0xFEC31E48u; // 135² blue interior — owner-confirmed
+        const uint RareInteriorFill   = 0xF8373491u; // 135² rare interior
+        const uint RareOrnateUnsel    = 0xB71BD068u; // 154² yellow ornate frame
+        const uint RareOrnateSel      = 0x03EDABABu; // 153² yellow ornate + red ring composite
+        const uint LegInteriorFill    = 0x006ED182u; // 136² legendary interior
+        const uint LegOrnateUnsel     = 0x232DF7F9u; // 189² orange spike ornate frame
+        const uint LegOrnateSel       = 0xBD27FB7Cu; // 189² orange ornate + red ring composite
+
+        NodeElement Layer(uint handle, bool engineInternal = false)
+        {
+            if (handle == 0) return default;
+            var (sno, fw, fh) = Frame(handle);
+            return new NodeElement(
+                handle, default, 0xFF, sno, fw, fh, engineInternal);
+        }
+
+        // Decode-true: only surface a per-rarity handle when its
+        // Template_Node_* 0x58 block actually contains it. The library
+        // never fabricates a layer; a future season that drops or
+        // renames a handle leaves the row honestly shorter.
+        var magicBlockHandles = new HashSet<uint>(
+            LayersOf("Template_Node_Magic").Select(e => e.TextureHandle));
+        var rareBlockHandles  = new HashSet<uint>(
+            LayersOf("Template_Node_Rare").Select(e => e.TextureHandle));
+        var legBlockHandles   = new HashSet<uint>(
+            LayersOf("Template_Node_Legendary").Select(e => e.TextureHandle));
+
+        NodeElement[] RarityComposite(int rar, bool selected)
+        {
+            var layers = new List<NodeElement>();
+            if (disc.TextureHandle != 0) layers.Add(disc);
+            switch (rar)
+            {
+                case 0: // Common — base disc only; engine adds the ring on selected.
+                    if (selected) layers.Add(Layer(EngineInternalRing, engineInternal: true));
+                    break;
+                case 2: // Magic — grey base + blue interior fill; + engine ring on selected.
+                    if (magicBlockHandles.Contains(MagicInteriorFill))
+                        layers.Add(Layer(MagicInteriorFill));
+                    if (selected) layers.Add(Layer(EngineInternalRing, engineInternal: true));
+                    break;
+                case 3: // Rare — grey base + interior fill + ornate frame (swapped on selected).
+                    if (rareBlockHandles.Contains(RareInteriorFill))
+                        layers.Add(Layer(RareInteriorFill));
+                    var rareOrnate = selected ? RareOrnateSel : RareOrnateUnsel;
+                    if (rareBlockHandles.Contains(rareOrnate))
+                        layers.Add(Layer(rareOrnate));
+                    break;
+                case 4: // Legendary — grey base + interior fill + larger spike ornate (swapped on selected).
+                    if (legBlockHandles.Contains(LegInteriorFill))
+                        layers.Add(Layer(LegInteriorFill));
+                    var legOrnate = selected ? LegOrnateSel : LegOrnateUnsel;
+                    if (legBlockHandles.Contains(legOrnate))
+                        layers.Add(Layer(legOrnate));
+                    break;
+            }
+            return layers.ToArray();
+        }
 
         var states = new List<StateElements>(19);
 
-        // Rows 1–8: rarity {0,2,3,4} × {unselected,selected}. Layers =
-        // disc, + the rarity template's own bound ornate for
-        // Rare/Legendary (decode-true, §10.11/CL-25). Per-rarity colour
-        // is the fixed shader recipe (Tint/LitTint null — not fabricated,
-        // CL-24 R7).
+        // Rows 1–8: rarity {0,2,3,4} × {unselected,selected}. Recipe
+        // per §10.15: grey-base + (rarity-specific interior fill if
+        // bound) + (ornate frame, swapped on selected for Rare/Legendary,
+        // engine-internal red ring added on selected for Common/Magic).
+        // Per-rarity tint stays null — the per-rarity colour comes from
+        // the bound interior-fill atlas frame (already coloured), not a
+        // shader tint on a shared disc.
         foreach (var rar in new[] { 0, 2, 3, 4 })
-            foreach (var st in new[] { "unselected", "selected" })
+            foreach (var sel in new[] { false, true })
                 states.Add(new StateElements(
-                    rar, st,
-                    rar == 3 ? L(disc).Concat(rareL).ToArray()
-                  : rar == 4 ? L(disc).Concat(legL).ToArray()
-                  :            L(disc),
+                    rar, sel ? "selected" : "unselected",
+                    L(RarityComposite(rar, sel)),
                     Tint: null, LitTint: null, Animation: null));
 
         // Rows 9–11: socket. Pulse present when unselected; dropped on
@@ -415,7 +496,9 @@ internal static class ParagonRenderProjection
     /// the FR-C9 coverage gate proves none is dropped.
     /// </summary>
     public static ParagonSceneModel SceneModel(
-        UiScene scene, Func<uint, bool> isTextureHandle)
+        UiScene scene,
+        Func<uint, bool> isTextureHandle,
+        Func<uint, (int AtlasSno, int W, int H)>? frameLookup = null)
     {
         uint AlphaOf(UiWidget w)
         {
@@ -424,6 +507,9 @@ internal static class ParagonRenderProjection
                     return (byte)f.RawValue;
             return 0;
         }
+
+        (int Sno, int W, int H) Frame(uint h) =>
+            frameLookup?.Invoke(h) ?? (0, 0, 0);
 
         var widgets = new List<ParagonBoundWidget>();
         foreach (var w in scene.Widgets)
@@ -434,10 +520,16 @@ internal static class ParagonRenderProjection
             var layers = new List<NodeElement>();
             foreach (var f in w.Fields)
                 if (f.HasValue && isTextureHandle(f.RawValue) && seen.Add(f.RawValue))
-                    layers.Add(new NodeElement(f.RawValue, rect, alpha));
+                {
+                    var (sno, fw, fh) = Frame(f.RawValue);
+                    layers.Add(new NodeElement(f.RawValue, rect, alpha, sno, fw, fh));
+                }
             foreach (var v in w.ExtraLayerValues)
                 if (isTextureHandle(v) && seen.Add(v))
-                    layers.Add(new NodeElement(v, rect, alpha));
+                {
+                    var (sno, fw, fh) = Frame(v);
+                    layers.Add(new NodeElement(v, rect, alpha, sno, fw, fh));
+                }
             if (layers.Count > 0)
                 widgets.Add(new ParagonBoundWidget(w.Name, w.ClassId, layers));
         }
