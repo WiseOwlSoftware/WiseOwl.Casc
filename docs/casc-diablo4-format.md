@@ -1456,6 +1456,54 @@ exercises every legendary node power across the 8 classes (72
 powers) — no decode-time exceptions on any blob, even when the
 table is empty for layout-deferred powers.
 
+**Phase 2 — resolved SF_N map + engine-function refs (CL-40).** Per
+the FR-C13 R4 sign-off, Phase 2 lifts the 4-character ASCII
+`Layout B` records (Greater Hex's `"0.75"`/`"0.25"` slots), the
+zero-prefix `Layout C` records with ASCII at +4 (Greater Hex
+sentinel/terminator), mixed 16/20-byte stride backward walks (the
+Layout B records carry a 4-byte trailing pad), and multi-sentinel
+stripping (Greater Hex repeats the `"10"` sentinel). Two typed
+surfaces added on `PowerDefinition`:
+
+- `IReadOnlyDictionary<string, double> ResolvedFormulas` — the
+  positional slot table re-keyed by `"SF_N"`. Trivial-numeric slots
+  promote their `PowerScriptFormula.LiteralValue` directly;
+  expression-text slots (e.g. Demonic Spicules's `"SF_1 / 3"`) are
+  evaluated by the internal `PowerScriptFormulaEvaluator` against
+  the other slots' resolved values (iterative resolution to a
+  fixed point; unresolvable references collapse to
+  `double.NaN`).
+- `IReadOnlyList<PowerFunctionRef> FunctionRefs` —
+  engine-function references the power's localized
+  `Description` format-string contains (e.g. Barbarian
+  *Warbringer*'s `[SF_1 * PlayerHealthMax()]` surfaces
+  `PowerFunctionRef("PlayerHealthMax", argSlots)`). The consumer
+  registers a per-name resolver delegate to substitute the
+  engine-runtime value (player-state accessors are outside CASC's
+  domain — surface structurally, resolve consumer-side).
+
+Phase 2 anchor verification (8 of 9 Warlock legendaries + Greater
+Hex + Warbringer FunctionRef):
+
+| Power | Resolved SF_N | Notes |
+|---|---|---|
+| Pyrosis | `SF_0 = 4.5` | trivial |
+| Fathomless | `SF_0 = 0.15`, `SF_1 = 7`, `SF_2 = 6` | raw stored; the format-rendered "105% cap" = `SF_0 × SF_1 × 100` is consumer-side eval |
+| Overmind | `SF_0 ≈ 0.45`, `SF_1 ≈ 0.65` | IEEE-754 round-to-nearest |
+| Ritualism | `SF_0 = 0.9`, `SF_1 = 9`, `SF_2 = 15` | format-string `[1 + SF_1]` renders 10 consumer-side |
+| Chaos | `SF_0 = 1`, `SF_1 = 2`, `SF_2 = 1` | trivial |
+| Dynamism | `SF_0 = 0.03`, `SF_1 = 1` (unused), `SF_2 = 1`, `SF_3 = 2` | format skips SF_1 |
+| Dominion | `SF_0 = 0.8`, `SF_1 = 0.5`, `SF_2 = 12` | trivial |
+| **Greater Hex** | `SF_0 = 0.75`, `SF_1 = 0.25` | **Phase 2 lift** — Layout B 20-byte stride |
+| Demonic Spicules | (deferred) | expression-text record (non-16-byte) Phase 3 |
+| Barbarian *Warbringer* | `FunctionRefs ⊇ {PowerFunctionRef("PlayerHealthMax", [])}` | engine function surfaced from `[SF_1 * PlayerHealthMax()]` |
+
+Acceptance gate
+`PowerDefinition_resolves_phase2_formulas_and_function_refs`
+verifies the above anchors. Demonic Spicules's expression-text
+record deferred to Phase 3's compiled-form AST decoder (per
+d4parse `DT_STRING_FORMULA.CompiledOffset/Size` model).
+
 ### 11.3 `AffixDefinition` (group 104, `.aff`)
 
 Identity (`snoId@0`) + localized `Description` from sibling
@@ -1892,6 +1940,40 @@ true value (the sections above already state the corrected truth).
   `ReadParagonBoardChrome_layers_are_scene_bound` extends to assert
   the 4 rim-side handles against the raw scene-657304 widget data
   (the icon-catalog-filtered `Scenes` view doesn't see them).
+
+- **CL-40 — Power Script Formula Phase 2: resolved SF_N map +
+  engine-function refs (FR-C13 R4, Phase 2).** §11.2. Owner-
+  authorized R4 Phase 2 lift. Extends the Phase 1 slot decoder to
+  handle Layout B (4-char ASCII + pad + type + float) and Layout C
+  (zero-prefix + ASCII@+4 + type + float) records, mixed 16/20-byte
+  stride backward walks for tables that interleave 20-byte Layout B
+  value records with 16-byte Layout A sentinels (Greater Hex), and
+  stripping of multiple trailing `("10", 10.0)` sentinels (vs the
+  single-sentinel Phase 1 strip). Adds two typed surfaces to
+  `PowerDefinition`:
+  - `IReadOnlyDictionary<string, double> ResolvedFormulas` — the
+    positional slot table re-keyed by `"SF_N"`. Trivial-numeric
+    slots promote `LiteralValue` directly; expression-text slots
+    are evaluated by the internal `PowerScriptFormulaEvaluator`
+    (recursive-descent parser supporting `+`, `-`, `*`, `/`,
+    parens, SF_N refs both bare and braced as `{SF_N}`, function
+    calls, and unary minus).
+  - `IReadOnlyList<PowerFunctionRef> FunctionRefs` —
+    engine-function references the power's localized
+    `Description` format-string contains. Surfaced structurally
+    (name + resolved-arg values); the consumer registers a
+    per-name resolver delegate to substitute the
+    engine-runtime value (R4 ask 2 option A — typed
+    `FunctionRef` + consumer-side resolver). Barbarian
+    *Warbringer* is the canonical anchor with `PlayerHealthMax()`.
+  Acceptance: `PowerDefinition_resolves_phase2_formulas_and_function_refs`
+  verifies the 8 Layout-A-clean Warlock legendaries + Greater
+  Hex (Phase 2 lift) + Warbringer (FunctionRef). Demonic
+  Spicules's expression-text record (`"SF_1 / 3"` for SF_2 = 20)
+  uses a non-16-byte structure not yet lifted; deferred to
+  Phase 3 (compiled-form AST decode per d4parse
+  `DT_STRING_FORMULA.CompiledOffset/Size`). 43/43 tests green on
+  build `3.0.2.71886`.
 
 - **CL-37 — Power Script Formula slot table — Phase 1 (FR-C13 R3,
   Phase 1).** §11.2. Surfaces `PowerDefinition.ScriptFormulas` —

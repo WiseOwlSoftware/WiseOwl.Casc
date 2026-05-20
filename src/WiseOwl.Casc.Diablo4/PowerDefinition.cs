@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace WiseOwl.Casc.Diablo4;
 
@@ -29,10 +31,14 @@ namespace WiseOwl.Casc.Diablo4;
 /// </remarks>
 public sealed class PowerDefinition
 {
-    private PowerDefinition(int snoId, IReadOnlyList<PowerScriptFormula> scriptFormulas)
+    private PowerDefinition(
+        int snoId,
+        IReadOnlyList<PowerScriptFormula> scriptFormulas,
+        IReadOnlyDictionary<string, double> resolvedFormulas)
     {
         SnoId = snoId;
         ScriptFormulas = scriptFormulas;
+        ResolvedFormulas = resolvedFormulas;
     }
 
     /// <summary>The power's own SNO id (== the CoreTOC id).</summary>
@@ -69,22 +75,217 @@ public sealed class PowerDefinition
     /// </summary>
     public IReadOnlyList<PowerScriptFormula> ScriptFormulas { get; }
 
+    /// <summary>
+    /// FR-C13 Phase 2 — the resolved per-power <c>{SF_<i>N</i> →
+    /// value}</c> map. Each key is <c>"SF_<i>N</i>"</c> (positionally
+    /// matching the engine's <c>[SF_<i>n</i>...]</c> placeholders in
+    /// <see cref="Description"/>); each value is the slot's resolved
+    /// double — the IEEE-754 single-precision literal for trivial-
+    /// numeric slots (<see cref="PowerScriptFormula.LiteralValue"/>
+    /// promoted to <see cref="double"/>) OR the evaluator's result for
+    /// expression-text slots (e.g. Demonic Spicules's
+    /// <c>"SF_1 / 3"</c> slot resolves to <c>60 / 3 = 20</c>).
+    /// <br/><br/>
+    /// Expression slots can reference other slots' values by SF_N;
+    /// resolution iterates until a fixed point is reached or an
+    /// unresolvable reference forces <see cref="double.NaN"/> for that
+    /// slot. Function calls inside slot expressions (rare on legendary
+    /// node powers; common on Barbarian / Necromancer active skills)
+    /// surface as <see cref="FunctionRefs"/> alongside the resolved
+    /// value (the call returns <see cref="double.NaN"/> until the
+    /// consumer registers a resolver).
+    /// <br/><br/>
+    /// Empty when the power has no <see cref="ScriptFormulas"/>.
+    /// </summary>
+    public IReadOnlyDictionary<string, double> ResolvedFormulas { get; }
+
+    /// <summary>
+    /// FR-C13 Phase 2 — engine-function references the power's
+    /// formulas + localized <see cref="Description"/> rely on. The
+    /// library surfaces each call (name + resolved-arg values)
+    /// structurally; the consumer registers a per-name resolver to
+    /// substitute the engine-runtime value (player-state accessors
+    /// like <c>PlayerHealthMax()</c> are outside CASC's domain).
+    /// Empty for the typical legendary passive (no function calls in
+    /// the format string); non-empty for powers like Barbarian
+    /// <c>Warbringer</c> whose format uses
+    /// <c>[SF_1 * PlayerHealthMax()]</c>.
+    /// </summary>
+    public IReadOnlyList<PowerFunctionRef> FunctionRefs { get; private set; } =
+        Array.Empty<PowerFunctionRef>();
+
     /// <summary>Decode a Power from its raw SNO blob. Identity +
-    /// <see cref="ScriptFormulas"/>; the localized fields need
-    /// <see cref="CoreToc"/>; use
+    /// <see cref="ScriptFormulas"/> + <see cref="ResolvedFormulas"/>;
+    /// the localized fields (and the <see cref="FunctionRefs"/> scan,
+    /// which reads them) need <see cref="CoreToc"/>; use
     /// <see cref="Diablo4Storage.ReadPower(int,string)"/>.</summary>
     public static PowerDefinition Parse(ReadOnlySpan<byte> blob)
     {
         var snoId = new SnoRecord(blob).SnoId;
         var formulas = DecodeScriptFormulas(blob);
-        return new PowerDefinition(snoId, formulas);
+        var resolved = ResolveScriptFormulas(formulas);
+        return new PowerDefinition(snoId, formulas, resolved);
     }
 
     internal void SetStrings(string name, string description)
     {
         Name = name;
         Description = description;
+        FunctionRefs = ScanFunctionRefs(description, ResolvedFormulas);
     }
+
+    /// <summary>
+    /// FR-C13 Phase 2 — resolve the positional <see cref="ScriptFormulas"/>
+    /// slot table into a <c>SF_N → double</c> map. Trivial-numeric slots
+    /// (text matches a number literal, <see cref="PowerScriptFormula.IsExpression"/>
+    /// = <see langword="false"/>) promote their <see cref="PowerScriptFormula.LiteralValue"/>
+    /// directly. Expression-text slots (e.g. Demonic Spicules's
+    /// <c>"SF_1 / 3"</c>) are evaluated through
+    /// <see cref="PowerScriptFormulaEvaluator"/> against the other
+    /// slots' resolved values; iterative passes resolve forward
+    /// dependencies, and circular / unresolvable references collapse
+    /// to <see cref="double.NaN"/> for that slot.
+    /// </summary>
+    private static IReadOnlyDictionary<string, double> ResolveScriptFormulas(
+        IReadOnlyList<PowerScriptFormula> slots)
+    {
+        if (slots.Count == 0) return EmptyResolvedFormulas;
+
+        // Build the lookup by SF_N name. Start each slot at NaN
+        // (unresolved); iterate to fixed point.
+        var resolved = new Dictionary<string, double>(slots.Count);
+        var pending = new Dictionary<int, string>(slots.Count);
+        foreach (var slot in slots)
+        {
+            var key = "SF_" + slot.Index.ToString(CultureInfo.InvariantCulture);
+            if (!slot.IsExpression)
+            {
+                // Trivial-numeric: the float was the compiled-form
+                // literal; promote to double directly.
+                resolved[key] = slot.LiteralValue;
+            }
+            else
+            {
+                resolved[key] = double.NaN;
+                pending[slot.Index] = slot.Text;
+            }
+        }
+
+        // Iterative resolution. Up to N passes; on each pass attempt to
+        // evaluate every pending slot — if the result is non-NaN AND
+        // didn't trigger a function call (no resolver here at parse
+        // time), commit it. Stop early when no progress was made.
+        for (int pass = 0; pass < slots.Count && pending.Count > 0; pass++)
+        {
+            var progressed = false;
+            foreach (var idx in new List<int>(pending.Keys))
+            {
+                var text = pending[idx];
+                double Lookup(int slot)
+                {
+                    var k = "SF_" + slot.ToString(CultureInfo.InvariantCulture);
+                    return resolved.TryGetValue(k, out var v) ? v : double.NaN;
+                }
+
+                EvaluationResultLocal r;
+                try { r = EvalSafe(text, Lookup); }
+                catch { continue; }
+                if (!double.IsNaN(r.Value))
+                {
+                    var k = "SF_" + idx.ToString(CultureInfo.InvariantCulture);
+                    resolved[k] = r.Value;
+                    pending.Remove(idx);
+                    progressed = true;
+                }
+            }
+            if (!progressed) break;
+        }
+
+        return resolved;
+    }
+
+    private static readonly IReadOnlyDictionary<string, double> EmptyResolvedFormulas =
+        new Dictionary<string, double>(0);
+
+    /// <summary>Local result wrapper for the slot-resolution loop —
+    /// <see cref="PowerScriptFormulaEvaluator"/> returns its public
+    /// type, but this internal pass needs only the numeric result and
+    /// discards the function-refs collected during slot evaluation
+    /// (those surface via the <see cref="ScanFunctionRefs"/> path over
+    /// the Description format string instead).</summary>
+    private readonly record struct EvaluationResultLocal(double Value);
+
+    private static EvaluationResultLocal EvalSafe(
+        string expression, Func<int, double> slotLookup)
+    {
+        var r = PowerScriptFormulaEvaluator.Evaluate(expression, slotLookup);
+        return new EvaluationResultLocal(r.Value);
+    }
+
+    /// <summary>
+    /// FR-C13 Phase 2 — scan the localized <see cref="Description"/>
+    /// for <c>[expression|formatter|]</c> placeholders and surface any
+    /// engine-function calls they contain as
+    /// <see cref="PowerFunctionRef"/>. The format string syntax uses
+    /// square brackets to wrap an expression + optional formatter
+    /// directive (e.g. <c>[SF_0*100|%x|]</c>); within an expression a
+    /// function call appears as <c>Identifier()</c> with zero or more
+    /// arguments. Scanning is best-effort: malformed brackets or
+    /// formatter-only text inside brackets is skipped.
+    /// </summary>
+    private static IReadOnlyList<PowerFunctionRef> ScanFunctionRefs(
+        string description,
+        IReadOnlyDictionary<string, double> resolved)
+    {
+        if (string.IsNullOrEmpty(description)) return Array.Empty<PowerFunctionRef>();
+        var refs = new List<PowerFunctionRef>();
+
+        double Lookup(int slot)
+        {
+            var k = "SF_" + slot.ToString(CultureInfo.InvariantCulture);
+            return resolved.TryGetValue(k, out var v) ? v : double.NaN;
+        }
+
+        // Format-string placeholders take the shape `[expression|formatter|]`
+        // (or just `[expression]`). The formatter is `|...|` after the
+        // expression and is consumer-side concern; the library evaluates
+        // only the expression part. The expression may contain SF refs,
+        // numerics, operators, parens, and function calls.
+        var seenFunctions = new HashSet<string>(StringComparer.Ordinal);
+        foreach (Match m in FormatPlaceholderRegex.Matches(description))
+        {
+            var inside = m.Groups[1].Value;
+            var pipe = inside.IndexOf('|');
+            var expr = pipe < 0 ? inside : inside.Substring(0, pipe);
+            if (string.IsNullOrWhiteSpace(expr)) continue;
+            // Only scan expressions that contain a probable function
+            // call (an identifier followed by '('). The cheap upfront
+            // filter avoids spending the parser on every SF_N-only
+            // placeholder.
+            if (!FunctionCallProbeRegex.IsMatch(expr)) continue;
+            try
+            {
+                var r = PowerScriptFormulaEvaluator.Evaluate(expr, Lookup);
+                foreach (var fr in r.FunctionRefs)
+                {
+                    if (seenFunctions.Add(fr.Name + "(" + fr.Args.Count + ")"))
+                        refs.Add(fr);
+                }
+            }
+            catch
+            {
+                // Malformed expression — skip this placeholder; library
+                // is best-effort, no fabrication.
+            }
+        }
+        return refs.Count == 0 ? Array.Empty<PowerFunctionRef>() : (IReadOnlyList<PowerFunctionRef>)refs;
+    }
+
+    private static readonly Regex FormatPlaceholderRegex =
+        new Regex(@"\[([^\]]+)\]", RegexOptions.Compiled);
+
+    private static readonly Regex FunctionCallProbeRegex =
+        new Regex(@"[A-Za-z_][A-Za-z0-9_]*\s*\(", RegexOptions.Compiled);
 
     /// <summary>
     /// Decode the per-Power Script Formula slot table from the tail data
@@ -138,26 +339,43 @@ public sealed class PowerDefinition
         }
         if (terminatorOff is null) return Array.Empty<PowerScriptFormula>();
 
-        // Walk BACKWARD in 16-byte strides, decoding each record. Stop
-        // when a block doesn't match any known layout. This collects
-        // records in REVERSE positional order (terminator first, then
-        // sentinel, then SF_N..0); reverse before returning.
+        // Walk BACKWARD decoding each record. Most powers use a uniform
+        // 16-byte stride, but some (e.g. Greater Hex) MIX 16-byte
+        // Layout A sentinels with 20-byte Layout B value records — the
+        // Layout B records carry a 4-byte trailing pad on top of the
+        // 16-byte (ascii, pad, type, float) tuple. At each step try
+        // 16-byte stride first; if that fails try 20-byte stride. Stop
+        // when neither produces a valid record. Collects records in
+        // REVERSE positional order; reverse before returning.
         var records = new List<(string Text, float Value)>();
-        for (int off = terminatorOff.Value; off >= 0; off -= 16)
+        int cur = terminatorOff.Value;
+        while (cur >= 0 && TryReadSlotRecord(blob, cur, out var text, out var value))
         {
-            if (!TryReadSlotRecord(blob, off, out var text, out var value))
-                break;
             records.Add((text, value));
+            // Try 16-byte stride first.
+            if (cur - 16 >= 0 && TryReadSlotRecord(blob, cur - 16, out _, out _))
+            {
+                cur -= 16;
+            }
+            else if (cur - 20 >= 0 && TryReadSlotRecord(blob, cur - 20, out _, out _))
+            {
+                cur -= 20;
+            }
+            else
+            {
+                break;
+            }
         }
         records.Reverse();
 
-        // Strip the trailing ("0", 0.0) terminator + ("10", 10.0) sentinel
-        // (every anchored legendary has both; powers without them just
-        // lose the trim).
+        // Strip the trailing ("0", 0.0) terminator + ALL trailing
+        // ("10", 10.0) sentinels (every anchored legendary has at least
+        // one "10" sentinel; some — like Greater Hex — repeat it; powers
+        // without these just lose the trim).
         int end = records.Count;
         if (end >= 1 && records[end - 1].Text == "0" && records[end - 1].Value == 0.0f)
             end--;
-        if (end >= 1 && records[end - 1].Text == "10" && records[end - 1].Value == 10.0f)
+        while (end >= 1 && records[end - 1].Text == "10" && records[end - 1].Value == 10.0f)
             end--;
 
         var result = new PowerScriptFormula[end];
@@ -183,15 +401,23 @@ public sealed class PowerDefinition
         (uint)(b[o] | (b[o + 1] << 8) | (b[o + 2] << 16) | (b[o + 3] << 24));
 
     /// <summary>Try to interpret 16 bytes at <paramref name="off"/> as a
-    /// Layout-A slot record — the clean, common layout used by the
-    /// majority of the 72 legendary Power blobs:
-    /// <c>[ascii@0..3][type=0x06@4..7][float@8..11][pad=0@12..15]</c>.
-    /// Phase 2 will lift additional layouts (Greater Hex / Dominion's
-    /// 4-char-ASCII records, Demonic Spicules's expression-bearing
-    /// records) once the AST evaluator can drive a layout-disambiguating
-    /// heuristic. On match, returns the 4-byte ASCII chunk (trimmed of
-    /// trailing nulls) and the IEEE-754 float; otherwise returns
-    /// false.</summary>
+    /// slot record (compiled <c>DT_STRING_FORMULA</c> with type tag
+    /// 0x06). Two layouts observed across the 72 legendary Power blobs:
+    /// <list type="bullet">
+    /// <item><b>Layout A</b> (Pyrosis, Fathomless, Overmind, Ritualism,
+    /// Dynamism, Dominion, …): <c>[ascii@0..3 (1..3 chars + null)]
+    /// [type=0x06@4..7][float@8..11][pad=0@12..15]</c>.</item>
+    /// <item><b>Layout B</b> (Greater Hex, Demonic Spicules's literal
+    /// slots, …): <c>[ascii@0..3 (4 chars, no null)][pad=0@4..7]
+    /// [type=0x06@8..11][float@12..15]</c> — the longer 4-character
+    /// ASCII text needs the full 4 bytes; the engine pads with a
+    /// 4-byte zero before the type tag and float.</item>
+    /// </list>
+    /// Layouts are disambiguated by the ASCII chunk's length: a null
+    /// byte within the 4-byte chunk ⇒ Layout A (1..3 chars); all 4
+    /// bytes printable ⇒ Layout B. On match, returns the decoded text
+    /// (trimmed of trailing nulls) and the IEEE-754 float; otherwise
+    /// returns false.</summary>
     private static bool TryReadSlotRecord(
         ReadOnlySpan<byte> blob, int off,
         out string text, out float value)
@@ -201,18 +427,35 @@ public sealed class PowerDefinition
         if (off + 16 > blob.Length) return false;
         var b = blob.Slice(off, 16);
 
-        // Layout A: type=0x06 at +4, float at +8, pad=0 at +12. The
-        // ASCII chunk at +0..3 must start with a printable byte and
-        // end with a null (within the 4-byte chunk) — i.e. text length
-        // 1..3. Records with 4 printable bytes (no null in the chunk)
-        // belong to other layouts and are deferred to Phase 2.
-        if (ReadU32(b, 4) == 0x06u && ReadU32(b, 12) == 0u)
+        // Layout A: ASCII@+0..3 (1..3 chars + null), type@+4, float@+8, pad@+12.
+        var tA = ReadAscii4(b, 0);
+        if (tA.Length is >= 1 and <= 3 &&
+            ReadU32(b, 4) == 0x06u && ReadU32(b, 12) == 0u)
         {
-            var t = ReadAscii4(b, 0);
-            if (t.Length is >= 1 and <= 3)
+            text = tA;
+            value = BitConverter.ToSingle(BitConverter.GetBytes(ReadU32(b, 8)), 0);
+            return true;
+        }
+
+        // Layout B: ASCII@+0..3 (exactly 4 chars, no null), pad@+4, type@+8, float@+12.
+        if (tA.Length == 4 && ReadU32(b, 4) == 0u && ReadU32(b, 8) == 0x06u)
+        {
+            text = tA;
+            value = BitConverter.ToSingle(BitConverter.GetBytes(ReadU32(b, 12)), 0);
+            return true;
+        }
+
+        // Layout C: pad@+0..3 (zeros), ASCII@+4..7, type@+8, float@+12.
+        // Observed on Greater Hex's sentinel/terminator records (where
+        // the ASCII chunk is in the second 4-byte slot rather than the
+        // first), and likely on a similar pattern across other powers.
+        if (ReadU32(b, 0) == 0u && ReadU32(b, 8) == 0x06u)
+        {
+            var tC = ReadAscii4(b, 4);
+            if (tC.Length >= 1)
             {
-                text = t;
-                value = BitConverter.ToSingle(BitConverter.GetBytes(ReadU32(b, 8)), 0);
+                text = tC;
+                value = BitConverter.ToSingle(BitConverter.GetBytes(ReadU32(b, 12)), 0);
                 return true;
             }
         }

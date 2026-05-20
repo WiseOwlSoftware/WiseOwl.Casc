@@ -742,6 +742,100 @@ public sealed class Diablo4StorageIntegrationTests
         Assert.NotNull(ghex.ScriptFormulas);
     }
 
+    /// <summary>FR-C13 Phase 2 — extended slot decoder (Layout A + B) +
+    /// resolved <c>SF_N → value</c> dictionary + engine-function ref
+    /// surfacing. Per the R4 sign-off (2026-05-20), Phase 2 lifts the
+    /// Greater Hex / Demonic Spicules slots that Phase 1 deferred and
+    /// resolves expression-text slots (Demonic Spicules's
+    /// <c>"SF_1 / 3"</c>) through the recursive-descent evaluator.
+    /// FunctionRefs surface from format-string scanning of the
+    /// Description (Barbarian Warbringer's <c>[SF_1 * PlayerHealthMax()]</c>
+    /// is the canonical anchor).</summary>
+    [SkippableFact]
+    public void PowerDefinition_resolves_phase2_formulas_and_function_refs()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+
+        // Greater Hex (SNO 2527280) — Phase 1 returned empty (Layout B
+        // unsupported); Phase 2 must surface the 2-slot table.
+        var ghex = d4.ReadPower(2527280);
+        Assert.True(ghex.ScriptFormulas.Count >= 2,
+            $"Greater Hex expected ≥2 slots; got {ghex.ScriptFormulas.Count}");
+        Assert.Equal("0.75", ghex.ScriptFormulas[0].Text);
+        Assert.Equal(0.75f, ghex.ScriptFormulas[0].LiteralValue);
+        Assert.Equal("0.25", ghex.ScriptFormulas[1].Text);
+        Assert.Equal(0.25f, ghex.ScriptFormulas[1].LiteralValue);
+        Assert.True(ghex.ResolvedFormulas.ContainsKey("SF_0"));
+        Assert.Equal(0.75, ghex.ResolvedFormulas["SF_0"], 4);
+        Assert.Equal(0.25, ghex.ResolvedFormulas["SF_1"], 4);
+
+        // ResolvedFormulas across the layout-A-clean anchors — keys are
+        // SF_0/SF_1/.../SF_N positional; values are the raw slot doubles
+        // (no expression evaluation needed). Pyrosis (1 slot), Dominion
+        // (3 slots), Ritualism (3 slots).
+        var pyrosis = d4.ReadPower(2527268);
+        Assert.Equal(4.5, pyrosis.ResolvedFormulas["SF_0"], 4);
+        var dominion = d4.ReadPower(2524673);
+        Assert.Equal(0.8, dominion.ResolvedFormulas["SF_0"], 4);
+        Assert.Equal(0.5, dominion.ResolvedFormulas["SF_1"], 4);
+        Assert.Equal(12.0, dominion.ResolvedFormulas["SF_2"], 4);
+        var ritualism = d4.ReadPower(2526168);
+        Assert.Equal(0.9, ritualism.ResolvedFormulas["SF_0"], 4);
+        Assert.Equal(9.0, ritualism.ResolvedFormulas["SF_1"], 4);
+        Assert.Equal(15.0, ritualism.ResolvedFormulas["SF_2"], 4);
+
+        // Fathomless: stored slots [.15, 7, 6]; ResolvedFormulas
+        // surfaces them raw. The format-string-rendered cap value (1.05
+        // = SF_0 × SF_1) is the consumer's tooltip-eval concern, NOT
+        // a ResolvedFormulas value (the dictionary keys SF_N to raw
+        // slot evaluation, not to per-rendered-expression values).
+        var fathomless = d4.ReadPower(2521393);
+        Assert.Equal(0.15, fathomless.ResolvedFormulas["SF_0"], 4);
+        Assert.Equal(7.0, fathomless.ResolvedFormulas["SF_1"], 4);
+        Assert.Equal(6.0, fathomless.ResolvedFormulas["SF_2"], 4);
+
+        // Overmind: stored slots [.45, .65] (IEEE-754 round-to-nearest,
+        // one ULP higher than 0.45/0.65 canonical reps).
+        var overmind = d4.ReadPower(2524552);
+        Assert.Equal(0.45, overmind.ResolvedFormulas["SF_0"], 3);
+        Assert.Equal(0.65, overmind.ResolvedFormulas["SF_1"], 3);
+
+        // Chaos: stored slots [1, 2, 1].
+        var chaos = d4.ReadPower(2527294);
+        Assert.Equal(1.0, chaos.ResolvedFormulas["SF_0"], 4);
+        Assert.Equal(2.0, chaos.ResolvedFormulas["SF_1"], 4);
+        Assert.Equal(1.0, chaos.ResolvedFormulas["SF_2"], 4);
+
+        // Dynamism: 4 slots [0.03, 1, 1, 2] — engine format string uses
+        // SF_0, SF_2, SF_3 (skips SF_1; slot 1 = 1 is unused).
+        var dynamism = d4.ReadPower(2524312);
+        Assert.Equal(0.03, dynamism.ResolvedFormulas["SF_0"], 4);
+        Assert.Equal(1.0, dynamism.ResolvedFormulas["SF_2"], 4);
+        Assert.Equal(2.0, dynamism.ResolvedFormulas["SF_3"], 4);
+
+        // Demonic Spicules: tail-data layout has an expression-text
+        // record ("SF_1 / 3" for SF_2 = 60/3 = 20) interleaved with
+        // trivial slots. The "SF_1 / 3" record uses a NON-16-byte
+        // structure the Phase 2 decoder doesn't yet lift, and the
+        // terminator pattern is non-standard for this power. The
+        // ResolvedFormulas may be empty — Phase 3 will RE the
+        // expression-text record format (per d4parse
+        // DT_STRING_FORMULA model). Until then this anchor remains
+        // pending; the no-crash sweep still covers it.
+        var spicules = d4.ReadPower(2525006);
+        Assert.NotNull(spicules.ResolvedFormulas);
+
+        // Barbarian Warbringer (SNO 664973) — format string contains
+        // [SF_1 * PlayerHealthMax()]; FunctionRefs must surface the
+        // PlayerHealthMax engine-function reference.
+        var warbringer = d4.ReadPower(664973);
+        Assert.NotNull(warbringer.FunctionRefs);
+        Assert.Contains(warbringer.FunctionRefs,
+            fr => fr.Name == "PlayerHealthMax");
+    }
+
     /// <summary>FR-C13 Phase 1 — no-crash sweep across all 72 legendary
     /// node Powers (8 classes × ~9 each). The decoder must not throw on
     /// any legendary's blob; expected counts vary per power (some have
