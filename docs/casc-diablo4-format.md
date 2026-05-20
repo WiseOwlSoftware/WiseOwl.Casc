@@ -1221,6 +1221,32 @@ non-icon-catalog texture path CASC does not currently index — their
 `0`. The consumer either provides a non-icon-catalog resolution path
 or a procedural equivalent for the rim bands.
 
+**Engine-actual background canvas (FR-C14 / CL-38).** The
+scene-bound `BackgroundCenter` handle `0x2954DF0C` is *NOT* what the
+engine renders as the board field. Owner game-vs-app oracle on the
+rebuilt app (consumer commit `f698e63`): rendering `0x2954DF0C`
+shows wide horizontal wood-plank bands across the board area which
+the game NEVER renders. CASC's atlas extraction confirms
+`0x2954DF0C`'s atlas SNO `447106` (`2DUI_Paragon`, 1200×1200) IS
+literally a wood-plank pattern; the engine instead renders the
+standalone atlas SNO `1447773` (`2DUI_ParagonBackground`, 2400×1200,
+BC1, single full-blob frame with `TexFrame.ImageHandle = 0` so not
+catalog-handle-reachable) — a smooth organic red-black hellish
+field with no banding. The engine selects this atlas by SNO id
+rather than via a scene-widget handle binding — parallel to the
+rim-fire animation (also engine-internal — CL-28 / CL-30 / CL-32
+discipline). Surfaced as `ParagonBoardChrome.EngineBackgroundCanvasSno`
+(= `1447773`), `.EngineBackgroundCanvasWidth` (= `2400`),
+`.EngineBackgroundCanvasHeight` (= `1200`). Consumer loads via
+`Diablo4Storage.ReadSno(SnoGroup.Texture, EngineBackgroundCanvasSno,
+SnoFolder.Payload)` + standard `DecodeMip0` BC1 decode. The
+scene-bound `BackgroundCenter` remains in the typed model (no
+fabrication / no drop discipline) but the consumer should compose
+against `EngineBackgroundCanvasSno` for visual parity with the
+game; `0x2954DF0C` is retained for audit purposes (it IS in the
+scene) and any future RE that surfaces an engine state where the
+wood-plank pattern is used.
+
 **Board-select chrome (scene 964599).**
 
 | Field index | Widget | Handle | Atlas SNO | Native px |
@@ -1833,6 +1859,34 @@ true value (the sections above already state the corrected truth).
   `ReadParagonBoardChrome_layers_are_scene_bound` extends to assert
   the 4 rim-side handles against the raw scene-657304 widget data
   (the icon-catalog-filtered `Scenes` view doesn't see them).
+
+- **CL-38 — ParagonBoardChrome engine-actual background canvas
+  (FR-C14 R1).** §10.16. CL-32 surfaced `Template_Board_Background_Center`'s
+  scene-bound handle `0x2954DF0C` as `ParagonBoardChrome.BackgroundCenter`.
+  Owner game-vs-app oracle on the rebuilt app (consumer commit
+  `f698e63`) discovered that `0x2954DF0C` is a 1200×1200 wood-plank
+  pattern in atlas `2DUI_Paragon` (SNO `447106`) that produces wide
+  horizontal slab bands when rendered as the board field — the game
+  NEVER shows these bands. CASC's broader probe + atlas extraction
+  found the actual engine-rendered atlas:
+  `2DUI_ParagonBackground` (SNO `1447773`), a 2400×1200 BC1 atlas
+  with a single full-blob frame (`TexFrame.ImageHandle = 0` so not
+  catalog-handle-reachable). Its decoded pixels show a smooth
+  organic red-black hellish field — what the game actually paints.
+  The engine selects this atlas by SNO id, not via a scene-widget
+  handle binding (parallel to CL-28 / CL-30 / CL-32 discipline for
+  engine-internal renders like the rim-fire animation). Surfaced as
+  new fields on `ParagonBoardChrome`:
+  `EngineBackgroundCanvasSno = 1447773`,
+  `EngineBackgroundCanvasWidth = 2400`,
+  `EngineBackgroundCanvasHeight = 1200`. Resolved by
+  `Diablo4Storage.ReadParagonRenderModel` via `CoreToc.TryGetId`
+  on the SNO-name `"2DUI_ParagonBackground"`. The original
+  scene-bound `BackgroundCenter` is preserved in the model
+  (no-drop / audit discipline) but the consumer composes against
+  the engine canvas for game parity. Acceptance:
+  `ReadParagonBoardChrome_surfaces_scene_bound_chrome` asserts the
+  three new fields exactly (`1447773`, `2400`, `1200`).
 
 - **CL-35 — socket-row phantom-layer correction + row no-phantom
   gate (FR-C12 R3).** §10.17. CL-34's socket rows incorrectly

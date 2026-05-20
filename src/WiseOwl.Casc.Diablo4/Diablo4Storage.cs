@@ -356,9 +356,28 @@ public sealed class Diablo4Storage : IDisposable
         foreach (var id in new[] { 657304, 964599 })
             scenes.Add(ParagonRenderProjection.SceneModel(
                 ReadUiScene(id), IsParagonTextureHandle, FrameSize));
+
+        // FR-C14 / CL-38 — resolve the engine-actual background atlas
+        // ("2DUI_ParagonBackground") by SNO-name. The engine renders
+        // this 2400×1200 BC1 atlas as the board field instead of the
+        // scene-bound wood-plank handle 0x2954DF0C (owner game-vs-app
+        // oracle: the wood-plank shows horizontal bands in-app that the
+        // game NEVER renders). The atlas has ImageHandle=0 (single
+        // full-blob frame) so it is NOT catalog-handle-reachable;
+        // surface via SNO id for direct payload read.
+        int bgSno = 0, bgW = 0, bgH = 0;
+        if (CoreToc.TryGetId(SnoGroup.Texture, "2DUI_ParagonBackground", out var sno) &&
+            TextureMeta.TryGet(sno, out var bgMeta))
+        {
+            bgSno = sno;
+            bgW = bgMeta.Width;
+            bgH = bgMeta.Height;
+        }
+
         var chrome = ParagonRenderProjection.BoardChrome(
             ReadUiScene(657304), ReadUiScene(964599),
-            IsParagonTextureHandle, FrameSize);
+            IsParagonTextureHandle, FrameSize,
+            bgSno, bgW, bgH);
         return new ParagonRenderModel(
             ReadParagonRenderLayout(), scenes, chrome);
     }

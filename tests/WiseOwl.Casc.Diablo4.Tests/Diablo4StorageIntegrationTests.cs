@@ -809,6 +809,17 @@ public sealed class Diablo4StorageIntegrationTests
         Assert.True(chrome.BackgroundCenter.NativeHeight > 1000);
         Assert.Equal(default, chrome.BackgroundCenter.Rect);
 
+        // FR-C14 / CL-38 — engine-actual background atlas
+        // (2DUI_ParagonBackground, SNO 1447773, 2400×1200 BC1). The
+        // scene-bound BackgroundCenter handle 0x2954DF0C is the
+        // wood-plank pattern the engine does NOT render; this is what
+        // the game actually paints behind the node grid. ImageHandle=0
+        // (single full-blob frame) so it's not catalog-handle-reachable;
+        // surfaced via SNO id.
+        Assert.Equal(1447773, chrome.EngineBackgroundCanvasSno);
+        Assert.Equal(2400, chrome.EngineBackgroundCanvasWidth);
+        Assert.Equal(1200, chrome.EngineBackgroundCanvasHeight);
+
         // Rim — 4 cardinal sides, Top/Bottom share one band handle,
         // Left/Right share another. Handles are scene-bound but do
         // NOT resolve via the icon catalog (AtlasSno / native px

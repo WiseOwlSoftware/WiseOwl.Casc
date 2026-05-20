@@ -84,14 +84,40 @@ public sealed record ParagonBoundWidget(
 /// game shows on the rim) is **engine-internal** — scene data has
 /// no blend mode, frame order, or timing for it; per CL-28 / CL-30
 /// no-fabrication discipline CASC does not surface a fabricated
-/// sequence.</summary>
+/// sequence.
+/// <br/><br/>
+/// <b>FR-C14 / CL-38 — engine-actual background field.</b> The
+/// <see cref="BackgroundCenter"/> handle `0x2954DF0C` is scene-bound
+/// (per CL-32) but is <i>NOT</i> what the engine actually renders.
+/// Owner game-vs-app oracle on the rebuilt app: <c>0x2954DF0C</c>
+/// shows horizontal wood-plank bands across the board field; the
+/// game shows no such bands. CASC's atlas extraction confirms:
+/// <c>0x2954DF0C</c>'s atlas SNO <c>447106</c> (<c>2DUI_Paragon</c>,
+/// 1200×1200) IS a wood-plank pattern; the engine instead renders
+/// the standalone atlas SNO <c>1447773</c>
+/// (<c>2DUI_ParagonBackground</c>, 2400×1200, BC1, single full-blob
+/// frame with <see cref="TexFrame.ImageHandle"/> = 0 so not
+/// catalog-handle-reachable) which is a smooth organic
+/// red-black hellish field with no banding. The engine selects this
+/// atlas by SNO id rather than via a scene-widget handle binding —
+/// parallel to the rim-fire animation (engine-internal). Surfaced
+/// here as <see cref="EngineBackgroundCanvasSno"/> /
+/// <see cref="EngineBackgroundCanvasWidth"/> /
+/// <see cref="EngineBackgroundCanvasHeight"/> so the consumer can
+/// load via <c>Diablo4Storage.ReadSno(SnoGroup.Texture,
+/// EngineBackgroundCanvasSno, SnoFolder.Payload)</c> + the standard
+/// BC1 decode. Owner visual oracle on the rebuilt app is the
+/// acceptance gate for the band-suppression.</summary>
 public sealed record ParagonBoardChrome(
     NodeElement BackgroundCenter,
     NodeElement BorderTop,
     NodeElement BorderRight,
     NodeElement BorderBottom,
     NodeElement BorderLeft,
-    IReadOnlyList<NodeElement> BoardSelectChrome);
+    IReadOnlyList<NodeElement> BoardSelectChrome,
+    int EngineBackgroundCanvasSno,
+    int EngineBackgroundCanvasWidth,
+    int EngineBackgroundCanvasHeight);
 
 /// <summary>The UI design space the raw rects are authored in (decoded
 /// from the root <c>ParagonBoard_main</c> widget; verified
@@ -709,7 +735,10 @@ internal static class ParagonRenderProjection
     public static ParagonBoardChrome BoardChrome(
         UiScene mainBoard, UiScene boardSelect,
         Func<uint, bool> isTextureHandle,
-        Func<uint, (int AtlasSno, int W, int H)>? frameLookup = null)
+        Func<uint, (int AtlasSno, int W, int H)>? frameLookup = null,
+        int engineBackgroundCanvasSno = 0,
+        int engineBackgroundCanvasWidth = 0,
+        int engineBackgroundCanvasHeight = 0)
     {
         const uint TexHandleType = 0x6B1C5D9Cu;
         (int AtlasSno, int W, int H) Frame(uint h) =>
@@ -811,6 +840,9 @@ internal static class ParagonRenderProjection
             selectLayers.Add(le);
 
         return new ParagonBoardChrome(
-            center, top, right, bottom, left, selectLayers);
+            center, top, right, bottom, left, selectLayers,
+            engineBackgroundCanvasSno,
+            engineBackgroundCanvasWidth,
+            engineBackgroundCanvasHeight);
     }
 }
