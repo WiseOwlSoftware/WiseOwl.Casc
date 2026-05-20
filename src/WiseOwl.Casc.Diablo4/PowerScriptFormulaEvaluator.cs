@@ -49,8 +49,71 @@ internal static class PowerScriptFormulaEvaluator
         var ast = parser.ParseExpression();
         parser.ExpectEnd();
         var refs = new List<PowerFunctionRef>();
-        var value = ast.Evaluate(slotLookup, functionResolver, refs);
+        var ctx = new EvalContext(slotLookup, functionResolver, null, refs);
+        var value = ast.Evaluate(ctx);
         return new EvaluationResult(value, refs);
+    }
+
+    /// <summary>
+    /// FR-C13 Phase 3 — parse <paramref name="expression"/> and evaluate
+    /// it with numeric literals substituted from
+    /// <paramref name="binaryLiterals"/> in left-to-right encounter
+    /// order. This is the "binary AST" evaluation path: the operator
+    /// tree is built from the slot's stored text (e.g.
+    /// <c>"SF_1 / 3"</c>), but each numeric literal consumed during
+    /// evaluation reads its value from the compiled record's binary
+    /// IEEE-754 single (the engine-truth operand bytes) instead of
+    /// re-parsing the text.
+    /// <br/><br/>
+    /// When <paramref name="binaryLiterals"/> is <see langword="null"/>
+    /// or empty, falls back to text-parsed literals — equivalent to
+    /// <see cref="Evaluate(string, Func{int, double}, Func{string, IReadOnlyList{double}, double?}?)"/>.
+    /// When fewer binary literals than text literals are available,
+    /// the remaining text literals use their parsed values (mixed
+    /// binary + text — useful when only some operands are decoded).
+    /// </summary>
+    public static EvaluationResult EvaluateWithBinaryLiterals(
+        string expression,
+        Func<int, double> slotLookup,
+        IReadOnlyList<float>? binaryLiterals,
+        Func<string, IReadOnlyList<double>, double?>? functionResolver = null)
+    {
+        if (expression is null) throw new ArgumentNullException(nameof(expression));
+        var tokens = Tokenize(expression);
+        var parser = new Parser(tokens);
+        var ast = parser.ParseExpression();
+        parser.ExpectEnd();
+        var refs = new List<PowerFunctionRef>();
+        var ctx = new EvalContext(slotLookup, functionResolver, binaryLiterals, refs);
+        var value = ast.Evaluate(ctx);
+        return new EvaluationResult(value, refs);
+    }
+
+    /// <summary>Mutable evaluation state — slot/function resolvers,
+    /// binary-literal queue (Phase 3), and function-ref accumulator.
+    /// Carried through the recursive <see cref="Node.Evaluate(EvalContext)"/>
+    /// so each <see cref="NumberNode"/> can pull its value from the
+    /// next binary literal when present.</summary>
+    internal sealed class EvalContext
+    {
+        public Func<int, double> SlotLookup { get; }
+        public Func<string, IReadOnlyList<double>, double?>? FunctionResolver { get; }
+        public IReadOnlyList<float>? BinaryLiterals { get; }
+        public List<PowerFunctionRef> Refs { get; }
+        public int BinaryLiteralCursor;
+
+        public EvalContext(
+            Func<int, double> slotLookup,
+            Func<string, IReadOnlyList<double>, double?>? functionResolver,
+            IReadOnlyList<float>? binaryLiterals,
+            List<PowerFunctionRef> refs)
+        {
+            SlotLookup = slotLookup;
+            FunctionResolver = functionResolver;
+            BinaryLiterals = binaryLiterals;
+            Refs = refs;
+            BinaryLiteralCursor = 0;
+        }
     }
 
     /// <summary>Tokenize the expression. The grammar is small: numbers,
@@ -242,36 +305,40 @@ internal static class PowerScriptFormulaEvaluator
 
     private abstract record Node
     {
-        public abstract double Evaluate(
-            Func<int, double> slotLookup,
-            Func<string, IReadOnlyList<double>, double?>? functionResolver,
-            List<PowerFunctionRef> refs);
+        public abstract double Evaluate(EvalContext ctx);
     }
 
     private sealed record NumberNode(double Value) : Node
     {
-        public override double Evaluate(
-            Func<int, double> _,
-            Func<string, IReadOnlyList<double>, double?>? __,
-            List<PowerFunctionRef> ___) => Value;
+        /// <summary>Resolve the literal's value. When the evaluator was
+        /// invoked through <see cref="EvaluateWithBinaryLiterals"/> with
+        /// a non-empty binary-literal list, consume the NEXT binary
+        /// literal in left-to-right encounter order — this is the
+        /// engine-stored IEEE-754 single, canonical over the text-parsed
+        /// value. Falls back to <see cref="Value"/> (text-parsed) when
+        /// no binary literal is queued, so partial-binary contexts work
+        /// seamlessly.</summary>
+        public override double Evaluate(EvalContext ctx)
+        {
+            if (ctx.BinaryLiterals is { Count: > 0 } lits &&
+                ctx.BinaryLiteralCursor < lits.Count)
+            {
+                return lits[ctx.BinaryLiteralCursor++];
+            }
+            return Value;
+        }
     }
 
     private sealed record SlotRefNode(int Index) : Node
     {
-        public override double Evaluate(
-            Func<int, double> slotLookup,
-            Func<string, IReadOnlyList<double>, double?>? _,
-            List<PowerFunctionRef> __) => slotLookup(Index);
+        public override double Evaluate(EvalContext ctx) => ctx.SlotLookup(Index);
     }
 
     private sealed record UnaryNode(string Op, Node Operand) : Node
     {
-        public override double Evaluate(
-            Func<int, double> slotLookup,
-            Func<string, IReadOnlyList<double>, double?>? functionResolver,
-            List<PowerFunctionRef> refs)
+        public override double Evaluate(EvalContext ctx)
         {
-            var v = Operand.Evaluate(slotLookup, functionResolver, refs);
+            var v = Operand.Evaluate(ctx);
             return Op switch
             {
                 "-" => -v,
@@ -282,13 +349,10 @@ internal static class PowerScriptFormulaEvaluator
 
     private sealed record BinaryNode(string Op, Node Left, Node Right) : Node
     {
-        public override double Evaluate(
-            Func<int, double> slotLookup,
-            Func<string, IReadOnlyList<double>, double?>? functionResolver,
-            List<PowerFunctionRef> refs)
+        public override double Evaluate(EvalContext ctx)
         {
-            var l = Left.Evaluate(slotLookup, functionResolver, refs);
-            var r = Right.Evaluate(slotLookup, functionResolver, refs);
+            var l = Left.Evaluate(ctx);
+            var r = Right.Evaluate(ctx);
             return Op switch
             {
                 "+" => l + r,
@@ -302,21 +366,18 @@ internal static class PowerScriptFormulaEvaluator
 
     private sealed record FunctionNode(string Name, IReadOnlyList<Node> Args) : Node
     {
-        public override double Evaluate(
-            Func<int, double> slotLookup,
-            Func<string, IReadOnlyList<double>, double?>? functionResolver,
-            List<PowerFunctionRef> refs)
+        public override double Evaluate(EvalContext ctx)
         {
             var argValues = new double[Args.Count];
             for (int i = 0; i < Args.Count; i++)
-                argValues[i] = Args[i].Evaluate(slotLookup, functionResolver, refs);
+                argValues[i] = Args[i].Evaluate(ctx);
 
             // Surface the call to the caller regardless of whether a
             // resolver is registered (callers want to enumerate which
             // engine functions a power's formulas reference).
-            refs.Add(new PowerFunctionRef(Name, argValues));
+            ctx.Refs.Add(new PowerFunctionRef(Name, argValues));
 
-            var resolved = functionResolver?.Invoke(Name, argValues);
+            var resolved = ctx.FunctionResolver?.Invoke(Name, argValues);
             return resolved ?? double.NaN;
         }
     }

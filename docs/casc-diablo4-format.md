@@ -1501,8 +1501,74 @@ Hex + Warbringer FunctionRef):
 Acceptance gate
 `PowerDefinition_resolves_phase2_formulas_and_function_refs`
 verifies the above anchors. Demonic Spicules's expression-text
-record deferred to Phase 3's compiled-form AST decoder (per
-d4parse `DT_STRING_FORMULA.CompiledOffset/Size` model).
+record deferred to Phase 3's compiled-form AST decoder.
+
+**Phase 3 — compiled-form AST decoder + cross-validation (CL-41).**
+Per the FR-C13 R5 sign-off, Phase 3 lifts the 48-byte type=`0x05`
+*expression record* that Phase 1/2's backward-walk halted on, adds
+a binary-AST evaluation path, and surfaces a third typed surface on
+`PowerDefinition` for cross-validation against `ResolvedFormulas`.
+
+The expression record (anchored on Demonic Spicules's
+`SF_2 = "SF_1 / 3"`):
+
+```
++0..3   pad = 0
++4..15  ASCII text (NULL-terminated within 12 bytes — "SF_1 / 3\0\0\0\0")
++16..19 type tag = 0x05  (expression marker)
++20..23 opcode marker    (observed = 7; opaque)
++24..35 pad = 0
++36..39 type tag = 0x06  (embedded-literal marker)
++40..43 IEEE-754 single  (binary operand value — 3.0f on the anchor)
++44..47 trailing opcode  (observed = 0x0E; opaque)
+```
+
+The 4-byte pad following the record explains the 52-byte backward
+stride. The decoder tries `-16`, `-20`, `-52` strides in order;
+the `-52` candidate must be a genuine type=`0x05` record start
+(not any literal) to avoid jumping past the slot region into the
+early-tail literal blocks. Demonic Spicules previously decoded as
+0 slots (the expression record halted the walk); Phase 3 decodes
+all 3 (`SF_0 = "0.02"` Layout B literal, `SF_1 = "60"` Layout C
+literal, `SF_2 = "SF_1 / 3"` type=`0x05` expression).
+
+`IReadOnlyDictionary<string, double> CompiledFormulas` — the
+engine-truth `{SF_N → value}` map. Literal slots use the IEEE-754
+single read directly from the slot record's float position
+(identical to `PowerScriptFormula.LiteralValue` promoted). Expression
+slots evaluate the operator tree from the text but substitute
+numeric operands from the binary AST opcode region's embedded
+IEEE-754 singles in left-to-right encounter order (Demonic
+Spicules's `SF_2` = `SF_1 / binary_literal[0]` = `60 / 3.0f` =
+`20`; the `3.0f` comes from compiled bytes at +40, not from
+re-parsing the text `"3"`). When `ResolvedFormulas[SF_N]` and
+`CompiledFormulas[SF_N]` disagree, the engine-compiled text and
+binary forms have drifted — the R5 regression gate.
+
+R5 cross-validation gate — 9 Warlock legendary anchors:
+
+| Anchor | SF_N keys | `ResolvedFormulas == CompiledFormulas` |
+|---|--:|---|
+| Pyrosis | 1 | ✓ |
+| Fathomless | 3 | ✓ |
+| Overmind | 2 | ✓ |
+| Ritualism | 3 | ✓ |
+| Chaos | 3 | ✓ |
+| Dominion | 3 | ✓ |
+| Dynamism | 4 | ✓ |
+| Greater Hex | 2 | ✓ |
+| **Demonic Spicules** | **3** | **✓ (SF_2 = 20 via both paths)** |
+| **Total** | **24** | **24 agree, 0 disagree** |
+
+Acceptance gates
+`PowerDefinition_phase3_compiled_formulas_match_resolved_for_9_warlock_anchors`
+(the R5 cross-validation) and
+`PowerDefinition_phase3_decodes_demonic_spicules_expression_slot`
+(the expression-record anchor). AST opcode interior (the `0x07`
+and `0x0E` opaque markers) deliberately not decoded — the
+single-binary-operator + single-literal-operand shape covers every
+expression-text slot in the 72-power live build; more complex AST
+shapes would need additional record-shape RE.
 
 ### 11.3 `AffixDefinition` (group 104, `.aff`)
 
@@ -1940,6 +2006,49 @@ true value (the sections above already state the corrected truth).
   `ReadParagonBoardChrome_layers_are_scene_bound` extends to assert
   the 4 rim-side handles against the raw scene-657304 widget data
   (the icon-catalog-filtered `Scenes` view doesn't see them).
+
+- **CL-41 — Power Script Formula Phase 3: compiled-form AST decoder
+  + cross-validation (FR-C13 R5, Phase 3).** §11.2. Optimizer-
+  consume-verified-and-authorized R5 Phase 3 lift. Closes the FR by
+  decoding the engine's compiled binary AST for expression-text
+  slots (the case Phase 2 deferred) and surfacing
+  `PowerDefinition.CompiledFormulas: IReadOnlyDictionary<string, double>`
+  as the engine-truth `{SF_N → value}` map for cross-validation
+  against `ResolvedFormulas`. Two decoder additions:
+  - **48-byte type=`0x05` expression record** — the previously-
+    undecoded shape that halted Phase 1/2's backward-walk on
+    Demonic Spicules. Layout: `[pad@0..3, ASCII text@4..15
+    (NULL-terminated), type=0x05@16..19, opcode@20..23 (opaque),
+    pad@24..35, type=0x06@36..39, IEEE-754 single@40..43, trailing
+    opcode@44..47 (opaque)]`. The 4-byte pad after the record
+    explains the 52-byte backward stride. The decoder tries `-16`,
+    `-20`, `-52` strides in order; the `-52` candidate must be a
+    genuine type=`0x05` record start (a literal at `-52` would
+    jump past the slot region into early-tail literal blocks).
+  - **Binary-AST evaluation path** — `PowerScriptFormulaEvaluator.
+    EvaluateWithBinaryLiterals` consumes binary IEEE-754 singles
+    in left-to-right encounter order instead of re-parsing text
+    literals. Demonic Spicules's `SF_2 = "SF_1 / 3"` evaluates as
+    `SF_1 / binary_literal[0]` = `60 / 3.0f` = `20` (the `3.0f`
+    from compiled bytes at +40, not from text `"3"`).
+  Demonic Spicules previously decoded as 0 slots (the expression
+  record halted the walk); Phase 3 decodes all 3: `SF_0 = "0.02"`
+  Layout B literal, `SF_1 = "60"` Layout C literal,
+  `SF_2 = "SF_1 / 3"` type=`0x05` expression → 20. R5 cross-
+  validation gate (9 Warlock anchors, 24 SF_N keys total): all 24
+  `ResolvedFormulas` ↔ `CompiledFormulas` agree to float
+  precision; 72-power no-crash sweep passes (0 throws across
+  every legendary). Acceptance:
+  `PowerDefinition_phase3_compiled_formulas_match_resolved_for_9_warlock_anchors`
+  and
+  `PowerDefinition_phase3_decodes_demonic_spicules_expression_slot`.
+  AST opcode interior markers (`0x07` after type=`0x05` and `0x0E`
+  after the embedded literal) deliberately not decoded — the
+  single-binary-operator + single-literal-operand record shape
+  covers every expression-text slot in the 72-power live build;
+  more complex AST shapes would need additional record-shape RE
+  and additional test anchors. 45/45 tests green on build
+  `3.0.2.71886`. Devlog 0039.
 
 - **CL-40 — Power Script Formula Phase 2: resolved SF_N map +
   engine-function refs (FR-C13 R4, Phase 2).** §11.2. Owner-

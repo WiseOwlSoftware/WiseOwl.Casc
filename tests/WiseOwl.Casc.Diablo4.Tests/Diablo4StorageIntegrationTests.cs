@@ -836,6 +836,122 @@ public sealed class Diablo4StorageIntegrationTests
             fr => fr.Name == "PlayerHealthMax");
     }
 
+    /// <summary>FR-C13 Phase 3 — compiled-form AST decode + cross-
+    /// validation gate (R5 regression gate). For each of the 9 Warlock
+    /// legendary anchors, assert that every entry in
+    /// <see cref="PowerDefinition.ResolvedFormulas"/> agrees with the
+    /// corresponding entry in <see cref="PowerDefinition.CompiledFormulas"/>
+    /// to float precision. Phase 2 derives the resolved value from the
+    /// slot's TEXT (e.g. evaluating "SF_1 / 3" via the recursive-descent
+    /// parser); Phase 3 derives it from the BINARY compiled record
+    /// (literal slots: IEEE-754 single read directly; expression slots:
+    /// operator from text + embedded literal operand read from the AST
+    /// opcode region's binary bytes). Disagreement between the two
+    /// flags a text-vs-binary inconsistency in the engine-compiled
+    /// record — the exact regression the FR-C13 R5 gate is designed
+    /// to catch. Demonic Spicules is the load-bearing anchor: its
+    /// <c>SF_2</c> goes through the binary literal path
+    /// (binary 3.0f → 60 / 3 = 20), exercising the type=0x05
+    /// expression-record decoder added in Phase 3.</summary>
+    [SkippableFact]
+    public void PowerDefinition_phase3_compiled_formulas_match_resolved_for_9_warlock_anchors()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+
+        (int Sno, string Label)[] anchors =
+        {
+            (2527268, "Pyrosis"),
+            (2521393, "Fathomless"),
+            (2524552, "Overmind"),
+            (2526168, "Ritualism"),
+            (2527294, "Chaos"),
+            (2524673, "Dominion"),
+            (2524312, "Dynamism"),
+            (2527280, "Greater Hex"),
+            (2525006, "Demonic Spicules"),
+        };
+
+        var mismatches = new List<string>();
+        foreach (var (sno, label) in anchors)
+        {
+            var pow = d4.ReadPower(sno);
+            Assert.True(pow.ResolvedFormulas.Count > 0,
+                $"{label} (SNO {sno}): ResolvedFormulas empty — Phase 2/3 decoder did not surface slots");
+            Assert.Equal(pow.ResolvedFormulas.Count, pow.CompiledFormulas.Count);
+
+            foreach (var kv in pow.ResolvedFormulas)
+            {
+                if (!pow.CompiledFormulas.TryGetValue(kv.Key, out var compiledValue))
+                {
+                    mismatches.Add($"{label} {kv.Key}: present in Resolved but missing from Compiled");
+                    continue;
+                }
+                if (double.IsNaN(kv.Value) && double.IsNaN(compiledValue)) continue;
+                if (Math.Abs(kv.Value - compiledValue) >= 1e-4)
+                    mismatches.Add($"{label} {kv.Key}: Resolved={kv.Value:R} Compiled={compiledValue:R}");
+            }
+        }
+        Assert.True(mismatches.Count == 0,
+            "Phase 2 ↔ Phase 3 cross-validation mismatches:\n  " +
+            string.Join("\n  ", mismatches));
+    }
+
+    /// <summary>FR-C13 Phase 3 — Demonic Spicules's
+    /// <c>SF_2 = "SF_1 / 3"</c> is the canonical expression-record
+    /// anchor (the only Warlock legendary with an expression-text slot
+    /// rather than a plain literal). Phase 1/2 returned an empty slot
+    /// list for this power because the 48-byte type=0x05 expression
+    /// record between the literal slots and the trailing sentinels
+    /// halted the backward-walk decoder. Phase 3 adds the
+    /// expression-record reader and the 52-byte backward stride so
+    /// the decoder returns 3 slots: SF_0 = 0.02 (Layout B literal),
+    /// SF_1 = 60 (Layout C literal), SF_2 = "SF_1 / 3" (type=0x05
+    /// expression with embedded literal 3.0f). The resolver chain
+    /// evaluates SF_2 to 60 / 3 = 20.</summary>
+    [SkippableFact]
+    public void PowerDefinition_phase3_decodes_demonic_spicules_expression_slot()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+
+        var pow = d4.ReadPower(2525006);
+        Assert.Equal(3, pow.ScriptFormulas.Count);
+
+        // SF_0 "0.02" — Layout B literal.
+        Assert.Equal(0, pow.ScriptFormulas[0].Index);
+        Assert.Equal("0.02", pow.ScriptFormulas[0].Text);
+        Assert.Equal(0.02f, pow.ScriptFormulas[0].LiteralValue);
+        Assert.False(pow.ScriptFormulas[0].IsExpression);
+
+        // SF_1 "60" — Layout C literal.
+        Assert.Equal(1, pow.ScriptFormulas[1].Index);
+        Assert.Equal("60", pow.ScriptFormulas[1].Text);
+        Assert.Equal(60f, pow.ScriptFormulas[1].LiteralValue);
+        Assert.False(pow.ScriptFormulas[1].IsExpression);
+
+        // SF_2 "SF_1 / 3" — 48-byte type=0x05 expression record. The
+        // record's LiteralValue is NaN (expression — text-eval needed);
+        // ResolvedFormulas and CompiledFormulas both produce 60/3 = 20.
+        Assert.Equal(2, pow.ScriptFormulas[2].Index);
+        Assert.Equal("SF_1 / 3", pow.ScriptFormulas[2].Text);
+        Assert.True(float.IsNaN(pow.ScriptFormulas[2].LiteralValue));
+        Assert.True(pow.ScriptFormulas[2].IsExpression);
+
+        // Both resolution paths produce SF_2 = 20:
+        //   Phase 2 (text): "SF_1 / 3" parsed → 60 / 3 = 20
+        //   Phase 3 (binary): operator "/" from text, operand 3.0f from
+        //                     compiled record bytes at +40, → 60 / 3.0 = 20
+        Assert.Equal(0.02, pow.ResolvedFormulas["SF_0"], 4);
+        Assert.Equal(60.0, pow.ResolvedFormulas["SF_1"], 4);
+        Assert.Equal(20.0, pow.ResolvedFormulas["SF_2"], 4);
+        Assert.Equal(0.02, pow.CompiledFormulas["SF_0"], 4);
+        Assert.Equal(60.0, pow.CompiledFormulas["SF_1"], 4);
+        Assert.Equal(20.0, pow.CompiledFormulas["SF_2"], 4);
+    }
+
     /// <summary>FR-C13 Phase 1 — no-crash sweep across all 72 legendary
     /// node Powers (8 classes × ~9 each). The decoder must not throw on
     /// any legendary's blob; expected counts vary per power (some have

@@ -34,12 +34,18 @@ public sealed class PowerDefinition
     private PowerDefinition(
         int snoId,
         IReadOnlyList<PowerScriptFormula> scriptFormulas,
-        IReadOnlyDictionary<string, double> resolvedFormulas)
+        IReadOnlyDictionary<string, double> resolvedFormulas,
+        IReadOnlyDictionary<string, double> compiledFormulas,
+        IReadOnlyDictionary<int, IReadOnlyList<float>> embeddedLiteralsBySlot)
     {
         SnoId = snoId;
         ScriptFormulas = scriptFormulas;
         ResolvedFormulas = resolvedFormulas;
+        CompiledFormulas = compiledFormulas;
+        _embeddedLiteralsBySlot = embeddedLiteralsBySlot;
     }
+
+    private readonly IReadOnlyDictionary<int, IReadOnlyList<float>> _embeddedLiteralsBySlot;
 
     /// <summary>The power's own SNO id (== the CoreTOC id).</summary>
     public int SnoId { get; }
@@ -100,6 +106,40 @@ public sealed class PowerDefinition
     public IReadOnlyDictionary<string, double> ResolvedFormulas { get; }
 
     /// <summary>
+    /// FR-C13 Phase 3 — the engine's compiled-form <c>{SF_<i>N</i> →
+    /// value}</c> map, derived from the binary <c>DT_STRING_FORMULA</c>
+    /// records' IEEE-754 floats (for literal slots) and from binary AST
+    /// opcode operands (for expression slots). The values are the
+    /// engine-truth: the IEEE-754 singles the engine literally executes,
+    /// promoted to <see cref="double"/>.
+    /// <br/><br/>
+    /// Distinct from <see cref="ResolvedFormulas"/> only when the engine
+    /// has compiled a slot's text form (e.g. <c>"0.02"</c> →
+    /// <c>0.02f</c>) inconsistently — in that case the binary IEEE-754
+    /// single is canonical and this map reflects it, while
+    /// <see cref="ResolvedFormulas"/> reflects the text-parsed value.
+    /// In normal operation the two maps agree to float precision for all
+    /// 9 Warlock legendary anchors (the FR-C13 R5 regression gate).
+    /// <br/><br/>
+    /// For expression slots (Demonic Spicules's <c>SF_2 = "SF_1 / 3"</c>
+    /// is the canonical anchor): the operator is parsed from the slot's
+    /// text, but numeric operands are substituted from the binary AST
+    /// opcode region's embedded IEEE-754 singles in encounter order.
+    /// So Demonic Spicules's <c>SF_2</c> evaluates as
+    /// <c>SF_1 / binary_literal[0]</c> = <c>60 / 3.0f</c> = <c>20</c>;
+    /// the <c>3.0f</c> comes from the compiled record's binary bytes,
+    /// not from re-parsing the text <c>"3"</c>.
+    /// <br/><br/>
+    /// AST opcode encoding for non-literal sub-trees (e.g. function
+    /// calls inside expression records) is not yet fully decoded
+    /// (devlog 0035 §3). For powers whose compiled AST encoding is
+    /// outside the current decoder's scope, the slot is left at
+    /// <see cref="double.NaN"/> — the consumer compares non-NaN entries
+    /// for cross-validation.
+    /// </summary>
+    public IReadOnlyDictionary<string, double> CompiledFormulas { get; }
+
+    /// <summary>
     /// FR-C13 Phase 2 — engine-function references the power's
     /// formulas + localized <see cref="Description"/> rely on. The
     /// library surfaces each call (name + resolved-arg values)
@@ -122,9 +162,10 @@ public sealed class PowerDefinition
     public static PowerDefinition Parse(ReadOnlySpan<byte> blob)
     {
         var snoId = new SnoRecord(blob).SnoId;
-        var formulas = DecodeScriptFormulas(blob);
+        var (formulas, embeddedLits) = DecodeScriptFormulas(blob);
         var resolved = ResolveScriptFormulas(formulas);
-        return new PowerDefinition(snoId, formulas, resolved);
+        var compiled = ResolveCompiledFormulas(formulas, embeddedLits);
+        return new PowerDefinition(snoId, formulas, resolved, compiled, embeddedLits);
     }
 
     internal void SetStrings(string name, string description)
@@ -206,6 +247,91 @@ public sealed class PowerDefinition
 
     private static readonly IReadOnlyDictionary<string, double> EmptyResolvedFormulas =
         new Dictionary<string, double>(0);
+
+    /// <summary>
+    /// FR-C13 Phase 3 — resolve <see cref="CompiledFormulas"/> from the
+    /// per-slot binary form. For literal slots the IEEE-754 single read
+    /// from the compiled record is promoted to <see cref="double"/>
+    /// directly. For expression slots the operator is parsed from the
+    /// text but numeric operands are substituted from
+    /// <paramref name="embeddedLiteralsBySlot"/> in left-to-right
+    /// encounter order; SF_N references resolve against this same map
+    /// (iterative fixed-point), so chains like Demonic Spicules's
+    /// <c>SF_2 = "SF_1 / 3"</c> evaluate as <c>SF_1 / binary_lit[0]</c>
+    /// (where <c>binary_lit[0]</c> is the IEEE-754 single read from the
+    /// compiled AST's embedded operand at offset +40 of the expression
+    /// record). When the binary literal list is empty (the expression's
+    /// operands aren't literals — e.g. function calls), falls back to
+    /// the text-parsed literal so cross-validation still proceeds for
+    /// the literal-only operand sub-trees.
+    /// </summary>
+    private static IReadOnlyDictionary<string, double> ResolveCompiledFormulas(
+        IReadOnlyList<PowerScriptFormula> slots,
+        IReadOnlyDictionary<int, IReadOnlyList<float>> embeddedLiteralsBySlot)
+    {
+        if (slots.Count == 0) return EmptyResolvedFormulas;
+
+        var compiled = new Dictionary<string, double>(slots.Count);
+        var pending = new Dictionary<int, string>(slots.Count);
+        foreach (var slot in slots)
+        {
+            var key = "SF_" + slot.Index.ToString(CultureInfo.InvariantCulture);
+            if (!slot.IsExpression)
+            {
+                // Binary IEEE-754 single read from the slot record at
+                // either +8 (Layout A) or +12 (Layout B/C) — this is the
+                // engine-stored literal, not a text re-parse.
+                compiled[key] = slot.LiteralValue;
+            }
+            else
+            {
+                compiled[key] = double.NaN;
+                pending[slot.Index] = slot.Text;
+            }
+        }
+
+        // Iterative fixed-point pass — same shape as Phase 2's
+        // ResolveScriptFormulas but the evaluator substitutes binary
+        // embedded literals for numeric sub-trees.
+        for (int pass = 0; pass < slots.Count && pending.Count > 0; pass++)
+        {
+            var progressed = false;
+            foreach (var idx in new List<int>(pending.Keys))
+            {
+                var text = pending[idx];
+                double Lookup(int slot)
+                {
+                    var k = "SF_" + slot.ToString(CultureInfo.InvariantCulture);
+                    return compiled.TryGetValue(k, out var v) ? v : double.NaN;
+                }
+
+                embeddedLiteralsBySlot.TryGetValue(idx, out var embLits);
+                EvaluationResultLocal r;
+                try { r = EvalSafeWithBinaryLiterals(text, Lookup, embLits); }
+                catch { continue; }
+                if (!double.IsNaN(r.Value))
+                {
+                    var k = "SF_" + idx.ToString(CultureInfo.InvariantCulture);
+                    compiled[k] = r.Value;
+                    pending.Remove(idx);
+                    progressed = true;
+                }
+            }
+            if (!progressed) break;
+        }
+
+        return compiled;
+    }
+
+    private static EvaluationResultLocal EvalSafeWithBinaryLiterals(
+        string expression,
+        Func<int, double> slotLookup,
+        IReadOnlyList<float>? binaryLiterals)
+    {
+        var r = PowerScriptFormulaEvaluator.EvaluateWithBinaryLiterals(
+            expression, slotLookup, binaryLiterals);
+        return new EvaluationResultLocal(r.Value);
+    }
 
     /// <summary>Local result wrapper for the slot-resolution loop —
     /// <see cref="PowerScriptFormulaEvaluator"/> returns its public
@@ -318,15 +444,16 @@ public sealed class PowerDefinition
     /// identically on every anchored legendary) is stripped from the
     /// returned list.
     /// </summary>
-    private static IReadOnlyList<PowerScriptFormula> DecodeScriptFormulas(
+    private static (PowerScriptFormula[] Slots,
+        IReadOnlyDictionary<int, IReadOnlyList<float>> EmbeddedLiterals) DecodeScriptFormulas(
         ReadOnlySpan<byte> blob)
     {
         // Anchor on the ("0", 0.0) terminator record (Layout A: a clean
         // 16-byte block with bytes [0x30 0 0 0 | 0x06 0 0 0 | 0 0 0 0 | 0 0 0 0]).
         // Scan for the LAST such anchor in the blob, then walk BACKWARD
-        // in 16-byte strides decoding records. This avoids the spurious
-        // overlap problem where Layouts B/C alias the trailing pad of
-        // a preceding Layout A record.
+        // decoding records (literal 16/20-byte or Phase 3 expression
+        // 48-byte). The 4-byte pad following an expression record
+        // explains the 52-byte backward stride.
         int? terminatorOff = null;
         for (int off = blob.Length - 16; off >= 0; off -= 4)
         {
@@ -337,34 +464,46 @@ public sealed class PowerDefinition
                 break;
             }
         }
-        if (terminatorOff is null) return Array.Empty<PowerScriptFormula>();
+        if (terminatorOff is null)
+            return (Array.Empty<PowerScriptFormula>(), EmptyEmbeddedLiterals);
 
-        // Walk BACKWARD decoding each record. Most powers use a uniform
-        // 16-byte stride, but some (e.g. Greater Hex) MIX 16-byte
-        // Layout A sentinels with 20-byte Layout B value records — the
-        // Layout B records carry a 4-byte trailing pad on top of the
-        // 16-byte (ascii, pad, type, float) tuple. At each step try
-        // 16-byte stride first; if that fails try 20-byte stride. Stop
-        // when neither produces a valid record. Collects records in
-        // REVERSE positional order; reverse before returning.
-        var records = new List<(string Text, float Value)>();
+        // Walk BACKWARD decoding each record. Each step accepts a
+        // literal record (16 or 20 bytes) OR a Phase 3 expression
+        // record (48 bytes). Stride tried in order: -16, -20, -52.
+        // Collects in REVERSE positional order; reverse before
+        // returning.
+        var records = new List<(string Text, float Value, IReadOnlyList<float> Embedded)>();
         int cur = terminatorOff.Value;
-        while (cur >= 0 && TryReadSlotRecord(blob, cur, out var text, out var value))
+        while (cur >= 0)
         {
-            records.Add((text, value));
-            // Try 16-byte stride first.
-            if (cur - 16 >= 0 && TryReadSlotRecord(blob, cur - 16, out _, out _))
+            if (TryReadSlotRecord(blob, cur, out var text, out var value))
             {
-                cur -= 16;
+                records.Add((text, value, Array.Empty<float>()));
             }
-            else if (cur - 20 >= 0 && TryReadSlotRecord(blob, cur - 20, out _, out _))
+            else if (TryReadExpressionRecord(blob, cur, out var exprText, out var exprEmbedded))
             {
-                cur -= 20;
+                records.Add((exprText, float.NaN, exprEmbedded));
             }
             else
             {
                 break;
             }
+
+            // Look-ahead: try literal strides first (16, 20), then the
+            // expression-record stride (52). The 52-byte stride MUST
+            // land on an actual expression-record start (type=0x05) —
+            // accepting a literal at -52 would jump past the real slot
+            // region into early-tail blocks (Pyrosis et al. have runs
+            // of literal records preceding the slot table that aren't
+            // SF_N entries).
+            if (cur - 16 >= 0 && TryReadAnyRecord(blob, cur - 16))
+                cur -= 16;
+            else if (cur - 20 >= 0 && TryReadAnyRecord(blob, cur - 20))
+                cur -= 20;
+            else if (cur - 52 >= 0 && TryReadExpressionRecord(blob, cur - 52, out _, out _))
+                cur -= 52;
+            else
+                break;
         }
         records.Reverse();
 
@@ -379,9 +518,92 @@ public sealed class PowerDefinition
             end--;
 
         var result = new PowerScriptFormula[end];
+        Dictionary<int, IReadOnlyList<float>>? embDict = null;
         for (int i = 0; i < end; i++)
+        {
             result[i] = new PowerScriptFormula(i, records[i].Text, records[i].Value);
-        return result;
+            if (records[i].Embedded.Count > 0)
+            {
+                embDict ??= new Dictionary<int, IReadOnlyList<float>>();
+                embDict[i] = records[i].Embedded;
+            }
+        }
+        return (result, embDict ?? EmptyEmbeddedLiterals);
+    }
+
+    private static readonly IReadOnlyDictionary<int, IReadOnlyList<float>> EmptyEmbeddedLiterals =
+        new Dictionary<int, IReadOnlyList<float>>(0);
+
+    /// <summary>Look-ahead probe — returns <see langword="true"/> if a
+    /// literal OR expression record starts at the given offset. Used by
+    /// the backward-walk look-ahead to decide which stride to advance.</summary>
+    private static bool TryReadAnyRecord(ReadOnlySpan<byte> blob, int off) =>
+        TryReadSlotRecord(blob, off, out _, out _) ||
+        TryReadExpressionRecord(blob, off, out _, out _);
+
+    /// <summary>
+    /// FR-C13 Phase 3 — try to interpret a 48-byte run at
+    /// <paramref name="off"/> as a COMPILED EXPRESSION record. The
+    /// canonical anchor is Demonic Spicules's
+    /// <c>SF_2 = "SF_1 / 3"</c> slot, whose 48-byte structure is:
+    /// <code>
+    ///   +0..3   pad = 0
+    ///   +4..15  ASCII text (NULL-terminated within 12 bytes — e.g.
+    ///           "SF_1 / 3\0\0\0\0")
+    ///   +16..19 type tag = 0x05 (expression marker)
+    ///   +20..23 opcode marker (observed = 7 on the anchor; not yet
+    ///           decoded — treated as opaque)
+    ///   +24..35 pad = 0
+    ///   +36..39 type tag = 0x06 (embedded-literal marker)
+    ///   +40..43 IEEE-754 single — the binary operand value
+    ///   +44..47 trailing opcode marker (observed = 0x0E on the anchor;
+    ///           opaque)
+    /// </code>
+    /// The text gives the operator tree (consumed by
+    /// <see cref="PowerScriptFormulaEvaluator"/>); the IEEE-754 single
+    /// at <c>off+40</c> is the engine-truth operand bound to the FIRST
+    /// numeric literal encountered during left-to-right evaluation
+    /// (Demonic Spicules's <c>3</c> in <c>"SF_1 / 3"</c>). Returns the
+    /// text + the singleton embedded-literal list on match.
+    /// </summary>
+    private static bool TryReadExpressionRecord(
+        ReadOnlySpan<byte> blob, int off,
+        out string text, out IReadOnlyList<float> embeddedLiterals)
+    {
+        text = string.Empty;
+        embeddedLiterals = Array.Empty<float>();
+        if (off < 0 || off + 48 > blob.Length) return false;
+
+        // First 4 bytes must be zero (the leading pad).
+        if (ReadU32(blob, off) != 0u) return false;
+
+        // Type-tag check — 0x05 expression marker at +16, 0x06
+        // embedded-literal marker at +36.
+        if (ReadU32(blob, off + 16) != 0x05u) return false;
+        if (ReadU32(blob, off + 36) != 0x06u) return false;
+
+        // ASCII text must start with a printable byte at +4 and be
+        // NULL-terminated by +16. Demonic Spicules's "SF_1 / 3" is 8
+        // chars + 4 nulls; allow 1..12 chars to leave room for the
+        // type tag at +16.
+        var b4 = blob[off + 4];
+        if (b4 < 0x20 || b4 >= 0x7F) return false;
+        var sb = new StringBuilder(12);
+        for (int i = 4; i < 16; i++)
+        {
+            var c = blob[off + i];
+            if (c == 0) break;
+            if (c < 0x20 || c >= 0x7F) return false;
+            sb.Append((char)c);
+        }
+        if (sb.Length == 0) return false;
+        text = sb.ToString();
+
+        // Embedded literal — IEEE-754 single at +40.
+        var litU = ReadU32(blob, off + 40);
+        var lit = BitConverter.ToSingle(BitConverter.GetBytes(litU), 0);
+        embeddedLiterals = new[] { lit };
+        return true;
     }
 
     /// <summary>The ("0", 0.0) terminator record marks the end of the
