@@ -1111,6 +1111,82 @@ public sealed class Diablo4StorageIntegrationTests
             "see FR-C12 R2): " + string.Join(", ", unrowed));
     }
 
+    /// <summary>FR-C12 R3 — row no-phantom gate (CL-35). Complement to
+    /// the row-completeness gate. The earlier gates assert every
+    /// scene-bound row-bearing-widget handle appears in SOME row
+    /// (no-drop) and every row layer is scene-bound (no-fabrication).
+    /// This gate adds: every row layer's source widget must be in
+    /// the AUTHORIZED widget set for that row's state class — i.e.,
+    /// the engine actually composites that widget for that state.
+    /// A row layer whose handle is scene-bound only on a widget the
+    /// engine doesn't dispatch for the row's state is a PHANTOM
+    /// (decode artefact, not part of the recipe). FR-C12 R2 had the
+    /// shared rarity-base 0x1D166DC7 incorrectly in the socket rows
+    /// because the projection prepended it on the universal-base
+    /// assumption; owner visual oracle on the rebuilt app proved
+    /// the engine NEVER dispatches Node_IconBase for socket cells.
+    /// CL-35 drops it and this gate prevents the regression.</summary>
+    [SkippableFact]
+    public void ParagonRenderLayout_socket_rows_have_no_phantom_layers()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+
+        var rl = d4.ReadParagonRenderLayout();
+        var scene = d4.ReadUiScene(657304);
+
+        // Build a per-widget handle index for scene 657304: which
+        // widgets bind each catalog-resolvable atlas handle.
+        var widgetsByHandle = new Dictionary<uint, List<string>>();
+        foreach (var w in scene.Widgets)
+        {
+            void Note(uint h)
+            {
+                if (!d4.IsParagonTextureHandle(h)) return;
+                if (!widgetsByHandle.TryGetValue(h, out var owners))
+                    widgetsByHandle[h] = owners = new List<string>();
+                owners.Add(w.Name);
+            }
+            foreach (var f in w.Fields)
+                if (f.HasValue) Note(f.RawValue);
+            foreach (var v in w.ExtraLayerValues) Note(v);
+        }
+
+        // Authorized widget set for socket.* states. The engine
+        // dispatches these widgets when rendering a socket cell;
+        // any layer in a socket row MUST be bound on one of these
+        // (anything else = phantom). Owner visual-oracle confirmed
+        // (CL-35).
+        var socketAuthorized = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "GlyphNodeGlow_Revealed",  // bead ring (unselected/selected)
+            "GlyphNodeGlow_Purchased", // bead ring (socketed)
+            "Usage_Slot_2",            // 0x58-block: outer disk + inner well + bead ring (the engine reuses these for the on-board render)
+        };
+
+        var phantoms = new List<string>();
+        foreach (var row in rl.States.Where(s => s.State.StartsWith("socket.", StringComparison.Ordinal)))
+        {
+            foreach (var layer in row.Layers)
+            {
+                if (!widgetsByHandle.TryGetValue(layer.TextureHandle, out var owners))
+                {
+                    phantoms.Add($"{row.State} 0x{layer.TextureHandle:X8} (no widget binds this handle in scene 657304)");
+                    continue;
+                }
+                if (!owners.Any(socketAuthorized.Contains))
+                    phantoms.Add(
+                        $"{row.State} 0x{layer.TextureHandle:X8} bound only on " +
+                        $"[{string.Join(",", owners.Distinct())}] — not in socket-authorized set");
+            }
+        }
+        Assert.True(phantoms.Count == 0,
+            "socket no-phantom gate: socket-row layers whose source " +
+            "widgets are not in the engine-dispatched socket set " +
+            "(FR-C12 R3 / CL-35): " + string.Join("; ", phantoms));
+    }
+
     /// <summary>Board-chrome scene-bindedness gate (parity with the
     /// per-rarity gate). The centre background must be scene-bound in
     /// 657304's catalog-resolvable per-widget bindings; every

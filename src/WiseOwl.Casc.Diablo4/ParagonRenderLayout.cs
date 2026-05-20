@@ -498,32 +498,42 @@ internal static class ParagonRenderProjection
                     L(RarityComposite(rar, sel)),
                     Tint: null, LitTint: null, Animation: null));
 
-        // Rows 9–11: socket (FR-C12 R2 — corrected). The on-board socket
-        // composite uses three atlas handles bound on Usage_Slot_2's
-        // 0x58-block (the right-side equipped-glyph panel widget) plus
-        // GlyphNodeGlow_Revealed's standard texture-handle field. The
-        // engine reuses the same atlas frames for both the side-panel
-        // and the on-board per-node render. Owner atlas-frame visual
-        // oracle + CASC's own frame extraction (FR-C12 R2): the
-        // on-board socket draws F6443089 (ornate outer disk) → BED4CF21
-        // (red glowing bead ring — the pulsing animation layer) →
-        // 23F487F3 (inner spike-frame with center depression — the
-        // per-node HIconMask glyph icon seats in this depression). The
-        // shared per-node grey-base 0x1D166DC7 sits behind all three.
+        // Rows 9–11: socket (FR-C12 R3 — game-recipe corrected). The
+        // socket-class node has its OWN ornate outer disk and does NOT
+        // composite the shared per-rarity grey-base 0x1D166DC7 — the
+        // engine's state dispatch for socket cells never references
+        // Node_IconBase (owner visual oracle on the rebuilt app: the
+        // grey base would project ~9.5px beyond the ornate disk's
+        // silhouette as a thin grey ring, which the game NEVER renders
+        // on a socket in any state). FR-C12 R2 INCORRECTLY prepended
+        // disc on the assumption it was universal; CL-35 drops it from
+        // the socket rows.
+        //
+        // The on-board socket composite is exactly three layers
+        // (back→front): F6443089 (ornate outer disk) → BED4CF21 (red
+        // glowing bead ring — the pulsing animation layer) → 23F487F3
+        // (inner spike-frame with center depression — the per-node
+        // HIconMask glyph icon seats here). All three are scene-bound
+        // (outer disk + inner well on Usage_Slot_2's 0x58-block; bead
+        // ring on GlyphNodeGlow_Revealed for unselected/selected and
+        // GlyphNodeGlow_Purchased for socketed — the engine reuses the
+        // same atlas frames for the side-panel equipped-glyph display
+        // and the on-board per-node render).
+        //
         // Per-state variations between unselected/selected/socketed
-        // (e.g. whether the bead-ring pulse animation stays on selected,
-        // whether socketed adds visible glyph art at the inner well) are
-        // not yet decoded — the LIBRARY surfaces the decode-true scene-
-        // bound LAYER INVENTORY; per-state refinement awaits the next
-        // visual oracle.
+        // (whether the bead-ring pulse animation stays on selected,
+        // whether socketed adds visible glyph art at the inner well)
+        // are not yet decoded — the LIBRARY surfaces the decode-true
+        // scene-bound LAYER INVENTORY for each state; per-state pulse-
+        // on/off refinement awaits the next visual oracle.
         states.Add(new StateElements(-1, "socket.unselected",
-            L(disc, socketOuterDisk, pulse, socketInnerWell),
+            L(socketOuterDisk, pulse, socketInnerWell),
             null, null, Animation: null));
         states.Add(new StateElements(-1, "socket.selected",
-            L(disc, socketOuterDisk, pulse, socketInnerWell),
+            L(socketOuterDisk, pulse, socketInnerWell),
             null, null, null));
         states.Add(new StateElements(-1, "socket.socketed",
-            L(disc, socketOuterDisk, pulseSocketed),
+            L(socketOuterDisk, pulseSocketed),
             null, null, null));
 
         // Rows 12–15: gate / start. CORRECTION (FR-C8, CL-23): the
