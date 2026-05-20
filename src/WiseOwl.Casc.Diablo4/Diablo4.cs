@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace WiseOwl.Casc.Diablo4;
 
 /// <summary>
@@ -76,4 +78,76 @@ public static class Diablo4
     /// </remarks>
     /// <param name="name">The field name (ASCII, case-sensitive).</param>
     public static uint FieldHash(string name) => TypeHash(name) & 0x0FFFFFFFu;
+
+    /// <summary>
+    /// Cracked-hash registry — a cumulative dictionary of
+    /// <see cref="FieldHash"/> values whose source name has been
+    /// recovered (via first-party brute force or community schema
+    /// lookups, e.g. <c>blizzhackers/d4data</c>'s
+    /// <c>!!D4FieldChecksums.yml</c>). Per the
+    /// <c>feedback_cumulative-hash-decode</c> principle, every newly
+    /// cracked hash is added here so all prior scene/SNO blobs become
+    /// retroactively interpretable. Curated and authoritative — only
+    /// cracks verified to round-trip through <see cref="FieldHash"/>
+    /// are added.
+    /// </summary>
+    /// <remarks>
+    /// See <c>docs/d4-hash-dictionary.md</c> for the persistent
+    /// registry (including type-hash + class-hash + uncracked
+    /// high-priority targets, which this in-source table doesn't
+    /// duplicate). The dictionary is intentionally a public surface so
+    /// consumers can pretty-print field hashes encountered during
+    /// scene decoding.
+    /// </remarks>
+    public static IReadOnlyDictionary<uint, string> KnownFieldNames { get; } =
+        new Dictionary<uint, string>
+        {
+            // Coordinate / rect fields (DT_INT)
+            [0x07F1EF79] = "nLeft",
+            [0x069EA64C] = "nRight",
+            [0x003DC5C1] = "nTop",
+            [0x0594CC83] = "nBottom",
+            [0x06F9158E] = "nWidth",
+            [0x02D88AE7] = "nHeight",
+            // Color / tint (DT_RGBACOLOR)
+            [0x09A3F17B] = "rgbaTint",
+            [0x00957CB7] = "rgbaForeground",
+            // State / handle (DT_BOOL / DT_HANDLE)
+            [0x06AB76DE] = "bActive",
+            [0x0789C1CD] = "hText",
+            [0x02330CBF] = "hImageFrameIcon",
+            [0x056F24F5] = "hImageFrameIconPressed",
+            [0x05A90F13] = "hImageFrameIconDisable",
+            // Enum / SNO refs — FR-C14 R8 critical cracks
+            [0x07DB38D3] = "snoTiledStyle",      // → TiledStyleDefinition
+            [0x093CBAA8] = "eGroupType",
+            [0x03D55658] = "eVerticalAnchoring",
+        };
+
+    /// <summary>Cracked-hash registry for <see cref="TypeHash"/>
+    /// (full 32-bit). Companion to
+    /// <see cref="KnownFieldNames"/>; see remarks there.</summary>
+    public static IReadOnlyDictionary<uint, string> KnownTypeNames { get; } =
+        new Dictionary<uint, string>
+        {
+            [0xA4C42E02] = "DT_INT",
+            [0xA4C45887] = "DT_SNO",
+            [0x3D47BD2C] = "DT_ENUM",
+            [0x3D4646AB] = "DT_BYTE",
+            [0x1332C78D] = "DT_BINDABLEPROPERTY",
+        };
+
+    /// <summary>Pretty-print a field hash as <c>"name (0xHHHHHHHH)"</c>
+    /// when <see cref="KnownFieldNames"/> covers it; otherwise
+    /// <c>"0xHHHHHHHH"</c>. Convenience for debug output and
+    /// dictionary-driven scene dumps.</summary>
+    public static string FormatFieldHash(uint hash) =>
+        KnownFieldNames.TryGetValue(hash, out var name)
+            ? $"{name} (0x{hash:X8})" : $"0x{hash:X8}";
+
+    /// <summary>Pretty-print a type hash. See
+    /// <see cref="FormatFieldHash"/>.</summary>
+    public static string FormatTypeHash(uint hash) =>
+        KnownTypeNames.TryGetValue(hash, out var name)
+            ? $"{name} (0x{hash:X8})" : $"0x{hash:X8}";
 }

@@ -91,7 +91,8 @@ public sealed record ParagonBoardChrome(
     NodeElement BorderRight,
     NodeElement BorderBottom,
     NodeElement BorderLeft,
-    IReadOnlyList<NodeElement> BoardSelectChrome);
+    IReadOnlyList<NodeElement> BoardSelectChrome,
+    IReadOnlyList<TiledStyleBinding> TiledStyleBindings);
 
 /// <summary>The UI design space the raw rects are authored in (decoded
 /// from the root <c>ParagonBoard_main</c> widget; verified
@@ -709,9 +710,11 @@ internal static class ParagonRenderProjection
     public static ParagonBoardChrome BoardChrome(
         UiScene mainBoard, UiScene boardSelect,
         Func<uint, bool> isTextureHandle,
-        Func<uint, (int AtlasSno, int W, int H)>? frameLookup = null)
+        Func<uint, (int AtlasSno, int W, int H)>? frameLookup = null,
+        Func<int, TiledStyleDefinition?>? tiledStyleReader = null)
     {
         const uint TexHandleType = 0x6B1C5D9Cu;
+        const uint TiledStyleField = 0x07DB38D3u; // FieldHash("snoTiledStyle")
         (int AtlasSno, int W, int H) Frame(uint h) =>
             h == 0 || h == 0xFFFFFFFFu ? (0, 0, 0)
             : frameLookup?.Invoke(h) ?? (0, 0, 0);
@@ -810,7 +813,34 @@ internal static class ParagonRenderProjection
             ByName(boardSelect, "Board_Icon_Filigrees")))
             selectLayers.Add(le);
 
+        // FR-C14 R9 — scan both scenes for widgets that bind
+        // snoTiledStyle (FieldHash 0x07DB38D3) to a non-zero, non-sentinel
+        // SNO id, and surface them as TiledStyleBinding records. The
+        // underlying TiledStyle SNO is pre-read via tiledStyleReader
+        // when available, so consumers can inspect ImageScale +
+        // PrimaryHandle alongside the binding without an extra lookup.
+        var tiledBindings = new List<TiledStyleBinding>();
+        ScanTiledStyles(mainBoard);
+        ScanTiledStyles(boardSelect);
+
+        void ScanTiledStyles(UiScene scene)
+        {
+            foreach (var w in scene.Widgets)
+            {
+                foreach (var f in w.Fields)
+                {
+                    if (f.FieldHash != TiledStyleField) continue;
+                    if (!f.HasValue) continue;
+                    if (f.RawValue == 0u || f.RawValue == 0xFFFFFFFFu) continue;
+                    var snoId = (int)f.RawValue;
+                    var style = tiledStyleReader?.Invoke(snoId);
+                    tiledBindings.Add(new TiledStyleBinding(
+                        w.Name ?? string.Empty, w.ClassId, snoId, style));
+                }
+            }
+        }
+
         return new ParagonBoardChrome(
-            center, top, right, bottom, left, selectLayers);
+            center, top, right, bottom, left, selectLayers, tiledBindings);
     }
 }

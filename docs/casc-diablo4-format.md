@@ -1418,10 +1418,105 @@ fields empty — they need `CoreToc`); the deep binary beyond the
 documented fields is deliberately not decoded (boundary, not a gap —
 no fabricated values, mirroring the FR-C7 discipline).
 
+### 11.5 `TiledStyleDefinition` (group 103, `.uis`)
+
+UI tile-style records (CL-42). The engine's recipe for rendering a
+tiled UI overlay (vignette, inner-shadow, bag background, frame
+chrome, …) as a multi-piece composition with scale + padding.
+
+A widget carries a `DT_SNO` field named `snoTiledStyle`
+(`FieldHash("snoTiledStyle") == 0x07DB38D3`) pointing to a record in
+this group; at render time the engine consults the bound TiledStyle
+and composes the overlay. Distinct from the widget's `hImage` (the
+primary content); `snoTiledStyle` defines the *framing/composition*
+applied to the widget's rect. Group format hash `0x80504E18`.
+
+Record layout (verified across 8 dumped SNOs from scene 657304's
+`snoTiledStyle` bindings):
+
+```
++0x00  uint32   magic        = 0xDEADBEEF
++0x10  int32    SnoId        (self-reference)
++0x50  uint32   TypeTag      (polymorphic variant — 0xBC0D579E most common;
+                              0x02E46583 observed on at least one record)
++0x58  float32  flImageScale (1.0 / 0.5 / 0.9 observed)
++0x60  uint32   PrimaryHandle (hPieceMiddle in HorizontalTiledWindowPieces;
+                              role varies by TypeTag variant)
++0x68..end variable-length per-variant suffix (additional piece handles,
+           sub-rects, per-piece padding) — only partially decoded.
+```
+
+The full multi-piece structure (`hPieceLeft` / `hPieceRight` /
+`hPieceTop` / `hPieceBottom` + per-piece sub-rects) is encoded in
+the trailing bytes per the
+`HorizontalTiledWindowPieces` / `VerticalTiledWindowPieces` schemas
+published by the `blizzhackers/d4data` community catalog (cited as
+intel only — see memory `feedback_third-party-re-as-intel`). The
+variant is selected via `TypeTag`. CASC R9 surfaces the verified
+primary handle + image scale + type tag; cumulative-decode
+iterations will widen the surface as more variant fields are
+verified (memory `feedback_cumulative-hash-decode`).
+
+Anchors verified (scene 657304 `snoTiledStyle` bindings):
+
+| Widget | SNO id | CoreToc name | `flImageScale` | `TypeTag` |
+|---|--:|---|--:|---|
+| `Vignette` | 843662 | InnerShadow | 1.0 | `0xBC0D579E` |
+| `Paragon_Points_Container` | 1309282 | Frame_AbilityPoints | 0.5 | `0xBC0D579E` |
+| `Points_Tutorial_Highlight` | 872641 | Tutorial_Highlight | 1.0 | `0xBC0D579E` |
+| `ParagonStats` | 787949 | HellGothicChill | 0.9 | `0xBC0D579E` |
+| `Board_Info` | 603760 | BagBackground | 0.9 | `0x02E46583` |
+| `CoreStatEntryStack` | 792649 | HellGothicSuperChillEdge | 0.5 | `0xBC0D579E` |
+
+Surface: `Diablo4Storage.ReadTiledStyle(int)` returns the typed
+record; the per-widget binding is exposed on
+`ParagonBoardChrome.TiledStyleBindings` as
+`IReadOnlyList<TiledStyleBinding>` for the consumer's runtime
+composer. The cracked-hash registry (`Diablo4.KnownFieldNames` /
+`KnownTypeNames`) is the persistent surface for hashes recovered
+across FRs.
+
+CL-42, derived from FR-C14 R8's hash crack of `snoTiledStyle` (via
+the `blizzhackers/d4data` `!!D4FieldChecksums.yml` upstream
+registry) and R9's typed-surface lift.
+
 ## Appendix A — correction log (Diablo IV errata)
 
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
+
+- **CL-42 — UI tile-style (`.uis`) typed surface + per-widget
+  `snoTiledStyle` binding (FR-C14 R9).** §11.5 + new
+  `ParagonBoardChrome.TiledStyleBindings`. Adds:
+  - `SnoGroup.UiStyle` = 103 (group format hash `0x80504E18`).
+  - `TiledStyleDefinition` typed record with magic
+    `0xDEADBEEF`, self-`SnoId`, `TypeTag` (polymorphic-variant tag
+    — `0xBC0D579E` for the common `HorizontalTiledWindowPieces`-shape,
+    `0x02E46583` observed on `BagBackground` 603760), `ImageScale`
+    (`flImageScale`), and `PrimaryHandle` (the +0x60 piece handle).
+    `HasPartialDecode = true` on records whose variant-specific
+    trailing data is not yet decoded.
+  - `TiledStyleBinding(WidgetName, WidgetClassId, TiledStyleSnoId, Style?)`
+    surfaced on `ParagonBoardChrome.TiledStyleBindings` for every
+    scene-657304 / 964599 widget whose `snoTiledStyle` field
+    (`FieldHash` `0x07DB38D3`) is bound to a non-zero, non-sentinel
+    SNO id. Small sentinel ids (1, 3, 20) are surfaced with
+    `Style = null` so the consumer can distinguish "real binding"
+    from "default style".
+  - `Diablo4Storage.ReadTiledStyle(int)` / `TryReadTiledStyle`.
+  - `Diablo4.KnownFieldNames` / `KnownTypeNames` /
+    `FormatFieldHash` / `FormatTypeHash` — cumulative cracked-hash
+    registry (also persisted in
+    `docs/d4-hash-dictionary.md`) per memory
+    `feedback_cumulative-hash-decode`.
+  Driven by FR-C14 R8's hash crack of `snoTiledStyle` via the
+  `blizzhackers/d4data` `!!D4FieldChecksums.yml` upstream registry
+  (cited as intel; see memory `feedback_third-party-re-as-intel`).
+  Acceptance: `ReadParagonRenderModel_surfaces_tiled_style_bindings`
+  verifies the `Vignette → SNO 843662` (InnerShadow,
+  `flImageScale = 1.0`) anchor + 9 other scene-657304 widget names
+  appear in `TiledStyleBindings`. 46/46 tests green on build
+  `3.0.2.71886`. Devlog 0040.
 
 - **CL-4 — per-SNO addressing.** The TVFS walk was never the problem
   (it is complete; 1,759,690 entries; all 37 nested `vfs-N`

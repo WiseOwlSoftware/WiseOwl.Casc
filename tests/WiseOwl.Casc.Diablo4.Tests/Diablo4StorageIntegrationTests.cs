@@ -863,6 +863,56 @@ public sealed class Diablo4StorageIntegrationTests
             h => Assert.DoesNotContain(h, fireBorderCatalog));
     }
 
+    /// <summary>FR-C14 R9 — surface the engine's tile-style overlay
+    /// recipe (<c>snoTiledStyle</c> field, FieldHash <c>0x07DB38D3</c>).
+    /// Scene 657304 binds 13 widgets to <see cref="SnoGroup.UiStyle"/>
+    /// SNOs; this test asserts (a) the chrome surface exposes them as
+    /// <see cref="ParagonBoardChrome.TiledStyleBindings"/>, (b) the
+    /// canonical <c>Vignette → InnerShadow</c> (SNO 843662) binding is
+    /// present and read, (c) the parsed <see cref="TiledStyleDefinition"/>
+    /// carries the expected <c>flImageScale</c> = 1.0 +
+    /// <see cref="TiledStyleDefinition.TypeTagHorizontalPieces"/>.</summary>
+    [SkippableFact]
+    public void ReadParagonRenderModel_surfaces_tiled_style_bindings()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+
+        var model = d4.ReadParagonRenderModel();
+        Assert.NotEmpty(model.BoardChrome.TiledStyleBindings);
+
+        // The Vignette → SNO 843662 ("InnerShadow") binding is the
+        // canonical anchor surfaced by FR-C14 R8 (the widget with the
+        // most-plausible role as a board-area overlay).
+        var vignette = model.BoardChrome.TiledStyleBindings
+            .FirstOrDefault(b => b.WidgetName == "Vignette");
+        Assert.NotNull(vignette);
+        Assert.Equal(843662, vignette!.TiledStyleSnoId);
+        Assert.NotNull(vignette.Style);
+        Assert.Equal(843662, vignette.Style!.SnoId);
+        Assert.Equal(TiledStyleDefinition.TypeTagHorizontalPieces, vignette.Style.TypeTag);
+        Assert.Equal(1.0f, vignette.Style.ImageScale);
+        Assert.True(vignette.Style.HasPartialDecode,
+            "168-byte record should carry trailing variant data not yet decoded");
+
+        // The standalone reader matches the chrome surface's pre-read.
+        var direct = d4.ReadTiledStyle(843662);
+        Assert.Equal(vignette.Style, direct);
+
+        // The 13 scene-657304 bindings observed in R8: every one of
+        // these widget-names should be present in TiledStyleBindings.
+        var widgets = new[]
+        {
+            "Vignette", "Paragon_Points_Container", "Points_Tutorial_Highlight",
+            "Glyph_BG", "Glyph_Frame", "BoardPreview_Text_Container",
+            "ParagonStats", "Board_Info", "Node_Tutorial_Highlight",
+            "CoreStatEntryStack",
+        };
+        foreach (var name in widgets)
+            Assert.Contains(model.BoardChrome.TiledStyleBindings, b => b.WidgetName == name);
+    }
+
     /// <summary>FR-C11 R3 §2 — per-node-cell background tile.
     /// <c>Common_Node_BG_Revealed</c> (handle <c>0xC1473C21</c>,
     /// authored rect L=R=T=B=3 inside the 100-pitch NodeTemplate

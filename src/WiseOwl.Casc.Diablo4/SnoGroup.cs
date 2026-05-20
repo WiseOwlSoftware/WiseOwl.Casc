@@ -56,4 +56,15 @@ public enum SnoGroup
 
     /// <summary>Paragon glyph-affix definitions (<c>.gaf</c>).</summary>
     ParagonGlyphAffix = 112,
+
+    /// <summary>UI Style — <see cref="TiledStyleDefinition"/> records.
+    /// Carry the engine's tile-rendering composition for UI overlays
+    /// (piece handles for the 3-slice / 9-slice composition, image
+    /// scale, padding). Identified from FR-C14 R8 by cracking
+    /// <see cref="Diablo4.FieldHash"/>(<c>"snoTiledStyle"</c>) =
+    /// 0x07DB38D3 and tracing the bound SNO ids to this group
+    /// (format hash 0x80504E18). Sample entries: 843662 "InnerShadow",
+    /// 603760 "BagBackground", 1309282 "Frame_AbilityPoints",
+    /// 872641 "Tutorial_Highlight", 1841254 "Expansion_Frame_Ultimate".</summary>
+    UiStyle = 103,
 }

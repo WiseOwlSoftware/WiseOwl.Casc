@@ -358,7 +358,8 @@ public sealed class Diablo4Storage : IDisposable
                 ReadUiScene(id), IsParagonTextureHandle, FrameSize));
         var chrome = ParagonRenderProjection.BoardChrome(
             ReadUiScene(657304), ReadUiScene(964599),
-            IsParagonTextureHandle, FrameSize);
+            IsParagonTextureHandle, FrameSize,
+            id => TryReadTiledStyle(id, out var s) ? s : null);
         return new ParagonRenderModel(
             ReadParagonRenderLayout(), scenes, chrome);
     }
@@ -799,6 +800,34 @@ public sealed class Diablo4Storage : IDisposable
         TryReadSiblingString(SnoGroup.Item, id, "Item_", "TransmogName", locale, out var tm);
         it.SetStrings(nm, fl, tm);
         return it;
+    }
+
+    /// <summary>
+    /// Read and decode a <see cref="TiledStyleDefinition"/> by SNO id
+    /// (group <see cref="SnoGroup.UiStyle"/> = 103). The record describes
+    /// a UI tile-rendering composition (piece handles + scale +
+    /// padding) the engine applies via a widget's <c>snoTiledStyle</c>
+    /// field. See <see cref="TiledStyleDefinition"/> for the layout and
+    /// FR-C14 R9 disclosure on partial-decode of the variant suffix.
+    /// </summary>
+    /// <param name="id">The TiledStyle SNO id.</param>
+    /// <exception cref="System.FormatException">If the blob is malformed
+    /// (wrong magic / too short). Small sentinel ids (1, 3, 20, …)
+    /// observed as <c>snoTiledStyle</c> bindings throw here — the
+    /// consumer should guard with a length / read check.</exception>
+    public TiledStyleDefinition ReadTiledStyle(int id) =>
+        TiledStyleDefinition.Parse(ReadSno(SnoGroup.UiStyle, id));
+
+    /// <summary>Try-read the tile-style record at <paramref name="id"/>,
+    /// returning <see langword="false"/> when the read or parse fails
+    /// (typically because <paramref name="id"/> is a small sentinel
+    /// rather than a real SNO reference — see the
+    /// <c>snoTiledStyle = 1 | 3 | 20</c> bindings observed in scene
+    /// 657304).</summary>
+    public bool TryReadTiledStyle(int id, out TiledStyleDefinition style)
+    {
+        try { style = ReadTiledStyle(id); return true; }
+        catch { style = null!; return false; }
     }
 
     /// <summary>
