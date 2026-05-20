@@ -238,8 +238,10 @@ public sealed class Diablo4StorageIntegrationTests
         Assert.All(rl.States, s => Assert.Null(s.Tint));
         Assert.All(rl.States, s => Assert.Null(s.Animation));
 
-        // §7.5 gate 1: the §7.2 rows + the FR-C8 R9 availableGlow row
-        // (19; contract amended pre-publish — CL-25), verbatim keys.
+        // §7.5 gate 1: the §7.2 rows (FR-C12 R2 — 21 rows; was 19,
+        // contract amended pre-publish to add overlay.locatedHighlight
+        // and overlay.equipGlow surfaced by the broad scene 657304
+        // probe — CL-34). Verbatim keys.
         var expected = new (int r, string s)[]
         {
             (0,"unselected"),(0,"selected"),(2,"unselected"),(2,"selected"),
@@ -248,9 +250,11 @@ public sealed class Diablo4StorageIntegrationTests
             (-1,"gate.unselected"),(-1,"gate.selected"),
             (-1,"start.unselected"),(-1,"start.selected"),
             (-1,"overlay.selectionRing"),(-1,"overlay.connectorBar"),
-            (-1,"overlay.pointerTriangle"),(-1,"overlay.availableGlow"),
+            (-1,"overlay.pointerTriangle"),
+            (-1,"overlay.locatedHighlight"),(-1,"overlay.equipGlow"),
+            (-1,"overlay.availableGlow"),
         };
-        Assert.Equal(19, rl.States.Count);
+        Assert.Equal(21, rl.States.Count);
         Assert.Equal(expected,
             rl.States.Select(s => (s.RarityOverride, s.State)).ToArray());
 
@@ -720,20 +724,22 @@ public sealed class Diablo4StorageIntegrationTests
         Assert.Equal(0x1D166DC7u, commonSel[0].TextureHandle);
         Assert.Equal(0xD3051CCAu, commonSel[1].TextureHandle);
 
-        // Magic (r2): grey base + 0xFEC31E48 (135² blue interior fill,
-        // owner-confirmed); selected adds 0x72C29402 (Template_Node_Magic's
-        // 0x58-block 154² blue disc + perimeter ring composite — the
-        // game-correct selected art, matching the Rare/Legendary pattern
-        // of a scene-bound selected-variant composite).
+        // Magic (r2): grey base + 0x621CB6FF (153² magic base composite,
+        // FR-C12 R2 — Template_Node_Magic's first 0x58-block layer
+        // previously dropped by the curated row) + 0xFEC31E48 (135²
+        // blue interior fill); selected adds 0x72C29402 (Template_Node_
+        // Magic's 0x58-block 154² blue disc + perimeter ring composite).
         var magicUn = Row(2, "unselected").Layers;
-        Assert.Equal(2, magicUn.Count);
+        Assert.Equal(3, magicUn.Count);
         Assert.Equal(0x1D166DC7u, magicUn[0].TextureHandle);
-        Assert.Equal(0xFEC31E48u, magicUn[1].TextureHandle);
+        Assert.Equal(0x621CB6FFu, magicUn[1].TextureHandle);
+        Assert.Equal(0xFEC31E48u, magicUn[2].TextureHandle);
 
         var magicSel = Row(2, "selected").Layers;
-        Assert.Equal(3, magicSel.Count);
-        Assert.Equal(0xFEC31E48u, magicSel[1].TextureHandle);
-        Assert.Equal(0x72C29402u, magicSel[2].TextureHandle);
+        Assert.Equal(4, magicSel.Count);
+        Assert.Equal(0x621CB6FFu, magicSel[1].TextureHandle);
+        Assert.Equal(0xFEC31E48u, magicSel[2].TextureHandle);
+        Assert.Equal(0x72C29402u, magicSel[3].TextureHandle);
 
         // Rare (r3): grey base + 0xF8373491 (interior fill) +
         // 0xB71BD068 (yellow ornate, unselected) → swap ornate to
@@ -1007,6 +1013,178 @@ public sealed class Diablo4StorageIntegrationTests
         Assert.True(inconsistent.Length == 0,
             "Unresolved=true rows must have empty Layers: " +
             string.Join(", ", inconsistent));
+    }
+
+    /// <summary>FR-C12 R2 — row-completeness gate. Parity with the
+    /// per-rarity / special-node scene-bindedness gates above, but
+    /// in the REVERSE direction: every scene-bound atlas handle on a
+    /// row-bearing widget in scene 657304 must appear in some
+    /// <see cref="ParagonRenderLayout.States"/> row's
+    /// <see cref="StateElements.Layers"/>. Catches the CL-31→32-class
+    /// gap surfaced by the FR-C12 R2 broad probe: scene 657304 bound
+    /// the on-board socket composite layers (0xF6443089 outer disk,
+    /// 0x23F487F3 red pulse) on the Usage_Slot_2 side-panel widget
+    /// (not on a Glyph/Socket/Ring/Pulse-named widget), and the
+    /// existing scene-bind gate ran in the existence direction only —
+    /// it could not catch a row that omitted a scene-bound layer.
+    /// This gate runs in the completeness direction.
+    /// <br/><br/>
+    /// "Row-bearing widget" = a widget whose name matches one of the
+    /// known per-node / per-rarity / per-socket / per-overlay roles
+    /// listed below; the engine composites these widgets' atlas
+    /// handles into the per-node draw. Non-row-bearing widgets in
+    /// scene 657304 (panel chrome, text containers, decorations
+    /// outside the per-node draw) are excluded — they bind atlas
+    /// handles for their own purposes, not the per-node composite.
+    /// </summary>
+    [SkippableFact]
+    public void ParagonRenderLayout_row_layers_cover_every_scene_bound_row_widget_handle()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+
+        var rl = d4.ReadParagonRenderLayout();
+        var scene = d4.ReadUiScene(657304);
+
+        // Widget-name prefixes / equalities that name a widget binding
+        // a per-node composite layer (a "row-bearing widget"). Derived
+        // empirically from the FR-C12 R2 broad probe (e:/tmp/scene-
+        // probe), then narrowed to widgets the engine actually
+        // composites into the per-node draw. Usage_Slot_2 is included
+        // because the FR-C12 R2 owner atlas-frame oracle proved the
+        // on-board socket composite reuses its 0x58-block handles.
+        // Common_Node_Revealed is included because its 0xC1473C21 IS
+        // surfaced as NodeCellBackground.
+        bool IsRowBearingWidget(string n) =>
+            n.StartsWith("Template_Node_", StringComparison.Ordinal) ||
+            n == "Node_IconBase" || n == "Node_Purchased" ||
+            n == "Node_Located" || n == "Node_EquipGlow" ||
+            n == "GlyphNodeGlow_Revealed" ||
+            n == "GlyphNodeGlow_Purchased" ||
+            n == "Common_Node_Revealed" || n == "Common_Node_BG_Black" ||
+            n == "NodeAvailableGlow" ||
+            n.StartsWith("Connector_", StringComparison.Ordinal) ||
+            n.StartsWith("Arrow_", StringComparison.Ordinal) ||
+            n == "Usage_Slot_2"; // FR-C12 R2: side-panel widget whose 0x58 block scene-binds the on-board socket outer-disk + red-pulse handles
+
+        // Handles that ARE scene-bound on row-bearing widgets but are
+        // intentionally NOT in any row (the small Usage_Slot icon-gem
+        // tile 0x3084D186 at 25² is the side-panel gem icon, not part
+        // of the on-board socket composite — owner atlas-frame oracle).
+        // Document each exclusion with its empirical basis.
+        var documentedExclusions = new HashSet<uint>
+        {
+            0x3084D186u, // Usage_Slot_*'s 25² side-panel gem-icon tile (not on-board socket art)
+        };
+
+        // The 0x58 block also carries small non-handle ints (counters /
+        // owner-class-ids). Per the FR-C8/C9 0x58 model only values
+        // >= 0x10000 and != 0xFFFFFFFF are real atlas handles; the
+        // catalog filter is the authoritative classifier.
+        var rawHandles = new HashSet<uint>();
+        foreach (var w in scene.Widgets)
+        {
+            if (!IsRowBearingWidget(w.Name)) continue;
+            foreach (var f in w.Fields)
+                if (f.HasValue && d4.IsParagonTextureHandle(f.RawValue))
+                    rawHandles.Add(f.RawValue);
+            foreach (var v in w.ExtraLayerValues)
+                if (d4.IsParagonTextureHandle(v))
+                    rawHandles.Add(v);
+        }
+
+        var rowHandles = new HashSet<uint>(
+            rl.States.SelectMany(s => s.Layers).Select(l => l.TextureHandle));
+        if (rl.NodeCellBackground.TextureHandle != 0)
+            rowHandles.Add(rl.NodeCellBackground.TextureHandle);
+
+        var unrowed = rawHandles
+            .Where(h => !rowHandles.Contains(h) && !documentedExclusions.Contains(h))
+            .Select(h => $"0x{h:X8}")
+            .OrderBy(s => s, StringComparer.Ordinal)
+            .ToArray();
+        Assert.True(unrowed.Length == 0,
+            "row-completeness gate: scene-bound handles on " +
+            "row-bearing widgets in scene 657304 that no §7.2 row " +
+            "carries (and are not on the documented exclusion list — " +
+            "see FR-C12 R2): " + string.Join(", ", unrowed));
+    }
+
+    /// <summary>FR-C12 R3 — row no-phantom gate (CL-35). Complement to
+    /// the row-completeness gate. The earlier gates assert every
+    /// scene-bound row-bearing-widget handle appears in SOME row
+    /// (no-drop) and every row layer is scene-bound (no-fabrication).
+    /// This gate adds: every row layer's source widget must be in
+    /// the AUTHORIZED widget set for that row's state class — i.e.,
+    /// the engine actually composites that widget for that state.
+    /// A row layer whose handle is scene-bound only on a widget the
+    /// engine doesn't dispatch for the row's state is a PHANTOM
+    /// (decode artefact, not part of the recipe). FR-C12 R2 had the
+    /// shared rarity-base 0x1D166DC7 incorrectly in the socket rows
+    /// because the projection prepended it on the universal-base
+    /// assumption; owner visual oracle on the rebuilt app proved
+    /// the engine NEVER dispatches Node_IconBase for socket cells.
+    /// CL-35 drops it and this gate prevents the regression.</summary>
+    [SkippableFact]
+    public void ParagonRenderLayout_socket_rows_have_no_phantom_layers()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+
+        var rl = d4.ReadParagonRenderLayout();
+        var scene = d4.ReadUiScene(657304);
+
+        // Build a per-widget handle index for scene 657304: which
+        // widgets bind each catalog-resolvable atlas handle.
+        var widgetsByHandle = new Dictionary<uint, List<string>>();
+        foreach (var w in scene.Widgets)
+        {
+            void Note(uint h)
+            {
+                if (!d4.IsParagonTextureHandle(h)) return;
+                if (!widgetsByHandle.TryGetValue(h, out var owners))
+                    widgetsByHandle[h] = owners = new List<string>();
+                owners.Add(w.Name);
+            }
+            foreach (var f in w.Fields)
+                if (f.HasValue) Note(f.RawValue);
+            foreach (var v in w.ExtraLayerValues) Note(v);
+        }
+
+        // Authorized widget set for socket.* states. The engine
+        // dispatches these widgets when rendering a socket cell;
+        // any layer in a socket row MUST be bound on one of these
+        // (anything else = phantom). Owner visual-oracle confirmed
+        // (CL-35).
+        var socketAuthorized = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "GlyphNodeGlow_Revealed",  // bead ring (unselected/selected)
+            "GlyphNodeGlow_Purchased", // bead ring (socketed)
+            "Usage_Slot_2",            // 0x58-block: outer disk + inner well + bead ring (the engine reuses these for the on-board render)
+        };
+
+        var phantoms = new List<string>();
+        foreach (var row in rl.States.Where(s => s.State.StartsWith("socket.", StringComparison.Ordinal)))
+        {
+            foreach (var layer in row.Layers)
+            {
+                if (!widgetsByHandle.TryGetValue(layer.TextureHandle, out var owners))
+                {
+                    phantoms.Add($"{row.State} 0x{layer.TextureHandle:X8} (no widget binds this handle in scene 657304)");
+                    continue;
+                }
+                if (!owners.Any(socketAuthorized.Contains))
+                    phantoms.Add(
+                        $"{row.State} 0x{layer.TextureHandle:X8} bound only on " +
+                        $"[{string.Join(",", owners.Distinct())}] — not in socket-authorized set");
+            }
+        }
+        Assert.True(phantoms.Count == 0,
+            "socket no-phantom gate: socket-row layers whose source " +
+            "widgets are not in the engine-dispatched socket set " +
+            "(FR-C12 R3 / CL-35): " + string.Join("; ", phantoms));
     }
 
     /// <summary>Board-chrome scene-bindedness gate (parity with the

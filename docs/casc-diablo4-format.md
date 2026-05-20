@@ -893,10 +893,10 @@ Per-rarity differentiation is **authored as art** in each rarity's
 colour) for Magic/Rare/Legendary, plus an ornate outer frame for
 Rare/Legendary. There is no shader tint on a shared neutral disc;
 `StateElements.Tint` stays `null` and the colour comes from the
-authored fills (§10.15). The §7.2 19-row state matrix maps to that
+authored fills (§10.15). The §7.2 21-row state matrix maps to that
 small set of authored elements (grey base disc + per-rarity fill +
-per-rarity ornate where applicable + socket pulse + the four overlay
-rows) — not 19 distinct baked layer-lists.
+per-rarity ornate where applicable + socket composite + the six
+overlay rows) — not 21 distinct baked layer-lists.
 
 ### 10.12 Start/gate composite — the 0x58-block binding (FR-C8, CL-23)
 
@@ -1042,9 +1042,10 @@ rows), and `NodeAvailableGlow` is surfaced as a new
 frame). **Cross-check answer:** `0x4A901508` is **not** a distinct
 rare ornate — it *was* `NodeAvailableGlow` mis-labelled; it is now its
 own selectable-state overlay, distinct from the true rare ornate
-`0xB71BD068`. The §7.2 matrix is **19 rows** (the 18 + the
-pre-publish-amended `overlay.availableGlow`; FR-C8 is unreleased so
-the contract is amendable — CL-25). Verified by
+`0xB71BD068`. The §7.2 matrix is **21 rows** (the 18 + the
+pre-publish-amended `overlay.availableGlow` (CL-25) +
+`overlay.locatedHighlight` + `overlay.equipGlow` (CL-34); FR-C8/C12
+is unreleased so the contract is amendable). Verified by
 `ReadParagonRenderLayout_decodes_proven_structure` (rare ⊇
 `0xB71BD068`, ∌ `0x4A901508`; `overlay.availableGlow` ⊇ `0x4A901508`).
 
@@ -1156,9 +1157,9 @@ authoritative native scale without a second catalog walk.
 | Rarity | Unselected layers (back → front) | Selected layers |
 |---|---|---|
 | 0 Common | `0x1D166DC7` (grey base disc, 154²) | `0x1D166DC7`, `0xD3051CCA` (`Node_Purchased`, 153² dark disc + perimeter ring composite) |
-| 2 Magic | `0x1D166DC7`, `0xFEC31E48` (blue interior fill, 135²) | `0x1D166DC7`, `0xFEC31E48`, `0x72C29402` (`Template_Node_Magic` selected, 154² blue disc + perimeter ring composite) |
+| 2 Magic | `0x1D166DC7`, `0x621CB6FF` (magic base composite, 153²), `0xFEC31E48` (blue interior fill, 135²) | `0x1D166DC7`, `0x621CB6FF`, `0xFEC31E48`, `0x72C29402` (`Template_Node_Magic` selected, 154² blue disc + perimeter ring composite) |
 | 3 Rare | `0x1D166DC7`, `0xF8373491` (interior fill, 135²), `0xB71BD068` (yellow ornate frame, 154²) | `0x1D166DC7`, `0xF8373491`, `0x03EDABAB` (`Template_Node_Rare` selected, 153² yellow ornate + perimeter ring composite) |
-| 4 Legendary | `0x1D166DC7`, `0x006ED182` (interior fill, 136²), `0x232DF7F9` (orange spike ornate, 189²) | `0x1D166DC7`, `0x006ED182`, `0xBD27FB7C` (`Template_Node_Legendary` selected, 189² orange ornate + perimeter ring composite) |
+| 4 Legendary | `0x1D166DC7`, `0x006ED182` (interior fill, 136²), `0x232DF7F9` (orange spike ornate, 189²), `0xCC3E3B25` (class-specific 135² in `2DUI_ParagonNodesIcons_Rogue`) | `0x1D166DC7`, `0x006ED182`, `0xBD27FB7C` (`Template_Node_Legendary` selected, 189² orange ornate + perimeter ring composite), `0xCC3E3B25` |
 
 For Magic/Rare/Legendary the selected-state composite **replaces**
 the unselected variant in the trailing layer slot — the perimeter
@@ -1305,21 +1306,44 @@ with the §10.15 per-rarity table. Surfaced via `States` rows with
 
 | State | Layers (back → front) | Source |
 |---|---|---|
-| `socket.unselected` | `Node_IconBase` `0x1D166DC7` + `GlyphNodeGlow_Revealed` `0xBED4CF21` (pulse ring) | scene-bound |
-| `socket.selected` | `Node_IconBase` `0x1D166DC7` | scene-bound |
-| `socket.socketed` | `Node_IconBase` `0x1D166DC7` + per-node glyph image (`HIconMask`) | scene-bound; glyph from `ParagonNodeDefinition` |
+| `socket.unselected` / `socket.selected` | ornate outer disk `0xF6443089` (135²) + red bead ring `0xBED4CF21` (135²) + inner spike-frame `0x23F487F3` (136²) | scene-bound — outer disk + inner well on `Usage_Slot_2`'s 0x58-block; bead ring on `GlyphNodeGlow_Revealed`'s texture-handle field (the engine reuses the same atlas frames for both the side-panel and the on-board per-node render). The socket-class node has its OWN ornate outer disk and does NOT composite the shared per-rarity grey-base `0x1D166DC7` — the engine's state dispatch for socket cells never references `Node_IconBase`. |
+| `socket.socketed` | outer disk `0xF6443089` + `GlyphNodeGlow_Purchased` `0xBED4CF21` (per-state bead-ring binding) + per-node glyph image (`HIconMask`, seats in the inner spike-frame's center depression) | scene-bound; glyph from `ParagonNodeDefinition`. Per-state variation (whether the inner spike-frame `0x23F487F3` stays on socketed, whether the bead-ring pulse animation stops) is not yet decoded — `needs:owner` for the next visual oracle. |
+| `overlay.locatedHighlight` | `Node_Located` `0x87A89F86` (135²) | scene-bound via the 0x58-block |
+| `overlay.equipGlow` | `Node_EquipGlow` `0xFC806F42` (91×90) | scene-bound via the 0x58-block |
 | `start.unselected` / `start.selected` | `Template_Node_Starter` 0x58 block: filigree `0xA0F996FE` + grey hexagon `0xF8312CA8` | scene-bound; selected variant authored as same handles (no visual change) |
 | `gate.unselected` / `gate.selected` | `Template_Node_Quest` 0x58 block: filigree `0xA0F996FE` + ornate-squares `0xC2DF4786` / `0x0E6B6249` | scene-bound; CL-23 mapped `0xC2DF4786 → selected`, `0x0E6B6249 → unselected` from visual inspection (state-flag bytes in the 0x58 block not RE'd — re-verify on owner visual oracle if a state-specific render is required) |
 
-`GlyphNodeGlow_Revealed` is the **complete** scene-bound socket ring
-(handle `0xBED4CF21`, atlas frame 135² with the perimeter-bead
-decorations baked into the texture itself — no additional scene
-widget binds extra glyph-socket perimeter art in scene 657304; the
-icon-catalog-filter pattern that dropped board-rim sides in CL-32
-does not apply here because `0xBED4CF21` is catalog-resolvable and
-already surfaced). If the consumer's rendered socket ring is missing
-beads, the issue is on the consumer composite side (crop, scale, or
-alpha), not a CASC decode gap. Honest CL-28-grade report.
+The socket recipe is verified by owner game-vs-app visual oracle on
+the rebuilt app + CASC's own frame extraction
+(`e:/tmp/scene-probe/socket-composite-stack.png` cross-checked against
+owner atlas-frame oracle): the inner spike-frame `0x23F487F3` has a
+center depression sized to seat a glyph icon, the red glowing bead
+ring `0xBED4CF21` provides the pulsing animation layer, and the
+ornate outer disk `0xF6443089` provides the socket-specific frame.
+The engine's state dispatch for socket cells does NOT composite
+`Node_IconBase` `0x1D166DC7` (the shared per-rarity grey-base would
+project ~9.5 px beyond the ornate disk's silhouette as a thin grey
+ring — the game never renders that on a socket in any state). Scene
+657304 binds the three socket-specific handles on `Usage_Slot_2`
+(the right-side equipped-glyph panel widget): the engine composites
+the same atlas frames in two contexts. No additional widget in scene
+657304 binds further socket-composite art under any widget name,
+field type, or binding shape (the FR-C12 R2 broad probe is
+exhaustive). The dispatch boundary is enforced by the row no-phantom
+gate (CL-35) — see below.
+
+**Row no-phantom gate (FR-C12 R3 / CL-35).**
+`ParagonRenderLayout_socket_rows_have_no_phantom_layers` asserts
+every layer in a `socket.*` row is bound on a widget the engine
+actually dispatches for socket cells — the authorized set is
+`{GlyphNodeGlow_Revealed, GlyphNodeGlow_Purchased, Usage_Slot_2}`.
+A layer bound only on `Node_IconBase` (the per-rarity grey-base) or
+any other non-socket-class widget would FAIL the gate as a phantom.
+This is the dual of the row-completeness gate
+(`ParagonRenderLayout_row_layers_cover_every_scene_bound_row_widget_handle`,
+CL-34) which asserts no scene-bound row-widget handle is missing
+from any row: completeness catches drops; no-phantom catches
+fabrications/contamination. Both run at CI time on a real D4 install.
 
 **Selected-node red ring re-verify (FR-C12 §2).** No change from
 CL-30: the selected-state red ring is part of each per-rarity
@@ -1678,8 +1702,10 @@ true value (the sections above already state the corrected truth).
   `0xB71BD068`. Shipped: r3/r4 now carry `disc` + their template's own
   catalog-validated ornate (`0x4A901508` removed from the baked rows);
   new **`overlay.availableGlow`** State (handle + Rect, one perimeter
-  frame) ⇒ §7.2 matrix = **19 rows** (pre-publish contract amendment;
-  FR-C8 unreleased). Cross-check: `0x4A901508` is **not** a distinct
+  frame) ⇒ §7.2 matrix = **21 rows** (later FR-C12 R2 / CL-34 added
+  `overlay.locatedHighlight` + `overlay.equipGlow` — pre-publish
+  contract amendments; FR-C8/C12 unreleased). Cross-check:
+  `0x4A901508` is **not** a distinct
   rare ornate — it was the mis-labelled glow, now its own row, distinct
   from `0xB71BD068`. Asserted by
   `ReadParagonRenderLayout_decodes_proven_structure`.
@@ -1807,6 +1833,76 @@ true value (the sections above already state the corrected truth).
   `ReadParagonBoardChrome_layers_are_scene_bound` extends to assert
   the 4 rim-side handles against the raw scene-657304 widget data
   (the icon-catalog-filtered `Scenes` view doesn't see them).
+
+- **CL-35 — socket-row phantom-layer correction + row no-phantom
+  gate (FR-C12 R3).** §10.17. CL-34's socket rows incorrectly
+  prepended the shared per-rarity grey-base disc `0x1D166DC7` on
+  the (false) assumption it was universal across node classes.
+  Owner visual-oracle on the rebuilt app proved the engine NEVER
+  composites `Node_IconBase` for socket cells in any state — the
+  154² grey base would project a ~9.5 px ring beyond the 135² ornate
+  disk's silhouette, and that ring is absent in-game. Dropped from
+  all three `socket.*` rows. The corrected socket recipe is the
+  three game-visible layers only: `outerDisk → beadRing → innerWell`.
+  Per-state variations (whether the bead-ring pulse stays on
+  selected, whether socketed adds visible glyph art at the inner
+  well, whether the inner-well frame stays on socketed) remain
+  `needs:owner` for the next visual oracle. New gate
+  `ParagonRenderLayout_socket_rows_have_no_phantom_layers` asserts
+  every layer in a `socket.*` row is bound on a widget in the
+  socket-authorized widget set (`GlyphNodeGlow_Revealed` /
+  `GlyphNodeGlow_Purchased` / `Usage_Slot_2`) — anything else is a
+  phantom and FAILS at CI time. This is the dual of CL-34's
+  row-completeness gate: completeness catches drops, no-phantom
+  catches fabrications/contamination. The "follow the recipe"
+  directive (consumer-side `feedback_follow-full-game-recipe`) is
+  thereby sharpened: *the* recipe is what the engine actually
+  composites, not a §7.2 row that includes layers the engine
+  doesn't dispatch.
+
+- **CL-34 — special-node socket composite + row-completeness gate
+  (FR-C12 R2).** §10.17 + §7.2. CL-33 §1's "the bead ring is
+  the complete socket scene-bound art" stands for the bead-ring axis
+  but **missed the larger composite**: the on-board per-node socket
+  uses three concentric atlas frames in `2DUI_Paragon_transparentElements`
+  scene-bound on the `Usage_Slot_2` side-panel widget's 0x58-block
+  plus `GlyphNodeGlow_Revealed`'s standard texture-handle field — the
+  engine reuses the same atlas frames for both contexts. Back→front
+  per owner atlas-frame oracle + CASC's own frame extraction:
+  `0xF6443089` (135² ornate outer disk with center opening) →
+  `0xBED4CF21` (135² red glowing bead ring — the pulsing animation
+  layer) → `0x23F487F3` (136² inner spike-frame with center
+  depression where the per-node `HIconMask` glyph icon seats). Plus
+  the shared per-node grey-base `0x1D166DC7` behind all three. The
+  narrow CL-33 §1 probe filtered widget names by
+  `Glyph/Socket/Ring/Pulse` and missed the outer disk + inner
+  spike-frame because their binding widget (`Usage_Slot_2`) doesn't
+  match those tokens — the CL-31→32 lesson applied to the socket
+  axis. Also surfaced two state-overlay widgets the prior probe
+  missed: `Node_Located` `0x87A89F86` (135²) → new row
+  `overlay.locatedHighlight`; `Node_EquipGlow` `0xFC806F42`
+  (91×90) → new row `overlay.equipGlow`. Per-rarity row gaps
+  (parallel R2-class finding from the same broad probe):
+  `Template_Node_Magic` 0x58 binds `0x621CB6FF` (153² magic base
+  composite previously dropped); `Template_Node_Legendary` 0x58
+  binds `0xCC3E3B25` (135² in `2DUI_ParagonNodesIcons_Rogue` — the
+  **first class-specific atlas surfaced in §10.15**). Both added to
+  their respective `RarityComposite()` rows. **Per-state variations
+  between socket.unselected/.selected/.socketed** (e.g. whether the
+  bead-ring pulse stays on selected, whether the glyph icon swaps in
+  at the inner well on socketed) are not yet decoded — left as
+  `needs:owner` per the next visual oracle. The §7.2 matrix grew
+  19 → 21 rows; FR-C8/C12 is unreleased so the contract is amendable
+  (pre-publish, per CL-25 precedent). New gate
+  `ParagonRenderLayout_row_layers_cover_every_scene_bound_row_widget_handle`
+  asserts the REVERSE direction of the per-rarity / special-node
+  scene-bind gates: every scene-bound handle on a row-bearing widget
+  in scene 657304 must appear in some row (CL-32 row-completeness
+  parity, applied per-row). This catches the exact gap CL-34 §1 fixed
+  (a row that omits a scene-bound layer) on future rounds. CASC's
+  own frame extraction artifact (`socket-composite-stack.png` in
+  `e:/tmp/scene-probe`) is the cross-verification of the recipe
+  against owner's atlas-frame oracle.
 
 - **CL-33 — per-node-cell background + special-node addendum (FR-C11
   R3 §2/§3, FR-C12 §1/§2/§3/§4).** §10.17. Added

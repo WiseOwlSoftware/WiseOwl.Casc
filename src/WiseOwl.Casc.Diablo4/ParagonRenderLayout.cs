@@ -336,8 +336,65 @@ internal static class ParagonRenderProjection
             return new NodeElement(handle, Rect(x), alpha, sno, fw, fh);
         }
 
-        var disc   = Elem("Node_IconBase");        // 0x1D166DC7
-        var pulse  = Elem("GlyphNodeGlow_Revealed"); // 0xBED4CF21 (socket)
+        var disc   = Elem("Node_IconBase");          // 0x1D166DC7
+        var pulse  = Elem("GlyphNodeGlow_Revealed"); // 0xBED4CF21 (socket bead ring — unselected/revealed)
+        var pulseSocketed = Elem("GlyphNodeGlow_Purchased"); // 0xBED4CF21 (same handle, scene-bound under the socketed-state widget — FR-C12 R2)
+        // FR-C12 R2: Node_Located and Node_EquipGlow bind their atlas
+        // handles via the 0x58-block shape (ExtraLayerValues), NOT via
+        // a 0x22 texture-handle field — Elem() returns default for
+        // them. LayersOf() enumerates the 0x58 block.
+        var locatedLayers   = LayersOf("Node_Located");    // 0x87A89F86
+        var equipGlowLayers = LayersOf("Node_EquipGlow");  // 0xFC806F42
+
+        // FR-C12 R2 owner correction (atlas-frame visual oracle): the
+        // on-board per-node SOCKET composite uses three atlas handles
+        // bound on Usage_Slot_2 (the right-side equipped-glyph panel
+        // widget) — the engine reuses the same atlas frames for both
+        // contexts. Per owner inspection of the atlas frames in
+        // 2DUI_Paragon_transparentElements, plus CASC's own frame
+        // extraction (FR-C12 R2 socket-composite-stack.png), the
+        // back-to-front ordering is:
+        //   0xF6443089 (135² ornate outer socket disk — black frame
+        //                with red gem inset, center opening)
+        //   0xBED4CF21 (135² red glowing bead ring — the "pulsing"
+        //                animation layer; already surfaced via
+        //                GlyphNodeGlow_Revealed's field binding)
+        //   0x23F487F3 (136² inner spike-frame with center depression
+        //                where the per-node HIconMask glyph icon sits)
+        // The narrow CL-33 §1 probe filtered widget names by
+        // Glyph/Socket/Ring/Pulse and missed the outer disk + inner
+        // spike-frame because their binding widget (Usage_Slot_2)
+        // doesn't match those tokens — CL-31→32 lesson applied to the
+        // socket axis.
+        const uint SocketOuterDisk = 0xF6443089u;
+        const uint SocketInnerWell = 0x23F487F3u;
+
+        // Resolve these handles from any scene 657304 widget that binds
+        // them (Usage_Slot_2's 0x58 block) — the layer is a pure atlas
+        // reference; no per-node rect is authored (the on-board socket
+        // composites at the disc anchor, like the rarity-base layer).
+        NodeElement LayerByHandle(uint handle)
+        {
+            if (handle == 0) return default;
+            foreach (var w in scene.Widgets)
+            {
+                foreach (var f in w.Fields)
+                    if (f.HasValue && f.RawValue == handle)
+                    {
+                        var (sno, fw, fh) = Frame(handle);
+                        return new NodeElement(handle, default, 0xFF, sno, fw, fh);
+                    }
+                foreach (var v in w.ExtraLayerValues)
+                    if (v == handle)
+                    {
+                        var (sno, fw, fh) = Frame(handle);
+                        return new NodeElement(handle, default, 0xFF, sno, fw, fh);
+                    }
+            }
+            return default;
+        }
+        var socketOuterDisk = LayerByHandle(SocketOuterDisk);
+        var socketInnerWell = LayerByHandle(SocketInnerWell);
 
         static NodeElement[] L(params NodeElement[] xs) =>
             xs.Where(e => e.TextureHandle != 0).ToArray();
@@ -353,12 +410,14 @@ internal static class ParagonRenderProjection
         // Magic (FR-C10 R1) and the FR-C10 R2 root-cause analysis.
         const uint MagicInteriorFill   = 0xFEC31E48u; // 135² blue interior — owner-confirmed
         const uint MagicSelComposite   = 0x72C29402u; // 154² blue disc + perimeter ring composite (Template_Node_Magic 0x58 block)
+        const uint MagicBaseComposite  = 0x621CB6FFu; // 153² (FR-C12 R2) Template_Node_Magic 0x58 first layer — magic-unselected disc-composite previously missed
         const uint RareInteriorFill    = 0xF8373491u; // 135² rare interior
         const uint RareOrnateUnsel     = 0xB71BD068u; // 154² yellow ornate frame
         const uint RareOrnateSel       = 0x03EDABABu; // 153² yellow ornate + perimeter ring composite
         const uint LegInteriorFill     = 0x006ED182u; // 136² legendary interior
         const uint LegOrnateUnsel      = 0x232DF7F9u; // 189² orange spike ornate frame
         const uint LegOrnateSel        = 0xBD27FB7Cu; // 189² orange spike ornate + perimeter ring composite
+        const uint LegClassOverlay     = 0xCC3E3B25u; // 135² (FR-C12 R2) Template_Node_Legendary 0x58 layer in 2DUI_ParagonNodesIcons_Rogue — class-specific paragon node overlay (the first class-specific atlas surfaced in §10.15)
 
         NodeElement Layer(uint handle)
         {
@@ -395,6 +454,8 @@ internal static class ParagonRenderProjection
                         layers.Add(purchased);
                     break;
                 case 2: // Magic — base + blue interior; selected adds Template_Node_Magic's 0x72C29402 composite (blue disc + perimeter ring).
+                    if (magicBlockHandles.Contains(MagicBaseComposite))
+                        layers.Add(Layer(MagicBaseComposite));   // FR-C12 R2 — 153² magic base composite previously missed
                     if (magicBlockHandles.Contains(MagicInteriorFill))
                         layers.Add(Layer(MagicInteriorFill));
                     if (selected && magicBlockHandles.Contains(MagicSelComposite))
@@ -413,12 +474,14 @@ internal static class ParagonRenderProjection
                     var legOrnate = selected ? LegOrnateSel : LegOrnateUnsel;
                     if (legBlockHandles.Contains(legOrnate))
                         layers.Add(Layer(legOrnate));
+                    if (legBlockHandles.Contains(LegClassOverlay))
+                        layers.Add(Layer(LegClassOverlay));     // FR-C12 R2 — 135² class-specific layer in 2DUI_ParagonNodesIcons_Rogue (first class-specific atlas surfaced in §10.15)
                     break;
             }
             return layers.ToArray();
         }
 
-        var states = new List<StateElements>(19);
+        var states = new List<StateElements>(21);
 
         // Rows 1–8: rarity {0,2,3,4} × {unselected,selected}. Recipe
         // per §10.15: grey-base + (rarity-specific interior fill if
@@ -435,16 +498,43 @@ internal static class ParagonRenderProjection
                     L(RarityComposite(rar, sel)),
                     Tint: null, LitTint: null, Animation: null));
 
-        // Rows 9–11: socket. Pulse present when unselected; dropped on
-        // selected; socketed = selected + (glyph image, not separately
-        // bound here). AnimSpec left null until the pulse params are
-        // decoded (no fabricated anim).
+        // Rows 9–11: socket (FR-C12 R3 — game-recipe corrected). The
+        // socket-class node has its OWN ornate outer disk and does NOT
+        // composite the shared per-rarity grey-base 0x1D166DC7 — the
+        // engine's state dispatch for socket cells never references
+        // Node_IconBase (owner visual oracle on the rebuilt app: the
+        // grey base would project ~9.5px beyond the ornate disk's
+        // silhouette as a thin grey ring, which the game NEVER renders
+        // on a socket in any state). FR-C12 R2 INCORRECTLY prepended
+        // disc on the assumption it was universal; CL-35 drops it from
+        // the socket rows.
+        //
+        // The on-board socket composite is exactly three layers
+        // (back→front): F6443089 (ornate outer disk) → BED4CF21 (red
+        // glowing bead ring — the pulsing animation layer) → 23F487F3
+        // (inner spike-frame with center depression — the per-node
+        // HIconMask glyph icon seats here). All three are scene-bound
+        // (outer disk + inner well on Usage_Slot_2's 0x58-block; bead
+        // ring on GlyphNodeGlow_Revealed for unselected/selected and
+        // GlyphNodeGlow_Purchased for socketed — the engine reuses the
+        // same atlas frames for the side-panel equipped-glyph display
+        // and the on-board per-node render).
+        //
+        // Per-state variations between unselected/selected/socketed
+        // (whether the bead-ring pulse animation stays on selected,
+        // whether socketed adds visible glyph art at the inner well)
+        // are not yet decoded — the LIBRARY surfaces the decode-true
+        // scene-bound LAYER INVENTORY for each state; per-state pulse-
+        // on/off refinement awaits the next visual oracle.
         states.Add(new StateElements(-1, "socket.unselected",
-            L(disc, pulse), null, null, Animation: null));
+            L(socketOuterDisk, pulse, socketInnerWell),
+            null, null, Animation: null));
         states.Add(new StateElements(-1, "socket.selected",
-            L(disc), null, null, null));
+            L(socketOuterDisk, pulse, socketInnerWell),
+            null, null, null));
         states.Add(new StateElements(-1, "socket.socketed",
-            L(disc), null, null, null));
+            L(socketOuterDisk, pulseSocketed),
+            null, null, null));
 
         // Rows 12–15: gate / start. CORRECTION (FR-C8, CL-23): the
         // FR-C7-era "no distinct gate/start texture is bound" was wrong —
@@ -508,6 +598,24 @@ internal static class ParagonRenderProjection
         // mis-labelled as the r3/r4 "ornate"; it is a selectable-STATE
         // overlay, not a rarity decoration — now its own row, distinct
         // from the genuine Rare/Legendary ornate (rareL/legL above).
+        // Rows 20–21 (FR-C12 R2): two state overlays surfaced by the
+        // broad scene-657304 probe that the prior narrow widget-name
+        // filter (Glyph/Socket/Ring/Pulse) missed.
+        // - overlay.locatedHighlight: Node_Located (0x87A89F86, 135²) —
+        //   bound on a Node_*-named widget without socket/ring tokens.
+        //   In-game role TBD (likely a "node located / search-result-
+        //   adjacent" highlight applied on top of the per-rarity
+        //   composite); surfaced honestly so the consumer can audit and
+        //   the row-completeness gate keeps it covered.
+        // - overlay.equipGlow: Node_EquipGlow (0xFC806F42, 91×90) — a
+        //   smaller node-state overlay; in-game role likely the
+        //   equipped-glyph indicator drawn over socketed nodes. Same
+        //   honest decode discipline.
+        states.Add(new StateElements(-1, "overlay.locatedHighlight",
+            locatedLayers, null, null, null));
+        states.Add(new StateElements(-1, "overlay.equipGlow",
+            equipGlowLayers, null, null, null));
+
         states.Add(new StateElements(-1, "overlay.availableGlow",
             Overlay("NodeAvailableGlow"), null, null, null));
 
