@@ -1389,13 +1389,72 @@ CL-18 relies on, now exposed typed). Surface:
 ### 11.2 `PowerDefinition` (group 29, `.pow`)
 
 Identity (`snoId@0`) + localized `Name`/`Description` from the §6.7
-sibling table `Power_<snoName>`, labels `name`/`desc`. The power's
-gameplay record (≈6 KB) is **not** decoded — consumer domain. (Note:
-an inline `szName` exists at payload `+8` for *some* powers but is
-absent for many — e.g. `CAMP_*` — so the sibling table is the reliable
-name source, not that offset.) Anchor: power `2521393` →
-`name` `Fathomless`. Surface: `Diablo4Storage.ReadPower(int, locale)`.
-CL-22.
+sibling table `Power_<snoName>`, labels `name`/`desc` + the
+**Script Formula slot table** (FR-C13 Phase 1, CL-37). The power's
+deeper gameplay record (≈6 KB of buffs / payloads / mods) stays
+consumer domain. (Note: an inline `szName` exists at payload `+8`
+for *some* powers but is absent for many — e.g. `CAMP_*` — so the
+sibling table is the reliable name source, not that offset.)
+Anchor: power `2521393` → `name` `Fathomless`. Surface:
+`Diablo4Storage.ReadPower(int, locale)`. CL-22.
+
+**Script Formula slot table (FR-C13 Phase 1).** Powers using the
+`DT_STRING_FORMULA` mechanism (every legendary node passive, plus
+many active skills and structural powers) carry a tail-data array
+of positional slot records that the engine resolves through
+`[SF_<i>n</i>...]` placeholders in the localized `Description`
+format string. CASC surfaces this table as
+`PowerDefinition.ScriptFormulas` — an `IReadOnlyList<PowerScriptFormula>`
+where each entry's `Index` matches the format-string SF_N indices
+verbatim, `Text` is the literal text form of the formula
+(`"0.02"` for trivial numeric literals, `"SF_1 / 3"` for arithmetic
+expressions on other slots), and `LiteralValue` is the IEEE-754
+single-precision scalar for trivial-numeric slots (Phase 1 surface).
+
+The decoder walks the blob backward from the terminator record
+`("0", 0.0)` to collect the slot table, then strips the universal
+trailing `("10", 10.0)` sentinel (engine max-rank marker). The
+storage is positional vs the engine's SF_N indices — same as the
+format-string placeholders. Some powers' formats skip SF_N indices
+(Dynamism uses `SF_0`/`SF_2`/`SF_3`, skipping `SF_1`); the
+positional slot table still has the corresponding entry at the
+skipped index — the value just isn't referenced by the format
+string.
+
+Phase 1 lifts Layout-A records (3-character ASCII chunks like
+`".15"`/`"4.5"`/`"60"`/`"10"`, followed by type tag `0x06`, then
+the float). Layout-B and Layout-C records (4-character ASCII chunks
+like `"0.75"`/`"0.02"` and pad-prefixed records like Demonic
+Spicules's `"60"` Layout-C entry) plus expression-text records
+(Demonic Spicules's `"SF_1 / 3"` for SF_2 = SF_1/3 = 20) are
+deferred to Phase 2's expression evaluator. The library surfaces
+`empty list` rather than fabricating a partial table when the
+Layout-A walk fails — honest decode discipline (parallel to the
+FR-C9 no-fabrication gates on the paragon-render side).
+
+Phase 1 anchors (6 of 9 Warlock legendaries fully decoded; 3
+deferred to Phase 2):
+
+| Power | SNO | Stored slot table | Source |
+|---|---|---|---|
+| Pyrosis    | 2527268 | `[4.5]` | Phase 1 ✓ |
+| Fathomless | 2521393 | `[0.15, 7, 6]` | Phase 1 ✓ |
+| Overmind   | 2524552 | `[0.45, 0.65]` (IEEE-754 round-to-nearest = `0.45000002`, `0.65000004`) | Phase 1 ✓ |
+| Ritualism  | 2526168 | `[0.9, 9, 15]` | Phase 1 ✓ |
+| Chaos      | 2527294 | `[1.0, 2, 1]` | Phase 1 ✓ |
+| Dynamism   | 2524312 | `[0.03, 1.0, 1.0, 2.0]` (SF_1 unused in format) | Phase 1 ✓ |
+| Greater Hex | 2527280 | `[0.75, 0.25]` | Phase 2 (Layout B) |
+| Dominion   | 2524673 | `[0.8, 0.5, 12]` | Phase 1 ✓ |
+| Demonic Spicules | 2525006 | `[0.02, 60, (SF_1/3 → 20)]` | Phase 2 (Layout C + expression) |
+
+Acceptance gate:
+`PowerDefinition_decodes_script_formulas_for_anchored_legendaries`
+asserts the slot tables for the 6 Phase-1-complete powers, plus a
+no-crash sweep
+`PowerDefinition_decodes_script_formulas_for_all_legendaries_no_crash`
+exercises every legendary node power across the 8 classes (72
+powers) — no decode-time exceptions on any blob, even when the
+table is empty for layout-deferred powers.
 
 ### 11.3 `AffixDefinition` (group 104, `.aff`)
 
@@ -1833,6 +1892,31 @@ true value (the sections above already state the corrected truth).
   `ReadParagonBoardChrome_layers_are_scene_bound` extends to assert
   the 4 rim-side handles against the raw scene-657304 widget data
   (the icon-catalog-filtered `Scenes` view doesn't see them).
+
+- **CL-37 — Power Script Formula slot table — Phase 1 (FR-C13 R3,
+  Phase 1).** §11.2. Surfaces `PowerDefinition.ScriptFormulas` —
+  the positional slot table the engine resolves through
+  `[SF_<i>n</i>...]` placeholders in localized `Description`
+  format strings. Phase 1 lifts the Layout-A records (3-character
+  ASCII text + type tag `0x06` + IEEE-754 float + zero pad in a
+  16-byte block) by walking the blob backward from the universal
+  `("0", 0.0)` terminator and stripping the universal `("10", 10.0)`
+  sentinel. Anchored against 6 of 9 Warlock legendaries (Pyrosis,
+  Fathomless, Overmind, Ritualism, Chaos, Dynamism, Dominion);
+  Greater Hex and Demonic Spicules deferred to Phase 2 (Layout-B
+  records with 4-character ASCII chunks + Layout-C records with
+  pad-prefixed ASCII + the expression-text records like Demonic
+  Spicules's `"SF_1 / 3"` for SF_2 = 60/3 = 20). No-crash sweep
+  across all 72 legendary powers (8 classes × ~9 each) passes —
+  the decoder returns empty for Layout-deferred powers rather than
+  fabricating (honest sentinel, parallel to the FR-C9 no-fabrication
+  paragon-render gates). Phase 2 will lift the format-string
+  expression evaluator (consumer-side currently) into the library
+  and surface `IReadOnlyDictionary<string, double>` resolved
+  `{SF_N → value}` map; Phase 3 will decode the binary Compiled-form
+  AST (per d4parse `DT_STRING_FORMULA.CompiledOffset/Size` model)
+  for engine-truth cross-validation. CL-37 + Phases 2/3 jointly
+  deliver the FR-C13 R3 option (b-parsed) API shape.
 
 - **CL-35 — socket-row phantom-layer correction + row no-phantom
   gate (FR-C12 R3).** §10.17. CL-34's socket rows incorrectly

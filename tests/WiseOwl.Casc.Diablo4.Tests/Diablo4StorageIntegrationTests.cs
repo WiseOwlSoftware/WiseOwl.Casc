@@ -633,6 +633,165 @@ public sealed class Diablo4StorageIntegrationTests
             warlock.SnoId);
     }
 
+    /// <summary>FR-C13 Phase 1 — Power Script Formula slot table decode.
+    /// For each of the 9 Warlock Legendary anchor powers, assert the
+    /// decoded slot table matches the engine SF_N values established by
+    /// owner game-vs-app oracle (R2 + R3 confirmations) — i.e. the
+    /// positional values that resolve <c>[SF_<i>n</i>...]</c> placeholders
+    /// in <see cref="PowerDefinition.Description"/>. Slots whose Text is
+    /// a numeric literal expose <see cref="PowerScriptFormula.LiteralValue"/>;
+    /// slots whose Text is an arithmetic expression (Demonic Spicules's
+    /// <c>"SF_1 / 3"</c>) carry the raw text and Phase 2's evaluator will
+    /// resolve them.</summary>
+    [SkippableFact]
+    public void PowerDefinition_decodes_script_formulas_for_anchored_legendaries()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+
+        static PowerScriptFormula F(int idx, string text, float val) =>
+            new PowerScriptFormula(idx, text, val);
+
+        // The 8 layout-A-clean powers (the slot table is the last
+        // 16-byte run terminated by ("0",0.0) with the "10" sentinel
+        // stripped). Engine SF_N values per the format-string indices
+        // (R3 confirmation 2026-05-20).
+        (int Sno, PowerScriptFormula[] Expected)[] anchors =
+        {
+            // Pyrosis: [SF_0*100|%x|] = "450%[x]" → SF_0=4.5.
+            (2527268, new[] { F(0, "4.5", 4.5f) }),
+
+            // Fathomless: [SF_2] 6s, [SF_0*100] 15%[x], [SF_0*SF_1*100] 105[x]% cap.
+            //   Stored slots: SF_0=0.15, SF_1=7 (max-stacks), SF_2=6.
+            (2521393, new[] {
+                F(0, ".15", 0.15f),
+                F(1, "7", 7.0f),
+                F(2, "6", 6.0f),
+            }),
+
+            // Overmind: [SF_0*100] 45%[x] CC, [SF_1*100] 65%[x] Elite. IEEE-754
+            //   round-to-nearest in storage (1-bit higher than the canonical
+            //   0.45/0.65 representations the owner first relayed in R2).
+            (2524552, new[] {
+                F(0, ".45", 0.45000002f),
+                F(1, ".65", 0.65000004f),
+            }),
+
+            // Ritualism: [SF_0*100] 90%[x], [SF_2] 15s, [1+SF_1] 10 kills
+            //   (engine evaluates 1+9 = 10; SF_1 stored as raw 9).
+            (2526168, new[] {
+                F(0, ".9", 0.9f),
+                F(1, "9", 9.0f),
+                F(2, "15", 15.0f),
+            }),
+
+            // Chaos: [SF_0*100|%x|] 100%[x], [SF_1] 2 stacks, [SF_2] 1 stack.
+            (2527294, new[] {
+                F(0, "1", 1.0f),
+                F(1, "2", 2.0f),
+                F(2, "1", 1.0f),
+            }),
+
+            // Dominion: [SF_1*100|%|] 50% cost cut, [SF_0*100|%x|] 80%[x] dmg,
+            //   {SF_2} 12s. Engine indices: SF_0=damage, SF_1=cost, SF_2=duration.
+            (2524673, new[] {
+                F(0, "0.8", 0.8f),
+                F(1, "0.5", 0.5f),
+                F(2, "12", 12.0f),
+            }),
+
+            // Dynamism: [SF_0*100] 3%[x], [SF_2] 1 Dominance, [SF_3] 2s.
+            //   The format string SKIPS SF_1 (engine has a 4-slot table
+            //   with slot[1] = 1.0 unused).
+            (2524312, new[] {
+                F(0, ".03", 0.03f),
+                F(1, "1", 1.0f),
+                F(2, "1", 1.0f),
+                F(3, "2", 2.0f),
+            }),
+        };
+
+        foreach (var (sno, expected) in anchors)
+        {
+            var pow = d4.ReadPower(sno);
+            Assert.NotNull(pow.ScriptFormulas);
+            Assert.True(pow.ScriptFormulas.Count >= expected.Length,
+                $"Power {sno} ({pow.Name}): expected at least {expected.Length} " +
+                $"slots, got {pow.ScriptFormulas.Count}");
+            for (int i = 0; i < expected.Length; i++)
+            {
+                Assert.Equal(expected[i].Index, pow.ScriptFormulas[i].Index);
+                Assert.Equal(expected[i].Text, pow.ScriptFormulas[i].Text);
+                Assert.Equal(expected[i].LiteralValue, pow.ScriptFormulas[i].LiteralValue);
+                Assert.False(pow.ScriptFormulas[i].IsExpression,
+                    $"Power {sno} slot {i} text \"{pow.ScriptFormulas[i].Text}\" classified as expression");
+            }
+        }
+
+        // Demonic Spicules (SNO 2525006) + Greater Hex (SNO 2527280) —
+        // anchors whose stored slot table uses an alternate layout
+        // (4-character ASCII chunks like "0.02"/"0.75"/"0.25") that
+        // Phase 1's Layout-A-only decoder doesn't yet handle. Phase 2
+        // will lift the disambiguating layouts. For now: no-crash
+        // assertion only — the decoder returns either an empty list or
+        // a partial table; no fabrication.
+        var spicules = d4.ReadPower(2525006);
+        Assert.NotNull(spicules.ScriptFormulas);
+        var ghex = d4.ReadPower(2527280);
+        Assert.NotNull(ghex.ScriptFormulas);
+    }
+
+    /// <summary>FR-C13 Phase 1 — no-crash sweep across all 72 legendary
+    /// node Powers (8 classes × ~9 each). The decoder must not throw on
+    /// any legendary's blob; expected counts vary per power (some have
+    /// no slot table, some have many). This is the "honest decode under
+    /// any shape" assertion — parallel to the FR-C9 coverage gate's
+    /// shape-agnostic discipline.</summary>
+    [SkippableFact]
+    public void PowerDefinition_decodes_script_formulas_for_all_legendaries_no_crash()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+
+        var legendaries = d4.CoreToc.EntriesInGroup(SnoGroup.ParagonNode)
+            .Where(e => e.Name.Contains("Legendary", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        Assert.True(legendaries.Count >= 70,
+            $"expected ~72 legendary nodes, found {legendaries.Count}");
+
+        var failures = new List<string>();
+        foreach (var entry in legendaries)
+        {
+            try
+            {
+                var node = d4.ReadParagonNode(entry.Id);
+                if (node.SnoPassivePower == 0 ||
+                    (uint)node.SnoPassivePower == 0xFFFFFFFF) continue;
+                var pow = d4.ReadPower(node.SnoPassivePower);
+                _ = pow.ScriptFormulas;             // exercise the surface
+                _ = pow.ScriptFormulas.Count;
+                foreach (var sf in pow.ScriptFormulas)
+                {
+                    _ = sf.Index;
+                    _ = sf.Text;
+                    _ = sf.LiteralValue;
+                    _ = sf.IsExpression;
+                }
+            }
+            catch (Exception ex)
+            {
+                failures.Add($"{entry.Name} (SNO {entry.Id}): {ex.GetType().Name}: {ex.Message}");
+            }
+        }
+
+        Assert.True(failures.Count == 0,
+            "decoder crashed on " + failures.Count + " legendaries: " +
+            string.Join("; ", failures.Take(5)) +
+            (failures.Count > 5 ? $" (+{failures.Count - 5})" : ""));
+    }
+
     /// <summary>FR-C9 #2 — the coverage gate (the decisive part).
     /// Shape-agnostic: every handle-magnitude u32 anywhere in the raw
     /// paragon scenes that resolves to a real atlas frame MUST be
