@@ -1,0 +1,369 @@
+=== ALL classes' legendary node Powers + format strings ===
+
+Found 72 Legendary-named ParagonNode SNOs.
+
+---- Barbarian (10 Legendary nodes) ----
+
+  Barbarian_Legendary_001 (node 671213 -> power 655773)
+    Name: "Force of Nature"
+    Desc: Skills that cast {c_important}Earthquakes{/c} and {c_important}Dust Devils{/c} deal {c_number}[SF_6 * 100|%x|]{/c} increased damage.
+
+  Barbarian_Legendary_002 (node 671212 -> power 655782)
+    Name: "Hemorrhage"
+    Desc: Applying a Damage Over Time effect to a {c_important}{u}Vulnerable{/u}{/c} enemy deals {c_number}[SF_3 * 100|%x|]{/c} increased damage.
+
+  Barbarian_Legendary_004 (node 671210 -> power 661984)
+    Name: "Blood Rage"
+    Desc: Killing an enemy affected by a Damage Over Time effect has {c_number}[{SF_0}*100|%|]{/c} chance to grant {c_important}{u}Berserking{/u}{/c} for {c_number}{SF_1}{/c} seconds. Your damage is increased by {c_number}[SF_5 * 100|%x|]{/c} while {c_important}{u}Berserking{/u}{/c}.
+
+  Barbarian_Legendary_005 (node 671209 -> power 662464)
+    Name: "Natural Leader"
+    Desc: Increases the power of your {c_important}Shout{/c} Skills by {c_number}[{SF_0}*100|%|]{/c}.
+
+  Barbarian_Legendary_009 (node 671205 -> power 664802)
+    Name: "Carnage"
+    Desc: {c_important}{u}Berserking{/u}{/c} now additionally grants {c_number}[{SF_3}*100|+%|]{/c} Attack Speed. You deal {c_number}[{SF_4}*100|x%|]{/c} increased Fire and Physical damage.
+
+  Barbarian_Legendary_011 (node 671203 -> power 664973)
+    Name: "Warbringer"
+    Desc: For every {c_number}[{SF_0}]{/c} Fury you spend, gain {c_number}[{SF_1}*100|%|]{/c} of your Maximum Life {c_number}([{SF_1} * PlayerHealthMax()]){/c} as {c_important}{u}Fortify{/u}{/c}. Deal {c_number}[{SF_2}*100|x%|]{/c} increased damage while {c_important}{u}Fortified{/u}{/c}.
+
+  Barbarian_Legendary_014 (node 674891 -> power 674896)
+    Name: "Decimator"
+    Desc: You deal {c_number}[{SF_0} * 100|%x|]{/c} increased damage to {c_important}{u}Vulnerable{/u}{/c} enemies. You deal {c_number}[{SF_0} * 100|%x|]{/c} increased damage while you have {c_important}{u}Overpower{/u}{/c} charges.
+
+  Barbarian_Legendary_015 (node 674910 -> power 674913)
+    Name: "Bone Breaker"
+    Desc: Every {c_number}{SF_0}{/c} seconds, gain a charge of {c_important}{u}Overpower{/u}{/c}. Whenever you attack while having an {c_important}{u}Overpower{/u}{/c} charge, your Ultimate Skills deal {c_number}[{SF_1}*100|%x|]{/c} increased damage for {c_number}{SF_3}{/c} seconds, up to {c_number}[{SF_4}|%x|]{/c}. 
+
+  Barbarian_Legendary_016 (node 674923 -> power 674925)
+    Name: "Flawless Technique"
+    Desc: Consecutive attacking with the same weapon increases your Critical Strike chance by {c_number}[{SF_0}*100|+%|]{/c} and Critical Strike Damage by {c_number}[{SF_4}*100|x%|]{/c} for {c_number}{SF_2}{/c} seconds.
+
+  Barbarian_Legendary_017 (node 945466 -> power 945467)
+    Name: "Weapons Master"
+    Desc: Swapping weapons grants you {c_number}{SF_0}{/c} {c_important}Fury{/c}. You deal {c_number}[{SF_1}*100|x%|]{/c} increased damage to {c_important}{u}Injured{/u}{/c} and {c_important}{u}Healthy{/u}{/c} enemies.  
+
+
+---- Druid (9 Legendary nodes) ----
+
+  Druid_Legendary_003 (node 676410 -> power 676412)
+    Name: "Thunderstruck"
+    Desc: {c_important}Storm{/c} Skills deal {c_number}[{SF_0}*100|x%|]{/c} increased damage, and {c_number}[{SF_1}*100|x%|]{/c} Critical Strike Chance.
+
+  Druid_Legendary_006 (node 676454 -> power 676455)
+    Name: "Earthen Devastation"
+    Desc: Your {c_important}Earth{/c} Skills deal {c_number}[{SF_2}*100|x%|]{/c} increased Critical Strike Damage.
+
+  Druid_Legendary_007 (node 676479 -> power 676481)
+    Name: "Survival Instincts"
+    Desc: While in Werebear form, you deal {c_number}[{SF_3}*100|x%|]{/c} increased damage or {c_number}[({SF_4})*100|x%|]{/c} when you are at full Life. You have {c_number}[{SF_0}*100|x%|]{/c} increased Overpower damage, up to {c_number}[{SF_1}*100|x%|]{/c}, for every {c_number}[{SF_2}*100|x%|]{/c} difference in current Life percent and Fortified Life percent between you and the enemy.
+
+  Druid_Legendary_010 (node 676788 -> power 676789)
+    Name: "Lust for Carnage"
+    Desc: Critical Strikes with {c_important}Werewolf{/c} Skills restore {c_number}{SF_0}{/c} Spirit and deal {c_number}[SF_1 * 100|%x|]{/c} increased damage.
+
+  Druid_Legendary_012 (node 676805 -> power 676806)
+    Name: "Heightened Malice"
+    Desc: While a Poisoned enemy is Nearby, you deal {c_number}[{SF_1}*100|x%|]{/c} increased damage, plus an additional {c_number}[{SF_5}*100|x%|]{/c} for each additional Poisoned enemy, up to {c_number}[{SF_4}||]{/c}.
+
+  Druid_Legendary_013 (node 676807 -> power 676808)
+    Name: "Inner Beast"
+    Desc: After Shapeshifting, your Spirit costs are reduced by {c_number}[{SF_0}*100|%|]{/c} for {c_number}{SF_2}{/c} seconds, up to {c_number}[{SF_0}*100*{SF_1}|%|]{/c}. If you reach {c_number}{SF_1}{/c} stacks, this bonus resets and reduces the Cooldown of your {c_important}Ultimate{/c} Skill by {c_number}{SF_3}{/c} seconds.
+
+  Druid_Legendary_017 (node 909281 -> power 909283)
+    Name: "Constricting Tendrils"
+    Desc: Deal {c_number}[SF_4*100|%x|]{/c} increased damage against Poisoned enemies.
+{c_label}Lucky Hit:{/c} {c_important}Nature Magic{/c} Skills have up to a {c_number}[SF_0|%|]{/c} chance to Poison the enemy for {c_number}{payload:POISON_TOOLTIP}{/c} damage over {c_number}[SF_3]{/c} seconds.
+
+  Druid_Legendary_018 (node 909282 -> power 909284)
+    Name: "Ancestral Guidance"
+    Desc: After spending {c_number}{SF_0}{/c} Spirit, you deal {c_number}[{SF_1}*100|x%|]{/c} increased damage for {c_number}{SF_2}{/c} seconds. Your Ultimate Skills deal {c_number}[{SF_3}*100|x%|]{/c} increased damage per Spirit when cast. 
+
+  Druid_Legendary_019 (node 2060011 -> power 2060002)
+    Name: "Untamed"
+    Desc: Casting a {c_important}Companion{/c} Skill grants {c_number}[SF_0 * 100|%x|]{/c} increased {c_important}Companion{/c} damage for {c_number}[SF_1]{/c} seconds, stacking up to {c_number}[SF_0 * SF_2 * 100|%x|]{/c}.
+
+
+---- Necromancer (9 Legendary nodes) ----
+
+  Necromancer_Legendary_001 (node 681461 -> power 681545)
+    Name: "Cult Leader"
+    Desc: Your Minions deal {c_number}[{SF_0}*100|%x|]{/c} increased damage for each {c_number}[SF_1 * 100|%|]{/c} of Attack Speed Bonus they have, up to a maximum of 100% Attack Speed Bonus.
+
+  Necromancer_Legendary_005 (node 681465 -> power 681553)
+    Name: "Hulking Monstrosity"
+    Desc: Your Golem has {c_number}[{SF_2}*100|%x|]{/c} increased Maximum Life and deals {c_number}[{SF_4}*100|%x|]{/c} increased damage. Skeletal Mages and Warriors Sacrifice Bonuses grant an additional {c_number}[SF_5*100|%x|]{/c} Golem damage.
+
+  Necromancer_Legendary_007 (node 681467 -> power 681555)
+    Name: "Scent of Death"
+    Desc: You gain {c_number}[{SF_1}*100|%|]{/c} Damage Reduction and deal {c_number}[{SF_4}*100|x%|]{/c} increased damage.
+
+  Necromancer_Legendary_008 (node 681468 -> power 682016)
+    Name: "Flesh-eater"
+    Desc: Consuming a Corpse grants {c_number}[{SF_0}*100|%x|]{/c} increased damage for {c_number}{SF_2}{/c} seconds.
+
+  Necromancer_Legendary_010 (node 681470 -> power 681559)
+    Name: "Bloodbath"
+    Desc: You deal {c_number}[{SF_0}*100|%x|]{/c} increased damage while you have a stack of {c_important}{u}Overpower{/u}{/c}. After gaining or losing a stack of {c_important}{u}Overpower{/u}{/c}, you deal {c_number}[{SF_1}*100|%x|]{/c} increased damage for {c_number}[{SF_2}||]{/c} seconds. 
+
+  Necromancer_Legendary_011 (node 681471 -> power 681523)
+    Name: "Blood Begets Blood"
+    Desc: {c_important}{u}Blood Orbs{/u}{/c} grant {c_number}[{SF_0}*100|%x|]{/c} increased damage, up to {c_number}[{SF_0}*100*{SF_1}|%x|]{/c}, for {c_number}{SF_2}{/c} seconds.
+
+  Necromancer_Legendary_016 (node 681476 -> power 681547)
+    Name: "Wither"
+    Desc: Your Shadow damage has a {c_number}[{SF_0}*100|%|]{/c} chance to deal {c_number}[{SF_1}*100|%x|]{/c} increased damage.
+
+  Necromancer_Legendary_017 (node 934519 -> power 934520)
+    Name: "Bone Graft"
+    Desc: Your {c_important}Bone{/c} Skills deal {c_number}[{SF_0}*100|%x|]{/c} increased damage and your Maximum Essence is increased by {c_number}{SF_1}{/c}.
+
+  Necromancer_Legendary_018 (node 2066708 -> power 2066710)
+    Name: "Frailty"
+    Desc: Deal {c_number}[SF_0 * SF_1 * 100|%x|]{/c} increased damage to Cursed enemies.
+
+
+---- Paladin (9 Legendary nodes) ----
+
+  Paladin_Legendary_001 (node 2437020 -> power 2488259)
+    Name: "Castle"
+    Desc: You deal increased damage equal to {c_number}[SF_1*100|%|]{/c} of your Damage Reduction granted from Armor.
+
+Current Bonus: {c_number}[SF_2*100|1x%|]{/c}
+
+  Paladin_Legendary_002 (node 2438097 -> power 2489348)
+    Name: "Phalanx"
+    Desc: You deal increased damage equal to {c_number}[SF_2*100|%|]{/c} of your Block chance.
+
+Current Bonus: {c_number}[SF_3*100|1x%|]{/c}
+
+  Paladin_Legendary_003 (node 2438099 -> power 2490466)
+    Name: "Fervent"
+    Desc: You gain {c_number}[SF_0 * 100|%x|]{/c} increased Critical Strike damage and {c_number}[SF_1* 100|%+|]{/c} Critical Strike chance for each stack of Fervor you have.
+
+  Paladin_Legendary_004 (node 2438101 -> power 2490759)
+    Name: "Fervent"
+    Desc: Your {c_important}Zealot{/c} skills gain {c_number}[SF_0 * 100 |1%+|]{/c} increased Attack Speed.  
+You deal increased damage equal to {c_number}[SF_1 * 100|%|]{/c} of your Bonus Attack Speed.
+
+  Paladin_Legendary_005 (node 2438120 -> power 2493403)
+    Name: "Divinity"
+    Desc: While in {c_important}{u}Arbiter{/u}{/c} you deal {c_number}[SF_0 * 100|%x|]{/c} increased damage to {c_important}{u}Vulnerable{/u}{/c} enemies.
+
+  Paladin_Legendary_006 (node 2438118 -> power 2493521)
+    Name: "Relentless"
+    Desc: While moving and for {c_number}[SF_1]{/c} seconds after, you deal {c_number}[SF_0*100|%x|]{/c} increased damage and have {c_number}[SF_2*100|%+|]{/c} Cooldown Reduction.
+
+  Paladin_Legendary_007 (node 2438124 -> power 2493735)
+    Name: "Sentencing"
+    Desc: {c_important}{u}Judging{/c}{/u} an enemy causes them to take {c_number}[SF_0*100|%x|]{/c} more damage from you until they die.
+
+  Paladin_Legendary_008 (node 2438126 -> power 2494628)
+    Name: "Endure"
+    Desc: You deal {c_number}[SF_0*100|%x|]{/c} increased damage while {c_important}{u}Fortified{/u}{/c}.
+
+  Paladin_Legendary_009 (node 2438128 -> power 2494939)
+    Name: "Beacon"
+    Desc: While at least one ally or mercenary is within one of your {c_important}Auras{/c} you deal {c_number}[SF_0*100|%x|]{/c} increased damage.
+
+
+---- Rogue (9 Legendary nodes) ----
+
+  Rogue_Legendary_002 (node 679683 -> power 679714)
+    Name: "Eldritch Bounty"
+    Desc: You gain {c_number}[{SF_3} * 100|x%|]{/c} Resistance to All Elements. You gain {c_number}[{SF_1}*100|x%|]{/c} increased Poison, Shadow, and Cold damage.
+
+  Rogue_Legendary_006 (node 679687 -> power 679718)
+    Name: "Tricks of the Trade"
+    Desc: Enemies damaged by your {c_important}Marksman{/c} Skills take {c_number}[{SF_0}*100|%x|]{/c} increased damage from your {c_important}Cutthroat{/c} Skills, and vice versa.
+
+  Rogue_Legendary_007 (node 679689 -> power 679719)
+    Name: "Cheap Shot"
+    Desc: You deal {c_number}[{SF_0}*100|%x|]{/c} increased damage, doubled against Crowd Controlled enemies.
+
+  Rogue_Legendary_008 (node 679690 -> power 679720)
+    Name: "Deadly Ambush"
+    Desc: You deal {c_number}[{SF_0}*100|%x|]{/c} increased Critical Strike Damage and Damage Over Time to enemies affected by your {c_important}Trap{/c} Skills.
+
+  Rogue_Legendary_009 (node 679691 -> power 679880)
+    Name: "Leyrana's Instinct"
+    Desc: Your {c_important}Core{/c} Skills deal {c_number}[SF_6 * 100|%x|]{/c} increased damage. When {c_important}Inner Sight's{/c} gauge becomes full, you gain {c_number}[{SF_0}*100|%+|]{/c} Dodge Chance for {c_number}[{SF_1|1|}]{/c} seconds.
+
+  Rogue_Legendary_010 (node 679692 -> power 679724)
+    Name: "Exploit Weakness"
+    Desc: You deal {c_number}[{SF_0}*100|%x|]{/c} increased {c_important}{u}Vulnerable{/u}{/c} damage. The first time you hit a {c_important}{u}Vulnerable{/u}{/c} enemy, their damage is reduced by {c_number}[{SF_1}*100|%x|]{/c} for {c_number}[SF_2]{/c} seconds.
+
+  Rogue_Legendary_011 (node 679694 -> power 679725)
+    Name: "No Witnesses"
+    Desc: Your {c_important}Ultimate{/c} Skills gain an additional {c_number}[{SF_0}*100|%x|]{/c} damage from your Damage with Ultimate bonus and grant this bonus to all other Skills for {c_number}[SF_2]{/c} seconds when cast.
+
+Current Bonus: {c_number}[SF_1 * 100|%x|]{/c}
+Maximum Bonus: {c_number}[SF_4*100|%x|]{/c}
+
+  Rogue_Legendary_012 (node 679695 -> power 679726)
+    Name: "Cunning Stratagem"
+    Desc: Your {c_important}Combo Point{/c} bonuses are increased by {c_number}[{SF_4}*100|%x|]{/c}.
+
+  Rogue_Legendary_017 (node 2066155 -> power 2066157)
+    Name: "Danse Macabre"
+    Desc: Casting a {c_important}Mobility{/c} or {c_important}Subterfuge{/c} Skill increases your damage by {c_number}[SF_0*100|%x|]{/c} for {c_number}[SF_1]{/c} seconds.
+
+
+---- Sorcerer (9 Legendary nodes) ----
+
+  Sorcerer_Legendary_001 (node 672773 -> power 672778)
+    Name: "Burning Instinct"
+    Desc: Deal {c_number}[{SF_0} * 100|%x|]{/c} increased Burning damage.
+
+  Sorcerer_Legendary_002 (node 672795 -> power 672796)
+    Name: "Searing Heat"
+    Desc: {c_important}Pyromancy{/c} Skills have a {c_number}[{SF_0}|%+|]{/c} increased Critical Strike Chance and all of your Skills deal increased Direct damage equal to {c_number}[{SF_1} * 100|%|]{/c} of your Critical Strike Damage Bonus, up to {c_number}[{SF_2} * 100|%x|]{/c}.
+
+Current Direct Damage Bonus: {c_number}[{SF_3} * 100|%x|]{/c}
+
+  Sorcerer_Legendary_005 (node 672898 -> power 672900)
+    Name: "Frigid Fate"
+    Desc: Deal {c_number}[{SF_0} * 100|%x|]{/c} increased damage to {c_important}{u}Vulnerable{/u}{/c} enemies.
+
+  Sorcerer_Legendary_006 (node 672901 -> power 672902)
+    Name: "Icefall"
+    Desc: Your {c_important}Frost{/c} Skills deal {c_number}[{SF_0} * 100|%x|]{/c} increased damage. This bonus is doubled and granted to all Skills if the enemy is {c_important}{u}Frozen{/u}{/c} or a Boss.
+
+  Sorcerer_Legendary_007 (node 672943 -> power 672952)
+    Name: "Static Surge"
+    Desc: Hitting enemies at least {c_number}[SF_1]{/c} times in a second with {c_important}Shock{/c} Skills grants {c_number}[SF_2]{/c} Mana Regeneration and increases your damage by {c_number}[SF_0*100|%x|]{/c} for {c_number}[SF_3]{/c} seconds.
+
+  Sorcerer_Legendary_008 (node 673102 -> power 673103)
+    Name: "Ceaseless Conduit"
+    Desc: While you have {c_important}{u}Crackling Energy{/u}{/c} charges, you deal {c_number}[{SF_0} * 100|x%|]{/c} increased damage. When you reach full charges, your {c_important}{u}Crackling Energy{/u}{/c} damage is increased by {c_number}[SF_1]{/c} times this amount until you run out of charges.
+
+  Sorcerer_Legendary_011 (node 673125 -> power 673126)
+    Name: "Elemental Summoner"
+    Desc: Your {c_important}Conjuration{/c} Skills have a {c_number}[{SF_0} * 100|%x||%|]{/c} reduced Cooldown or Mana cost. Casting a {c_important}Conjuration{/c} Skill increases your damage with their element by {c_number}[{SF_1} * 100|%x||%|]{/c} for {c_number}[SF_2]{/c} seconds.
+
+  Sorcerer_Legendary_015 (node 673447 -> power 673448)
+    Name: "Enchantment Master"
+    Desc: Increases your {c_important}Enchantment{/c} Potency by {c_number}[{SF_0} * 100|+%|]{/c}. 
+Each equipped {c_important}Enchantment{/c} grants {c_number}[{SF_1} * 100|%x|]{/c} increased damage with their main element, and {c_number}[{SF_2} * 100|x%|]{/c} increased damage for the second {c_important}Enchantment{/c} if it is a different element.
+
+  Sorcerer_Legendary_017 (node 2092084 -> power 2091185)
+    Name: "Fundamental Release"
+    Desc: Casting a {c_important}Pyromancy{/c}, {c_important}Shock{/c}, or {c_important}Frost{/c} Skill increases your {c_important}Burning{/c}, {c_important}Shocking{/c}, or {c_important}Frostbite{/c} damage by {c_number}[SF_0 * 100]%{/c} for {c_number}[SF_2]{/c} seconds. Each element only stacks once, maxing at {c_number}[(SF_0 * 100) * SF_1]%{/c}, with each element active.
+
+
+---- Spiritborn (8 Legendary nodes) ----
+
+  Spiritborn_Legendary_001 (node 2021651 -> power 2022988)
+    Name: "In-Fighter"
+    Desc: When you Dodge or Block an attack you gain {c_number}[SF_1 * 100|%+|]{/c} increased Attack Speed and {c_number}[SF_3 * 100|%x|]{/c} increased Damage for {c_number}[SF_0]{/c} seconds.
+
+  Spiritborn_Legendary_002 (node 2025032 -> power 2025092)
+    Name: "Spiney Skin"
+    Desc: When you use a Cooldown you gain {c_number}[SF_0*100|%|]{/c} Thorns for {c_number}[SF_1]{/c} seconds.
+
+  Spiritborn_Legendary_003 (node 2025928 -> power 2025955)
+    Name: "[PH] Barrier Damage"
+    Desc: You do {c_number}[SF_0 * 100|%x|]{/c} increased damage for each {c_number}[SF_1|%|]{/c} of your Maximum Life you have as a {c_important}{u}Barrier{/u}{/c}.
+
+  Spiritborn_Legendary_004 (node 2026208 -> power 2026210)
+    Name: "Bitter Medicine"
+    Desc: After Healing for {c_number}[SF_1*100|%|]{/c} of your Maximum Life you afflict Close enemies, dealing {c_number}{dot:POISON_DOT}{/c} Poisoning damage over {c_number}[{buffduration:POISON_DOT}]{/c} seconds and causing them to take {c_number}[SF_6*SF_7*100|x%|]{/c} more Poisoning damage.
+
+  Spiritborn_Legendary_005 (node 2026485 -> power 2026487)
+    Name: "Revealing"
+    Desc: {c_label}Lucky Hit:{/c} Up to a {c_number}[SF_0|%|]{/c} chance to Knock Down {c_important}{u}Vulnerable{/u}{/c} enemies. You deal {c_number}[SF_1*100|%x|]{/c} increased damage, doubled against Crowd Controlled enemies.
+
+  Spiritborn_Legendary_006 (node 2026647 -> power 2026649)
+    Name: "Drive"
+    Desc: Gain {c_number}[{SF_4}|+|]{/c} additional {c_important}Evade{/c} |4Charge:Charges;. After moving {c_number}[SF_3]{/c} meters, you deal {c_number}[SF_2*100|1%x|]{/c} increased damage for {c_number}[SF_1]{/c} seconds. This can stack up to {c_number}[SF_0]{/c} times but will no longer refresh at Maximum.
+
+  Spiritborn_Legendary_007 (node 2058789 -> power 2058843)
+    Name: "Convergence"
+    Desc: You deal bonus damage equal to {c_number}[SF_1 * 100|1x%|]{/c} of all your bonuses to Damage with Physical, Fire, Lightning, Cold, Poison, and Shadow combined, up to {c_number}[SF_0 * 100|x%|]{/c} total.
+
+Current Bonus: {c_number}[SF_2 * 100|%2|]{/c}
+
+  Spiritborn_Legendary_008 (node 2060357 -> power 2060310)
+    Name: "Prodigy's Tempo"
+    Desc: Every {c_number}3rd{/c} consecutive Cast of the same {c_important}Basic{/c} Skill increases all purchased Skills' Ranks by {c_number}{SF_4}{/c} for {c_number}{SF_3}{/c} seconds.
+
+Every {c_number}3rd{/c} consecutive Cast of the same {c_important}Core{/c} or {c_important}Potency{/c} Skill reduces all Skills' active Cooldowns by {c_number}[{SF_6}*100|%|]{/c}.
+
+
+---- Warlock (9 Legendary nodes) ----
+
+  Warlock_Legendary_001 (node 2459120 -> power 2521393)
+    Name: "Fathomless"
+    Desc: Each demon you've summoned in the last {c_number}[{SF_2}]{/c} seconds increases your damage by {c_number}[{SF_0}*100|x%|]{/c} up to {c_number}[{SF_0}*{SF_1}*100|x%|]{/c}.
+
+  Warlock_Legendary_002 (node 2459122 -> power 2525006)
+    Name: "Demonic Spicules"
+    Desc: Damaging enemies with {c_important}Demonology{/c} Skills shreds their soul, permanently increasing all damage you deal to them by {c_number}[SF_2*SF_0*100|%x|]{/c} and gaining {c_number}[SF_0*100|%+|]{/c} per hit, up to {c_number}[SF_0 * SF_1 *100|%x|]{/c}.
+
+  Warlock_Legendary_003 (node 2459124 -> power 2524312)
+    Name: "Dynamism"
+    Desc: While in {c_important}{u}Demonform{/u}{/c}, your {c_important}Demonology{/c} Skill damage is increased by {c_number}[{SF_0}*100|x%|]{/c} for every point of {c_important}Dominance{/c} you currently have. 
+While not in {c_important}{u}Demonform{/u}{/c}, you gain {c_number}[{SF_2}]{/c} {c_important}Dominance{/c} every {c_number}[{SF_3}]{/c} seconds.
+
+  Warlock_Legendary_004 (node 2459126 -> power 2527268)
+    Name: "Pyrosis"
+    Desc: {c_important}Hellfire{/c} Skills deal {c_number}[SF_0*100|%x|]{/c} increased damage to {c_important}{u}Healthy{/u}{/c} enemies.
+
+  Warlock_Legendary_005 (node 2459128 -> power 2524552)
+    Name: "Overmind"
+    Desc: {c_important}Abyss{/c} Skills deal {c_number}[{SF_0}*100|x%|]{/c} increased damage to Crowd Controlled enemies and {c_number}[{SF_1}*100|x%|]{/c} increased damage to Elites.
+
+  Warlock_Legendary_006 (node 2459134 -> power 2527280)
+    Name: "Greater Hex"
+    Desc: Applying {c_important}{u}Hex{/u}{/c}, {c_important}{u}Vulnerable{/u}{/c}, or {c_important}{u}Weakened{/u}{/c} to enemies permanently reduces the damage they deal to you by {c_number}[SF_1*100|%|]{/c} and they take {c_number}[SF_0*100|%x|]{/c} increased damage from you.
+
+  Warlock_Legendary_007 (node 2459311 -> power 2526168)
+    Name: "Ritualism"
+    Desc: You gain {c_number}[{SF_0}*100|x%|]{/c} increased damage for {c_number}[SF_2]{/c} seconds after Casting a {c_important}Sigil{/c} Skill. {c_important}Greater Demons{/c} now count as {c_number}[1+SF_1]{/c} kills when dying within {c_important}Sigils{/c}. 
+
+  Warlock_Legendary_008 (node 2459313 -> power 2527294)
+    Name: "Chaos"
+    Desc: Your {c_important}Occult{/c} Skills deal {c_number}[SF_0*100|%x|]{/c} increased damage while you have {c_important}{u}Overpower{/u}{/c}, but when you lose a stack you either gain {c_number}[SF_1]{/c} stacks or lose {c_number}[SF_2]{/c} additional stack.
+
+  Warlock_Legendary_010 (node 2459459 -> power 2524673)
+    Name: "Dominion"
+    Desc: Spending {c_important}Dominance{/c} to {c_important}Summon{/c} a demon reduces the {c_important}Wrath{/c} cost of your {c_important}Demonology{/c} Skills by {c_number}[SF_1*100|%|]{/c} and increases all of your damage by {c_number}[SF_0*100|%x|]{/c} for {c_number}{SF_2}{/c} seconds.
+
+
+=== AST shape inventory (distinct format-string patterns) ===
+    31× [SF*N|%x|]
+    24× [SF]
+    22× [SF*N|x%|]
+    19× [SF * N|%x|]
+    13× [SF*N|%|]
+     4× [SF * N|x%|]
+     3× [SF|%|]
+     3× [SF * N|%|]
+     3× [SF*N|%+|]
+     2× [SF*N|+%|]
+     2× [SF||]
+     2× [SF * SF * N|%x|]
+     2× [SF*N|Nx%|]
+     2× [SF * N|%x||%|]
+     2× [SF*SF*N|x%|]
+     1× [SF * PlayerHealthMax()]
+     1× [SF|%x|]
+     1× [SF*N*SF|%|]
+     1× [SF*N*SF|%x|]
+     1× [SF* N|%+|]
+     1× [SF * N |N%+|]
+     1× [SF|N|]
+     1× [SF|%+|]
+     1× [SF * N|+%|]
+     1× [SF * N]
+     1× [SF * N|%+|]
+     1× [SF|+|]
+     1× [SF*N|N%x|]
+     1× [SF * N|Nx%|]
+     1× [SF * N|%N|]
+     1× [SF*SF*N|%x|]
+     1× [SF * SF *N|%x|]
+
+Total legendary powers cataloged: 72
+Full dump written to: E:\tmp\scene-probe\bin\Debug\net10.0\fr-c13-all-legendaries.txt
