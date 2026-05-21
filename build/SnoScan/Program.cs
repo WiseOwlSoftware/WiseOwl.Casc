@@ -576,6 +576,110 @@ switch (cmd)
         }
         return 0;
     }
+    case "recdump":
+    {
+        // FR-C16 R10 recon: dump the FULL bytes of every DT_BINDABLEPROPERTY
+        // value record (all 56 bytes of a 0x22 record / 12 of a tag-2 block)
+        // for a named widget — to see whether a bindable property carries a
+        // binding-source / condition expression beyond the literal value at
+        // +0x08, or whether the tail bytes are inert (⇒ engine-code-side
+        // activation). recdump <gid> <id> <nameSubstr>
+        if (argv.Count < 4) { Console.Error.WriteLine("recdump <gid> <id> <nameSubstr>"); return 2; }
+        int gr = int.Parse(argv[1]), ir = int.Parse(argv[2]);
+        string want = argv[3];
+        if (!d4.TryReadSno(gr, ir, SnoFolder.Meta, out var b)) { Console.WriteLine("no content"); return 1; }
+        const uint SEP = 0x1332C78D, SENT = 0xFFFFFFFF;
+        static int Align8(int n) => (n + 7) & ~7;
+        uint U(int o) => BitConverter.ToUInt32(b, o);
+        static bool NB(byte c) => c is (>=(byte)'A' and <=(byte)'Z') or (>=(byte)'a' and <=(byte)'z') or (>=(byte)'0' and <=(byte)'9') or (byte)'_';
+        static bool NS(byte c) => c is (>=(byte)'A' and <=(byte)'Z') or (>=(byte)'a' and <=(byte)'z');
+
+        var starts = new List<(int at, string nm)>();
+        for (int i = 0; i < b.Length; )
+        {
+            if (!NS(b[i])) { i++; continue; }
+            int s = i, e = i; while (e < b.Length && NB(b[e])) e++;
+            int len = e - s;
+            if (len >= 4 && e < b.Length && b[e] == 0)
+            {
+                int co = s + Align8(len + 1) + 0x10;
+                if (co + 12 <= b.Length && U(co + 8) == SENT) { starts.Add((s, System.Text.Encoding.ASCII.GetString(b, s, len))); i = e; continue; }
+            }
+            i = e > i ? e : i + 1;
+        }
+        for (int si = 0; si < starts.Count; si++)
+        {
+            if (!starts[si].nm.Contains(want, StringComparison.OrdinalIgnoreCase)) continue;
+            int from = starts[si].at;
+            int to = si + 1 < starts.Count ? starts[si + 1].at : b.Length;
+            Console.WriteLine($"\n=== '{starts[si].nm}' @0x{from:X}..0x{to:X} ===");
+            // schema triplets in [from,to)
+            var fields = new List<uint>();
+            for (int k = from; k + 12 <= to; )
+            { if (U(k + 4) == SEP) { fields.Add(U(k)); k += 12; } else k += 4; }
+            // walk value records, pair to schema positionally
+            int fi = 0;
+            for (int p = from; p + 12 <= to; )
+            {
+                if (b[p] == 0x22 && U(p) == 0x22)
+                {
+                    string fn = fi < fields.Count ? Diablo4.FormatFieldHash(fields[fi]) : "?";
+                    Console.Write($"  0x{p:X} 0x22 [{fn}]:");
+                    for (int w = 0; w < 14 && p + w * 4 + 4 <= b.Length; w++)
+                        Console.Write($" {(w == 2 ? "<" : "")}{U(p + w * 4):X8}{(w == 2 ? ">" : "")}");
+                    Console.WriteLine();
+                    p += 0x38; fi++;
+                }
+                else if (U(p) == 2u && U(p + 4) == 0u)
+                {
+                    string fn = fi < fields.Count ? Diablo4.FormatFieldHash(fields[fi]) : "?";
+                    Console.WriteLine($"  0x{p:X} tag2 [{fn}]: {U(p):X8} {U(p + 4):X8} <{U(p + 8):X8}>");
+                    p += 12; fi++;
+                }
+                else p += 4;
+            }
+        }
+        return 0;
+    }
+    case "snorefs":
+    {
+        // FR-C16 R10: every DT_SNO / handle reference the scene makes, with
+        // the referenced SNO's group+name resolved — to find any state /
+        // condition / binding / controller SNO the widgets point at.
+        int sc = argv.Count > 1 ? int.Parse(argv[1]) : 657304;
+        var scene = d4.ReadUiScene(sc);
+        const uint DT_SNO = 0xA4C45887;
+        var snoFields = new Dictionary<uint, SortedSet<int>>();
+        foreach (var w in scene.Widgets)
+            foreach (var f in w.Fields)
+                if (f.TypeHash == DT_SNO && f.HasValue && f.RawValue != 0)
+                {
+                    if (!snoFields.TryGetValue(f.FieldHash, out var set)) { set = new(); snoFields[f.FieldHash] = set; }
+                    set.Add((int)f.RawValue);
+                }
+        Console.WriteLine($"scene {sc}: distinct DT_SNO fields = {snoFields.Count}");
+        foreach (var kv in snoFields)
+        {
+            Console.WriteLine($"\nfield {Diablo4.FormatFieldHash(kv.Key)} -> {kv.Value.Count} distinct SNO refs:");
+            foreach (var id in kv.Value)
+            {
+                string desc = "?";
+                foreach (var g in toc.Entries)
+                    if (g.Id == id) { desc = $"group {(int)g.Group} '{g.Name}'"; break; }
+                Console.WriteLine($"    {id,9}  {desc}");
+            }
+        }
+        // also: which widgets carry per-state image fields (hImageFramePressed etc.)
+        uint[] stateImg = { 0x0D75128Cu, 0x0B63D29Bu, 0x0DAEFCAAu, 0x02330CBFu };
+        string[] stateNm = { "hImageFramePressed", "hImageFrameMouseOver", "hImageFrameDisable", "hImageFrameIcon" };
+        Console.WriteLine("\n=== per-state image-field bindings (non-zero) ===");
+        foreach (var w in scene.Widgets)
+            foreach (var f in w.Fields)
+                for (int s = 0; s < stateImg.Length; s++)
+                    if (f.FieldHash == stateImg[s] && f.HasValue && f.RawValue != 0)
+                        Console.WriteLine($"    '{w.Name}'.{stateNm[s]} = 0x{f.RawValue:X8}");
+        return 0;
+    }
     default:
         Console.Error.WriteLine($"unknown command '{cmd}'");
         return 2;
