@@ -43,7 +43,7 @@ internal static class PowerScriptFormulaEvaluator
         Func<int, double> slotLookup,
         Func<string, IReadOnlyList<double>, double?>? functionResolver = null)
     {
-        if (expression is null) throw new ArgumentNullException(nameof(expression));
+        ArgumentNullException.ThrowIfNull(expression);
         var tokens = Tokenize(expression);
         var parser = new Parser(tokens);
         var ast = parser.ParseExpression();
@@ -78,7 +78,7 @@ internal static class PowerScriptFormulaEvaluator
         IReadOnlyList<float>? binaryLiterals,
         Func<string, IReadOnlyList<double>, double?>? functionResolver = null)
     {
-        if (expression is null) throw new ArgumentNullException(nameof(expression));
+        ArgumentNullException.ThrowIfNull(expression);
         var tokens = Tokenize(expression);
         var parser = new Parser(tokens);
         var ast = parser.ParseExpression();
@@ -236,7 +236,7 @@ internal static class PowerScriptFormulaEvaluator
                 case TokenKind.SlotRef:
                 {
                     _pos++;
-                    int idx = int.Parse(t.Text.Substring(3), CultureInfo.InvariantCulture);
+                    int idx = int.Parse(t.Text.AsSpan(3), CultureInfo.InvariantCulture);
                     return new SlotRefNode(idx);
                 }
 
@@ -250,7 +250,7 @@ internal static class PowerScriptFormulaEvaluator
                     if (_pos >= _tokens.Count || _tokens[_pos].Kind != TokenKind.RBrace)
                         throw new FormatException("Expected '}' after SF_N");
                     _pos++;
-                    int idx = int.Parse(sref.Text.Substring(3), CultureInfo.InvariantCulture);
+                    int idx = int.Parse(sref.Text.AsSpan(3), CultureInfo.InvariantCulture);
                     return new SlotRefNode(idx);
                 }
 

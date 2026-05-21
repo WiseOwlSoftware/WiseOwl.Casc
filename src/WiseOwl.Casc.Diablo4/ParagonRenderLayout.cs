@@ -1093,7 +1093,7 @@ internal static class ParagonRenderProjection
             // are the always-drawn interior layers.
             var composite = wd.ExtraLayerValues.Where(IsHandle).ToArray();
             NodeSelectionDiscs? discs = null;
-            IReadOnlyList<uint> remaining = composite;
+            uint[] remaining = composite;
             if (IsRarityTemplate(wd.Name ?? string.Empty) && composite.Length >= 2)
             {
                 discs = new NodeSelectionDiscs(composite[0], composite[1]);
@@ -1102,7 +1102,7 @@ internal static class ParagonRenderProjection
 
             layers.Add(new ParagonNodeRecipeLayer(
                 k, wd.Name ?? string.Empty, wd.ClassId, handle, Rect(wd), alpha,
-                remaining.Count == 0 ? Array.Empty<uint>() : remaining,
+                remaining.Length == 0 ? Array.Empty<uint>() : remaining,
                 discs));
         }
         return new ParagonNodeRecipe(layers);

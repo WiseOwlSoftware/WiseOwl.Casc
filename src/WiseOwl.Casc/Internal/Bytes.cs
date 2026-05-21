@@ -50,10 +50,6 @@ public static class Bytes
         var end = o;
         var limit = (int)Math.Min((long)o + max, b.Length);
         while (end < limit && b[end] != 0) end++;
-#if NETSTANDARD2_0
-        return System.Text.Encoding.ASCII.GetString(b.Slice(o, end - o).ToArray());
-#else
         return System.Text.Encoding.ASCII.GetString(b.Slice(o, end - o));
-#endif
     }
 }

@@ -160,9 +160,5 @@ public sealed record TextureDefinition(
     }
 
     private static float BitsToSingle(uint bits) =>
-#if NETSTANDARD2_0
-        BitConverter.ToSingle(BitConverter.GetBytes(bits), 0);
-#else
         BitConverter.UInt32BitsToSingle(bits);
-#endif
 }

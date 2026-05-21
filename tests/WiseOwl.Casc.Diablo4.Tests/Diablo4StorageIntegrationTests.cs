@@ -1116,6 +1116,8 @@ public sealed class Diablo4StorageIntegrationTests
     /// consumer's eyeballs months later (the CL-23/24/25/26 lesson made
     /// structural). Includes the canonical previously-dropped handles
     /// (e.g. the grey rim ring 0x87A89F86, FR-C7-era "not in data").</summary>
+    private static readonly int[] ParagonSceneSnos = [657304, 964599];
+
     [SkippableFact]
     public void ParagonRenderModel_covers_every_bound_atlas_handle()
     {
@@ -1124,11 +1126,11 @@ public sealed class Diablo4StorageIntegrationTests
         using var d4 = Diablo4Storage.Open(install!);
 
         var model = d4.ReadParagonRenderModel();
-        Assert.Equal(new[] { 657304, 964599 },
+        Assert.Equal(ParagonSceneSnos,
             model.Scenes.Select(s => s.SnoId).ToArray());
         Assert.NotNull(model.Layout);
 
-        foreach (var sno in new[] { 657304, 964599 })
+        foreach (var sno in ParagonSceneSnos)
         {
             var blob = d4.ReadSno(UiScene.Group, sno);
             // Structural texture-binding set: every 4-aligned, handle-

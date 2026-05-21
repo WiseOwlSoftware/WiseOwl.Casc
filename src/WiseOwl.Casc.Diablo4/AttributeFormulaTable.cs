@@ -161,11 +161,7 @@ public sealed class AttributeFormulaTable
             if (name.Length > 0)
             {
                 byName[name] = ranges.Length > 0 ? ranges[0].FormulaText : string.Empty;
-#if NETSTANDARD2_0
-                if (!nameByGbid.ContainsKey(gbid)) nameByGbid[gbid] = name;
-#else
                 nameByGbid.TryAdd(gbid, name);
-#endif
             }
         }
 

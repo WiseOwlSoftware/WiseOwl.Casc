@@ -15,10 +15,10 @@ dotnet tool restore
 dotnet build WiseOwl.Casc.slnx -c Release --nologo -v q
 
 function Gen([string]$proj, [string]$pkg) {
-  # The public surface is identical across all TFMs; the ns2.0 facade
+  # The public surface is identical across all TFMs; the net8.0 assembly
   # resolves cleanly under the doc tool.
   dotnet xmldocmd `
-    "src/$proj/bin/Release/netstandard2.0/$pkg.dll" `
+    "src/$proj/bin/Release/net8.0/$pkg.dll" `
     "docs/api/$pkg" `
     --visibility public --clean --source $src
 }

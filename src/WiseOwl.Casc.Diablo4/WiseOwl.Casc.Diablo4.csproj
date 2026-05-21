@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>netstandard2.0;net8.0;net10.0</TargetFrameworks>
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
     <IsPackable>true</IsPackable>
     <PackageId>WiseOwl.Casc.Diablo4</PackageId>
     <Title>WiseOwl.Casc.Diablo4 — Diablo IV CASC module (CoreTOC, SNO, .tex)</Title>
@@ -14,16 +14,6 @@
          nominatively as a compatibility descriptor. -->
     <Description>Diablo IV game module for WiseOwl.Casc: CoreTOC.dat, SNO read-by-id, shared-payload resolution, the 0x44CF00F5 combined-meta bundle (.tex/BCn + per-locale StringList), and typed record decoders — paragon boards/nodes/glyphs, character classes, powers/affixes/items, and the paragon UI render layout (raw fields only). Unofficial; not affiliated with or endorsed by Blizzard Entertainment. Diablo is a trademark of Blizzard Entertainment, Inc. Use only with your own legally-obtained game files.</Description>
   </PropertyGroup>
-
-  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
-    <PackageReference Include="System.Memory" Version="4.6.0" />
-    <PackageReference Include="System.Threading.Tasks.Extensions" Version="4.6.0" />
-    <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="9.0.0" />
-  </ItemGroup>
-
-  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
-    <Compile Include="../Shared/Polyfills.cs" Link="Polyfills.cs" />
-  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="../WiseOwl.Casc/WiseOwl.Casc.csproj" />

@@ -112,9 +112,11 @@ decision.
   `gh` authed as `BrentRector`; commits use the
   `<id>+BrentRector@users.noreply.github.com` form — plain
   `brent@wiseowl.com` is rejected by GitHub email privacy).
-- **Build:** .NET 10 SDK. `dotnet build/test WiseOwl.Casc.slnx`. Core
-  multi-TFMs `netstandard2.0;net8.0;net10.0` (ns2.0 uses
-  `src/Shared/Polyfills.cs` for `IsExternalInit`).
+- **Build:** .NET 10 SDK. `dotnet build/test WiseOwl.Casc.slnx`. Both
+  libraries multi-target `net8.0;net10.0` (netstandard2.0 was dropped
+  2026-05-21 — single modern consumer; removing it cleared the analyzer
+  warnings that the ns2.0 API gaps forced + the System.Memory/polyfill
+  baggage).
 - **Live data:** Diablo IV at `D:\Diablo IV` (product `fenris`, build
   `3.0.2.71886`). Integration tests self-skip without it; set
   `WISEOWL_CASC_INSTALL` / `WISEOWL_CASC_CORETOC` to point elsewhere. The

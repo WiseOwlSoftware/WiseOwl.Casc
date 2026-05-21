@@ -80,11 +80,7 @@ public readonly ref struct SnoRecord(ReadOnlySpan<byte> data, int payloadBase)
     public float F32(int payloadOffset)
     {
         var bits = U32(payloadOffset);
-#if NETSTANDARD2_0
-        return BitConverter.ToSingle(BitConverter.GetBytes(bits), 0);
-#else
         return BitConverter.UInt32BitsToSingle(bits);
-#endif
     }
 
     /// <summary>

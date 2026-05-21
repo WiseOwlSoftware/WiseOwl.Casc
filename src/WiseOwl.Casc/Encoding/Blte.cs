@@ -92,11 +92,7 @@ public static class Blte
         switch (mode)
         {
             case 'N': // stored verbatim
-#if NETSTANDARD2_0
-                output.Write(body.ToArray(), 0, body.Length);
-#else
                 output.Write(body);
-#endif
                 break;
 
             case 'Z': // zlib (RFC 1950) stream
@@ -104,11 +100,7 @@ public static class Blte
                 break;
 
             case 'F': // a nested BLTE blob
-#if NETSTANDARD2_0
-                var inner = Decode(body.ToArray());
-#else
                 var inner = Decode(body);
-#endif
                 output.Write(inner, 0, inner.Length);
                 break;
 
@@ -126,16 +118,9 @@ public static class Blte
     private static void Inflate(ReadOnlySpan<byte> zlib, Stream output, int decompSize)
     {
         _ = decompSize;
-#if NETSTANDARD2_0
-        // No ZLibStream on ns2.0: skip the 2-byte zlib header, raw-inflate.
-        using var src = new MemoryStream(zlib.Slice(2).ToArray(), writable: false);
-        using var inflate = new DeflateStream(src, CompressionMode.Decompress);
-        inflate.CopyTo(output);
-#else
         var rented = zlib.ToArray();
         using var src = new MemoryStream(rented, writable: false);
         using var zs = new ZLibStream(src, CompressionMode.Decompress);
         zs.CopyTo(output);
-#endif
     }
 }

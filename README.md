@@ -85,8 +85,8 @@ for exactly what is working vs. stubbed.
 
 ## Building
 
-Requires the **.NET 10 SDK**. The core multi-targets
-`netstandard2.0;net8.0;net10.0`.
+Requires the **.NET 10 SDK**. The libraries multi-target
+`net8.0;net10.0`.
 
 ```
 dotnet build WiseOwl.Casc.slnx

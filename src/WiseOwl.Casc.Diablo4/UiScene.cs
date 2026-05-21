@@ -84,11 +84,7 @@ public sealed record UiScene(int SnoId, IReadOnlyList<UiWidget> Widgets)
                     U32(blob, classOff + 8) == Sentinel)
                 {
                     starts.Add((s,
-#if NETSTANDARD2_0
-                        System.Text.Encoding.ASCII.GetString(blob.Slice(s, len).ToArray()),
-#else
                         System.Text.Encoding.ASCII.GetString(blob.Slice(s, len)),
-#endif
                         U32(blob, classOff)));
                     i = e; // skip past the consumed name
                     continue;

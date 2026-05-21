@@ -13,7 +13,7 @@ Opens a *local* Blizzard installation and resolves content by path or by
 content/encoding key — `.build.info` → build config → local `.idx` index
 → archive envelope → BLTE decode → encoding table → the TVFS path tree.
 Modern API: typed `ContentKey` / `EncodingKey` value types, async reads,
-spans, `netstandard2.0;net8.0;net10.0`.
+spans, `net8.0;net10.0`.
 
 ```csharp
 using WiseOwl.Casc;
