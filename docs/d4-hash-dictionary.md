@@ -25,6 +25,7 @@ the implementations.
 | `0x069EA64C` | `nRight` | FR-C14 R6 (brute force) |
 | `0x06AB76DE` | `bActive` | FR-C14 R7 |
 | `0x06F9158E` | `nWidth` | pre-existing (CASC source) |
+| `0x0204DBB8` | `hTooltipText` | FR-C16 R12 (EXE symbol extract) |
 | `0x0789C1CD` | `hText` | FR-C14 R7 |
 | `0x0B63D29B` | `hImageFrameMouseOver` | FR-C16 R11 (recombination crack) — per-state image-slot family |
 | `0x0C152636` | `hImageFrame` | FR-C12 re-decode (brute force) — node disc-handle field (type `UIImageHandleReference`) |

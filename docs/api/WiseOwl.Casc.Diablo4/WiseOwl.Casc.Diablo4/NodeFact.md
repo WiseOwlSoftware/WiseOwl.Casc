@@ -31,14 +31,16 @@ public enum NodeFact
 | TypeSocket | `18` | The node is a glyph-socket node. |
 | TypeGate | `19` | The node is the board exit/gate node. |
 | TypeStart | `20` | The node is the board start node. |
-| Pressed | `21` | Engine interaction state: the widget is pressed. |
-| MouseOver | `22` | Engine interaction state: the cursor is over the widget. |
-| Disabled | `23` | Engine interaction state: the widget is disabled. |
-| Never | `24` | The layer never draws under any computed fact (an authored-inactive widget with no recovered predicate). |
+| Locked | `21` | The node is locked (not yet reachable) — engine texture state `ParagonNode_Texture_Locked`. |
+| Unlocked | `22` | The node is unlocked (reachable but not purchased) — engine state `ParagonNode_Legendary_Unlocked`. |
+| Pressed | `23` | Engine interaction state: the widget is pressed. |
+| MouseOver | `24` | Engine interaction state: the cursor is over the widget. |
+| Disabled | `25` | Engine interaction state: the widget is disabled. |
+| Never | `26` | The layer never draws under any computed fact (an authored-inactive widget with no recovered predicate). |
 
 ## Remarks
 
-Provenance (see [`NodeActivationSource`](./NodeActivationSource.md)): the paragon UI scene does not store an activation expression per widget — there is no condition/visibility/predicate field, no binding expression in the value records, and no condition-SNO reference (FR-C16 R10, scene 657304, exhaustively verified). The engine binds a widget's `bActive` to a runtime state by the widget's name in its C++ UI controller; the data-side representation of the association is the naming convention (per-state field suffixes such as `hImageFramePressed`/`MouseOver`/`Disable`, and per-state widget/asset names such as `Node_Purchased`/`Node_Purchasable`/ `Template_Node_Magic`). CASC decodes that convention into the typed activations below so the consumer evaluates rather than invents.
+Provenance (see [`NodeActivationSource`](./NodeActivationSource.md)): the paragon UI scene does not store an activation expression per widget — there is no condition/visibility/predicate field, no binding expression in the value records, and no condition-SNO reference (FR-C16 R10, scene 657304, exhaustively verified). The engine binds a widget's `bActive` to a runtime state by the widget's name in its C++ UI controller; the data-side representation of the association is the naming convention (per-state field suffixes such as `hImageFramePressed`/`MouseOver`/`Disable`, and per-state widget/asset names such as `Node_Purchased`/`Node_Purchasable`/ `Template_Node_Magic`). CASC decodes that convention into the typed activations below so the consumer evaluates rather than invents. EXE-validated (FR-C16 R12). This vocabulary is corroborated by the named data-source / predicate symbols in `Diablo IV.exe` — the engine uses a `DataBinding`/`SetObjectBinding` system whose boolean sources include `ParagonNodeIsPurchased` (= Purchased), `IsSelected` (= Selected), `IsLocked`/`ParagonNode_Texture_Locked` (= Locked), `IsEquipped` (= Equipped), and `ParagonGlyphAffixIsActive`. The per-widget wiring lives in the `ParagonBoardUI` controller (compiled code, not a SNO field); the source names are EXE-recoverable, the wiring needs disassembly.
 
 ## See Also
 

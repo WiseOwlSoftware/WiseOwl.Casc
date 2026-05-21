@@ -26,6 +26,17 @@ namespace WiseOwl.Casc.Diablo4;
 /// widget/asset names such as <c>Node_Purchased</c>/<c>Node_Purchasable</c>/
 /// <c>Template_Node_Magic</c>). CASC decodes that convention into the typed
 /// activations below so the consumer evaluates rather than invents.
+/// <br/><br/>
+/// <b>EXE-validated (FR-C16 R12).</b> This vocabulary is corroborated by the
+/// named data-source / predicate symbols in <c>Diablo IV.exe</c> — the
+/// engine uses a <c>DataBinding</c>/<c>SetObjectBinding</c> system whose
+/// boolean sources include <c>ParagonNodeIsPurchased</c>
+/// (= <see cref="Purchased"/>), <c>IsSelected</c> (= <see cref="Selected"/>),
+/// <c>IsLocked</c>/<c>ParagonNode_Texture_Locked</c> (= <see cref="Locked"/>),
+/// <c>IsEquipped</c> (= <see cref="Equipped"/>), and
+/// <c>ParagonGlyphAffixIsActive</c>. The per-widget wiring lives in the
+/// <c>ParagonBoardUI</c> controller (compiled code, not a SNO field); the
+/// source <i>names</i> are EXE-recoverable, the wiring needs disassembly.
 /// </remarks>
 public enum NodeFact
 {
@@ -71,6 +82,12 @@ public enum NodeFact
     TypeGate,
     /// <summary>The node is the board start node.</summary>
     TypeStart,
+    /// <summary>The node is locked (not yet reachable) — engine texture
+    /// state <c>ParagonNode_Texture_Locked</c>.</summary>
+    Locked,
+    /// <summary>The node is unlocked (reachable but not purchased) — engine
+    /// state <c>ParagonNode_Legendary_Unlocked</c>.</summary>
+    Unlocked,
     /// <summary>Engine interaction state: the widget is pressed.</summary>
     Pressed,
     /// <summary>Engine interaction state: the cursor is over the widget.</summary>
