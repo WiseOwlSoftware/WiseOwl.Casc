@@ -1481,38 +1481,83 @@ public sealed class Diablo4StorageIntegrationTests
         // nodes); the split is the fix.
         var magic = L("Template_Node_Magic").SelectionDiscs;
         Assert.NotNull(magic);
-        Assert.Equal(0x621CB6FFu, magic!.Unselected);   // magic unselected disc
-        Assert.Equal(0x72C29402u, magic.Selected);      // magic selected (ring baked in)
+        Assert.Equal(0x621CB6FFu, magic!.Unselected.ImageHandle);   // magic unselected disc
+        Assert.Equal(0x72C29402u, magic.Selected.ImageHandle);      // magic selected (ring baked in)
 
         var rare = L("Template_Node_Rare").SelectionDiscs;
         Assert.NotNull(rare);
-        Assert.Equal(0xB71BD068u, rare!.Unselected);    // rare unselected
-        Assert.Equal(0x03EDABABu, rare.Selected);       // rare selected
+        Assert.Equal(0xB71BD068u, rare!.Unselected.ImageHandle);    // rare unselected
+        Assert.Equal(0x03EDABABu, rare.Selected.ImageHandle);       // rare selected
 
         var leg = L("Template_Node_Legendary").SelectionDiscs;
         Assert.NotNull(leg);
-        Assert.Equal(0x232DF7F9u, leg!.Unselected);     // legendary unselected
-        Assert.Equal(0xBD27FB7Cu, leg.Selected);        // legendary selected
+        Assert.Equal(0x232DF7F9u, leg!.Unselected.ImageHandle);     // legendary unselected
+        Assert.Equal(0xBD27FB7Cu, leg.Selected.ImageHandle);        // legendary selected
 
-        // FR-C16 R5 — the small-negative rect-inset sentinels CL-46
-        // surfaced as bogus composite handles (0xFFFFFFFD = −3 overscan on
-        // the larger Legendary disc, etc.) are excluded: every surfaced
-        // composite handle resolves to a real atlas frame.
+        // FR-C18 — the rarity disc carries the engine's authored inset on
+        // its child sub-record; the colored disc draws at the 86² base-disc
+        // size (inset 7, matching Node_IconBase), NOT full-cell. The pair is
+        // co-sized — the unselected disc inherits the authored inset even
+        // though its own child record omits it.
+        Assert.Equal(7, magic.Selected.Rect.Top);
+        Assert.Equal(7, magic.Selected.Rect.Left);
+        Assert.Equal(7, magic.Unselected.Rect.Top);     // inherited (co-sized pair)
+        Assert.Equal(7, rare.Selected.Rect.Top);
+        Assert.Equal(7, rare.Unselected.Rect.Top);
+        // Legendary disc is larger: −3 overscan on both states.
+        Assert.Equal(-3, leg.Selected.Rect.Top);
+        Assert.Equal(-3, leg.Unselected.Rect.Top);
+
+        // FR-C16 R5/R9 — every surfaced composite/disc handle resolves to a
+        // real atlas frame (the small-negative overscan insets are rects on
+        // NodeDiscLayer.Rect now, never mistaken for handles).
         foreach (var layer in recipe.Layers)
         {
-            foreach (var h in layer.CompositeHandles)
-                Assert.True(d4.IsParagonTextureHandle(h),
-                    $"{layer.WidgetName} composite 0x{h:X8} is not a resolvable handle");
+            foreach (var c in layer.CompositeLayers)
+            {
+                Assert.True(d4.IsParagonTextureHandle(c.ImageHandle),
+                    $"{layer.WidgetName} composite 0x{c.ImageHandle:X8} is not a resolvable handle");
+                Assert.InRange(c.Rect.Top, -4096, 4096);
+            }
             if (layer.SelectionDiscs is { } sd)
             {
-                Assert.True(d4.IsParagonTextureHandle(sd.Unselected));
-                Assert.True(d4.IsParagonTextureHandle(sd.Selected));
+                Assert.True(d4.IsParagonTextureHandle(sd.Unselected.ImageHandle));
+                Assert.True(d4.IsParagonTextureHandle(sd.Selected.ImageHandle));
             }
         }
 
-        // Non-rarity layers carry no selection-disc pair.
+        // #26.3 — Template_Node_Starter: the filigree (0xA0F996FE) is a
+        // 140² layer at −18 overscan (larger than the cell, surrounding the
+        // base hexagon), the base (0xF8312CA8) inherits the cell. Drawing
+        // each at its own rect (not both full-cell) is the fix for the
+        // "base paints over filigree" bug.
+        var starter = L("Template_Node_Starter").CompositeLayers;
+        var filigree = starter.First(c => c.ImageHandle == 0xA0F996FEu);
+        Assert.Equal(-18, filigree.Rect.Top);
+        Assert.Equal(140, filigree.Rect.Width);
+        Assert.Contains(starter, c => c.ImageHandle == 0xF8312CA8u);   // base hexagon
+
+        // #26.4 — Template_Node_Quest IS the gate: filigree 0xA0F996FE at
+        // −20, ornate 0xC2DF4786/0x0E6B6249 at inset 3, locator 0x6D68F45F
+        // at inset 22/26/24/24 (a conditional "located" layer, gated by the
+        // consumer's predicate — not dropped, not always-on).
+        var quest = L("Template_Node_Quest").CompositeLayers;
+        Assert.Contains(quest, c => c.ImageHandle == 0xA0F996FEu && c.Rect.Top == -20);
+        Assert.Contains(quest, c => c.ImageHandle == 0xC2DF4786u && c.Rect.Top == 3);
+        Assert.Contains(quest, c => c.ImageHandle == 0x0E6B6249u && c.Rect.Top == 3);
+        var locator = quest.First(c => c.ImageHandle == 0x6D68F45Fu);
+        Assert.Equal(22, locator.Rect.Top);
+        Assert.Equal(24, locator.Rect.Left);
+
+        // #26.2 — Template_Node_Socketable is authored EMPTY in scene 657304
+        // (a 240-byte stub: no children, no handles). The empty composite is
+        // faithful, not a decode miss.
+        Assert.Null(L("Template_Node_Socketable").SelectionDiscs);
+        Assert.Empty(L("Template_Node_Socketable").CompositeLayers);
+
+        // Non-rarity / non-template layers carry no selection-disc pair.
         Assert.Null(L("Node_IconBase").SelectionDiscs);
-        Assert.Empty(L("Node_IconBase").CompositeHandles);
+        Assert.Empty(L("Node_IconBase").CompositeLayers);
 
         // FR-C16 R7 — Node_Icon decodes exactly now: it is a
         // tag-2-encoded sparse widget the pre-R7 0x22-only parser mis-keyed

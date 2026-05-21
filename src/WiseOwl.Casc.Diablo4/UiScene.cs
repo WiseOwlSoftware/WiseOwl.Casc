@@ -168,6 +168,55 @@ public sealed record UiScene(int SnoId, IReadOnlyList<UiWidget> Widgets)
                     q < values.Count ? values[q] : 0u,
                     q < values.Count);
 
+            // FR-C16 R9 / FR-C18: the anonymous child sub-records nested in
+            // a parent widget's span are NOT a flat handle soup — each is a
+            // self-contained mini-widget (a class id + 0xFFFFFFFF sentinel,
+            // name-less, then its own schema run + positionally-keyed value
+            // records, exactly like a named widget). Parse them structurally
+            // so each child's authored rect stays paired with its handle
+            // (the rarity disc / starter filigree / gate ornate layers each
+            // carry their own inset; the prior flat ExtraLayerValues lost
+            // that pairing — CL-46's all-zero rarity rect and the consumer's
+            // full-cell over-paint both trace to it). A child's span runs
+            // from its marker to the next sibling marker (or the parent end).
+            // Children are not observed to nest further in scene 657304, so
+            // the parse is one level deep.
+            var children = new List<UiWidgetChild>();
+            for (int o = ownClassOff + 4; o + 12 <= to; o += 4)
+            {
+                if (U32(blob, o + 8) != Sentinel || !classIds.Contains(U32(blob, o)))
+                    continue;
+                int childStart = o;
+                uint childClass = U32(blob, o);
+                // next sibling marker bounds this child.
+                int childEnd = to;
+                for (int n = o + 12; n + 12 <= to; n += 4)
+                    if (U32(blob, n + 8) == Sentinel && classIds.Contains(U32(blob, n)))
+                    { childEnd = n; break; }
+
+                var cFields = new List<(uint f, uint t)>();
+                for (int k = childStart; k + 12 <= childEnd; k += 4)
+                    if (U32(blob, k + 4) == DtBindableProperty)
+                    { cFields.Add((U32(blob, k), U32(blob, k + 8))); k += 8; }
+
+                var cValues = new List<uint>();
+                for (int p = childStart; p + 12 <= childEnd && cValues.Count < cFields.Count; )
+                {
+                    if (blob[p] == RecordTag && U32(blob, p) == RecordTag)
+                    { cValues.Add(U32(blob, p + 8)); p += RecordSize; }
+                    else if (U32(blob, p) == 2u && U32(blob, p + 4) == 0u)
+                    { cValues.Add(U32(blob, p + 8)); p += 12; }
+                    else p += 4;
+                }
+
+                var cf = new UiField[cFields.Count];
+                for (int q = 0; q < cFields.Count; q++)
+                    cf[q] = new UiField(cFields[q].f, cFields[q].t,
+                        q < cValues.Count ? cValues[q] : 0u, q < cValues.Count);
+                children.Add(new UiWidgetChild(childClass, cf));
+                o = childEnd - 4; // resume scan at the next sibling marker
+            }
+
             // Pass 2c (FR-C8/FR-C9): the "bound-layer block" — a value
             // bound NOT as a 56-byte 0x22 record but as the shape
             //   +0x00 u32 tag = 2   +0x04 u32 0   +0x08 u32 value
@@ -195,7 +244,7 @@ public sealed record UiScene(int SnoId, IReadOnlyList<UiWidget> Widgets)
                 else p += 4;
             }
 
-            widgets.Add(new UiWidget(starts[w].name, starts[w].classId, uf, extra));
+            widgets.Add(new UiWidget(starts[w].name, starts[w].classId, uf, extra, children));
         }
 
         return new UiScene(snoId, widgets);
@@ -216,10 +265,43 @@ public sealed record UiScene(int SnoId, IReadOnlyList<UiWidget> Widgets)
 /// stack for templates like <c>Template_Node_Starter</c> /
 /// <c>Template_Node_Quest</c> whose composites the §10.3 0x22 scan does
 /// not model. Raw values (e.g. texture handles); interpretation is the
-/// consumer's / the typed projection's.</param>
+/// consumer's / the typed projection's. <b>Flat and lossy</b> for the
+/// per-child geometry (handles and rect insets are interleaved with no
+/// pairing) — prefer <see cref="Children"/> when the handle↔rect
+/// association matters; <see cref="ExtraLayerValues"/> is retained for
+/// the §10.14 losslessness/coverage guarantee.</param>
+/// <param name="Children">FR-C16 R9 / FR-C18 — the anonymous child
+/// sub-records nested in this widget's span, in serialized (z) order,
+/// each parsed structurally as a name-less mini-widget (its own class id
+/// + bound fields). Empty for a leaf widget. The per-rarity / start /
+/// gate templates (<c>Template_Node_Magic</c>/<c>Rare</c>/<c>Legendary</c>/
+/// <c>Starter</c>/<c>Quest</c>) carry their disc / ornate / filigree /
+/// locator layers here, each with its own authored <c>hImageFrame</c> +
+/// rect insets — the pairing <see cref="ExtraLayerValues"/> flattens
+/// away.</param>
 public sealed record UiWidget(
     string Name, uint ClassId, IReadOnlyList<UiField> Fields,
-    IReadOnlyList<uint> ExtraLayerValues);
+    IReadOnlyList<uint> ExtraLayerValues,
+    IReadOnlyList<UiWidgetChild> Children);
+
+/// <summary>
+/// An anonymous child sub-record of a <see cref="UiWidget"/> (FR-C16 R9 /
+/// FR-C18). The Diablo IV UI scene serializes a composite node template
+/// (e.g. <c>Template_Node_Magic</c>) as a parent widget whose disc /
+/// ornate / overlay layers are <i>name-less</i> nested records — each a
+/// class id + <c>0xFFFFFFFF</c> sentinel followed by its own schema +
+/// positionally-keyed value records, structurally identical to a named
+/// widget minus the inline name. Decoding them structurally keeps each
+/// layer's authored rect paired with its <c>hImageFrame</c> handle.
+/// </summary>
+/// <param name="ClassId">The child's class id
+/// (<c>= Diablo4.TypeHash(class)</c>; typically <c>UIWindowStyle</c>).</param>
+/// <param name="Fields">The child's bound fields, in serialized order
+/// (same shape as <see cref="UiWidget.Fields"/>) — its <c>hImageFrame</c>
+/// handle, <c>nLeft/nTop/nRight/nBottom/nWidth/nHeight</c> rect insets,
+/// <c>bActive</c>, etc.</param>
+public sealed record UiWidgetChild(
+    uint ClassId, IReadOnlyList<UiField> Fields);
 
 /// <summary>
 /// One bound field of a <see cref="UiWidget"/>: the field-name hash

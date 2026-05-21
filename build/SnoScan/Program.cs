@@ -471,6 +471,111 @@ switch (cmd)
         foreach (var h in dropped) Console.WriteLine($"  DROPPED 0x{h:X8}");
         return 0;
     }
+    case "noderecon":
+    {
+        // FR-C16 R8 / FR-C18 recon: dump the node-run widgets of a UI scene
+        // both as ReadUiScene parses them (fields + ExtraLayerValues) and as
+        // a raw header/value-record map for the Template_Node_* parents — so
+        // we can see WHERE each rect value record sits relative to the first
+        // nested anonymous child (the parent field-scan boundary).
+        int sc = argv.Count > 1 ? int.Parse(argv[1]) : 657304;
+        if (!d4.TryReadSno(46, sc, SnoFolder.Meta, out var b)) { Console.WriteLine("no scene"); return 1; }
+
+        const uint SEP = 0x1332C78D, SENT = 0xFFFFFFFF;
+        static int Align8(int n) => (n + 7) & ~7;
+        uint U(int o) => BitConverter.ToUInt32(b, o);
+        static bool NB(byte c) => c is (>=(byte)'A' and <=(byte)'Z') or (>=(byte)'a' and <=(byte)'z') or (>=(byte)'0' and <=(byte)'9') or (byte)'_';
+        static bool NS(byte c) => c is (>=(byte)'A' and <=(byte)'Z') or (>=(byte)'a' and <=(byte)'z');
+
+        // Pass-1 header scan (mirrors UiScene.Parse).
+        var starts = new List<(int at, string nm, uint cls)>();
+        for (int i = 0; i < b.Length; )
+        {
+            if (!NS(b[i])) { i++; continue; }
+            int s = i, e = i; while (e < b.Length && NB(b[e])) e++;
+            int len = e - s;
+            if (len >= 4 && e < b.Length && b[e] == 0)
+            {
+                int co = s + Align8(len + 1) + 0x10;
+                if (co + 12 <= b.Length && U(co + 8) == SENT)
+                { starts.Add((s, System.Text.Encoding.ASCII.GetString(b, s, len), U(co))); i = e; continue; }
+            }
+            i = e > i ? e : i + 1;
+        }
+        var clsIds = new HashSet<uint>(); foreach (var st in starts) clsIds.Add(st.cls);
+
+        // Part A — parsed node-run view.
+        var scene = d4.ReadUiScene(sc);
+        var ws = scene.Widgets;
+        int first = -1, last = -1;
+        for (int k = 0; k < ws.Count; k++)
+        {
+            var nm = ws[k].Name ?? "";
+            if ((nm.StartsWith("Common_Node") || nm.StartsWith("Node_")) && first < 0) first = k;
+            if (nm.StartsWith("Template_Node_")) last = k;
+        }
+        Console.WriteLine($"== scene {sc}: node run z=[{first}..{last}] of {ws.Count} widgets ==");
+        for (int k = first; k <= last && k >= 0; k++)
+        {
+            var w = ws[k];
+            Console.WriteLine($"\nz={k} '{w.Name}' class={Diablo4.FormatTypeHash(w.ClassId)}");
+            foreach (var f in w.Fields)
+                Console.WriteLine($"    {Diablo4.FormatFieldHash(f.FieldHash),-26} {Diablo4.FormatTypeHash(f.TypeHash),-22} = {(f.HasValue ? $"0x{f.RawValue:X8} ({(int)f.RawValue})" : "(unbound)")}");
+            if (w.ExtraLayerValues.Count > 0)
+                Console.WriteLine($"    extraLayers[{w.ExtraLayerValues.Count}]: {string.Join(" ", w.ExtraLayerValues.Select(v => $"0x{v:X8}"))}");
+        }
+
+        // Part B — raw value-record map for the Template_Node_* parents.
+        Console.WriteLine("\n== RAW value-record map (Template_Node_* parents) ==");
+        for (int si = 0; si < starts.Count; si++)
+        {
+            if (!starts[si].nm.StartsWith("Template_Node_", StringComparison.Ordinal)) continue;
+            int from = starts[si].at;
+            int to = si + 1 < starts.Count ? starts[si + 1].at : b.Length;
+            int ownCo = from + Align8(starts[si].nm.Length + 1) + 0x10;
+            int firstChild = to;
+            for (int o = ownCo + 4; o + 12 <= to; o += 4)
+                if (U(o + 8) == SENT && clsIds.Contains(U(o))) { firstChild = o; break; }
+            Console.WriteLine($"\n'{starts[si].nm}' @0x{from:X} class={Diablo4.FormatTypeHash(starts[si].cls)} span=[0x{from:X}..0x{to:X}) ownClassOff=0x{ownCo:X} firstChild={(firstChild < to ? $"0x{firstChild:X}" : "(none)")}");
+            // child sub-record markers: every (classId, _, SENT@+8) in span
+            var childAt = new List<int>();
+            for (int o = ownCo + 4; o + 12 <= to; o += 4)
+                if (U(o + 8) == SENT && clsIds.Contains(U(o))) childAt.Add(o);
+            Console.WriteLine($"  child markers ({childAt.Count}): {string.Join(" ", childAt.Select(o => $"0x{o:X}={Diablo4.FormatTypeHash(U(o))}"))}");
+
+            // Per sub-record (parent = [from,firstChild); child_i = [childAt[i], childAt[i+1]))
+            // print its schema fields + value records paired positionally.
+            void DumpRange(string tag, int lo, int hi)
+            {
+                var sf = new List<uint>();
+                for (int kk = lo; kk + 12 <= hi; )
+                { if (U(kk + 4) == SEP) { sf.Add(U(kk)); kk += 12; } else kk += 4; }
+                var vr = new List<uint>();
+                for (int p = lo; p + 12 <= hi; )
+                {
+                    if (b[p] == 0x22 && U(p) == 0x22) { vr.Add(U(p + 8)); p += 0x38; }
+                    else if (U(p) == 2u && U(p + 4) == 0u) { vr.Add(U(p + 8)); p += 12; }
+                    else p += 4;
+                }
+                Console.Write($"    {tag} [0x{lo:X}..0x{hi:X}) fields={sf.Count} values={vr.Count}: ");
+                for (int q = 0; q < Math.Max(sf.Count, vr.Count); q++)
+                {
+                    string fn = q < sf.Count ? Diablo4.FormatFieldHash(sf[q]) : "?";
+                    string vv = q < vr.Count ? $"0x{vr[q]:X8}({(int)vr[q]})" : "-";
+                    Console.Write($"{fn}={vv}  ");
+                }
+                Console.WriteLine();
+            }
+            DumpRange("PARENT", from, firstChild < to ? firstChild : to);
+            for (int c = 0; c < childAt.Count; c++)
+            {
+                int clo = childAt[c];
+                int chi = c + 1 < childAt.Count ? childAt[c + 1] : to;
+                DumpRange($"child{c}", clo, chi);
+            }
+        }
+        return 0;
+    }
     default:
         Console.Error.WriteLine($"unknown command '{cmd}'");
         return 2;

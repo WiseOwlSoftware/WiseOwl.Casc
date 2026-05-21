@@ -1,6 +1,6 @@
 # ParagonNodeRecipeLayer.SelectionDiscs property
 
-FR-C16 R5 — non-`null` only for the rarity sub-templates (`Template_Node_Magic`/`Rare`/`Legendary`): the per-selection-state disc composite (unselected vs selected). CL-46 flattened both states into one `CompositeHandles` list, so a consumer drawing the list verbatim painted the selected-state ring on unselected nodes; this splits them so the interpreter draws [`Selected`](../NodeSelectionDiscs/Selected.md) only on the currently selected node and [`Unselected`](../NodeSelectionDiscs/Unselected.md) otherwise. See [`NodeSelectionDiscs`](../NodeSelectionDiscs.md).
+FR-C16 R5/R9 — non-`null` only for the rarity sub-templates (`Template_Node_Magic`/`Rare`/`Legendary`): the per-selection-state disc layer (unselected vs selected), each with its handle and authored rect. The consumer draws [`Selected`](../NodeSelectionDiscs/Selected.md) only on the currently selected node and [`Unselected`](../NodeSelectionDiscs/Unselected.md) otherwise; never both. See [`NodeSelectionDiscs`](../NodeSelectionDiscs.md).
 
 ```csharp
 public NodeSelectionDiscs? SelectionDiscs { get; set; }
