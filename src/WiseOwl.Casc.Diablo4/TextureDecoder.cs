@@ -41,11 +41,19 @@ public static class TextureDecoder
 
     /// <summary>
     /// Decode mip 0 of a texture payload to a <see cref="DecodedImage"/>.
-    /// Diablo IV stores BC rows aligned up to 64&#160;px; this decodes at the
-    /// aligned width and crops back to the true <see cref="TextureDefinition.Width"/>×
-    /// <see cref="TextureDefinition.Height"/>. mip0 is taken from
-    /// <c>SerTex[0]</c> when present (else payload offset 0 — the paragon
-    /// atlas case).
+    /// Diablo IV stores BC block-rows at a <b>texture-specific</b> aligned
+    /// row pitch (observed 64- and 128-px alignments — e.g. atlas 447106
+    /// at 1208 px wide is stored at a 1280-px pitch, 128-aligned). The
+    /// true stored pitch is recovered from the mip0 byte count
+    /// (<see cref="SerialDataInfo.SizeAndFlags"/> ÷ block-rows ÷ block
+    /// size = blocks-per-row), which is exact for every atlas; a
+    /// hard-coded <c>Align(width, 64)</c> drifts the row stride on the
+    /// 128-aligned ones and garbles the image (slanted banding). When the
+    /// mip0 size is unavailable, falls back to <c>Align(width, 64)</c>.
+    /// This decodes at the stored pitch and crops back to the true
+    /// <see cref="TextureDefinition.Width"/>×<see cref="TextureDefinition.Height"/>.
+    /// mip0 is taken from <c>SerTex[0]</c> when present (else payload
+    /// offset 0 — the paragon atlas case).
     /// </summary>
     /// <exception cref="NotSupportedException">The codec is not BC1/BC3.</exception>
     public static DecodedImage DecodeMip0(this TextureDefinition td, ReadOnlySpan<byte> payload)
@@ -60,12 +68,25 @@ public static class TextureDecoder
         var off = td.SerTex.Count > 0 ? (int)td.SerTex[0].Offset : 0;
         var src = payload.Slice(off);
 
-        var aw = Align(td.Width, 64);              // stored row pitch
         var ah = Align(td.Height, 4);              // whole 4-px block rows
-        var blocksX = aw / 4;
         var blocksY = ah / 4;
-        var full = new byte[aw * ah * 4];
         var blockSize = codec == TextureCodec.Bc1 ? 8 : 16;
+
+        // Stored row pitch (FR/#28): D4's BC row alignment is
+        // texture-specific, so derive blocks-per-row from the exact mip0
+        // byte count rather than guessing an alignment. Guard: the divisor
+        // must divide cleanly and yield a pitch ≥ the logical width;
+        // otherwise fall back to the legacy 64-px alignment.
+        long mip0Size = td.SerTex.Count > 0 ? td.SerTex[0].SizeAndFlags : 0;
+        long rowBytes = (long)blocksY * blockSize;
+        int aw;
+        if (mip0Size > 0 && rowBytes > 0 && mip0Size % rowBytes == 0 &&
+            mip0Size / rowBytes * 4 >= td.Width)
+            aw = (int)(mip0Size / rowBytes) * 4;   // exact stored pitch
+        else
+            aw = Align(td.Width, 64);              // fallback (no size info)
+        var blocksX = aw / 4;
+        var full = new byte[aw * ah * 4];
 
         // One scratch buffer reused for every 4×4 block. (stackalloc inside
         // the loop would not be freed until the method returns → overflow on

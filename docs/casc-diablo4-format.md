@@ -185,7 +185,14 @@ Combined-meta variable-array descriptor form: `i32 pad; i32 off@+4
 (blob-relative from descStart); i32 size@+8`.
 
 - Paragon atlases are **BC3** (`eTexFormat 49`); mip0 is at payload
-  offset 0; decode at row width `align(W,64)` then crop.
+  offset 0. **Stored row pitch is texture-specific** (observed 64- and
+  128-px alignments — e.g. BC1 atlas 447106 at 1208 px wide is stored at
+  a **1280**-px pitch, 128-aligned, not the 1216 a `align(W,64)` guess
+  gives). The exact pitch = `SerTex[0].size ÷ blockRows ÷ blockSize`
+  (blocks-per-row), recovered from the mip0 byte count; a hard-coded
+  `align(W,64)` drifts the stride on the 128-aligned atlases and garbles
+  the image (slanted banding — #28 / CL-49). Decode at the stored pitch
+  then crop to `W×H`.
 - `ptFrame` element = `TexFrame`, 36 bytes:
   `u32 ImageHandle; f32 U0; f32 V0; f32 U1; f32 V1; …`. Atlas sub-rect
   pixel rectangle = `floor(U·W) … ceil(U·W)` (and V·H).
@@ -1516,6 +1523,29 @@ derived from FR-C14 R8's `snoTiledStyle` crack and R10's variant
 
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
+
+- **CL-49 — `DecodeMip0` BC row-pitch is texture-specific (#28).**
+  `DecodeMip0` hard-coded the stored BC block-row pitch as
+  `Align(width, 64)`. That is wrong for atlases whose stored pitch is
+  **128-aligned**: BC1 atlas **447106** (`2DUI_Paragon`, 1208×1464) is
+  stored at a **1280**-px pitch (320 blocks/row), but `Align(1208,64)`
+  gives 1216 (304 blocks/row) — so the decoder read 16 blocks too few
+  per row and the row stride drifted, garbling the image (slanted
+  banding + a glitch strip). Every frame from a non-64-aligned BC atlas
+  was affected (the FR-C14 board background `0x2954DF0C` and the per-node
+  cell tile `0xC1473C21` both live in 447106). The fix derives the true
+  blocks-per-row from the **exact mip0 byte count**
+  (`SerTex[0].SizeAndFlags ÷ (blockRows × blockSize)`), which is exact
+  for every atlas (the 64-aligned ones derive identically, so no
+  regression), with an `Align(width,64)` fallback + a `pitch ≥ width`
+  guard when the size is unavailable. **Supersedes the CL-46-era claim
+  (#26) that `0xC1473C21`'s consumer-side garble was a consumer decode
+  bug** — it was this library bug; CASC's per-frame probe missed it
+  because `0xC1473C21` is a near-uniform dark square, on which row drift
+  is invisible. Acceptance:
+  `DecodeMip0_uses_stored_row_pitch_for_non_64_aligned_bc1` (the shipped
+  decode differs from a forced-1216 decode and is more row-coherent).
+  44/44 tests green on build `3.0.2.71886`. Devlog 0045.
 
 - **CL-48 — UI-scene tag-2 field-value encoding (FR-C16 R7).** The
   §10.3 instance-record model read only the 56-byte `0x22` record. There

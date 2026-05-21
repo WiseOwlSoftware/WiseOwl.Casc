@@ -135,6 +135,108 @@ public sealed class Diablo4StorageIntegrationTests
         Assert.InRange(opaque, 1, px - 1);
     }
 
+    /// <summary>#28 — BC row-pitch must be the texture's actual stored
+    /// pitch, not a hard-coded <c>Align(width,64)</c>. Atlas 447106
+    /// (1208×1464, BC1) is stored 128-aligned (pitch 1280); the legacy
+    /// 64-aligned guess (1216) drifts the row stride and garbles the
+    /// image. Asserts the decoder uses the size-derived pitch: its output
+    /// differs from a forced-1216 decode and is more row-coherent.</summary>
+    [SkippableFact]
+    public void DecodeMip0_uses_stored_row_pitch_for_non_64_aligned_bc1()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+
+        Assert.True(d4.TextureMeta.TryGet(447106, out var td)); // 2DUI_Paragon
+        Assert.Equal(TextureCodec.Bc1, td.Codec);
+        Assert.NotEqual(0, td.Width % 64);                      // 1208 % 64 = 56
+
+        // The stored mip0 byte count implies an exact blocks-per-row that
+        // is NOT the 64-aligned guess — this is the bug condition.
+        long mip0 = td.SerTex[0].SizeAndFlags;
+        int blocksY = ((td.Height + 3) / 4);
+        Assert.Equal(0, (int)(mip0 % (blocksY * 8L)));
+        int storedPitch = (int)(mip0 / (blocksY * 8L)) * 4;
+        int legacyPitch = (td.Width + 63) / 64 * 64;
+        Assert.Equal(1280, storedPitch);
+        Assert.Equal(1216, legacyPitch);
+
+        var payload = d4.ReadSno(SnoGroup.Texture, 447106, SnoFolder.Payload);
+        var img = td.DecodeMip0(payload);
+        Assert.Equal(td.Width, img.Width);
+        Assert.Equal(td.Height, img.Height);
+
+        // Reference decode at the buggy 1216 pitch — the shipped decode
+        // must NOT match it (proves the fix is applied, catches a revert
+        // to Align(width,64)).
+        var buggy = DecodeBc1AtPitch(payload.AsSpan((int)td.SerTex[0].Offset),
+                                     td.Width, td.Height, legacyPitch);
+        Assert.False(img.Rgba.AsSpan().SequenceEqual(buggy),
+            "decode matches the buggy 1216 pitch — the row-pitch fix is not applied");
+
+        // …and the shipped decode is more row-coherent (the drift bug
+        // scrambles rows → larger row-to-row luminance deltas).
+        Assert.True(RowCoherence(img.Rgba, td.Width, td.Height)
+                  < RowCoherence(buggy, td.Width, td.Height),
+            "shipped decode is no more coherent than the buggy 1216 decode");
+    }
+
+    private static double RowCoherence(byte[] p, int w, int h)
+    {
+        double sum = 0; long n = 0;
+        for (var y = 1; y < h; y++)
+            for (var x = 0; x < w; x++)
+            {
+                int i = (y * w + x) * 4, j = ((y - 1) * w + x) * 4;
+                sum += Math.Abs((p[i] + p[i + 1] + p[i + 2]) - (p[j] + p[j + 1] + p[j + 2]));
+                n++;
+            }
+        return n > 0 ? sum / n : 0;
+    }
+
+    // Minimal BC1 decode at an explicit row pitch — reference for the
+    // #28 regression (independent of the library's pitch logic).
+    private static byte[] DecodeBc1AtPitch(ReadOnlySpan<byte> src, int width, int height, int pitch)
+    {
+        int ah = (height + 3) / 4 * 4, byN = ah / 4, bxN = pitch / 4;
+        var full = new byte[pitch * ah * 4];
+        Span<byte> blk = stackalloc byte[64];
+        for (var by = 0; by < byN; by++)
+            for (var bx = 0; bx < bxN; bx++)
+            {
+                int bo = (by * bxN + bx) * 8;
+                if (bo + 8 > src.Length) break;
+                Bc1Block(src.Slice(bo, 8), blk);
+                for (var py = 0; py < 4; py++)
+                    for (var px = 0; px < 4; px++)
+                    {
+                        int di = ((by * 4 + py) * pitch + bx * 4 + px) * 4, si = (py * 4 + px) * 4;
+                        full[di] = blk[si]; full[di + 1] = blk[si + 1];
+                        full[di + 2] = blk[si + 2]; full[di + 3] = blk[si + 3];
+                    }
+            }
+        var crop = new byte[width * height * 4];
+        for (var y = 0; y < height; y++)
+            Array.Copy(full, y * pitch * 4, crop, y * width * 4, width * 4);
+        return crop;
+    }
+
+    private static void Bc1Block(ReadOnlySpan<byte> b, Span<byte> o)
+    {
+        int c0 = b[0] | (b[1] << 8), c1 = b[2] | (b[3] << 8);
+        Span<int> r = stackalloc int[4], g = stackalloc int[4], bl = stackalloc int[4], a = stackalloc int[4];
+        static void U(int c, Span<int> r, Span<int> g, Span<int> bl, int i)
+        { int r5 = (c >> 11) & 0x1F, g6 = (c >> 5) & 0x3F, b5 = c & 0x1F; r[i] = (r5 << 3) | (r5 >> 2); g[i] = (g6 << 2) | (g6 >> 4); bl[i] = (b5 << 3) | (b5 >> 2); }
+        U(c0, r, g, bl, 0); a[0] = 255; U(c1, r, g, bl, 1); a[1] = 255;
+        if (c0 > c1)
+        { r[2] = (2 * r[0] + r[1]) / 3; g[2] = (2 * g[0] + g[1]) / 3; bl[2] = (2 * bl[0] + bl[1]) / 3; a[2] = 255; r[3] = (r[0] + 2 * r[1]) / 3; g[3] = (g[0] + 2 * g[1]) / 3; bl[3] = (bl[0] + 2 * bl[1]) / 3; a[3] = 255; }
+        else
+        { r[2] = (r[0] + r[1]) / 2; g[2] = (g[0] + g[1]) / 2; bl[2] = (bl[0] + bl[1]) / 2; a[2] = 255; r[3] = g[3] = bl[3] = a[3] = 0; }
+        int idx = b[4] | (b[5] << 8) | (b[6] << 16) | (b[7] << 24);
+        for (var i = 0; i < 16; i++) { int s = (idx >> (i * 2)) & 3, oo = i * 4; o[oo] = (byte)r[s]; o[oo + 1] = (byte)g[s]; o[oo + 2] = (byte)bl[s]; o[oo + 3] = (byte)a[s]; }
+    }
+
     /// <summary>FR-C7 §7.4: the generic UI-scene reader. Decodes
     /// <c>ParagonBoard</c> (657304, group 46, <c>0xE4825AB8</c>) and
     /// asserts the spec §10 facts proven during RE: the root widget's
