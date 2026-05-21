@@ -31,7 +31,7 @@ public sealed record ParagonRenderLayout(
     NodeElement Disc,
     NodeElement Symbol,
     IReadOnlyList<StateElements> States,
-    NodeElement NodeCellBackground);
+    NodeElement CommonNodeRevealedLayer);
 
 /// <summary>
 /// The <b>exhaustive</b> paragon render-model (FR-C9): the role-assigned
@@ -70,9 +70,15 @@ public sealed record ParagonBoundWidget(
 /// <see cref="BorderBottom"/> share one band texture,
 /// <see cref="BorderLeft"/> / <see cref="BorderRight"/> share another.
 /// <see cref="BoardSelectChrome"/> carries the board-select panel's
-/// preview frame + filigree band from scene 964599. All chrome
-/// layers carry no authored sub-rect — the scene leaves them
-/// engine-positioned at native pixel size. The rim-band handles
+/// preview frame + filigree band from scene 964599. The centre field
+/// (<see cref="BackgroundCenter"/>) carries an authored
+/// <c>1200×1200</c> reference-unit rect (decoded FR-C16 R7 — its
+/// <c>nWidth</c>/<c>nHeight</c> are tag-2-encoded; pre-R7 the 0x22-only
+/// parser read no records for this widget and so reported an all-zero
+/// rect — an artifact, now corrected). The 4 rim sides bind no
+/// <c>nWidth</c>/<c>nHeight</c> at all, so they remain
+/// engine-positioned at native pixel size (their rect stays zero,
+/// faithfully). The rim-band handles
 /// (<see cref="BorderTop"/>'s, etc.) are scene-bound via the
 /// standard <c>0x6B1C5D9C</c> texture-handle field but resolve
 /// through a non-icon-catalog path CASC does not currently index, so
@@ -91,7 +97,163 @@ public sealed record ParagonBoardChrome(
     NodeElement BorderRight,
     NodeElement BorderBottom,
     NodeElement BorderLeft,
-    IReadOnlyList<NodeElement> BoardSelectChrome);
+    IReadOnlyList<NodeElement> BoardSelectChrome,
+    IReadOnlyList<TiledStyleBinding> TiledStyleBindings);
+
+/// <summary>
+/// FR-C16 — the engine's per-node render PROGRAM: the ordered list of
+/// state-widget layers the engine composes for one paragon node. Each
+/// <see cref="ParagonNodeRecipeLayer"/> is drawn when its predicate
+/// holds; the list is in z-order (= the scene's serialization / child
+/// order = the engine's draw order). The consumer is a pure
+/// interpreter: it supplies the runtime predicate values
+/// (selected / selectable / purchased / socketed / per-direction
+/// neighbour-selectable / rarity / …) and maps each layer's
+/// <see cref="ParagonNodeRecipeLayer.WidgetName"/> to one.
+/// <br/><br/>
+/// <b>Why name-keyed predicates:</b> the scene stores no structural
+/// per-widget state/predicate field (verified FR-C16 R2 — every
+/// candidate field is layout / anchoring / opacity; the one uncracked
+/// `DT_INT` `0x0CDB00E9` is not a state code). The engine's own widget
+/// <i>name</i> (e.g. <c>Node_Purchased</c>, <c>NodeAvailableGlow</c>,
+/// <c>Arrow_Top</c>) is the state discriminator; per memory
+/// <c>feedback_widget-name-not-role</c> CASC surfaces it <b>verbatim</b>
+/// and never normalizes it into a guessed role taxonomy. The thin,
+/// explicit <c>name → runtime-predicate</c> binding lives once on the
+/// consumer side (it is glue, not composition invention — the
+/// composition itself, the ordered layer list with handles/rects/alpha,
+/// is fully engine-sourced here).
+/// </summary>
+public sealed record ParagonNodeRecipe(IReadOnlyList<ParagonNodeRecipeLayer> Layers);
+
+/// <summary>
+/// FR-C17 — the engine's paragon-board grid-layout metric, in the
+/// authored design-canvas reference units. The consumer maps a board
+/// cell's grid coordinate to a canvas position with
+/// <c>canvasPos = (gridX·Pitch, gridY·Pitch)</c> (relative to the grid
+/// origin) and scales the whole canvas
+/// <c>CanvasWidth×CanvasHeight → render resolution</c>. This replaces
+/// the consumer's empirical pitch (the FR-C7-measured ~67.7px /
+/// arbitrary CellPx) with the engine's authored metric.
+/// <br/><br/>
+/// All values are read from the live UI scene (game data), not
+/// hard-coded: <see cref="CanvasWidth"/>/<see cref="CanvasHeight"/> from
+/// the root <c>ParagonBoard_main</c> widget, <see cref="CellExtent"/>
+/// from the <c>Template_Node_Common</c> node-cell widget. The board's
+/// logical grid (dimensions + which cell holds which node) is the
+/// per-board <see cref="ParagonBoardDefinition"/> (<c>Width</c> +
+/// <c>Cells</c>); this record is the global canvas/cell metric shared
+/// across boards.
+/// <br/><br/>
+/// <b>Pitch = CellExtent</b> (cells are laid out adjacent, no extra
+/// inter-cell gap beyond the per-cell art inset). Validated against the
+/// owner's in-game measurement: the empirical ~67.7px pitch =
+/// <c>CellExtent (100) × render-scale (≈0.677 at the consumer's board
+/// width)</c>, so the authored 100-unit cell reproduces the observed
+/// spacing exactly. If a future build introduces an explicit inter-cell
+/// gap it would surface as <c>Pitch ≠ CellExtent</c> (engine
+/// render-code RE — the <c>UIParagonBoardStyle</c> class is a style
+/// wrapper with no grid-layout fields, so any gap lives in the
+/// engine's grid-layout code, not the scene data).
+/// </summary>
+/// <param name="CanvasWidth">Design-canvas width in reference units
+/// (<c>ParagonBoard_main.nWidth</c>; 1920 on the current build).</param>
+/// <param name="CanvasHeight">Design-canvas height
+/// (<c>ParagonBoard_main.nHeight</c>; 1200).</param>
+/// <param name="CellExtent">Node-cell extent in reference units
+/// (<c>Template_Node_Common.nWidth</c> = <c>nHeight</c>; 100).</param>
+/// <param name="Pitch">Cell-to-cell step in reference units. Equals
+/// <see cref="CellExtent"/> on the current build (adjacent cells).</param>
+public sealed record ParagonBoardGrid(
+    int CanvasWidth,
+    int CanvasHeight,
+    int CellExtent,
+    int Pitch);
+
+/// <summary>FR-C16 — one layer of the <see cref="ParagonNodeRecipe"/>.</summary>
+/// <param name="ZOrder">The layer's draw order — its index in the
+/// scene serialization (lower draws first / underneath). The engine
+/// composes a node by drawing the predicate-satisfied layers in this
+/// order.</param>
+/// <param name="WidgetName">The engine's widget name, verbatim — the
+/// state discriminator the consumer maps to a runtime predicate (e.g.
+/// <c>Node_IconBase</c>, <c>Node_Purchased</c>, <c>Node_Purchasable</c>,
+/// <c>NodeAvailableGlow</c>, <c>Arrow_Top</c>/<c>Right</c>/<c>Bottom</c>/<c>Left</c>,
+/// <c>Connector_*</c>, <c>GlyphNodeGlow_*</c>, <c>Rarity_Display</c>,
+/// <c>Template_Node_Magic</c>/<c>Rare</c>/<c>Legendary</c>/…).</param>
+/// <param name="WidgetClassId">The widget's class style id (e.g.
+/// <c>UIWindowStyle</c> = drawable rect, <c>UIBlinkerStyle</c> =
+/// pulsing glow). Resolve via <see cref="Diablo4.KnownTypeNames"/>.</param>
+/// <param name="ImageHandle">The layer's <c>hImageFrame</c> texture
+/// handle. <c>0</c> ⇒ no static art: either a runtime-bound slot (the
+/// node's own icon/symbol, the equipped-glyph image) or a pure-predicate
+/// marker widget — surfaced (not dropped) so the consumer sees the full
+/// program.</param>
+/// <param name="Rect">The layer's authored reference-unit rect (inset
+/// within the node cell; <see langword="default"/> ⇒ inherits the node
+/// template extent).</param>
+/// <param name="Alpha">The layer's <c>dwAlpha</c> opacity byte
+/// (<c>0xFF</c> when unspecified).</param>
+/// <param name="CompositeHandles">FR-C16 R5 — the layer's additional
+/// texture handles bound via the multi-layer (0x58-block) path, beyond
+/// the single <see cref="ImageHandle"/>, in scene order. <b>Resolvable
+/// handles only</b> — the interleaved 0x58-block <c>int</c> params (rect
+/// insets, including <i>small-negative</i> overscan values such as
+/// <c>0xFFFFFFFD</c> = −3 on the larger Legendary disc) are excluded by
+/// the same icon-catalog validator used across FR-C9..C12 (CL-46
+/// surfaced the negatives as bogus handles — fixed here). For the
+/// per-rarity sub-templates the rarity disc <i>state pair</i> is lifted
+/// out into <see cref="SelectionDiscs"/>; what remains here is the
+/// rarity's always-drawn interior-fill handle(s) (e.g.
+/// <c>Template_Node_Magic</c> → <c>0xFEC31E48</c>). For the
+/// non-rarity composite templates (<c>Template_Node_Starter</c> /
+/// <c>Quest</c> / <c>Socketable</c>) this is the full ordered layer
+/// stack. Empty for ordinary single-handle layers.</param>
+/// <param name="SelectionDiscs">FR-C16 R5 — non-<see langword="null"/>
+/// only for the rarity sub-templates
+/// (<c>Template_Node_Magic</c>/<c>Rare</c>/<c>Legendary</c>): the
+/// per-selection-state disc composite (unselected vs selected). CL-46
+/// flattened both states into one <c>CompositeHandles</c> list, so a
+/// consumer drawing the list verbatim painted the selected-state ring on
+/// <i>unselected</i> nodes; this splits them so the interpreter draws
+/// <see cref="NodeSelectionDiscs.Selected"/> only on the currently
+/// selected node and <see cref="NodeSelectionDiscs.Unselected"/>
+/// otherwise. See <see cref="NodeSelectionDiscs"/>.</param>
+public sealed record ParagonNodeRecipeLayer(
+    int ZOrder,
+    string WidgetName,
+    uint WidgetClassId,
+    uint ImageHandle,
+    WidgetRect Rect,
+    byte Alpha,
+    IReadOnlyList<uint> CompositeHandles,
+    NodeSelectionDiscs? SelectionDiscs);
+
+/// <summary>
+/// FR-C16 R5 — the per-selection-state disc composite of a rarity
+/// sub-template (<c>Template_Node_Magic</c>/<c>Rare</c>/<c>Legendary</c>).
+/// <br/><br/>
+/// <b>Structural claim:</b> each rarity template is a parent widget whose
+/// anonymous child sub-records (each a <c>UIWindowStyle</c> +
+/// <c>0xFFFFFFFF</c> marker, name-less) bind one disc handle apiece; the
+/// first two handle-bearing children, in scene order, are
+/// <see cref="Unselected"/> then <see cref="Selected"/>.
+/// <b>Role claim (separate):</b> that child[0]=unselected and
+/// child[1]=selected (with the red perimeter ring baked into the selected
+/// disc) is the owner's FR-C12 rarity-disc oracle, which matches all six
+/// handles across the three rarities
+/// (<c>0x621CB6FF</c>/<c>0x72C29402</c> Magic,
+/// <c>0xB71BD068</c>/<c>0x03EDABAB</c> Rare,
+/// <c>0x232DF7F9</c>/<c>0xBD27FB7C</c> Legendary). The consumer draws
+/// <see cref="Selected"/> for the currently-selected node and
+/// <see cref="Unselected"/> for every other node of that rarity; never
+/// both.
+/// </summary>
+/// <param name="Unselected">The unselected-state disc-composite handle
+/// (no perimeter ring).</param>
+/// <param name="Selected">The selected-state disc-composite handle (red
+/// perimeter ring baked in).</param>
+public sealed record NodeSelectionDiscs(uint Unselected, uint Selected);
 
 /// <summary>The UI design space the raw rects are authored in (decoded
 /// from the root <c>ParagonBoard_main</c> widget; verified
@@ -518,14 +680,14 @@ internal static class ParagonRenderProjection
         // ring on GlyphNodeGlow_Revealed for unselected/selected and
         // GlyphNodeGlow_Purchased for socketed — the engine reuses the
         // same atlas frames for the side-panel equipped-glyph display
-        // and the on-board per-node render).
-        //
-        // Per-state variations between unselected/selected/socketed
-        // (whether the bead-ring pulse animation stays on selected,
-        // whether socketed adds visible glyph art at the inner well)
-        // are not yet decoded — the LIBRARY surfaces the decode-true
-        // scene-bound LAYER INVENTORY for each state; per-state pulse-
-        // on/off refinement awaits the next visual oracle.
+        // and the on-board per-node render). The three-layer recipe
+        // is identical across all three states; per-state activation
+        // policy (pulse animation on/off, placed-glyph-icon overlay at
+        // the inner-well centre depression on .socketed) is consumer-
+        // side per FR-C7 §6 (CL-36 owner visual-oracle confirmation:
+        // .selected = bead-ring static @ opacity 1.0; .socketed =
+        // .selected + glyph icon overlay; .unselected = bead-ring
+        // pulse 0.15↔1.0 sine, 4 s period — all consumer-side).
         states.Add(new StateElements(-1, "socket.unselected",
             L(socketOuterDisk, pulse, socketInnerWell),
             null, null, Animation: null));
@@ -533,7 +695,7 @@ internal static class ParagonRenderProjection
             L(socketOuterDisk, pulse, socketInnerWell),
             null, null, null));
         states.Add(new StateElements(-1, "socket.socketed",
-            L(socketOuterDisk, pulseSocketed),
+            L(socketOuterDisk, pulseSocketed, socketInnerWell),
             null, null, null));
 
         // Rows 12–15: gate / start. CORRECTION (FR-C8, CL-23): the
@@ -619,21 +781,30 @@ internal static class ParagonRenderProjection
         states.Add(new StateElements(-1, "overlay.availableGlow",
             Overlay("NodeAvailableGlow"), null, null, null));
 
-        // FR-C11 R3 §2: per-node-cell background tile drawn beneath
-        // every revealed/visible node-cell composite. Bound on
-        // `Common_Node_Revealed` (handle 0xC1473C21) via the standard
-        // 0x6B1C5D9C texture-handle field, with authored rect
-        // L=R=T=B=3 inside the 100-pitch NodeTemplate box (a 94×94
-        // tile centred in the 100×100 cell — inter-tile gap is
-        // ~6 ref units, the lighter board field showing through). The
-        // atlas frame itself carries semi-transparent alpha; the
-        // widget records `dwAlpha = 0xFF`, so consumer composites at
-        // the frame's authored opacity. Drawn beneath the
-        // rarity-specific node composite (§10.15); empty lattice
-        // cells stay bare. `Common_Node_BG_Black` is the sibling
-        // hidden-state variant — same texture, same rect; the
-        // Revealed widget is the one used when the cell is visible.
-        var nodeCellBg = Elem("Common_Node_Revealed");
+        // FR-C11 R3 §2 / CL-33 + FR-C15 R2 / CL-39 (role retraction):
+        // scene-bound binding on the `Common_Node_Revealed` widget
+        // (handle `0xC1473C21` via the standard 0x6B1C5D9C texture-
+        // handle field, authored rect L=R=T=B=3 inside the 100-pitch
+        // `NodeTemplate` → 94×94 cell footprint; the widget records
+        // `dwAlpha=0xFF` so the atlas frame's own alpha drives the
+        // composite). The BINDING is correct (scene-bound; auditable
+        // from the FR-C9 exhaustive widget model). CL-33 originally
+        // proposed this binding as the "per-node cell background
+        // tile" (the persistent darker rounded square the lighter
+        // field shows through) — that role-claim was retracted in
+        // CL-39 after the consumer plumbed the binding end-to-end and
+        // visual inspection of `0xC1473C21`'s atlas frame revealed a
+        // horizontal ember-strip / cell-reveal glow pattern, NOT a
+        // clean rounded square. The actual visual role is more likely
+        // a transient cell-reveal effect (consistent with the widget
+        // name `_Revealed`) than the persistent per-node tile. The
+        // typed field is named after the BINDING (`CommonNodeRevealedLayer`)
+        // not the role; consumer + owner determine the rendering role
+        // via the visual oracle. `Common_Node_BG_Black` is the sibling
+        // hidden-state widget (same handle, same rect) per CL-33 — not
+        // separately surfaced; reachable via the FR-C9 exhaustive view
+        // if needed.
+        var commonNodeRevealedLayer = Elem("Common_Node_Revealed");
 
         return new ParagonRenderLayout(
             ratios, canvas,
@@ -641,7 +812,7 @@ internal static class ParagonRenderProjection
             boardRotationQuadrant,
             Disc: disc, Symbol: default,
             States: states,
-            NodeCellBackground: nodeCellBg);
+            CommonNodeRevealedLayer: commonNodeRevealedLayer);
     }
 
     /// <summary>
@@ -709,9 +880,11 @@ internal static class ParagonRenderProjection
     public static ParagonBoardChrome BoardChrome(
         UiScene mainBoard, UiScene boardSelect,
         Func<uint, bool> isTextureHandle,
-        Func<uint, (int AtlasSno, int W, int H)>? frameLookup = null)
+        Func<uint, (int AtlasSno, int W, int H)>? frameLookup = null,
+        Func<int, TiledStyleDefinition?>? tiledStyleReader = null)
     {
         const uint TexHandleType = 0x6B1C5D9Cu;
+        const uint TiledStyleField = 0x07DB38D3u; // FieldHash("snoTiledStyle")
         (int AtlasSno, int W, int H) Frame(uint h) =>
             h == 0 || h == 0xFFFFFFFFu ? (0, 0, 0)
             : frameLookup?.Invoke(h) ?? (0, 0, 0);
@@ -810,7 +983,151 @@ internal static class ParagonRenderProjection
             ByName(boardSelect, "Board_Icon_Filigrees")))
             selectLayers.Add(le);
 
+        // FR-C14 R9 — scan both scenes for widgets that bind
+        // snoTiledStyle (FieldHash 0x07DB38D3) to a non-zero, non-sentinel
+        // SNO id, and surface them as TiledStyleBinding records. The
+        // underlying TiledStyle SNO is pre-read via tiledStyleReader
+        // when available, so consumers can inspect ImageScale +
+        // PrimaryHandle alongside the binding without an extra lookup.
+        var tiledBindings = new List<TiledStyleBinding>();
+        ScanTiledStyles(mainBoard);
+        ScanTiledStyles(boardSelect);
+
+        void ScanTiledStyles(UiScene scene)
+        {
+            foreach (var w in scene.Widgets)
+            {
+                foreach (var f in w.Fields)
+                {
+                    if (f.FieldHash != TiledStyleField) continue;
+                    if (!f.HasValue) continue;
+                    if (f.RawValue == 0u || f.RawValue == 0xFFFFFFFFu) continue;
+                    var snoId = (int)f.RawValue;
+                    var style = tiledStyleReader?.Invoke(snoId);
+                    tiledBindings.Add(new TiledStyleBinding(
+                        w.Name ?? string.Empty, w.ClassId, snoId, style));
+                }
+            }
+        }
+
         return new ParagonBoardChrome(
-            center, top, right, bottom, left, selectLayers);
+            center, top, right, bottom, left, selectLayers, tiledBindings);
+    }
+
+    private static readonly uint FhImageFrame = Diablo4.FieldHash("hImageFrame");
+    private static readonly uint FdwAlpha = Diablo4.FieldHash("dwAlpha");
+
+    /// <summary>
+    /// FR-C16 — project the per-node render program from the main board
+    /// scene (657304). The node's composition layers are the contiguous
+    /// widget run of the node-template subtree, identified positionally
+    /// as the widgets from the first <c>Common_Node*</c> / <c>Node_*</c>
+    /// widget through the last <c>Template_Node_*</c> rarity sub-template.
+    /// They are emitted in scene serialization order (= the engine's
+    /// draw / z-order). Each layer carries its verbatim widget name (the
+    /// consumer's predicate key), class id, <c>hImageFrame</c> handle,
+    /// authored rect, and <c>dwAlpha</c>.
+    /// <br/><br/>
+    /// The run boundary is positional (anchored on the engine's own
+    /// <c>Common_Node*</c> / <c>Template_Node_*</c> names) rather than a
+    /// decoded parent pointer: the UI-scene blob serializes widgets in
+    /// depth-first child order with no explicit per-widget parent field
+    /// (FR-C16 R3 — the widget headers carry no hierarchy words), so the
+    /// node subtree is the contiguous sibling run. The consumer's
+    /// predicate map naturally ignores any layer it has no predicate for,
+    /// so an over-inclusive run is harmless.
+    /// </summary>
+    public static ParagonNodeRecipe NodeRecipe(
+        UiScene mainBoard, Func<uint, bool>? isTextureHandle = null)
+    {
+        // FR-C16 R5: a composite handle must RESOLVE to an atlas frame —
+        // not merely exceed a magnitude. CL-46's `v >= 0x10000u` guard let
+        // the 0x58-block's small-negative rect insets (0xFFFFFFFD = −3,
+        // 0xFFFFFFEE = −18, 0xFFFFFFEC = −20 — overscan for the larger
+        // Legendary disc) through as bogus handles. The icon-catalog
+        // validator (Diablo4Storage.IsParagonTextureHandle) excludes them;
+        // a conservative fallback keeps the magnitude+sentinel guard plus
+        // an explicit small-negative reject when no validator is supplied.
+        bool IsHandle(uint v) => v is not 0u and not 0xFFFFFFFFu &&
+            (isTextureHandle is not null
+                ? isTextureHandle(v)
+                : v is >= 0x10000u and < 0xFFFFFF00u);
+
+        var ws = mainBoard.Widgets;
+        int first = -1, last = -1;
+        for (int k = 0; k < ws.Count; k++)
+        {
+            var nm = ws[k].Name ?? string.Empty;
+            bool nodeMember =
+                nm.StartsWith("Common_Node", StringComparison.Ordinal) ||
+                nm.StartsWith("Node_", StringComparison.Ordinal);
+            if (nodeMember && first < 0) first = k;
+            if (nm.StartsWith("Template_Node_", StringComparison.Ordinal)) last = k;
+        }
+        if (first < 0 || last < first)
+            return new ParagonNodeRecipe(Array.Empty<ParagonNodeRecipeLayer>());
+
+        // The rarity sub-templates whose 0x58-block carries a
+        // [unselected, selected, …interior] disc state pair (owner FR-C12
+        // oracle). Other Template_Node_* widgets (Starter/Quest/Socketable)
+        // are layer stacks, not selection-state pairs.
+        static bool IsRarityTemplate(string n) =>
+            n is "Template_Node_Magic" or "Template_Node_Rare"
+              or "Template_Node_Legendary";
+
+        var layers = new List<ParagonNodeRecipeLayer>(last - first + 1);
+        for (int k = first; k <= last; k++)
+        {
+            var wd = ws[k];
+            uint handle = 0; byte alpha = 0xFF; bool sawAlpha = false;
+            foreach (var f in wd.Fields)
+            {
+                if (!f.HasValue) continue;
+                if (f.FieldHash == FhImageFrame && handle == 0) handle = f.RawValue;
+                else if (f.FieldHash == FdwAlpha && !sawAlpha) { alpha = (byte)f.RawValue; sawAlpha = true; }
+            }
+
+            // Resolvable composite handles in scene order (sentinels +
+            // negative insets excluded). For a rarity template the first
+            // two are the unselected/selected disc state pair; the rest
+            // are the always-drawn interior layers.
+            var composite = wd.ExtraLayerValues.Where(IsHandle).ToArray();
+            NodeSelectionDiscs? discs = null;
+            IReadOnlyList<uint> remaining = composite;
+            if (IsRarityTemplate(wd.Name ?? string.Empty) && composite.Length >= 2)
+            {
+                discs = new NodeSelectionDiscs(composite[0], composite[1]);
+                remaining = composite.Skip(2).ToArray();
+            }
+
+            layers.Add(new ParagonNodeRecipeLayer(
+                k, wd.Name ?? string.Empty, wd.ClassId, handle, Rect(wd), alpha,
+                remaining.Count == 0 ? Array.Empty<uint>() : remaining,
+                discs));
+        }
+        return new ParagonNodeRecipe(layers);
+    }
+
+    /// <summary>
+    /// FR-C17 — project the board grid-layout metric from the main board
+    /// scene (657304): canvas extent from <c>ParagonBoard_main</c>, cell
+    /// extent from <c>Template_Node_Common</c>. <see cref="ParagonBoardGrid.Pitch"/>
+    /// is set equal to the cell extent (adjacent-cell layout — see the
+    /// record remarks for the owner-measurement validation). Falls back
+    /// to the current-build constants (1920×1200, cell 100) if a widget
+    /// is missing.
+    /// </summary>
+    public static ParagonBoardGrid BoardGrid(UiScene mainBoard)
+    {
+        UiWidget? ByName(string n) => mainBoard.Widgets.FirstOrDefault(w => w.Name == n);
+        var root = ByName("ParagonBoard_main");
+        var cell = ByName("Template_Node_Common");
+        int canvasW = root is null ? 1920 : Val(root, FnWidth);
+        int canvasH = root is null ? 1200 : Val(root, FnHeight);
+        int cellExt = cell is null ? 100 : Val(cell, FnWidth);
+        if (canvasW <= 0) canvasW = 1920;
+        if (canvasH <= 0) canvasH = 1200;
+        if (cellExt <= 0) cellExt = 100;
+        return new ParagonBoardGrid(canvasW, canvasH, cellExt, cellExt);
     }
 }

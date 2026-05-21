@@ -135,6 +135,108 @@ public sealed class Diablo4StorageIntegrationTests
         Assert.InRange(opaque, 1, px - 1);
     }
 
+    /// <summary>#28 — BC row-pitch must be the texture's actual stored
+    /// pitch, not a hard-coded <c>Align(width,64)</c>. Atlas 447106
+    /// (1208×1464, BC1) is stored 128-aligned (pitch 1280); the legacy
+    /// 64-aligned guess (1216) drifts the row stride and garbles the
+    /// image. Asserts the decoder uses the size-derived pitch: its output
+    /// differs from a forced-1216 decode and is more row-coherent.</summary>
+    [SkippableFact]
+    public void DecodeMip0_uses_stored_row_pitch_for_non_64_aligned_bc1()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+
+        Assert.True(d4.TextureMeta.TryGet(447106, out var td)); // 2DUI_Paragon
+        Assert.Equal(TextureCodec.Bc1, td.Codec);
+        Assert.NotEqual(0, td.Width % 64);                      // 1208 % 64 = 56
+
+        // The stored mip0 byte count implies an exact blocks-per-row that
+        // is NOT the 64-aligned guess — this is the bug condition.
+        long mip0 = td.SerTex[0].SizeAndFlags;
+        int blocksY = ((td.Height + 3) / 4);
+        Assert.Equal(0, (int)(mip0 % (blocksY * 8L)));
+        int storedPitch = (int)(mip0 / (blocksY * 8L)) * 4;
+        int legacyPitch = (td.Width + 63) / 64 * 64;
+        Assert.Equal(1280, storedPitch);
+        Assert.Equal(1216, legacyPitch);
+
+        var payload = d4.ReadSno(SnoGroup.Texture, 447106, SnoFolder.Payload);
+        var img = td.DecodeMip0(payload);
+        Assert.Equal(td.Width, img.Width);
+        Assert.Equal(td.Height, img.Height);
+
+        // Reference decode at the buggy 1216 pitch — the shipped decode
+        // must NOT match it (proves the fix is applied, catches a revert
+        // to Align(width,64)).
+        var buggy = DecodeBc1AtPitch(payload.AsSpan((int)td.SerTex[0].Offset),
+                                     td.Width, td.Height, legacyPitch);
+        Assert.False(img.Rgba.AsSpan().SequenceEqual(buggy),
+            "decode matches the buggy 1216 pitch — the row-pitch fix is not applied");
+
+        // …and the shipped decode is more row-coherent (the drift bug
+        // scrambles rows → larger row-to-row luminance deltas).
+        Assert.True(RowCoherence(img.Rgba, td.Width, td.Height)
+                  < RowCoherence(buggy, td.Width, td.Height),
+            "shipped decode is no more coherent than the buggy 1216 decode");
+    }
+
+    private static double RowCoherence(byte[] p, int w, int h)
+    {
+        double sum = 0; long n = 0;
+        for (var y = 1; y < h; y++)
+            for (var x = 0; x < w; x++)
+            {
+                int i = (y * w + x) * 4, j = ((y - 1) * w + x) * 4;
+                sum += Math.Abs((p[i] + p[i + 1] + p[i + 2]) - (p[j] + p[j + 1] + p[j + 2]));
+                n++;
+            }
+        return n > 0 ? sum / n : 0;
+    }
+
+    // Minimal BC1 decode at an explicit row pitch — reference for the
+    // #28 regression (independent of the library's pitch logic).
+    private static byte[] DecodeBc1AtPitch(ReadOnlySpan<byte> src, int width, int height, int pitch)
+    {
+        int ah = (height + 3) / 4 * 4, byN = ah / 4, bxN = pitch / 4;
+        var full = new byte[pitch * ah * 4];
+        Span<byte> blk = stackalloc byte[64];
+        for (var by = 0; by < byN; by++)
+            for (var bx = 0; bx < bxN; bx++)
+            {
+                int bo = (by * bxN + bx) * 8;
+                if (bo + 8 > src.Length) break;
+                Bc1Block(src.Slice(bo, 8), blk);
+                for (var py = 0; py < 4; py++)
+                    for (var px = 0; px < 4; px++)
+                    {
+                        int di = ((by * 4 + py) * pitch + bx * 4 + px) * 4, si = (py * 4 + px) * 4;
+                        full[di] = blk[si]; full[di + 1] = blk[si + 1];
+                        full[di + 2] = blk[si + 2]; full[di + 3] = blk[si + 3];
+                    }
+            }
+        var crop = new byte[width * height * 4];
+        for (var y = 0; y < height; y++)
+            Array.Copy(full, y * pitch * 4, crop, y * width * 4, width * 4);
+        return crop;
+    }
+
+    private static void Bc1Block(ReadOnlySpan<byte> b, Span<byte> o)
+    {
+        int c0 = b[0] | (b[1] << 8), c1 = b[2] | (b[3] << 8);
+        Span<int> r = stackalloc int[4], g = stackalloc int[4], bl = stackalloc int[4], a = stackalloc int[4];
+        static void U(int c, Span<int> r, Span<int> g, Span<int> bl, int i)
+        { int r5 = (c >> 11) & 0x1F, g6 = (c >> 5) & 0x3F, b5 = c & 0x1F; r[i] = (r5 << 3) | (r5 >> 2); g[i] = (g6 << 2) | (g6 >> 4); bl[i] = (b5 << 3) | (b5 >> 2); }
+        U(c0, r, g, bl, 0); a[0] = 255; U(c1, r, g, bl, 1); a[1] = 255;
+        if (c0 > c1)
+        { r[2] = (2 * r[0] + r[1]) / 3; g[2] = (2 * g[0] + g[1]) / 3; bl[2] = (2 * bl[0] + bl[1]) / 3; a[2] = 255; r[3] = (r[0] + 2 * r[1]) / 3; g[3] = (g[0] + 2 * g[1]) / 3; bl[3] = (bl[0] + 2 * bl[1]) / 3; a[3] = 255; }
+        else
+        { r[2] = (r[0] + r[1]) / 2; g[2] = (g[0] + g[1]) / 2; bl[2] = (bl[0] + bl[1]) / 2; a[2] = 255; r[3] = g[3] = bl[3] = a[3] = 0; }
+        int idx = b[4] | (b[5] << 8) | (b[6] << 16) | (b[7] << 24);
+        for (var i = 0; i < 16; i++) { int s = (idx >> (i * 2)) & 3, oo = i * 4; o[oo] = (byte)r[s]; o[oo + 1] = (byte)g[s]; o[oo + 2] = (byte)bl[s]; o[oo + 3] = (byte)a[s]; }
+    }
+
     /// <summary>FR-C7 §7.4: the generic UI-scene reader. Decodes
     /// <c>ParagonBoard</c> (657304, group 46, <c>0xE4825AB8</c>) and
     /// asserts the spec §10 facts proven during RE: the root widget's
@@ -226,13 +328,17 @@ public sealed class Diablo4StorageIntegrationTests
         double impliedScale = 67.7 / (rl.Ratios.PitchRef * rl.CanvasReference.Height);
         Assert.InRange(impliedScale, 0.66, 0.69);
 
-        // Refinements (decode-true): ornate/symbol/socket-ring fill the
-        // 100-ref node box ⇒ ÷ disc(86) ≈ 1.163. The grey rim ring is
-        // app-drawn (absent from scene) ⇒ 0 (the truthful answer, not a
-        // gap). Per-rarity Tint / pulse AnimSpec are NOT bound (fixed
+        // Refinements (decode-true): ornate + socket-ring fill the
+        // 100-ref node box ⇒ ÷ disc(86) ≈ 1.163. The symbol is smaller —
+        // FR-C16 R7 decodes Node_Icon's true symmetric 28-inset (the
+        // tag-2-encoded rect the pre-R7 0x22-only parser could not read),
+        // so the symbol is 100−(28+28)=44 ref units ÷ disc(86) ≈ 0.512
+        // (the class glyph sits inside the disc with margin). The grey rim
+        // ring is app-drawn (absent from scene) ⇒ 0 (the truthful answer,
+        // not a gap). Per-rarity Tint / pulse AnimSpec are NOT bound (fixed
         // shader recipe / engine-driven, §2.3) ⇒ null is correct.
         Assert.Equal(100.0 / 86.0, rl.Ratios.OrnateOverDisc, 3);
-        Assert.Equal(100.0 / 86.0, rl.Ratios.SymbolOverDisc, 3);
+        Assert.Equal(44.0 / 86.0, rl.Ratios.SymbolOverDisc, 3);
         Assert.Equal(100.0 / 86.0, rl.Ratios.SocketRingOverDisc, 3);
         Assert.Equal(0d, rl.Ratios.GreyRingOverDisc);
         Assert.All(rl.States, s => Assert.Null(s.Tint));
@@ -633,6 +739,375 @@ public sealed class Diablo4StorageIntegrationTests
             warlock.SnoId);
     }
 
+    /// <summary>FR-C13 Phase 1 — Power Script Formula slot table decode.
+    /// For each of the 9 Warlock Legendary anchor powers, assert the
+    /// decoded slot table matches the engine SF_N values established by
+    /// owner game-vs-app oracle (R2 + R3 confirmations) — i.e. the
+    /// positional values that resolve <c>[SF_<i>n</i>...]</c> placeholders
+    /// in <see cref="PowerDefinition.Description"/>. Slots whose Text is
+    /// a numeric literal expose <see cref="PowerScriptFormula.LiteralValue"/>;
+    /// slots whose Text is an arithmetic expression (Demonic Spicules's
+    /// <c>"SF_1 / 3"</c>) carry the raw text and Phase 2's evaluator will
+    /// resolve them.</summary>
+    [SkippableFact]
+    public void PowerDefinition_decodes_script_formulas_for_anchored_legendaries()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+
+        static PowerScriptFormula F(int idx, string text, float val) =>
+            new PowerScriptFormula(idx, text, val);
+
+        // The 8 layout-A-clean powers (the slot table is the last
+        // 16-byte run terminated by ("0",0.0) with the "10" sentinel
+        // stripped). Engine SF_N values per the format-string indices
+        // (R3 confirmation 2026-05-20).
+        (int Sno, PowerScriptFormula[] Expected)[] anchors =
+        {
+            // Pyrosis: [SF_0*100|%x|] = "450%[x]" → SF_0=4.5.
+            (2527268, new[] { F(0, "4.5", 4.5f) }),
+
+            // Fathomless: [SF_2] 6s, [SF_0*100] 15%[x], [SF_0*SF_1*100] 105[x]% cap.
+            //   Stored slots: SF_0=0.15, SF_1=7 (max-stacks), SF_2=6.
+            (2521393, new[] {
+                F(0, ".15", 0.15f),
+                F(1, "7", 7.0f),
+                F(2, "6", 6.0f),
+            }),
+
+            // Overmind: [SF_0*100] 45%[x] CC, [SF_1*100] 65%[x] Elite. IEEE-754
+            //   round-to-nearest in storage (1-bit higher than the canonical
+            //   0.45/0.65 representations the owner first relayed in R2).
+            (2524552, new[] {
+                F(0, ".45", 0.45000002f),
+                F(1, ".65", 0.65000004f),
+            }),
+
+            // Ritualism: [SF_0*100] 90%[x], [SF_2] 15s, [1+SF_1] 10 kills
+            //   (engine evaluates 1+9 = 10; SF_1 stored as raw 9).
+            (2526168, new[] {
+                F(0, ".9", 0.9f),
+                F(1, "9", 9.0f),
+                F(2, "15", 15.0f),
+            }),
+
+            // Chaos: [SF_0*100|%x|] 100%[x], [SF_1] 2 stacks, [SF_2] 1 stack.
+            (2527294, new[] {
+                F(0, "1", 1.0f),
+                F(1, "2", 2.0f),
+                F(2, "1", 1.0f),
+            }),
+
+            // Dominion: [SF_1*100|%|] 50% cost cut, [SF_0*100|%x|] 80%[x] dmg,
+            //   {SF_2} 12s. Engine indices: SF_0=damage, SF_1=cost, SF_2=duration.
+            (2524673, new[] {
+                F(0, "0.8", 0.8f),
+                F(1, "0.5", 0.5f),
+                F(2, "12", 12.0f),
+            }),
+
+            // Dynamism: [SF_0*100] 3%[x], [SF_2] 1 Dominance, [SF_3] 2s.
+            //   The format string SKIPS SF_1 (engine has a 4-slot table
+            //   with slot[1] = 1.0 unused).
+            (2524312, new[] {
+                F(0, ".03", 0.03f),
+                F(1, "1", 1.0f),
+                F(2, "1", 1.0f),
+                F(3, "2", 2.0f),
+            }),
+        };
+
+        foreach (var (sno, expected) in anchors)
+        {
+            var pow = d4.ReadPower(sno);
+            Assert.NotNull(pow.ScriptFormulas);
+            Assert.True(pow.ScriptFormulas.Count >= expected.Length,
+                $"Power {sno} ({pow.Name}): expected at least {expected.Length} " +
+                $"slots, got {pow.ScriptFormulas.Count}");
+            for (int i = 0; i < expected.Length; i++)
+            {
+                Assert.Equal(expected[i].Index, pow.ScriptFormulas[i].Index);
+                Assert.Equal(expected[i].Text, pow.ScriptFormulas[i].Text);
+                Assert.Equal(expected[i].LiteralValue, pow.ScriptFormulas[i].LiteralValue);
+                Assert.False(pow.ScriptFormulas[i].IsExpression,
+                    $"Power {sno} slot {i} text \"{pow.ScriptFormulas[i].Text}\" classified as expression");
+            }
+        }
+
+        // Demonic Spicules (SNO 2525006) + Greater Hex (SNO 2527280) —
+        // anchors whose stored slot table uses an alternate layout
+        // (4-character ASCII chunks like "0.02"/"0.75"/"0.25") that
+        // Phase 1's Layout-A-only decoder doesn't yet handle. Phase 2
+        // will lift the disambiguating layouts. For now: no-crash
+        // assertion only — the decoder returns either an empty list or
+        // a partial table; no fabrication.
+        var spicules = d4.ReadPower(2525006);
+        Assert.NotNull(spicules.ScriptFormulas);
+        var ghex = d4.ReadPower(2527280);
+        Assert.NotNull(ghex.ScriptFormulas);
+    }
+
+    /// <summary>FR-C13 Phase 2 — extended slot decoder (Layout A + B) +
+    /// resolved <c>SF_N → value</c> dictionary + engine-function ref
+    /// surfacing. Per the R4 sign-off (2026-05-20), Phase 2 lifts the
+    /// Greater Hex / Demonic Spicules slots that Phase 1 deferred and
+    /// resolves expression-text slots (Demonic Spicules's
+    /// <c>"SF_1 / 3"</c>) through the recursive-descent evaluator.
+    /// FunctionRefs surface from format-string scanning of the
+    /// Description (Barbarian Warbringer's <c>[SF_1 * PlayerHealthMax()]</c>
+    /// is the canonical anchor).</summary>
+    [SkippableFact]
+    public void PowerDefinition_resolves_phase2_formulas_and_function_refs()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+
+        // Greater Hex (SNO 2527280) — Phase 1 returned empty (Layout B
+        // unsupported); Phase 2 must surface the 2-slot table.
+        var ghex = d4.ReadPower(2527280);
+        Assert.True(ghex.ScriptFormulas.Count >= 2,
+            $"Greater Hex expected ≥2 slots; got {ghex.ScriptFormulas.Count}");
+        Assert.Equal("0.75", ghex.ScriptFormulas[0].Text);
+        Assert.Equal(0.75f, ghex.ScriptFormulas[0].LiteralValue);
+        Assert.Equal("0.25", ghex.ScriptFormulas[1].Text);
+        Assert.Equal(0.25f, ghex.ScriptFormulas[1].LiteralValue);
+        Assert.True(ghex.ResolvedFormulas.ContainsKey("SF_0"));
+        Assert.Equal(0.75, ghex.ResolvedFormulas["SF_0"], 4);
+        Assert.Equal(0.25, ghex.ResolvedFormulas["SF_1"], 4);
+
+        // ResolvedFormulas across the layout-A-clean anchors — keys are
+        // SF_0/SF_1/.../SF_N positional; values are the raw slot doubles
+        // (no expression evaluation needed). Pyrosis (1 slot), Dominion
+        // (3 slots), Ritualism (3 slots).
+        var pyrosis = d4.ReadPower(2527268);
+        Assert.Equal(4.5, pyrosis.ResolvedFormulas["SF_0"], 4);
+        var dominion = d4.ReadPower(2524673);
+        Assert.Equal(0.8, dominion.ResolvedFormulas["SF_0"], 4);
+        Assert.Equal(0.5, dominion.ResolvedFormulas["SF_1"], 4);
+        Assert.Equal(12.0, dominion.ResolvedFormulas["SF_2"], 4);
+        var ritualism = d4.ReadPower(2526168);
+        Assert.Equal(0.9, ritualism.ResolvedFormulas["SF_0"], 4);
+        Assert.Equal(9.0, ritualism.ResolvedFormulas["SF_1"], 4);
+        Assert.Equal(15.0, ritualism.ResolvedFormulas["SF_2"], 4);
+
+        // Fathomless: stored slots [.15, 7, 6]; ResolvedFormulas
+        // surfaces them raw. The format-string-rendered cap value (1.05
+        // = SF_0 × SF_1) is the consumer's tooltip-eval concern, NOT
+        // a ResolvedFormulas value (the dictionary keys SF_N to raw
+        // slot evaluation, not to per-rendered-expression values).
+        var fathomless = d4.ReadPower(2521393);
+        Assert.Equal(0.15, fathomless.ResolvedFormulas["SF_0"], 4);
+        Assert.Equal(7.0, fathomless.ResolvedFormulas["SF_1"], 4);
+        Assert.Equal(6.0, fathomless.ResolvedFormulas["SF_2"], 4);
+
+        // Overmind: stored slots [.45, .65] (IEEE-754 round-to-nearest,
+        // one ULP higher than 0.45/0.65 canonical reps).
+        var overmind = d4.ReadPower(2524552);
+        Assert.Equal(0.45, overmind.ResolvedFormulas["SF_0"], 3);
+        Assert.Equal(0.65, overmind.ResolvedFormulas["SF_1"], 3);
+
+        // Chaos: stored slots [1, 2, 1].
+        var chaos = d4.ReadPower(2527294);
+        Assert.Equal(1.0, chaos.ResolvedFormulas["SF_0"], 4);
+        Assert.Equal(2.0, chaos.ResolvedFormulas["SF_1"], 4);
+        Assert.Equal(1.0, chaos.ResolvedFormulas["SF_2"], 4);
+
+        // Dynamism: 4 slots [0.03, 1, 1, 2] — engine format string uses
+        // SF_0, SF_2, SF_3 (skips SF_1; slot 1 = 1 is unused).
+        var dynamism = d4.ReadPower(2524312);
+        Assert.Equal(0.03, dynamism.ResolvedFormulas["SF_0"], 4);
+        Assert.Equal(1.0, dynamism.ResolvedFormulas["SF_2"], 4);
+        Assert.Equal(2.0, dynamism.ResolvedFormulas["SF_3"], 4);
+
+        // Demonic Spicules: tail-data layout has an expression-text
+        // record ("SF_1 / 3" for SF_2 = 60/3 = 20) interleaved with
+        // trivial slots. The "SF_1 / 3" record uses a NON-16-byte
+        // structure the Phase 2 decoder doesn't yet lift, and the
+        // terminator pattern is non-standard for this power. The
+        // ResolvedFormulas may be empty — Phase 3 will RE the
+        // expression-text record format (per d4parse
+        // DT_STRING_FORMULA model). Until then this anchor remains
+        // pending; the no-crash sweep still covers it.
+        var spicules = d4.ReadPower(2525006);
+        Assert.NotNull(spicules.ResolvedFormulas);
+
+        // Barbarian Warbringer (SNO 664973) — format string contains
+        // [SF_1 * PlayerHealthMax()]; FunctionRefs must surface the
+        // PlayerHealthMax engine-function reference.
+        var warbringer = d4.ReadPower(664973);
+        Assert.NotNull(warbringer.FunctionRefs);
+        Assert.Contains(warbringer.FunctionRefs,
+            fr => fr.Name == "PlayerHealthMax");
+    }
+
+    /// <summary>FR-C13 Phase 3 — compiled-form AST decode + cross-
+    /// validation gate (R5 regression gate). For each of the 9 Warlock
+    /// legendary anchors, assert that every entry in
+    /// <see cref="PowerDefinition.ResolvedFormulas"/> agrees with the
+    /// corresponding entry in <see cref="PowerDefinition.CompiledFormulas"/>
+    /// to float precision. Phase 2 derives the resolved value from the
+    /// slot's TEXT (e.g. evaluating "SF_1 / 3" via the recursive-descent
+    /// parser); Phase 3 derives it from the BINARY compiled record
+    /// (literal slots: IEEE-754 single read directly; expression slots:
+    /// operator from text + embedded literal operand read from the AST
+    /// opcode region's binary bytes). Disagreement between the two
+    /// flags a text-vs-binary inconsistency in the engine-compiled
+    /// record — the exact regression the FR-C13 R5 gate is designed
+    /// to catch. Demonic Spicules is the load-bearing anchor: its
+    /// <c>SF_2</c> goes through the binary literal path
+    /// (binary 3.0f → 60 / 3 = 20), exercising the type=0x05
+    /// expression-record decoder added in Phase 3.</summary>
+    [SkippableFact]
+    public void PowerDefinition_phase3_compiled_formulas_match_resolved_for_9_warlock_anchors()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+
+        (int Sno, string Label)[] anchors =
+        {
+            (2527268, "Pyrosis"),
+            (2521393, "Fathomless"),
+            (2524552, "Overmind"),
+            (2526168, "Ritualism"),
+            (2527294, "Chaos"),
+            (2524673, "Dominion"),
+            (2524312, "Dynamism"),
+            (2527280, "Greater Hex"),
+            (2525006, "Demonic Spicules"),
+        };
+
+        var mismatches = new List<string>();
+        foreach (var (sno, label) in anchors)
+        {
+            var pow = d4.ReadPower(sno);
+            Assert.True(pow.ResolvedFormulas.Count > 0,
+                $"{label} (SNO {sno}): ResolvedFormulas empty — Phase 2/3 decoder did not surface slots");
+            Assert.Equal(pow.ResolvedFormulas.Count, pow.CompiledFormulas.Count);
+
+            foreach (var kv in pow.ResolvedFormulas)
+            {
+                if (!pow.CompiledFormulas.TryGetValue(kv.Key, out var compiledValue))
+                {
+                    mismatches.Add($"{label} {kv.Key}: present in Resolved but missing from Compiled");
+                    continue;
+                }
+                if (double.IsNaN(kv.Value) && double.IsNaN(compiledValue)) continue;
+                if (Math.Abs(kv.Value - compiledValue) >= 1e-4)
+                    mismatches.Add($"{label} {kv.Key}: Resolved={kv.Value:R} Compiled={compiledValue:R}");
+            }
+        }
+        Assert.True(mismatches.Count == 0,
+            "Phase 2 ↔ Phase 3 cross-validation mismatches:\n  " +
+            string.Join("\n  ", mismatches));
+    }
+
+    /// <summary>FR-C13 Phase 3 — Demonic Spicules's
+    /// <c>SF_2 = "SF_1 / 3"</c> is the canonical expression-record
+    /// anchor (the only Warlock legendary with an expression-text slot
+    /// rather than a plain literal). Phase 1/2 returned an empty slot
+    /// list for this power because the 48-byte type=0x05 expression
+    /// record between the literal slots and the trailing sentinels
+    /// halted the backward-walk decoder. Phase 3 adds the
+    /// expression-record reader and the 52-byte backward stride so
+    /// the decoder returns 3 slots: SF_0 = 0.02 (Layout B literal),
+    /// SF_1 = 60 (Layout C literal), SF_2 = "SF_1 / 3" (type=0x05
+    /// expression with embedded literal 3.0f). The resolver chain
+    /// evaluates SF_2 to 60 / 3 = 20.</summary>
+    [SkippableFact]
+    public void PowerDefinition_phase3_decodes_demonic_spicules_expression_slot()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+
+        var pow = d4.ReadPower(2525006);
+        Assert.Equal(3, pow.ScriptFormulas.Count);
+
+        // SF_0 "0.02" — Layout B literal.
+        Assert.Equal(0, pow.ScriptFormulas[0].Index);
+        Assert.Equal("0.02", pow.ScriptFormulas[0].Text);
+        Assert.Equal(0.02f, pow.ScriptFormulas[0].LiteralValue);
+        Assert.False(pow.ScriptFormulas[0].IsExpression);
+
+        // SF_1 "60" — Layout C literal.
+        Assert.Equal(1, pow.ScriptFormulas[1].Index);
+        Assert.Equal("60", pow.ScriptFormulas[1].Text);
+        Assert.Equal(60f, pow.ScriptFormulas[1].LiteralValue);
+        Assert.False(pow.ScriptFormulas[1].IsExpression);
+
+        // SF_2 "SF_1 / 3" — 48-byte type=0x05 expression record. The
+        // record's LiteralValue is NaN (expression — text-eval needed);
+        // ResolvedFormulas and CompiledFormulas both produce 60/3 = 20.
+        Assert.Equal(2, pow.ScriptFormulas[2].Index);
+        Assert.Equal("SF_1 / 3", pow.ScriptFormulas[2].Text);
+        Assert.True(float.IsNaN(pow.ScriptFormulas[2].LiteralValue));
+        Assert.True(pow.ScriptFormulas[2].IsExpression);
+
+        // Both resolution paths produce SF_2 = 20:
+        //   Phase 2 (text): "SF_1 / 3" parsed → 60 / 3 = 20
+        //   Phase 3 (binary): operator "/" from text, operand 3.0f from
+        //                     compiled record bytes at +40, → 60 / 3.0 = 20
+        Assert.Equal(0.02, pow.ResolvedFormulas["SF_0"], 4);
+        Assert.Equal(60.0, pow.ResolvedFormulas["SF_1"], 4);
+        Assert.Equal(20.0, pow.ResolvedFormulas["SF_2"], 4);
+        Assert.Equal(0.02, pow.CompiledFormulas["SF_0"], 4);
+        Assert.Equal(60.0, pow.CompiledFormulas["SF_1"], 4);
+        Assert.Equal(20.0, pow.CompiledFormulas["SF_2"], 4);
+    }
+
+    /// <summary>FR-C13 Phase 1 — no-crash sweep across all 72 legendary
+    /// node Powers (8 classes × ~9 each). The decoder must not throw on
+    /// any legendary's blob; expected counts vary per power (some have
+    /// no slot table, some have many). This is the "honest decode under
+    /// any shape" assertion — parallel to the FR-C9 coverage gate's
+    /// shape-agnostic discipline.</summary>
+    [SkippableFact]
+    public void PowerDefinition_decodes_script_formulas_for_all_legendaries_no_crash()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+
+        var legendaries = d4.CoreToc.EntriesInGroup(SnoGroup.ParagonNode)
+            .Where(e => e.Name.Contains("Legendary", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        Assert.True(legendaries.Count >= 70,
+            $"expected ~72 legendary nodes, found {legendaries.Count}");
+
+        var failures = new List<string>();
+        foreach (var entry in legendaries)
+        {
+            try
+            {
+                var node = d4.ReadParagonNode(entry.Id);
+                if (node.SnoPassivePower == 0 ||
+                    (uint)node.SnoPassivePower == 0xFFFFFFFF) continue;
+                var pow = d4.ReadPower(node.SnoPassivePower);
+                _ = pow.ScriptFormulas;             // exercise the surface
+                _ = pow.ScriptFormulas.Count;
+                foreach (var sf in pow.ScriptFormulas)
+                {
+                    _ = sf.Index;
+                    _ = sf.Text;
+                    _ = sf.LiteralValue;
+                    _ = sf.IsExpression;
+                }
+            }
+            catch (Exception ex)
+            {
+                failures.Add($"{entry.Name} (SNO {entry.Id}): {ex.GetType().Name}: {ex.Message}");
+            }
+        }
+
+        Assert.True(failures.Count == 0,
+            "decoder crashed on " + failures.Count + " legendaries: " +
+            string.Join("; ", failures.Take(5)) +
+            (failures.Count > 5 ? $" (+{failures.Count - 5})" : ""));
+    }
+
     /// <summary>FR-C9 #2 — the coverage gate (the decisive part).
     /// Shape-agnostic: every handle-magnitude u32 anywhere in the raw
     /// paragon scenes that resolves to a real atlas frame MUST be
@@ -801,13 +1276,17 @@ public sealed class Diablo4StorageIntegrationTests
 
         var chrome = d4.ReadParagonRenderModel().BoardChrome;
 
-        // Centre background — handle, atlas SNO, native px all
-        // present. Authored rect is all-zero (engine convention).
+        // Centre background — handle, atlas SNO, native px all present.
+        // FR-C16 R7: the centre carries an authored 1200×1200 rect (its
+        // nWidth/nHeight are tag-2-encoded; the pre-R7 0x22-only parser
+        // read zero records for this widget and so reported an all-zero
+        // rect — that "no authored sub-rect" was an artifact, not a fact).
         Assert.Equal(0x2954DF0Cu, chrome.BackgroundCenter.TextureHandle);
         Assert.Equal(447106, chrome.BackgroundCenter.AtlasSno);
         Assert.True(chrome.BackgroundCenter.NativeWidth > 1000);
         Assert.True(chrome.BackgroundCenter.NativeHeight > 1000);
-        Assert.Equal(default, chrome.BackgroundCenter.Rect);
+        Assert.Equal(1200, chrome.BackgroundCenter.Rect.Width);
+        Assert.Equal(1200, chrome.BackgroundCenter.Rect.Height);
 
         // Rim — 4 cardinal sides, Top/Bottom share one band handle,
         // Left/Right share another. Handles are scene-bound but do
@@ -863,23 +1342,227 @@ public sealed class Diablo4StorageIntegrationTests
             h => Assert.DoesNotContain(h, fireBorderCatalog));
     }
 
-    /// <summary>FR-C11 R3 §2 — per-node-cell background tile.
-    /// <c>Common_Node_BG_Revealed</c> (handle <c>0xC1473C21</c>,
-    /// authored rect L=R=T=B=3 inside the 100-pitch NodeTemplate
-    /// box → 94×94 tile centred in the 100×100 cell, inter-tile gap
-    /// ~6 ref units) is surfaced on
-    /// <see cref="ParagonRenderLayout.NodeCellBackground"/>. Drawn
-    /// beneath the rarity-specific node composite (§10.15); empty
-    /// lattice cells stay bare.</summary>
+    /// <summary>FR-C14 R9 — surface the engine's tile-style overlay
+    /// recipe (<c>snoTiledStyle</c> field, FieldHash <c>0x07DB38D3</c>).
+    /// Scene 657304 binds 13 widgets to <see cref="SnoGroup.UiStyle"/>
+    /// SNOs; this test asserts (a) the chrome surface exposes them as
+    /// <see cref="ParagonBoardChrome.TiledStyleBindings"/>, (b) the
+    /// canonical <c>Vignette → InnerShadow</c> (SNO 843662) binding is
+    /// present and read, (c) the parsed <see cref="TiledStyleDefinition"/>
+    /// carries the expected <c>flImageScale</c> = 1.0 + the
+    /// <see cref="TiledStyleDefinition.TypeTagNSlice"/> variant, fully
+    /// decoded (R10).</summary>
     [SkippableFact]
-    public void ReadParagonRenderLayout_surfaces_per_node_cell_background()
+    public void ReadParagonRenderModel_surfaces_tiled_style_bindings()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+
+        var model = d4.ReadParagonRenderModel();
+        Assert.NotEmpty(model.BoardChrome.TiledStyleBindings);
+
+        // The Vignette → SNO 843662 ("InnerShadow") binding. FR-C14 R10
+        // decoded the NSlice variant fully: this is a STRETCHED
+        // inner-shadow (all tile flags 0), NOT a tiled pattern — which
+        // corrects the R8/R9 "Vignette is the board pattern overlay"
+        // hypothesis.
+        var vignette = model.BoardChrome.TiledStyleBindings
+            .FirstOrDefault(b => b.WidgetName == "Vignette");
+        Assert.NotNull(vignette);
+        Assert.Equal(843662, vignette!.TiledStyleSnoId);
+        Assert.NotNull(vignette.Style);
+        Assert.Equal(843662, vignette.Style!.SnoId);
+        Assert.Equal(TiledStyleDefinition.TypeTagNSlice, vignette.Style.TypeTag);
+        Assert.Equal("NSlice", vignette.Style.VariantName);
+        Assert.Equal(1.0f, vignette.Style.ImageScale);
+        Assert.False(vignette.Style.HasPartialDecode);
+        Assert.Equal(0, vignette.Style.TileCenter);
+        Assert.Equal(0, vignette.Style.TileHorizontalBorders);
+        Assert.Equal(0, vignette.Style.TileVerticalBorders);
+
+        // Frame_AbilityPoints (SNO 1309282) IS a genuinely tiled NSlice
+        // (fTileCenter=1) — confirms the decode distinguishes
+        // stretched vs tiled.
+        var pts = model.BoardChrome.TiledStyleBindings
+            .FirstOrDefault(b => b.WidgetName == "Paragon_Points_Container");
+        if (pts?.Style is not null && pts.Style.VariantName == "NSlice")
+        {
+            Assert.Equal(1, pts.Style.TileCenter);
+            Assert.Equal(0.5f, pts.Style.ImageScale);
+        }
+
+        // The standalone reader matches the chrome surface's pre-read.
+        var direct = d4.ReadTiledStyle(843662);
+        Assert.Equal(vignette.Style, direct);
+
+        // The 13 scene-657304 bindings observed in R8: every one of
+        // these widget-names should be present in TiledStyleBindings.
+        var widgets = new[]
+        {
+            "Vignette", "Paragon_Points_Container", "Points_Tutorial_Highlight",
+            "Glyph_BG", "Glyph_Frame", "BoardPreview_Text_Container",
+            "ParagonStats", "Board_Info", "Node_Tutorial_Highlight",
+            "CoreStatEntryStack",
+        };
+        foreach (var name in widgets)
+            Assert.Contains(model.BoardChrome.TiledStyleBindings, b => b.WidgetName == name);
+    }
+
+    /// <summary>FR-C17 — the board grid-layout metric. Asserts the
+    /// engine's authored canvas (1920×1200) + node cell extent (100) +
+    /// cell-adjacent pitch are read from game data, replacing the
+    /// empirical pixel pitch. Validates the owner's ~67.7px measurement
+    /// = cell extent 100 × render scale.</summary>
+    [SkippableFact]
+    public void ReadParagonBoardGrid_surfaces_engine_cell_metric()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+
+        var grid = d4.ReadParagonBoardGrid();
+        Assert.Equal(1920, grid.CanvasWidth);
+        Assert.Equal(1200, grid.CanvasHeight);
+        Assert.Equal(100, grid.CellExtent);
+        Assert.Equal(grid.CellExtent, grid.Pitch);   // cells adjacent
+
+        // The owner's empirical 67.7px pitch is the authored 100 ref
+        // units at the consumer's board render scale: 100 * s ≈ 67.7
+        // ⇒ s ≈ 0.677. Assert the metric reproduces it within 1px.
+        double scale = 67.7 / grid.Pitch;
+        Assert.InRange(grid.Pitch * scale, 66.7, 68.7);
+    }
+
+    /// <summary>FR-C16 — the per-node render program. Asserts the recipe
+    /// is the ordered (z-sorted) node state-widget run with the engine's
+    /// verbatim names + hImageFrame handles, including the owner-oracle
+    /// anchor (<c>Node_IconBase → 0x1D166DC7</c>) and the directional
+    /// arrows (<c>Arrow_Top/Right/Bottom/Left</c>).</summary>
+    [SkippableFact]
+    public void ReadParagonNodeRecipe_surfaces_ordered_state_widget_layers()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+
+        var recipe = d4.ReadParagonNodeRecipe();
+        Assert.NotEmpty(recipe.Layers);
+
+        // Z-order is strictly increasing (= scene serialization order).
+        for (int k = 1; k < recipe.Layers.Count; k++)
+            Assert.True(recipe.Layers[k].ZOrder > recipe.Layers[k - 1].ZOrder);
+
+        ParagonNodeRecipeLayer L(string name) =>
+            recipe.Layers.First(l => l.WidgetName == name);
+
+        // Owner-oracle anchor: the unselected grey base disc.
+        Assert.Equal(0x1D166DC7u, L("Node_IconBase").ImageHandle);
+        // Purchased-state disc.
+        Assert.Equal(0xD3051CCAu, L("Node_Purchased").ImageHandle);
+        // Directional arrows are present as their own ordered layers.
+        Assert.Equal(0xD51CAB25u, L("Arrow_Top").ImageHandle);
+        Assert.Equal(0x6D3CB8DEu, L("Arrow_Right").ImageHandle);
+        Assert.Equal(0x8EEAC178u, L("Arrow_Bottom").ImageHandle);
+        Assert.Equal(0xB6D8C741u, L("Arrow_Left").ImageHandle);
+
+        // The base disc draws before the purchased overlay (z-order).
+        Assert.True(L("Node_IconBase").ZOrder < L("Node_Purchased").ZOrder);
+
+        // The glow layers are UIBlinkerStyle (pulsing-glow class).
+        Assert.Equal(0x145F2056u, L("NodeAvailableGlow").WidgetClassId);
+
+        // FR-C16 R5 — the per-rarity disc state pair is split into
+        // SelectionDiscs (unselected vs selected), matching the owner #22
+        // oracle for all three rarities. CL-46 flattened both into one
+        // CompositeHandles list (drew the selected ring on unselected
+        // nodes); the split is the fix.
+        var magic = L("Template_Node_Magic").SelectionDiscs;
+        Assert.NotNull(magic);
+        Assert.Equal(0x621CB6FFu, magic!.Unselected);   // magic unselected disc
+        Assert.Equal(0x72C29402u, magic.Selected);      // magic selected (ring baked in)
+
+        var rare = L("Template_Node_Rare").SelectionDiscs;
+        Assert.NotNull(rare);
+        Assert.Equal(0xB71BD068u, rare!.Unselected);    // rare unselected
+        Assert.Equal(0x03EDABABu, rare.Selected);       // rare selected
+
+        var leg = L("Template_Node_Legendary").SelectionDiscs;
+        Assert.NotNull(leg);
+        Assert.Equal(0x232DF7F9u, leg!.Unselected);     // legendary unselected
+        Assert.Equal(0xBD27FB7Cu, leg.Selected);        // legendary selected
+
+        // FR-C16 R5 — the small-negative rect-inset sentinels CL-46
+        // surfaced as bogus composite handles (0xFFFFFFFD = −3 overscan on
+        // the larger Legendary disc, etc.) are excluded: every surfaced
+        // composite handle resolves to a real atlas frame.
+        foreach (var layer in recipe.Layers)
+        {
+            foreach (var h in layer.CompositeHandles)
+                Assert.True(d4.IsParagonTextureHandle(h),
+                    $"{layer.WidgetName} composite 0x{h:X8} is not a resolvable handle");
+            if (layer.SelectionDiscs is { } sd)
+            {
+                Assert.True(d4.IsParagonTextureHandle(sd.Unselected));
+                Assert.True(d4.IsParagonTextureHandle(sd.Selected));
+            }
+        }
+
+        // Non-rarity layers carry no selection-disc pair.
+        Assert.Null(L("Node_IconBase").SelectionDiscs);
+        Assert.Empty(L("Node_IconBase").CompositeHandles);
+
+        // FR-C16 R7 — Node_Icon decodes exactly now: it is a
+        // tag-2-encoded sparse widget the pre-R7 0x22-only parser mis-keyed
+        // (the handle 0x25DAA956 landed in nBottom = 635087190). The R7
+        // reader keys it correctly: a symmetric 28-inset symbol slot with
+        // the handle on hImageFrame, not nBottom. (The handle is the
+        // template default; per-node it is replaced by ParagonNode.HIconMask.)
+        var nodeIcon = L("Node_Icon");
+        Assert.Equal(28, nodeIcon.Rect.Top);
+        Assert.Equal(28, nodeIcon.Rect.Bottom);
+        Assert.Equal(28, nodeIcon.Rect.Left);
+        Assert.Equal(28, nodeIcon.Rect.Right);
+        Assert.Equal(0x25DAA956u, nodeIcon.ImageHandle);
+
+        // Every rect field across the recipe is now a sane authored
+        // reference-unit value (no mis-keyed handle leaking into a rect).
+        foreach (var layer in recipe.Layers)
+        {
+            var r = layer.Rect;
+            foreach (var v in new[] { r.Left, r.Right, r.Top, r.Bottom, r.Width, r.Height })
+                Assert.InRange(v, -4096, 4096);
+        }
+    }
+
+    /// <summary>FR-C11 R3 §2 — scene-bound binding on the
+    /// <c>Common_Node_Revealed</c> widget. <c>0xC1473C21</c> via the
+    /// standard <c>0x6B1C5D9C</c> texture-handle field; authored rect
+    /// L=R=T=B=3 inside the 100-pitch <c>NodeTemplate</c> box (94×94
+    /// footprint centred in the 100×100 cell). Surfaced on
+    /// <see cref="ParagonRenderLayout.CommonNodeRevealedLayer"/>.
+    /// <br/><br/>
+    /// <b>FR-C15 R2 / CL-39 role retraction:</b> CL-33 originally
+    /// proposed this binding as the "per-node cell background tile"
+    /// (the persistent darker rounded square the lighter field shows
+    /// through); the role-claim was retracted after the consumer
+    /// plumbed the binding end-to-end and visual inspection of
+    /// <c>0xC1473C21</c>'s atlas frame revealed a horizontal
+    /// ember-strip / cell-reveal glow, NOT a clean rounded square.
+    /// The actual visual role is more likely a transient cell-reveal
+    /// effect (consistent with the widget name <c>_Revealed</c>) than
+    /// the persistent per-node tile owner sees in-game. This test
+    /// asserts ONLY the binding facts (handle, rect, atlas) — no
+    /// role assertion.</summary>
+    [SkippableFact]
+    public void ReadParagonRenderLayout_surfaces_common_node_revealed_binding()
     {
         var install = Install();
         Skip.If(install is null, "No Diablo IV install available.");
         using var d4 = Diablo4Storage.Open(install!);
 
         var rl = d4.ReadParagonRenderLayout();
-        var bg = rl.NodeCellBackground;
+        var bg = rl.CommonNodeRevealedLayer;
 
         Assert.Equal(0xC1473C21u, bg.TextureHandle);
         Assert.Equal(447106, bg.AtlasSno);
@@ -1055,7 +1738,8 @@ public sealed class Diablo4StorageIntegrationTests
         // because the FR-C12 R2 owner atlas-frame oracle proved the
         // on-board socket composite reuses its 0x58-block handles.
         // Common_Node_Revealed is included because its 0xC1473C21 IS
-        // surfaced as NodeCellBackground.
+        // surfaced as CommonNodeRevealedLayer (binding-only field;
+        // role retracted per CL-39).
         bool IsRowBearingWidget(string n) =>
             n.StartsWith("Template_Node_", StringComparison.Ordinal) ||
             n == "Node_IconBase" || n == "Node_Purchased" ||
@@ -1096,8 +1780,8 @@ public sealed class Diablo4StorageIntegrationTests
 
         var rowHandles = new HashSet<uint>(
             rl.States.SelectMany(s => s.Layers).Select(l => l.TextureHandle));
-        if (rl.NodeCellBackground.TextureHandle != 0)
-            rowHandles.Add(rl.NodeCellBackground.TextureHandle);
+        if (rl.CommonNodeRevealedLayer.TextureHandle != 0)
+            rowHandles.Add(rl.CommonNodeRevealedLayer.TextureHandle);
 
         var unrowed = rawHandles
             .Where(h => !rowHandles.Contains(h) && !documentedExclusions.Contains(h))

@@ -185,7 +185,14 @@ Combined-meta variable-array descriptor form: `i32 pad; i32 off@+4
 (blob-relative from descStart); i32 size@+8`.
 
 - Paragon atlases are **BC3** (`eTexFormat 49`); mip0 is at payload
-  offset 0; decode at row width `align(W,64)` then crop.
+  offset 0. **Stored row pitch is texture-specific** (observed 64- and
+  128-px alignments — e.g. BC1 atlas 447106 at 1208 px wide is stored at
+  a **1280**-px pitch, 128-aligned, not the 1216 a `align(W,64)` guess
+  gives). The exact pitch = `SerTex[0].size ÷ blockRows ÷ blockSize`
+  (blocks-per-row), recovered from the mip0 byte count; a hard-coded
+  `align(W,64)` drifts the stride on the 128-aligned atlases and garbles
+  the image (slanted banding — #28 / CL-49). Decode at the stored pitch
+  then crop to `W×H`.
 - `ptFrame` element = `TexFrame`, 36 bytes:
   `u32 ImageHandle; f32 U0; f32 V0; f32 U1; f32 V1; …`. Atlas sub-rect
   pixel rectangle = `floor(U·W) … ceil(U·W)` (and V·H).
@@ -661,14 +668,34 @@ constant-heavy layout). Each field has two co-located parts:
   underlying type) )`. Every field is a `DT_BINDABLEPROPERTY` of a
   `DT_*` type — D4's UI data-binding system. `0x1332C78D` =
   `typeHash("DT_BINDABLEPROPERTY")`.
-- **Instance records** — fixed **56-byte (`0x38`)** records:
-  `+0x00 u32 = 0x22` (record tag), `+0x04 u32` sub-tag (`0`/`3`
-  observed), **`+0x08 u32` = the bound value**, `+0x0C..0x38` zero pad.
-  Records are **positionally keyed** to the schema field order (the
-  Nth record is the Nth schema field's value). `DT_INT`/`DT_SNO`/
-  `DT_RGBACOLOR`/`DT_BYTE` values all read from the `+0x08` slot.
+- **Instance records** — each schema field has exactly one value
+  record, **positionally keyed** to the schema order (the Nth record is
+  the Nth schema field's value), in **one of two interchangeable
+  encodings** (FR-C16 R7 — both proven against scene 657304):
+  - the fixed **56-byte (`0x38`) `0x22` record**: `+0x00 u32 = 0x22`
+    (tag), `+0x04 u32` sub-tag (`0`/`3` observed), **`+0x08 u32` = the
+    bound value**, `+0x0C..0x38` zero pad; and
+  - the **12-byte tag-2 block**: `+0x00 u32 = 2`, `+0x04 u32 = 0`,
+    **`+0x08 u32` = the bound value`**.
 
-So a widget's `nWidth` = the `+0x08` of the 56-byte `0x22` record at
+  Different widgets use different encodings for the *same* fields, and
+  some mix them: `Node_IconBase` is all-`0x22`;
+  `Template_Board_Background_Center` is all-tag-2 (its `nWidth`/`nHeight`
+  = `1200` live only in tag-2 blocks); `Node_Icon` interleaves both (a
+  symmetric `28`-inset). A parser that reads only `0x22` records
+  **under-decodes** the tag-2 widgets — the chrome centre's `1200×1200`
+  read as all-zero, and a mixed widget's positional keying collapsed
+  (Appendix A CL-47). The field-value run is the first *fieldCount*
+  records; any trailing `0x58` layer-blocks (§10.12) come after it.
+
+  `DT_INT`/`DT_SNO`/`DT_RGBACOLOR`/`DT_BYTE` values all read from the
+  `+0x08` slot of whichever record encodes the field. **Parent widgets**
+  whose span nests anonymous, name-less child sub-records (a class id +
+  `0xFFFFFFFF` sentinel at `+0x08` — the rarity sub-templates' per-state
+  disc layers) confine their own field scan to the run **before the
+  first child marker**, so child fields never bleed into the parent.
+
+So a widget's `nWidth` = the `+0x08` of the `0x22` **or** tag-2 record at
 `nWidth`'s position in that widget's schema run. Observed live values
 include `0x4B0` (1200) and `3`.
 
@@ -1274,20 +1301,44 @@ target is non-icon-catalog so `Scenes` filters them out).
 
 ### 10.17 Per-node-cell background + special-node addendum (FR-C11 R3 / FR-C12)
 
-**Per-node-cell background tile (FR-C11 R3 §2).** Drawn beneath every
-revealed/visible node-cell composite (§10.15). Bound on
-`Common_Node_Revealed` (handle `0xC1473C21`, catalog-resolvable in
-2DUI atlas SNO 447106) via the standard `0x6B1C5D9C` texture-handle
-field, with authored rect `L=R=T=B=3` inside the 100-pitch
-`NodeTemplate` box → a 94×94 tile centred in the 100×100 cell with a
-~6-ref-unit inter-tile gap (the lighter board field showing through
-between adjacent cells — no drawn grey border grid, owner oracle
-2026-05-19). The atlas frame carries its own semi-transparent alpha;
-the widget records `dwAlpha = 0xFF`, so the consumer composites at
-the frame's authored opacity. `Common_Node_BG_Black` is the sibling
-hidden-state variant (same handle, same rect — pre-revelation
-state). Empty lattice cells (no node) draw neither widget. Surfaced
-as `ParagonRenderLayout.NodeCellBackground` (single `NodeElement`).
+**`Common_Node_Revealed` binding (FR-C11 R3 §2 / FR-C15 R2).** A
+scene-bound layer on the `Common_Node_Revealed` widget — handle
+`0xC1473C21` (catalog-resolvable in 2DUI atlas SNO 447106) via the
+standard `0x6B1C5D9C` texture-handle field; authored rect
+`L=R=T=B=3` inside the 100-pitch `NodeTemplate` (94×94 footprint
+centred in the 100×100 cell, ~6-ref-unit inter-cell gap); widget
+records `dwAlpha = 0xFF` so the atlas frame's own alpha drives the
+composite. The sibling `Common_Node_BG_Black` widget binds the
+same handle at the same rect — likely the hidden-state variant per
+the widget name. Surfaced as
+`ParagonRenderLayout.CommonNodeRevealedLayer` (single `NodeElement`).
+The field is **binding-named, not role-named** — see the role
+retraction below.
+
+**FR-C15 R2 / CL-39 — role retraction.** CL-33 (FR-C11 R3 §2)
+originally proposed this binding as the "per-node cell background
+tile" — the persistent darker rounded square the lighter board
+field shows through between cells (owner game-vs-app oracle). The
+consumer plumbed
+`ParagonRenderLayout.NodeCellBackground` (the CL-33 field name)
+end-to-end and visually inspected the resolved `0xC1473C21` atlas
+frame: the texture is a **horizontal ember-strip / cell-reveal
+glow pattern**, NOT a clean rounded dark square. The binding
+traversal is correct (the widget DOES bind this handle through the
+standard texture-handle field), but the proposed VISUAL ROLE
+("per-node cell background tile") is empirically wrong. The actual
+role is more likely a **transient cell-reveal effect** (consistent
+with the widget name `_Revealed` — engine animation when a cell
+becomes visible), not the persistent per-node tile owner sees in
+the steady-state board. The typed field was renamed from
+`NodeCellBackground` → `CommonNodeRevealedLayer` (binding-derived
+name, no role assertion) to comply with the lesson learned: a
+widget's name is not authoritative evidence of its visual role.
+The persistent per-node cell tile owner sees in-game remains
+**unidentified** in CASC's current decode — possibly bound on a
+different widget the FR-C12 R2 broad probe didn't flag, possibly
+bound via a non-`0x6B1C5D9C` DT-type, possibly engine-procedural
+(parallel to CL-31 §3 rim-fire). See FR-C15 R2 follow-up.
 
 **`NodeAvailableGlow` authored extent (FR-C11 R3 §3).** The
 selectable-glow widget's authored rect is genuinely all-zero — the
@@ -1306,8 +1357,7 @@ with the §10.15 per-rarity table. Surfaced via `States` rows with
 
 | State | Layers (back → front) | Source |
 |---|---|---|
-| `socket.unselected` / `socket.selected` | ornate outer disk `0xF6443089` (135²) + red bead ring `0xBED4CF21` (135²) + inner spike-frame `0x23F487F3` (136²) | scene-bound — outer disk + inner well on `Usage_Slot_2`'s 0x58-block; bead ring on `GlyphNodeGlow_Revealed`'s texture-handle field (the engine reuses the same atlas frames for both the side-panel and the on-board per-node render). The socket-class node has its OWN ornate outer disk and does NOT composite the shared per-rarity grey-base `0x1D166DC7` — the engine's state dispatch for socket cells never references `Node_IconBase`. |
-| `socket.socketed` | outer disk `0xF6443089` + `GlyphNodeGlow_Purchased` `0xBED4CF21` (per-state bead-ring binding) + per-node glyph image (`HIconMask`, seats in the inner spike-frame's center depression) | scene-bound; glyph from `ParagonNodeDefinition`. Per-state variation (whether the inner spike-frame `0x23F487F3` stays on socketed, whether the bead-ring pulse animation stops) is not yet decoded — `needs:owner` for the next visual oracle. |
+| `socket.unselected` / `socket.selected` / `socket.socketed` | ornate outer disk `0xF6443089` (135²) + red bead ring `0xBED4CF21` (135²) + inner spike-frame `0x23F487F3` (136²); `.socketed` adds the per-node glyph image (`HIconMask` from `ParagonNodeDefinition`) seated in the inner spike-frame's center depression | scene-bound — outer disk + inner well on `Usage_Slot_2`'s 0x58-block; bead ring on `GlyphNodeGlow_Revealed`'s texture-handle field for `.unselected`/`.selected`, on `GlyphNodeGlow_Purchased` for `.socketed` (the engine reuses the same atlas frames for both the side-panel and the on-board per-node render). The socket-class node has its OWN ornate outer disk and does NOT composite the shared per-rarity grey-base `0x1D166DC7` — the engine's state dispatch for socket cells never references `Node_IconBase`. Per-state activation policy (bead-ring pulse animation on `.unselected` only, static at opacity 1.0 on `.selected` / `.socketed`) is consumer-side per FR-C7 §6 (CL-36 owner visual-oracle confirmation). |
 | `overlay.locatedHighlight` | `Node_Located` `0x87A89F86` (135²) | scene-bound via the 0x58-block |
 | `overlay.equipGlow` | `Node_EquipGlow` `0xFC806F42` (91×90) | scene-bound via the 0x58-block |
 | `start.unselected` / `start.selected` | `Template_Node_Starter` 0x58 block: filigree `0xA0F996FE` + grey hexagon `0xF8312CA8` | scene-bound; selected variant authored as same handles (no visual change) |
@@ -1389,13 +1439,186 @@ CL-18 relies on, now exposed typed). Surface:
 ### 11.2 `PowerDefinition` (group 29, `.pow`)
 
 Identity (`snoId@0`) + localized `Name`/`Description` from the §6.7
-sibling table `Power_<snoName>`, labels `name`/`desc`. The power's
-gameplay record (≈6 KB) is **not** decoded — consumer domain. (Note:
-an inline `szName` exists at payload `+8` for *some* powers but is
-absent for many — e.g. `CAMP_*` — so the sibling table is the reliable
-name source, not that offset.) Anchor: power `2521393` →
-`name` `Fathomless`. Surface: `Diablo4Storage.ReadPower(int, locale)`.
-CL-22.
+sibling table `Power_<snoName>`, labels `name`/`desc` + the
+**Script Formula slot table** (FR-C13 Phase 1, CL-37). The power's
+deeper gameplay record (≈6 KB of buffs / payloads / mods) stays
+consumer domain. (Note: an inline `szName` exists at payload `+8`
+for *some* powers but is absent for many — e.g. `CAMP_*` — so the
+sibling table is the reliable name source, not that offset.)
+Anchor: power `2521393` → `name` `Fathomless`. Surface:
+`Diablo4Storage.ReadPower(int, locale)`. CL-22.
+
+**Script Formula slot table (FR-C13 Phase 1).** Powers using the
+`DT_STRING_FORMULA` mechanism (every legendary node passive, plus
+many active skills and structural powers) carry a tail-data array
+of positional slot records that the engine resolves through
+`[SF_<i>n</i>...]` placeholders in the localized `Description`
+format string. CASC surfaces this table as
+`PowerDefinition.ScriptFormulas` — an `IReadOnlyList<PowerScriptFormula>`
+where each entry's `Index` matches the format-string SF_N indices
+verbatim, `Text` is the literal text form of the formula
+(`"0.02"` for trivial numeric literals, `"SF_1 / 3"` for arithmetic
+expressions on other slots), and `LiteralValue` is the IEEE-754
+single-precision scalar for trivial-numeric slots (Phase 1 surface).
+
+The decoder walks the blob backward from the terminator record
+`("0", 0.0)` to collect the slot table, then strips the universal
+trailing `("10", 10.0)` sentinel (engine max-rank marker). The
+storage is positional vs the engine's SF_N indices — same as the
+format-string placeholders. Some powers' formats skip SF_N indices
+(Dynamism uses `SF_0`/`SF_2`/`SF_3`, skipping `SF_1`); the
+positional slot table still has the corresponding entry at the
+skipped index — the value just isn't referenced by the format
+string.
+
+Phase 1 lifts Layout-A records (3-character ASCII chunks like
+`".15"`/`"4.5"`/`"60"`/`"10"`, followed by type tag `0x06`, then
+the float). Layout-B and Layout-C records (4-character ASCII chunks
+like `"0.75"`/`"0.02"` and pad-prefixed records like Demonic
+Spicules's `"60"` Layout-C entry) plus expression-text records
+(Demonic Spicules's `"SF_1 / 3"` for SF_2 = SF_1/3 = 20) are
+deferred to Phase 2's expression evaluator. The library surfaces
+`empty list` rather than fabricating a partial table when the
+Layout-A walk fails — honest decode discipline (parallel to the
+FR-C9 no-fabrication gates on the paragon-render side).
+
+Phase 1 anchors (6 of 9 Warlock legendaries fully decoded; 3
+deferred to Phase 2):
+
+| Power | SNO | Stored slot table | Source |
+|---|---|---|---|
+| Pyrosis    | 2527268 | `[4.5]` | Phase 1 ✓ |
+| Fathomless | 2521393 | `[0.15, 7, 6]` | Phase 1 ✓ |
+| Overmind   | 2524552 | `[0.45, 0.65]` (IEEE-754 round-to-nearest = `0.45000002`, `0.65000004`) | Phase 1 ✓ |
+| Ritualism  | 2526168 | `[0.9, 9, 15]` | Phase 1 ✓ |
+| Chaos      | 2527294 | `[1.0, 2, 1]` | Phase 1 ✓ |
+| Dynamism   | 2524312 | `[0.03, 1.0, 1.0, 2.0]` (SF_1 unused in format) | Phase 1 ✓ |
+| Greater Hex | 2527280 | `[0.75, 0.25]` | Phase 2 (Layout B) |
+| Dominion   | 2524673 | `[0.8, 0.5, 12]` | Phase 1 ✓ |
+| Demonic Spicules | 2525006 | `[0.02, 60, (SF_1/3 → 20)]` | Phase 2 (Layout C + expression) |
+
+Acceptance gate:
+`PowerDefinition_decodes_script_formulas_for_anchored_legendaries`
+asserts the slot tables for the 6 Phase-1-complete powers, plus a
+no-crash sweep
+`PowerDefinition_decodes_script_formulas_for_all_legendaries_no_crash`
+exercises every legendary node power across the 8 classes (72
+powers) — no decode-time exceptions on any blob, even when the
+table is empty for layout-deferred powers.
+
+**Phase 2 — resolved SF_N map + engine-function refs (CL-40).** Per
+the FR-C13 R4 sign-off, Phase 2 lifts the 4-character ASCII
+`Layout B` records (Greater Hex's `"0.75"`/`"0.25"` slots), the
+zero-prefix `Layout C` records with ASCII at +4 (Greater Hex
+sentinel/terminator), mixed 16/20-byte stride backward walks (the
+Layout B records carry a 4-byte trailing pad), and multi-sentinel
+stripping (Greater Hex repeats the `"10"` sentinel). Two typed
+surfaces added on `PowerDefinition`:
+
+- `IReadOnlyDictionary<string, double> ResolvedFormulas` — the
+  positional slot table re-keyed by `"SF_N"`. Trivial-numeric slots
+  promote their `PowerScriptFormula.LiteralValue` directly;
+  expression-text slots (e.g. Demonic Spicules's `"SF_1 / 3"`) are
+  evaluated by the internal `PowerScriptFormulaEvaluator` against
+  the other slots' resolved values (iterative resolution to a
+  fixed point; unresolvable references collapse to
+  `double.NaN`).
+- `IReadOnlyList<PowerFunctionRef> FunctionRefs` —
+  engine-function references the power's localized
+  `Description` format-string contains (e.g. Barbarian
+  *Warbringer*'s `[SF_1 * PlayerHealthMax()]` surfaces
+  `PowerFunctionRef("PlayerHealthMax", argSlots)`). The consumer
+  registers a per-name resolver delegate to substitute the
+  engine-runtime value (player-state accessors are outside CASC's
+  domain — surface structurally, resolve consumer-side).
+
+Phase 2 anchor verification (8 of 9 Warlock legendaries + Greater
+Hex + Warbringer FunctionRef):
+
+| Power | Resolved SF_N | Notes |
+|---|---|---|
+| Pyrosis | `SF_0 = 4.5` | trivial |
+| Fathomless | `SF_0 = 0.15`, `SF_1 = 7`, `SF_2 = 6` | raw stored; the format-rendered "105% cap" = `SF_0 × SF_1 × 100` is consumer-side eval |
+| Overmind | `SF_0 ≈ 0.45`, `SF_1 ≈ 0.65` | IEEE-754 round-to-nearest |
+| Ritualism | `SF_0 = 0.9`, `SF_1 = 9`, `SF_2 = 15` | format-string `[1 + SF_1]` renders 10 consumer-side |
+| Chaos | `SF_0 = 1`, `SF_1 = 2`, `SF_2 = 1` | trivial |
+| Dynamism | `SF_0 = 0.03`, `SF_1 = 1` (unused), `SF_2 = 1`, `SF_3 = 2` | format skips SF_1 |
+| Dominion | `SF_0 = 0.8`, `SF_1 = 0.5`, `SF_2 = 12` | trivial |
+| **Greater Hex** | `SF_0 = 0.75`, `SF_1 = 0.25` | **Phase 2 lift** — Layout B 20-byte stride |
+| Demonic Spicules | (deferred) | expression-text record (non-16-byte) Phase 3 |
+| Barbarian *Warbringer* | `FunctionRefs ⊇ {PowerFunctionRef("PlayerHealthMax", [])}` | engine function surfaced from `[SF_1 * PlayerHealthMax()]` |
+
+Acceptance gate
+`PowerDefinition_resolves_phase2_formulas_and_function_refs`
+verifies the above anchors. Demonic Spicules's expression-text
+record deferred to Phase 3's compiled-form AST decoder.
+
+**Phase 3 — compiled-form AST decoder + cross-validation (CL-41).**
+Per the FR-C13 R5 sign-off, Phase 3 lifts the 48-byte type=`0x05`
+*expression record* that Phase 1/2's backward-walk halted on, adds
+a binary-AST evaluation path, and surfaces a third typed surface on
+`PowerDefinition` for cross-validation against `ResolvedFormulas`.
+
+The expression record (anchored on Demonic Spicules's
+`SF_2 = "SF_1 / 3"`):
+
+```
++0..3   pad = 0
++4..15  ASCII text (NULL-terminated within 12 bytes — "SF_1 / 3\0\0\0\0")
++16..19 type tag = 0x05  (expression marker)
++20..23 opcode marker    (observed = 7; opaque)
++24..35 pad = 0
++36..39 type tag = 0x06  (embedded-literal marker)
++40..43 IEEE-754 single  (binary operand value — 3.0f on the anchor)
++44..47 trailing opcode  (observed = 0x0E; opaque)
+```
+
+The 4-byte pad following the record explains the 52-byte backward
+stride. The decoder tries `-16`, `-20`, `-52` strides in order;
+the `-52` candidate must be a genuine type=`0x05` record start
+(not any literal) to avoid jumping past the slot region into the
+early-tail literal blocks. Demonic Spicules previously decoded as
+0 slots (the expression record halted the walk); Phase 3 decodes
+all 3 (`SF_0 = "0.02"` Layout B literal, `SF_1 = "60"` Layout C
+literal, `SF_2 = "SF_1 / 3"` type=`0x05` expression).
+
+`IReadOnlyDictionary<string, double> CompiledFormulas` — the
+engine-truth `{SF_N → value}` map. Literal slots use the IEEE-754
+single read directly from the slot record's float position
+(identical to `PowerScriptFormula.LiteralValue` promoted). Expression
+slots evaluate the operator tree from the text but substitute
+numeric operands from the binary AST opcode region's embedded
+IEEE-754 singles in left-to-right encounter order (Demonic
+Spicules's `SF_2` = `SF_1 / binary_literal[0]` = `60 / 3.0f` =
+`20`; the `3.0f` comes from compiled bytes at +40, not from
+re-parsing the text `"3"`). When `ResolvedFormulas[SF_N]` and
+`CompiledFormulas[SF_N]` disagree, the engine-compiled text and
+binary forms have drifted — the R5 regression gate.
+
+R5 cross-validation gate — 9 Warlock legendary anchors:
+
+| Anchor | SF_N keys | `ResolvedFormulas == CompiledFormulas` |
+|---|--:|---|
+| Pyrosis | 1 | ✓ |
+| Fathomless | 3 | ✓ |
+| Overmind | 2 | ✓ |
+| Ritualism | 3 | ✓ |
+| Chaos | 3 | ✓ |
+| Dominion | 3 | ✓ |
+| Dynamism | 4 | ✓ |
+| Greater Hex | 2 | ✓ |
+| **Demonic Spicules** | **3** | **✓ (SF_2 = 20 via both paths)** |
+| **Total** | **24** | **24 agree, 0 disagree** |
+
+Acceptance gates
+`PowerDefinition_phase3_compiled_formulas_match_resolved_for_9_warlock_anchors`
+(the R5 cross-validation) and
+`PowerDefinition_phase3_decodes_demonic_spicules_expression_slot`
+(the expression-record anchor). AST opcode interior (the `0x07`
+and `0x0E` opaque markers) deliberately not decoded — the
+single-binary-operator + single-literal-operand shape covers every
+expression-text slot in the 72-power live build; more complex AST
+shapes would need additional record-shape RE.
 
 ### 11.3 `AffixDefinition` (group 104, `.aff`)
 
@@ -1418,10 +1641,300 @@ fields empty — they need `CoreToc`); the deep binary beyond the
 documented fields is deliberately not decoded (boundary, not a gap —
 no fabricated values, mirroring the FR-C7 discipline).
 
+### 11.5 `TiledStyleDefinition` (group 103, `.uis`)
+
+UI tile-style records (CL-42). The engine's recipe for rendering a
+tiled UI overlay (vignette, inner-shadow, bag background, frame
+chrome, …) as a multi-piece composition with scale + padding.
+
+A widget carries a `DT_SNO` field named `snoTiledStyle`
+(`FieldHash("snoTiledStyle") == 0x07DB38D3`) pointing to a record in
+this group; at render time the engine consults the bound TiledStyle
+and composes the overlay. Distinct from the widget's `hImage` (the
+primary content); `snoTiledStyle` defines the *framing/composition*
+applied to the widget's rect. Group format hash `0x80504E18`.
+
+The record is a `TiledStyleDefinition` SNO (type hash `0x02F5672C`)
+holding a polymorphic `ptWindowPiece` array; CASC decodes the first
+(and only, in every record observed) element. The element's
+PolymorphicBase header stores the variant tag at blob `+0x50`; for
+the **`NSlice`** variant (tag `0xBC0D579E` — the 9-slice composition
+class, the common case) the struct fields map `struct +N → blob
++0x48+N`:
+
+```
++0x00  uint32   magic                  = 0xDEADBEEF
++0x10  int32    SnoId                  (self-reference)
++0x50  uint32   TypeTag (= dwType)     0xBC0D579E NSlice | 0x02E46583 TiledWindowPieces | …
++0x58  float32  flImageScale           (1.0 / 0.5 / 0.9 observed)
++0x5C  uint32   nPadding
++0x60  uint32   hSourceImage           (the sliced/tiled texture handle)
++0x64  uint32   eSliceStyle            (slice mode enum)
++0x68  16 bytes DT_VARIABLEARRAY        (struct +0x20 — opaque)
++0x78  16 bytes DT_VARIABLEARRAY        (struct +0x30 — opaque)
++0x88  int32    fTileCenter            (≠0 ⇒ interior is TILED, not stretched)
++0x8C  int32    fTileHorizontalBorders (≠0 ⇒ top/bottom strips tiled)
++0x90  int32    fTileVerticalBorders   (≠0 ⇒ left/right strips tiled)
+```
+
+Field/type names cracked from the `blizzhackers/d4data`
+`!!D4Checksums.yml` + `!NSlice.bc0d579e.yml` schemas (cited as intel
+only — see memory `feedback_third-party-re-as-intel`). The N-slice
+model — fixed corners + (optionally tiled) edges + (optionally
+tiled) centre — is exactly the "raised perimeter edges + tiled
+interior" composition the FR-C14 owner observations described.
+
+Anchors verified (scene 657304 `snoTiledStyle` bindings):
+
+| Widget | SNO id | CoreToc name | variant | `flImageScale` | `fTileCenter` |
+|---|--:|---|---|--:|--:|
+| `Vignette` | 843662 | InnerShadow | NSlice | 1.0 | **0** (stretched) |
+| `Paragon_Points_Container` | 1309282 | Frame_AbilityPoints | NSlice | 0.5 | 1 (tiled) |
+| `Points_Tutorial_Highlight` | 872641 | Tutorial_Highlight | NSlice | 1.0 | 0 |
+| `ParagonStats` | 787949 | HellGothicChill | NSlice | 0.9 | 1 |
+| `Board_Info` | 603760 | BagBackground | TiledWindowPieces | 0.9 | (suffix not decoded) |
+| `CoreStatEntryStack` | 792649 | HellGothicSuperChillEdge | NSlice | 0.5 | 1 |
+
+`Vignette → InnerShadow` has `fTileCenter = 0` — a *stretched*
+inner-shadow, **not** a tiled pattern; it is therefore not the
+paragon-board background pattern overlay (correcting the R8/R9
+working hypothesis). No `SnoGroup.UiStyle` record sources the
+owner-confirmed board pattern `0x22FF3AF6` (411 scanned) — the
+board's pattern is rendered via the Stack-widget `ExtraLayerValues`
+path, not the TiledStyle/NSlice path.
+
+Surface: `Diablo4Storage.ReadTiledStyle(int)` returns the typed
+record (NSlice variant fully decoded ⇒ `HasPartialDecode = false`;
+other variants keep the tile flags at `-1` + `HasPartialDecode =
+true`). The per-widget binding is on
+`ParagonBoardChrome.TiledStyleBindings`. The cracked-hash registry
+(`Diablo4.KnownFieldNames` / `KnownTypeNames`) is the persistent
+surface for hashes recovered across FRs.
+
+CL-42 (R9 typed-surface lift) + CL-43 (R10 NSlice full decode),
+derived from FR-C14 R8's `snoTiledStyle` crack and R10's variant
++ field cracks via the `blizzhackers/d4data` checksum registries.
+
 ## Appendix A — correction log (Diablo IV errata)
 
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
+
+- **CL-49 — `DecodeMip0` BC row-pitch is texture-specific (#28).**
+  `DecodeMip0` hard-coded the stored BC block-row pitch as
+  `Align(width, 64)`. That is wrong for atlases whose stored pitch is
+  **128-aligned**: BC1 atlas **447106** (`2DUI_Paragon`, 1208×1464) is
+  stored at a **1280**-px pitch (320 blocks/row), but `Align(1208,64)`
+  gives 1216 (304 blocks/row) — so the decoder read 16 blocks too few
+  per row and the row stride drifted, garbling the image (slanted
+  banding + a glitch strip). Every frame from a non-64-aligned BC atlas
+  was affected (the FR-C14 board background `0x2954DF0C` and the per-node
+  cell tile `0xC1473C21` both live in 447106). The fix derives the true
+  blocks-per-row from the **exact mip0 byte count**
+  (`SerTex[0].SizeAndFlags ÷ (blockRows × blockSize)`), which is exact
+  for every atlas (the 64-aligned ones derive identically, so no
+  regression), with an `Align(width,64)` fallback + a `pitch ≥ width`
+  guard when the size is unavailable. **Supersedes the CL-46-era claim
+  (#26) that `0xC1473C21`'s consumer-side garble was a consumer decode
+  bug** — it was this library bug; CASC's per-frame probe missed it
+  because `0xC1473C21` is a near-uniform dark square, on which row drift
+  is invisible. Acceptance:
+  `DecodeMip0_uses_stored_row_pitch_for_non_64_aligned_bc1` (the shipped
+  decode differs from a forced-1216 decode and is more row-coherent).
+  44/44 tests green on build `3.0.2.71886`. Devlog 0045.
+
+- **CL-48 — UI-scene tag-2 field-value encoding (FR-C16 R7).** The
+  §10.3 instance-record model read only the 56-byte `0x22` record. There
+  is a **second value-record encoding** — the 12-byte **tag-2 block**
+  (`tag==2, +4==0, value@+8`) — that some widgets use *instead of*
+  `0x22` for the same fields (and some mix them). The pre-R7 parser
+  therefore **under-decoded** every tag-2-encoded field: (1)
+  `Template_Board_Background_Center` reported an all-zero rect when its
+  authored size is **`1200×1200`** (the FR-C11/§10.16 "chrome carries no
+  authored sub-rect" claim was an artifact for the centre — the 4 rim
+  sides genuinely bind no `nWidth`/`nHeight`, so *they* stay zero
+  faithfully); (2) `Node_Icon`'s positional keying collapsed, landing the
+  `hImageFrame` handle in `nBottom` (CL-47's `635087190` garbage) — its
+  true rect is a symmetric **`28`-inset** symbol slot, so
+  `RenderRatios.SymbolOverDisc` corrects from the buggy `100/86` (1.163,
+  "fills the box") to **`44/86`** (0.512 — the class glyph inside the
+  disc with margin). The `UiScene` parser now reads field values from
+  **either** record shape, capped at the schema field count (the
+  field-value run precedes any `0x58` layer-block), and confines a parent
+  widget's field scan to the run before its first nested child marker.
+  This **retires the CL-47 ±4096 rect guard** (the exact decode makes it
+  unnecessary). 43/43 tests green on build `3.0.2.71886`. Devlogs 0043
+  (grammar crack) + 0044 (shipped).
+
+- **CL-47 — node recipe per-state disc split + sentinel/rect decode
+  fixes (FR-C16 R5).** Three CL-46 decode-quality defects, found when
+  the Optimizer's interpreter drew the recipe verbatim against the live
+  board. (1) **Per-selection-state disc split.** CL-46's
+  `CompositeHandles` flattened a rarity sub-template's *unselected* and
+  *selected* disc into one list, so a verbatim draw painted the
+  selected-state ring on unselected nodes. The
+  `Template_Node_<rarity>` widgets are parent widgets whose anonymous
+  child sub-records (`UIWindowStyle` + `0xFFFFFFFF` marker, name-less)
+  bind one disc handle each; the first two handle-bearing children, in
+  scene order, are the unselected then selected disc. Lifted into a new
+  `ParagonNodeRecipeLayer.SelectionDiscs: NodeSelectionDiscs?`
+  (`Unselected`/`Selected`) — `0x621CB6FF`/`0x72C29402` Magic,
+  `0xB71BD068`/`0x03EDABAB` Rare, `0x232DF7F9`/`0xBD27FB7C` Legendary
+  (all six match the owner FR-C12 oracle). The consumer draws `Selected`
+  only on the currently-selected node. (2) **Sentinel exclusion.**
+  CL-46's `v >= 0x10000u` composite filter let the 0x58-block's
+  small-*negative* rect insets (`0xFFFFFFFD` = −3, `0xFFFFFFEE` = −18,
+  `0xFFFFFFEC` = −20 — overscan for the larger 189² Legendary disc)
+  through as bogus handles. `NodeRecipe` now requires the icon-catalog
+  validator (`IsParagonTextureHandle`) to resolve each composite handle;
+  the negatives — which are *rect insets*, never delimiters or state
+  codes — are excluded. (3) **Implausible-rect guard.** `Node_Icon`
+  (and other sparse-bound widgets) bind only a *subset* of their schema
+  fields, which breaks the §10.3 positional record→field keying so a
+  texture handle lands in a rect field (`Node_Icon.nBottom` decoded as
+  `0x25DAA956` = 635087190). A projection-level guard rejects rect
+  magnitudes beyond the design canvas (±4096), so the garbage no longer
+  propagates. `Node_Icon` is the per-node symbol slot (runtime-filled
+  `HIconMask`, drawn fit-to-disc-centre) — its template rect is not
+  load-bearing. The root-cause fix (re-RE of the sparse instance-binding
+  grammar so *every* rect decodes exactly) is tracked for a later round;
+  this guard contains the symptom now. Acceptance:
+  `ReadParagonNodeRecipe_surfaces_ordered_state_widget_layers` extended
+  to assert the three rarity state-pairs, resolvable-only composites,
+  and in-range rects. 43/43 tests green on build `3.0.2.71886`. Devlog
+  0042.
+
+- **CL-46 — node recipe per-rarity composite handles + substitution
+  model (FR-C16 R4).** `ParagonNodeRecipeLayer` gains
+  `CompositeHandles: IReadOnlyList<uint>` — the additional 0x58-block
+  texture handles on a layer beyond its single `ImageHandle`. Answers
+  the Optimizer's per-rarity-disc / per-node-symbol substitution
+  question: it is a **hybrid**. (1) **Per-rarity disc = per-rarity
+  sub-template:** the `Template_Node_<rarity>` layers carry their
+  rarity disc composite in `CompositeHandles` — `Template_Node_Magic`
+  → `0x621CB6FF` + `0x72C29402`, `Template_Node_Rare` → `0xB71BD068` +
+  `0x03EDABAB` (exact match to the owner's FR-C12 rarity-disc oracle);
+  the generic `Node_IconBase` (`0x1D166DC7`) is the default, drawn
+  unless a rarity sub-template applies. (2) **Per-node symbol =
+  substitution slot:** the `Node_Icon` layer's handle is the node's own
+  `ParagonNodeDefinition.HIconMask` (runtime-filled; its template
+  `ImageHandle` is 0). So the recipe defines WHERE/size/z; the node +
+  rarity data define WHICH handle. Acceptance:
+  `ReadParagonNodeRecipe_surfaces_ordered_state_widget_layers` extended
+  to assert the Magic/Rare composites. 43/43 tests green on build
+  `3.0.2.71886`. Devlog 0041.
+
+- **CL-45 — paragon board grid metric (`ParagonBoardGrid`)
+  (FR-C17 R3).** New `Diablo4Storage.ReadParagonBoardGrid()` →
+  `ParagonBoardGrid(CanvasWidth, CanvasHeight, CellExtent, Pitch)`,
+  read from game data (the UI scene): canvas `1920×1200`
+  (`ParagonBoard_main`), node cell extent `100` ref units
+  (`Template_Node_Common`), `Pitch = CellExtent` (adjacent cells —
+  the `UIParagonBoardStyle` grid container is a style wrapper with no
+  grid-layout fields, so there is no extra authored inter-cell gap).
+  Replaces the consumer's empirical pixel pitch with the engine's
+  authored cell metric; the consumer maps a board cell's
+  `(gridX, gridY) → (gridX·Pitch, gridY·Pitch)` and scales the
+  `1920×1200` canvas to its render resolution. **Validated against the
+  owner's in-game measurement**: the empirical ~67.7px pitch =
+  `CellExtent (100) × render-scale (≈0.677)`, so the authored
+  100-unit cell reproduces the observed spacing. The per-board logical
+  grid (dimensions + cell→node) stays `ParagonBoardDefinition`
+  (`Width`/`Cells`/`CellAt`). Acceptance:
+  `ReadParagonBoardGrid_surfaces_engine_cell_metric`. Tests green on
+  build `3.0.2.71886`. Devlog 0041.
+
+- **CL-44 — paragon node render program (`ParagonNodeRecipe`) +
+  widget class-id cracks (FR-C16 R3).** New
+  `Diablo4Storage.ReadParagonNodeRecipe()` →
+  `ParagonNodeRecipe(IReadOnlyList<ParagonNodeRecipeLayer>)`. The
+  engine's per-node composition is a flat, z-ordered list of named
+  state-widget layers (each: `ZOrder`, verbatim `WidgetName`,
+  `WidgetClassId`, `hImageFrame` `ImageHandle`, `Rect`, `dwAlpha`
+  `Alpha`), drawn when the layer's predicate holds. **Hierarchy
+  finding (R3):** the UI-scene blob serializes widgets in depth-first
+  child order with **no explicit per-widget parent/z field** (the
+  widget headers' pre-class + post-sentinel words are all zero), so
+  **blob order = child order = draw/z-order** and the node subtree is
+  the contiguous sibling run (anchored positionally on the engine's
+  `Common_Node*` / `Template_Node_*` names). **No structural state
+  predicate field exists** (R2 — every per-widget field is
+  layout/anchoring/opacity; `0x0CDB00E9` uncracked is not a state
+  code); the engine's widget *name* is the state discriminator, so it
+  is surfaced verbatim (per `feedback_widget-name-not-role`) and the
+  consumer carries the thin `name → runtime-predicate` glue (the
+  Optimizer-confirmed pure-interpreter contract). Directional arrows
+  (`Arrow_Top/Right/Bottom/Left`) + connectors are their own ordered
+  layers. Also cracked the widget class-style ids via
+  `blizzhackers/d4data` `!!D4Checksums.yml` and added to
+  `Diablo4.KnownTypeNames`: `UIWindowStyle` (`0x1E3077C7`),
+  `UIStackPanelStyle` (`0x112661D5`), `UIParagonBoardStyle`
+  (`0x093D303F`), `UIBlinkerStyle` (`0x145F2056`), `UIRActorStyle`,
+  `UITextStyle`, `UIScrollBoxStyle`, `UIListBoxStyle`, `UIButtonStyle`,
+  `UIWrapPanelStyle`, `UIHotkeyStyle`, `UIControlStyle`. Acceptance:
+  `ReadParagonNodeRecipe_surfaces_ordered_state_widget_layers` (z-order
+  monotonic; `Node_IconBase → 0x1D166DC7` owner anchor; the 4 arrows).
+  42/42 tests green on build `3.0.2.71886`. Devlog 0041.
+
+- **CL-43 — NSlice TiledStyle full decode + variant/field cracks
+  (FR-C14 R10).** §11.5. Extends CL-42's `TiledStyleDefinition` from
+  "primary handle + scale + opaque suffix" to a full **NSlice**
+  (9-slice) decode: `hSourceImage`, `eSliceStyle`, `nPadding`,
+  `fTileCenter`, `fTileHorizontalBorders`, `fTileVerticalBorders`.
+  `HasPartialDecode` is now `false` for the `NSlice` variant (tag
+  `0xBC0D579E`); other variants (`TiledWindowPieces` `0x02E46583`,
+  etc.) keep their tile flags at `-1` + `HasPartialDecode = true`.
+  Cracked the variant + field names via the `blizzhackers/d4data`
+  `!!D4Checksums.yml` type registry + `!NSlice.bc0d579e.yml` schema
+  (intel-only). Type tags added to `Diablo4.KnownTypeNames`: `NSlice`,
+  `TiledWindowPieces`, `TiledStyleDefinition`,
+  `HorizontalTiledWindowPieces`, `VertTiledWindowPieces`,
+  `WindowPieces`, `WindowPiecesBase`, `UIImageHandleReference`
+  (the `0x6B1C5D9C` texture-handle field type). NSlice field names
+  added to `Diablo4.KnownFieldNames`. **Correction:**
+  `Vignette → InnerShadow (843662)` has `fTileCenter = 0` (a
+  stretched inner-shadow, not a tiled pattern) — so it is NOT the
+  paragon-board pattern overlay (the CL-42 R9 working hypothesis is
+  retracted). No `SnoGroup.UiStyle` record sources the board pattern
+  `0x22FF3AF6` (411 scanned); that pattern renders via the
+  Stack-widget `ExtraLayerValues` path, separate from TiledStyle.
+  Acceptance: `ReadParagonRenderModel_surfaces_tiled_style_bindings`
+  asserts Vignette's NSlice decode (all tile flags 0) +
+  Frame_AbilityPoints's tiled NSlice (`fTileCenter = 1`). Tests green
+  on build `3.0.2.71886`. Devlog 0040 (R9) + this entry (R10).
+
+- **CL-42 — UI tile-style (`.uis`) typed surface + per-widget
+  `snoTiledStyle` binding (FR-C14 R9).** §11.5 + new
+  `ParagonBoardChrome.TiledStyleBindings`. Adds:
+  - `SnoGroup.UiStyle` = 103 (group format hash `0x80504E18`).
+  - `TiledStyleDefinition` typed record with magic
+    `0xDEADBEEF`, self-`SnoId`, `TypeTag` (polymorphic-variant tag
+    — `0xBC0D579E` for the common `HorizontalTiledWindowPieces`-shape,
+    `0x02E46583` observed on `BagBackground` 603760), `ImageScale`
+    (`flImageScale`), and `PrimaryHandle` (the +0x60 piece handle).
+    `HasPartialDecode = true` on records whose variant-specific
+    trailing data is not yet decoded.
+  - `TiledStyleBinding(WidgetName, WidgetClassId, TiledStyleSnoId, Style?)`
+    surfaced on `ParagonBoardChrome.TiledStyleBindings` for every
+    scene-657304 / 964599 widget whose `snoTiledStyle` field
+    (`FieldHash` `0x07DB38D3`) is bound to a non-zero, non-sentinel
+    SNO id. Small sentinel ids (1, 3, 20) are surfaced with
+    `Style = null` so the consumer can distinguish "real binding"
+    from "default style".
+  - `Diablo4Storage.ReadTiledStyle(int)` / `TryReadTiledStyle`.
+  - `Diablo4.KnownFieldNames` / `KnownTypeNames` /
+    `FormatFieldHash` / `FormatTypeHash` — cumulative cracked-hash
+    registry (also persisted in
+    `docs/d4-hash-dictionary.md`) per memory
+    `feedback_cumulative-hash-decode`.
+  Driven by FR-C14 R8's hash crack of `snoTiledStyle` via the
+  `blizzhackers/d4data` `!!D4FieldChecksums.yml` upstream registry
+  (cited as intel; see memory `feedback_third-party-re-as-intel`).
+  Acceptance: `ReadParagonRenderModel_surfaces_tiled_style_bindings`
+  verifies the `Vignette → SNO 843662` (InnerShadow,
+  `flImageScale = 1.0`) anchor + 9 other scene-657304 widget names
+  appear in `TiledStyleBindings`. 46/46 tests green on build
+  `3.0.2.71886`. Devlog 0040.
 
 - **CL-4 — per-SNO addressing.** The TVFS walk was never the problem
   (it is complete; 1,759,690 entries; all 37 nested `vfs-N`
@@ -1834,6 +2347,124 @@ true value (the sections above already state the corrected truth).
   the 4 rim-side handles against the raw scene-657304 widget data
   (the icon-catalog-filtered `Scenes` view doesn't see them).
 
+- **CL-36 — socket.socketed inner-well restored (FR-C12 R5).**
+  §10.17. CL-35 tentatively dropped the inner spike-frame
+  `0x23F487F3` from the `socket.socketed` row "pending visual-oracle
+  confirmation of socketed-state inner-frame behavior". Owner
+  visual-oracle on the rebuilt app (post-CL-35 consumer integration)
+  ruled definitively: socketed looks exactly like selected, with the
+  placed glyph icon additionally overlaid. The inner spike-frame
+  stays on `.socketed`. Restored: `socket.socketed = [outerDisk,
+  beadRing-via-Purchased, innerWell]` — identical 3-layer composite
+  across all three socket states. The per-state activation policy
+  (bead-ring pulse animation on `.unselected` only; static at
+  opacity 1.0 on `.selected` / `.socketed`; placed-glyph-icon
+  overlay on `.socketed` from `ParagonNodeDefinition.HIconMask`) is
+  consumer-side per FR-C7 §6. Row no-phantom gate (CL-35) passes
+  unchanged — `0x23F487F3` is bound on `Usage_Slot_2`, in the
+  socket-authorized widget set.
+- **CL-41 — Power Script Formula Phase 3: compiled-form AST decoder
+  + cross-validation (FR-C13 R5, Phase 3).** §11.2. Optimizer-
+  consume-verified-and-authorized R5 Phase 3 lift. Closes the FR by
+  decoding the engine's compiled binary AST for expression-text
+  slots (the case Phase 2 deferred) and surfacing
+  `PowerDefinition.CompiledFormulas: IReadOnlyDictionary<string, double>`
+  as the engine-truth `{SF_N → value}` map for cross-validation
+  against `ResolvedFormulas`. Two decoder additions:
+  - **48-byte type=`0x05` expression record** — the previously-
+    undecoded shape that halted Phase 1/2's backward-walk on
+    Demonic Spicules. Layout: `[pad@0..3, ASCII text@4..15
+    (NULL-terminated), type=0x05@16..19, opcode@20..23 (opaque),
+    pad@24..35, type=0x06@36..39, IEEE-754 single@40..43, trailing
+    opcode@44..47 (opaque)]`. The 4-byte pad after the record
+    explains the 52-byte backward stride. The decoder tries `-16`,
+    `-20`, `-52` strides in order; the `-52` candidate must be a
+    genuine type=`0x05` record start (a literal at `-52` would
+    jump past the slot region into early-tail literal blocks).
+  - **Binary-AST evaluation path** — `PowerScriptFormulaEvaluator.
+    EvaluateWithBinaryLiterals` consumes binary IEEE-754 singles
+    in left-to-right encounter order instead of re-parsing text
+    literals. Demonic Spicules's `SF_2 = "SF_1 / 3"` evaluates as
+    `SF_1 / binary_literal[0]` = `60 / 3.0f` = `20` (the `3.0f`
+    from compiled bytes at +40, not from text `"3"`).
+  Demonic Spicules previously decoded as 0 slots (the expression
+  record halted the walk); Phase 3 decodes all 3: `SF_0 = "0.02"`
+  Layout B literal, `SF_1 = "60"` Layout C literal,
+  `SF_2 = "SF_1 / 3"` type=`0x05` expression → 20. R5 cross-
+  validation gate (9 Warlock anchors, 24 SF_N keys total): all 24
+  `ResolvedFormulas` ↔ `CompiledFormulas` agree to float
+  precision; 72-power no-crash sweep passes (0 throws across
+  every legendary). Acceptance:
+  `PowerDefinition_phase3_compiled_formulas_match_resolved_for_9_warlock_anchors`
+  and
+  `PowerDefinition_phase3_decodes_demonic_spicules_expression_slot`.
+  AST opcode interior markers (`0x07` after type=`0x05` and `0x0E`
+  after the embedded literal) deliberately not decoded — the
+  single-binary-operator + single-literal-operand record shape
+  covers every expression-text slot in the 72-power live build;
+  more complex AST shapes would need additional record-shape RE
+  and additional test anchors. 45/45 tests green on build
+  `3.0.2.71886`. Devlog 0039.
+
+- **CL-40 — Power Script Formula Phase 2: resolved SF_N map +
+  engine-function refs (FR-C13 R4, Phase 2).** §11.2. Owner-
+  authorized R4 Phase 2 lift. Extends the Phase 1 slot decoder to
+  handle Layout B (4-char ASCII + pad + type + float) and Layout C
+  (zero-prefix + ASCII@+4 + type + float) records, mixed 16/20-byte
+  stride backward walks for tables that interleave 20-byte Layout B
+  value records with 16-byte Layout A sentinels (Greater Hex), and
+  stripping of multiple trailing `("10", 10.0)` sentinels (vs the
+  single-sentinel Phase 1 strip). Adds two typed surfaces to
+  `PowerDefinition`:
+  - `IReadOnlyDictionary<string, double> ResolvedFormulas` — the
+    positional slot table re-keyed by `"SF_N"`. Trivial-numeric
+    slots promote `LiteralValue` directly; expression-text slots
+    are evaluated by the internal `PowerScriptFormulaEvaluator`
+    (recursive-descent parser supporting `+`, `-`, `*`, `/`,
+    parens, SF_N refs both bare and braced as `{SF_N}`, function
+    calls, and unary minus).
+  - `IReadOnlyList<PowerFunctionRef> FunctionRefs` —
+    engine-function references the power's localized
+    `Description` format-string contains. Surfaced structurally
+    (name + resolved-arg values); the consumer registers a
+    per-name resolver delegate to substitute the
+    engine-runtime value (R4 ask 2 option A — typed
+    `FunctionRef` + consumer-side resolver). Barbarian
+    *Warbringer* is the canonical anchor with `PlayerHealthMax()`.
+  Acceptance: `PowerDefinition_resolves_phase2_formulas_and_function_refs`
+  verifies the 8 Layout-A-clean Warlock legendaries + Greater
+  Hex (Phase 2 lift) + Warbringer (FunctionRef). Demonic
+  Spicules's expression-text record (`"SF_1 / 3"` for SF_2 = 20)
+  uses a non-16-byte structure not yet lifted; deferred to
+  Phase 3 (compiled-form AST decode per d4parse
+  `DT_STRING_FORMULA.CompiledOffset/Size`). 43/43 tests green on
+  build `3.0.2.71886`.
+
+- **CL-37 — Power Script Formula slot table — Phase 1 (FR-C13 R3,
+  Phase 1).** §11.2. Surfaces `PowerDefinition.ScriptFormulas` —
+  the positional slot table the engine resolves through
+  `[SF_<i>n</i>...]` placeholders in localized `Description`
+  format strings. Phase 1 lifts the Layout-A records (3-character
+  ASCII text + type tag `0x06` + IEEE-754 float + zero pad in a
+  16-byte block) by walking the blob backward from the universal
+  `("0", 0.0)` terminator and stripping the universal `("10", 10.0)`
+  sentinel. Anchored against 6 of 9 Warlock legendaries (Pyrosis,
+  Fathomless, Overmind, Ritualism, Chaos, Dynamism, Dominion);
+  Greater Hex and Demonic Spicules deferred to Phase 2 (Layout-B
+  records with 4-character ASCII chunks + Layout-C records with
+  pad-prefixed ASCII + the expression-text records like Demonic
+  Spicules's `"SF_1 / 3"` for SF_2 = 60/3 = 20). No-crash sweep
+  across all 72 legendary powers (8 classes × ~9 each) passes —
+  the decoder returns empty for Layout-deferred powers rather than
+  fabricating (honest sentinel, parallel to the FR-C9 no-fabrication
+  paragon-render gates). Phase 2 will lift the format-string
+  expression evaluator (consumer-side currently) into the library
+  and surface `IReadOnlyDictionary<string, double>` resolved
+  `{SF_N → value}` map; Phase 3 will decode the binary Compiled-form
+  AST (per d4parse `DT_STRING_FORMULA.CompiledOffset/Size` model)
+  for engine-truth cross-validation. CL-37 + Phases 2/3 jointly
+  deliver the FR-C13 R3 option (b-parsed) API shape.
+
 - **CL-35 — socket-row phantom-layer correction + row no-phantom
   gate (FR-C12 R3).** §10.17. CL-34's socket rows incorrectly
   prepended the shared per-rarity grey-base disc `0x1D166DC7` on
@@ -1903,6 +2534,34 @@ true value (the sections above already state the corrected truth).
   own frame extraction artifact (`socket-composite-stack.png` in
   `e:/tmp/scene-probe`) is the cross-verification of the recipe
   against owner's atlas-frame oracle.
+
+- **CL-39 — `NodeCellBackground` → `CommonNodeRevealedLayer` rename +
+  role-claim retraction (FR-C15 R2).** §10.17. CL-33 surfaced the
+  `Common_Node_Revealed` scene-binding (handle `0xC1473C21`,
+  authored rect L=R=T=B=3 in the 100-pitch `NodeTemplate`) as
+  `ParagonRenderLayout.NodeCellBackground` — the field name
+  asserted a role: "per-node cell background tile". The binding
+  traversal was correct (the widget genuinely binds this handle
+  through the standard `0x6B1C5D9C` texture-handle field), but the
+  proposed visual role was wrong: consumer plumbed the binding
+  end-to-end and the resolved `0xC1473C21` atlas frame renders as
+  a **horizontal ember-strip / cell-reveal glow pattern**, not the
+  clean rounded darker square owner sees in-game as the persistent
+  per-node tile. Likely the widget represents a transient
+  cell-reveal animation (engine renders the ember glow as a cell
+  becomes visible), not the steady-state per-node background.
+  Rename `NodeCellBackground` → `CommonNodeRevealedLayer` to remove
+  the role assertion from the field name; surface the binding facts
+  (handle, rect, atlas) without asserting visual role. New memory
+  `feedback_widget-name-not-role` captures the lesson: a widget's
+  name is not authoritative evidence of its visual role. The
+  persistent per-node cell tile owner sees remains unidentified in
+  CASC's current decode — needs further RE under owner direction
+  (FR-C15 R2 standing). Acceptance: existing
+  `ReadParagonRenderLayout_surfaces_common_node_revealed_binding`
+  test (renamed from `*_surfaces_per_node_cell_background`) asserts
+  only the binding facts; no role assertion. Pattern parallel:
+  CL-38 (atlas-name jump retracted 2026-05-20).
 
 - **CL-33 — per-node-cell background + special-node addendum (FR-C11
   R3 §2/§3, FR-C12 §1/§2/§3/§4).** §10.17. Added

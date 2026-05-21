@@ -358,7 +358,8 @@ public sealed class Diablo4Storage : IDisposable
                 ReadUiScene(id), IsParagonTextureHandle, FrameSize));
         var chrome = ParagonRenderProjection.BoardChrome(
             ReadUiScene(657304), ReadUiScene(964599),
-            IsParagonTextureHandle, FrameSize);
+            IsParagonTextureHandle, FrameSize,
+            id => TryReadTiledStyle(id, out var s) ? s : null);
         return new ParagonRenderModel(
             ReadParagonRenderLayout(), scenes, chrome);
     }
@@ -799,6 +800,59 @@ public sealed class Diablo4Storage : IDisposable
         TryReadSiblingString(SnoGroup.Item, id, "Item_", "TransmogName", locale, out var tm);
         it.SetStrings(nm, fl, tm);
         return it;
+    }
+
+    /// <summary>
+    /// FR-C16 — read the engine's per-node render program from the main
+    /// paragon scene (657304): the ordered, z-sorted list of node
+    /// state-widget layers (<see cref="ParagonNodeRecipe"/>). The
+    /// consumer interprets it mechanically — supplying runtime predicates
+    /// keyed by each layer's verbatim widget name — instead of inventing
+    /// composition logic. See <see cref="ParagonNodeRecipe"/> for the
+    /// name-keyed-predicate rationale.
+    /// </summary>
+    public ParagonNodeRecipe ReadParagonNodeRecipe() =>
+        ParagonRenderProjection.NodeRecipe(
+            ReadUiScene(657304), IsParagonTextureHandle);
+
+    /// <summary>
+    /// FR-C17 — read the engine's paragon-board grid-layout metric
+    /// (<see cref="ParagonBoardGrid"/>): the design-canvas extent + node
+    /// cell extent + cell pitch, in authored reference units. The
+    /// consumer positions a board's grid cells with this metric (scaled
+    /// to its render resolution) instead of an empirical pixel pitch.
+    /// The per-board logical grid (dimensions + cell→node) stays
+    /// <see cref="ReadParagonBoard"/>.
+    /// </summary>
+    public ParagonBoardGrid ReadParagonBoardGrid() =>
+        ParagonRenderProjection.BoardGrid(ReadUiScene(657304));
+
+    /// <summary>
+    /// Read and decode a <see cref="TiledStyleDefinition"/> by SNO id
+    /// (group <see cref="SnoGroup.UiStyle"/> = 103). The record describes
+    /// a UI tile-rendering composition (piece handles + scale +
+    /// padding) the engine applies via a widget's <c>snoTiledStyle</c>
+    /// field. See <see cref="TiledStyleDefinition"/> for the layout and
+    /// FR-C14 R9 disclosure on partial-decode of the variant suffix.
+    /// </summary>
+    /// <param name="id">The TiledStyle SNO id.</param>
+    /// <exception cref="System.FormatException">If the blob is malformed
+    /// (wrong magic / too short). Small sentinel ids (1, 3, 20, …)
+    /// observed as <c>snoTiledStyle</c> bindings throw here — the
+    /// consumer should guard with a length / read check.</exception>
+    public TiledStyleDefinition ReadTiledStyle(int id) =>
+        TiledStyleDefinition.Parse(ReadSno(SnoGroup.UiStyle, id));
+
+    /// <summary>Try-read the tile-style record at <paramref name="id"/>,
+    /// returning <see langword="false"/> when the read or parse fails
+    /// (typically because <paramref name="id"/> is a small sentinel
+    /// rather than a real SNO reference — see the
+    /// <c>snoTiledStyle = 1 | 3 | 20</c> bindings observed in scene
+    /// 657304).</summary>
+    public bool TryReadTiledStyle(int id, out TiledStyleDefinition style)
+    {
+        try { style = ReadTiledStyle(id); return true; }
+        catch { style = null!; return false; }
     }
 
     /// <summary>

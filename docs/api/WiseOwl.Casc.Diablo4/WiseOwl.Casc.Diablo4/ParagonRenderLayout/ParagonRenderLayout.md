@@ -5,7 +5,7 @@ The typed paragon-board render projection (FR-C7), built on top of the generic [
 ```csharp
 public ParagonRenderLayout(RenderRatios Ratios, CanvasRef CanvasReference, 
     WidgetRect NodeContainer, WidgetRect NodeTemplate, int BoardRotationQuadrant, NodeElement Disc, 
-    NodeElement Symbol, IReadOnlyList<StateElements> States, NodeElement NodeCellBackground)
+    NodeElement Symbol, IReadOnlyList<StateElements> States, NodeElement CommonNodeRevealedLayer)
 ```
 
 ## Remarks

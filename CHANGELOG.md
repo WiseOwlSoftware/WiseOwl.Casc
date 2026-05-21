@@ -4,6 +4,53 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project uses
 Semantic Versioning once it reaches `1.0.0`.
 
+## [0.3.0-alpha] — 2026-05-21
+
+Adds the paragon-board render model, the power script-formula reader,
+UI tile-style decode, and broader texture-atlas support. Decoded
+clean-room and verified against a live install (`3.0.2.71886`); the
+library returns raw decoded data only.
+
+### WiseOwl.Casc.Diablo4 — paragon render model
+
+- `ReadParagonNodeRecipe()` → `ParagonNodeRecipe` /
+  `ParagonNodeRecipeLayer`: the engine's ordered, z-sorted per-node
+  render program (verbatim widget names as predicate keys), with
+  `NodeSelectionDiscs` exposing each rarity disc's unselected/selected
+  pair.
+- `ReadParagonBoardGrid()` → `ParagonBoardGrid`: the design-canvas
+  extent, node-cell extent, and grid pitch.
+- `ReadParagonRenderModel()` → `ParagonRenderModel` /
+  `ParagonRenderLayout` / `ParagonSceneModel`: the board render layout,
+  the exhaustive per-scene atlas-binding model, per-rarity node
+  composites, special-node (socket / start / gate) recipes, directional
+  arrows + connectors, the per-node cell binding, and the available-glow
+  overlay.
+- `ParagonBoardChrome`: the 5-piece board chrome (centre field + four
+  rim sides) and `TiledStyleBindings`.
+- `ReadTiledStyle` / `TryReadTiledStyle` → `TiledStyleDefinition`
+  (including the NSlice 9-slice variant); `SnoGroup.UiStyle`.
+- `ReadUiScene()` → `UiScene`: the raw UI-scene widget graph (names,
+  class ids, and bound field values).
+- `Diablo4.KnownFieldNames` / `KnownTypeNames` + `FormatFieldHash` /
+  `FormatTypeHash`: recovered field/type names for decoded hashes.
+
+### WiseOwl.Casc.Diablo4 — power script formulas
+
+- `PowerDefinition.ScriptFormulas` (`PowerScriptFormula`),
+  `ResolvedFormulas` (`SF_N → value`), `FunctionRefs`
+  (`PowerFunctionRef`), and `CompiledFormulas` (decoded compiled-form
+  AST). Raw decoded values only.
+
+### WiseOwl.Casc — transport
+
+- `DecodeMip0` supports BC1/BC3 atlases at any stored block-row
+  alignment (the row pitch is determined per texture).
+
+### Notes
+
+- Public API for the surfaces above is frozen for this release.
+
 ## [0.2.0-alpha] — 2026-05-17
 
 Initial public prerelease. A modern .NET library for Blizzard's CASC
