@@ -67,10 +67,16 @@ public repo; never commit it). Read CLAUDE.md before any FR action.
 - **#26** FR-C16 node render recipe — **CL-52 (flat `Components` + `bActive`
   model, R14) delivered**, `WiseOwl.Casc@d97ff8b`. Comprehensive R14 closeout
   spec posted (consumer draws facts→components, no dispatch). `awaiting:optimizer`.
-- **#30** FR-C19 selection-highlight resource (orange-fuzz + white square) —
-  **CASC-opened**, `awaiting:casc`. Lead: `ContextualHighlight_Square`
-  TiledStyle 2434982, source `0xB320888F` (shared UI atlas, not yet decoded).
-  Selection is an external engine cursor, NOT in the node recipe.
+- **#30** FR-C19 selection-highlight resource — **DELIVERED** (`fr:delivered`,
+  `awaiting:optimizer`). Located: atlas `2DUI_SelectionHighlight` (Texture SNO
+  **337357**, BC3, 13 frames). Square node selection = 9-slice from 8 corner/edge
+  handles (`0x9558B90E`,`0xC57DE6C1`,`0xC673B1FB`,`0x7432E23C`,`0xD4F66D69`,
+  `0xC84712B0`,`0x34C458DF`,`0xFE4C5F5D`); shape variants: circle `0xBA7D2638`,
+  diamonds `0x0BD8A829`/`0xD2B9D393`/`0xB2531CFB`, teardrop `0x0558DE82`. Drawn
+  topmost on the moused-over node (orthogonal to the node recipe). Offered a
+  typed `ReadSelectionHighlight()` accessor if the consumer wants it typed.
+- **#31** FR-T1 UI texture-atlas catalog API + browser app — `awaiting:casc`
+  (scoping done: 4,726 atlases, BC1/BC3=99%; hierarchical-tree API design).
 - **#29** FR-C18 rarity-template WidgetRect all-zero — `fr:delivered`; CL-50
   (parent rect faithful; disc inset 7 on the children). `awaiting:optimizer`.
 - **#27** FR-C17 board grid/composition — `awaiting:optimizer` (CL-45).
