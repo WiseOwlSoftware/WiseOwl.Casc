@@ -529,7 +529,17 @@ switch (cmd)
         Console.WriteLine("\n== RAW value-record map (Template_Node_* parents) ==");
         for (int si = 0; si < starts.Count; si++)
         {
-            if (!starts[si].nm.StartsWith("Template_Node_", StringComparison.Ordinal)) continue;
+            var snm = starts[si].nm;
+            bool nodeRun = snm.StartsWith("Common_Node", StringComparison.Ordinal)
+                        || snm.StartsWith("Node_", StringComparison.Ordinal)
+                        || snm.StartsWith("Template_Node_", StringComparison.Ordinal)
+                        || snm.StartsWith("Arrow_", StringComparison.Ordinal)
+                        || snm.StartsWith("Connector_", StringComparison.Ordinal)
+                        || snm.StartsWith("Usage_Slot", StringComparison.Ordinal)
+                        || snm.StartsWith("GlyphNodeGlow", StringComparison.Ordinal)
+                        || snm.StartsWith("Rarity_Display", StringComparison.Ordinal)
+                        || snm.StartsWith("Purchased_Rarity", StringComparison.Ordinal);
+            if (!nodeRun) continue;
             int from = starts[si].at;
             int to = si + 1 < starts.Count ? starts[si + 1].at : b.Length;
             int ownCo = from + Align8(starts[si].nm.Length + 1) + 0x10;
@@ -678,6 +688,79 @@ switch (cmd)
                 for (int s = 0; s < stateImg.Length; s++)
                     if (f.FieldHash == stateImg[s] && f.HasValue && f.RawValue != 0)
                         Console.WriteLine($"    '{w.Name}'.{stateNm[s]} = 0x{f.RawValue:X8}");
+        return 0;
+    }
+    case "checkfields":
+    {
+        // Sanity check: every KnownFieldNames / KnownTypeNames entry's symbol
+        // must hash (via the canonical Diablo4 hasher) back to its key. A
+        // mismatch = a mislabelled hash (the name is wrong, or imported from a
+        // registry using a different checksum) — e.g. 0x093CBAA8 "eGroupType".
+        int bad = 0, ok = 0;
+        Console.WriteLine("=== KnownFieldNames (FieldHash) ===");
+        foreach (var kv in Diablo4.KnownFieldNames.OrderBy(k => k.Key))
+        {
+            uint c = Diablo4.FieldHash(kv.Value);
+            if (c != kv.Key) { Console.WriteLine($"  MISMATCH 0x{kv.Key:X8} = \"{kv.Value}\" but FieldHash = 0x{c:X8}"); bad++; }
+            else ok++;
+        }
+        Console.WriteLine("=== KnownTypeNames (TypeHash) ===");
+        foreach (var kv in Diablo4.KnownTypeNames.OrderBy(k => k.Key))
+        {
+            uint c = Diablo4.TypeHash(kv.Value);
+            if (c != kv.Key) { Console.WriteLine($"  MISMATCH 0x{kv.Key:X8} = \"{kv.Value}\" but TypeHash = 0x{c:X8}"); bad++; }
+            else ok++;
+        }
+        Console.WriteLine($"-- {ok} verified, {bad} MISMATCH(es) --");
+        return 0;
+    }
+    case "grepgroup":
+    {
+        // Scan every SNO in a group's Meta for an ASCII substring; report
+        // hits. grepgroup <gid> <substr> [max]
+        if (argv.Count < 3) { Console.Error.WriteLine("grepgroup <gid> <substr> [max]"); return 2; }
+        int gg = int.Parse(argv[1]);
+        var needle = System.Text.Encoding.ASCII.GetBytes(argv[2]);
+        int max = argv.Count > 3 ? int.Parse(argv[3]) : 60;
+        int hits = 0, scanned = 0;
+        foreach (var e in toc.Entries)
+        {
+            if ((int)e.Group != gg) continue;
+            scanned++;
+            if (!d4.TryReadSno(gg, e.Id, SnoFolder.Meta, out var b)) continue;
+            for (int i = 0; i + needle.Length <= b.Length; i++)
+            {
+                bool m = true;
+                for (int j = 0; j < needle.Length; j++) if (b[i + j] != needle[j]) { m = false; break; }
+                if (m) { Console.WriteLine($"  {e.Id,9}  {e.Name}  @0x{i:X}"); hits++; break; }
+            }
+            if (hits >= max) { Console.WriteLine("-- truncated --"); break; }
+        }
+        Console.WriteLine($"-- {hits} hit(s) over {scanned} group-{gg} SNOs --");
+        return 0;
+    }
+    case "tiledstyle":
+    {
+        // Decode a TiledStyle (group 103) and print its source image handle.
+        // tiledstyle <id>
+        if (argv.Count < 2) { Console.Error.WriteLine("tiledstyle <id>"); return 2; }
+        int tid = int.Parse(argv[1]);
+        if (d4.TryReadTiledStyle(tid, out var ts))
+            Console.WriteLine($"TiledStyle {tid}: SourceImageHandle=0x{ts.SourceImageHandle:X8} partial={ts.HasPartialDecode}");
+        else
+            Console.WriteLine($"TiledStyle {tid}: could not decode");
+        // also raw-scan for any UIImageHandleReference-typed values
+        if (d4.TryReadSno(103, tid, SnoFolder.Meta, out var b))
+        {
+            Console.WriteLine("raw resolvable texture handles in the SNO:");
+            var seen = new HashSet<uint>();
+            for (int i = 0; i + 4 <= b.Length; i += 4)
+            {
+                uint v = BitConverter.ToUInt32(b, i);
+                if (v is not 0 and not 0xFFFFFFFF && seen.Add(v) && d4.TryGetIconFrame(v, out int sn, out _))
+                    Console.WriteLine($"  0x{v:X8} (atlas {sn})");
+            }
+        }
         return 0;
     }
     default:

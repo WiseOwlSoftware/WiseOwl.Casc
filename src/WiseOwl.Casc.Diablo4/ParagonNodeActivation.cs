@@ -42,23 +42,58 @@ public enum NodeFact
 {
     /// <summary>The layer always draws (no gating fact).</summary>
     Always = 0,
-    /// <summary>The node is the currently selected/highlighted node.</summary>
-    Selected,
-    /// <summary>The node is not the selected node.</summary>
-    Unselected,
-    /// <summary>The node has been purchased/allocated.</summary>
+    // ----- Availability / progression (engine Node_* state enum:
+    // Node_{Available,Disabled,Purchasable,Purchased}, + the legendary
+    // Locked/Unlocked progression) -----------------------------------------
+    /// <summary>The node has been purchased/allocated (engine
+    /// <c>Node_Purchased</c> / <c>ParagonNodeIsPurchased</c>). The base disc
+    /// swaps to the purchased variant (red ring, brighter) and the purchased
+    /// add-ons (cardinal arrows + connectors) draw.</summary>
     Purchased,
-    /// <summary>The node is reachable and can be purchased now.</summary>
+    /// <summary>The node has not been purchased — the resting/default base
+    /// disc (no red ring). The positive complement of <see cref="Purchased"/>
+    /// (the engine's default state; the consumer sets this when the node is
+    /// not purchased).</summary>
+    Unpurchased,
+    /// <summary>The node can be purchased now (engine <c>Node_Purchasable</c>).
+    /// Distinct from <see cref="Available"/> — both are separate engine
+    /// widgets/states.</summary>
     Purchasable,
-    /// <summary>The node has been revealed (its tile is uncovered).</summary>
+    /// <summary>The node is available/reachable (engine <c>Node_Available</c> /
+    /// the <c>NodeAvailableGlow</c> widget). The engine keeps this and
+    /// <see cref="Purchasable"/> as separate states/widgets, so CASC surfaces
+    /// both; the precise distinction is not yet known (likely
+    /// reachable-vs-affordable). A consumer MAY treat the two identically
+    /// until a behavioural difference is established.</summary>
+    Available,
+    /// <summary>The node is interaction-disabled (engine
+    /// <c>Node_Disabled</c> / <c>hImageFrameDisable</c>).</summary>
+    Disabled,
+    /// <summary>The node has been revealed (engine <c>Common_Node_Revealed</c>
+    /// / <c>Board_Attach_Reveal</c>).</summary>
     Revealed,
-    /// <summary>The node is the located/targeted ("you are here") node.</summary>
+    // ----- Selection / overlays (orthogonal to availability) --------------
+    /// <summary>The node is the currently selected node (engine
+    /// <c>Node_Selected</c> / <c>IsSelected</c>).</summary>
+    Selected,
+    /// <summary>The node is not the selected node — the positive complement
+    /// of <see cref="Selected"/> (the engine's default/"normal" state; the
+    /// consumer sets this when the node is not selected).</summary>
+    Unselected,
+    /// <summary>The node is the located/targeted ("you are here") node
+    /// (engine <c>Node_Located</c>).</summary>
     Located,
-    /// <summary>The node is a glyph socket with a glyph socketed.</summary>
+    /// <summary>The node is a glyph socket with a glyph socketed (engine
+    /// <c>ui_paragon_glyphNode_socketed_ring</c>).</summary>
     Socketed,
-    /// <summary>The node carries the equipped-item glow.</summary>
+    /// <summary>The node is a persistent (always-active) legendary node
+    /// (engine <c>ui_paragon_legendaryNode_persistent</c>).</summary>
+    Persistent,
+    /// <summary>The node carries the equipped-item glow (engine
+    /// <c>Node_EquipGlow</c> / <c>ItemIsEquipped</c>).</summary>
     Equipped,
-    /// <summary>The node matches the active search query.</summary>
+    /// <summary>The node matches the active search query (engine
+    /// <c>Node_SearchResultHighlight</c>).</summary>
     SearchMatch,
     /// <summary>The node is the tutorial-highlighted node.</summary>
     Tutorial,
@@ -70,30 +105,51 @@ public enum NodeFact
     NeighbourPurchasableBottom,
     /// <summary>The cardinal-west neighbour is purchasable.</summary>
     NeighbourPurchasableLeft,
-    /// <summary>The node's rarity is Magic.</summary>
-    RarityMagic,
-    /// <summary>The node's rarity is Rare.</summary>
-    RarityRare,
-    /// <summary>The node's rarity is Legendary.</summary>
-    RarityLegendary,
-    /// <summary>The node is a glyph-socket node.</summary>
-    TypeSocket,
-    /// <summary>The node is the board exit/gate node.</summary>
-    TypeGate,
-    /// <summary>The node is the board start node.</summary>
-    TypeStart,
+    /// <summary>The cardinal-north neighbour is already purchased (connector
+    /// target — distinct from a purchasable neighbour, which an arrow points
+    /// to).</summary>
+    NeighbourPurchasedTop,
+    /// <summary>The cardinal-east neighbour is already purchased.</summary>
+    NeighbourPurchasedRight,
+    /// <summary>The cardinal-south neighbour is already purchased.</summary>
+    NeighbourPurchasedBottom,
+    /// <summary>The cardinal-west neighbour is already purchased.</summary>
+    NeighbourPurchasedLeft,
+    // ----- Node-kind dimension (FR-C16 R14) -----------------------------
+    // The base disc is selected by ONE mutually-exclusive "node kind"
+    // classification — the engine enumerates it as a single list
+    // (Play_UI_Menu_Paragon_Purchase_Node_{Common,Magic,Rare,Legendary,
+    // Socket,Gate}). The rarities (Common/Magic/Rare/Legendary = eRarity
+    // 0/2/3/4) and the structural types (Socket/Gate/Start) are peers in it,
+    // NOT two dimensions: exactly one Kind* fact holds per node, so the base
+    // discs (grey Node_IconBase for Common, Template_Node_<kind> for the
+    // rest) are mutually exclusive without any negation.
+    /// <summary>Node kind Common (the grey base disc; engine <c>eRarity</c> 0).</summary>
+    KindCommon,
+    /// <summary>Node kind Magic (<c>eRarity</c> 2).</summary>
+    KindMagic,
+    /// <summary>Node kind Rare (<c>eRarity</c> 3).</summary>
+    KindRare,
+    /// <summary>Node kind Legendary (<c>eRarity</c> 4).</summary>
+    KindLegendary,
+    /// <summary>Node kind glyph-socket (<c>Template_Node_Socketable</c>).</summary>
+    KindSocket,
+    /// <summary>Node kind board exit/gate (<c>Template_Node_Quest</c>).</summary>
+    KindGate,
+    /// <summary>Node kind board start/entry (<c>Template_Node_Starter</c>).</summary>
+    KindStart,
     /// <summary>The node is locked (not yet reachable) — engine texture
     /// state <c>ParagonNode_Texture_Locked</c>.</summary>
     Locked,
     /// <summary>The node is unlocked (reachable but not purchased) — engine
     /// state <c>ParagonNode_Legendary_Unlocked</c>.</summary>
     Unlocked,
-    /// <summary>Engine interaction state: the widget is pressed.</summary>
+    /// <summary>Engine widget interaction state: pressed
+    /// (<c>hImageFramePressed</c>).</summary>
     Pressed,
-    /// <summary>Engine interaction state: the cursor is over the widget.</summary>
+    /// <summary>Engine widget interaction state: cursor over
+    /// (<c>hImageFrameMouseOver</c>).</summary>
     MouseOver,
-    /// <summary>Engine interaction state: the widget is disabled.</summary>
-    Disabled,
     /// <summary>The layer never draws under any computed fact (an
     /// authored-inactive widget with no recovered predicate).</summary>
     Never,
@@ -112,7 +168,7 @@ public enum NodeActivationSource
 {
     /// <summary>The widget/field name literally spells the state (e.g.
     /// <c>Node_Purchased</c> → <see cref="NodeFact.Purchased"/>,
-    /// <c>Template_Node_Magic</c> → <see cref="NodeFact.RarityMagic"/>).</summary>
+    /// <c>Template_Node_Magic</c> → <see cref="NodeFact.KindMagic"/>).</summary>
     NameConvention,
     /// <summary>Read verbatim from a scene field (none exist for activation
     /// in scene 657304 — reserved for a future build that authors one).</summary>

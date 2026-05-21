@@ -10,7 +10,7 @@ public enum NodeActivationSource
 
 | name | value | description |
 | --- | --- | --- |
-| NameConvention | `0` | The widget/field name literally spells the state (e.g. `Node_Purchased` → Purchased, `Template_Node_Magic` → RarityMagic). |
+| NameConvention | `0` | The widget/field name literally spells the state (e.g. `Node_Purchased` → Purchased, `Template_Node_Magic` → KindMagic). |
 | SceneField | `1` | Read verbatim from a scene field (none exist for activation in scene 657304 — reserved for a future build that authors one). |
 | EngineBehavior | `2` | CASC's documented engine-behavior inference where the name is suggestive but not literal (e.g. `NodeAvailableGlow` → Purchasable). Validate against the owner oracle before relying on it. |
 

@@ -1735,6 +1735,46 @@ derived from FR-C14 R8's `snoTiledStyle` crack and R10's variant
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
 
+- **CL-52 — flat `ParagonNodeRecipe.Components` + `bActive`-driven
+  activation; owner-oracle-validated render model (FR-C16 R14).** Replaces
+  the CL-50/51 layer/disc/slot nesting with a single z-ordered list of
+  atomic `ParagonNodeComponent`s (`ZOrder, Source, ImageHandle, Rect, Alpha,
+  Activation, DefaultActive, Tint`). Consumer rule: draw every component
+  whose `Activation.Evaluate(facts)` holds, in order, at its rect/alpha/tint
+  — no consumer dispatch. Decoded/validated this round (against the owner's
+  in-game screenshots):
+  - **Every widget's layers are emitted** (its own `hImageFrame` + each
+    handle-bearing child), not just `Template_Node_*` — recovers the
+    glyph-socket base/overlay nested in `Usage_Slot_2` (general fix).
+  - **`bActive` is the authored default visibility** (`bActive=1`/unbound ⇒
+    drawn at rest; `bActive=0` ⇒ default-off). A `bActive=0` layer that would
+    fire in the resting state with no decoded trigger ⇒ `Never` (so it can't
+    mask the base, e.g. the magic interior `0xFEC31E48`).
+  - **Base disc = Unpurchased↔Purchased swap** (NOT selection): the no-ring
+    disc is `bActive=1` `[kind, Unpurchased]`, the red-ring/brighter disc
+    `bActive=0` `[kind, Purchased]`. `Node_Purchased` is literally its role.
+    New `NodeFact.Unpurchased`.
+  - **Node kind is one mutually-exclusive dimension** (`Kind{Common,Magic,
+    Rare,Legendary,Socket,Gate,Start}`; engine `Purchase_Node_*` enum) —
+    Common is a peer rarity, not a special case.
+  - **Purchased add-on**: `Arrow_<dir>` `[Purchased, NeighbourPurchasable<dir>]`,
+    `Connector_<dir>` `[Purchased, NeighbourPurchased<dir>]` (new neighbour-
+    purchased facts); gate/start have no purchasable neighbours (consumer
+    fact logic) so draw no arrows.
+  - **`rgbaTint`** (multiply, ARGB) surfaced (grey socket base) and
+    **`eVerticalAnchoring`** placement resolution (centred=3 / absolute=0;
+    e.g. the 120² Located ring centres at `(-10,-10)`).
+  - **Hash sanity fix**: `0x093CBAA8` was mislabelled `eGroupType` — it is
+    `eHorizontalAnchoring` (real `FieldHash("eGroupType")`=`0x05862894`);
+    caught by the new `build/SnoScan checkfields` field-hash validator
+    (54 verified, 1 mismatch).
+  - **Selection highlight is NOT in the node recipe** — it's a shared
+    engine-applied topmost cursor (lead: `ContextualHighlight_Square`
+    TiledStyle 2434982); spun off as its own FR.
+  Acceptance: `ReadParagonNodeRecipe_surfaces_flat_zordered_components` +
+  `_surfaces_exact_component_activation`. 50/50 tests green on `3.0.2.71886`.
+  Devlog 0051.
+
 - **CL-51 — typed per-layer activation surface; the scene encodes state by
   NAME, not by a condition field (FR-C16 R10/R11).** The owner ruled that
   the consumer must author *no* dispatch — predicates, draw order, and

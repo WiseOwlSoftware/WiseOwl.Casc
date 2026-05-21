@@ -1,6 +1,14 @@
 # ParagonNodeRecipe record
 
-FR-C16 — the engine's per-node render PROGRAM: the ordered list of state-widget layers the engine composes for one paragon node. Each [`ParagonNodeRecipeLayer`](./ParagonNodeRecipeLayer.md) is drawn when its predicate holds; the list is in z-order (= the scene's serialization / child order = the engine's draw order). The consumer is a pure interpreter: it supplies the runtime predicate values (selected / selectable / purchased / socketed / per-direction neighbour-selectable / rarity / …) and maps each layer's [`WidgetName`](./ParagonNodeRecipeLayer/WidgetName.md) to one. Why name-keyed predicates: the scene stores no structural per-widget state/predicate field (verified FR-C16 R2 — every candidate field is layout / anchoring / opacity; the one uncracked `DT_INT` `0x0CDB00E9` is not a state code). The engine's own widget name (e.g. `Node_Purchased`, `NodeAvailableGlow`, `Arrow_Top`) is the state discriminator; per memory `feedback_widget-name-not-role` CASC surfaces it verbatim and never normalizes it into a guessed role taxonomy. The thin, explicit `name → runtime-predicate` binding lives once on the consumer side (it is glue, not composition invention — the composition itself, the ordered layer list with handles/rects/alpha, is fully engine-sourced here).
+FR-C16 R14 — the engine's per-node render PROGRAM as a flat, truly-z-ordered list of atomic components. The consumer is a pure interpreter with one rule:
+
+```csharp
+foreach (var c in recipe.Components)            // already in paint order
+    if (c.Activation.Evaluate(facts))           // facts = consumer's node state
+        draw(c.ImageHandle, c.Rect, c.Alpha);
+```
+
+No mutual-exclusion, substitution, slot-tiebreak, or per-state grouping is left to the consumer — each component carries its exact activation (the per-rarity / per-type / per-selection-state condition, parent ∧ child combined) and its true draw order ([`ZOrder`](./ParagonNodeComponent/ZOrder.md) = index; the per-rarity disc sits at the base-disc position, below the symbol — not the template's appended scene z). The only consumer-owned input is `computeFacts(boardState)`. Why the activation is engine-sourced, not consumer-authored: the scene stores no per-widget condition field (FR-C16 R10, exhaustive); the engine binds visibility to state by widget/asset name in its compiled `ParagonBoardUI` controller (named data-source binding — `ParagonNodeIsPurchased` is registry-confirmed, R12/R13). CASC decodes that naming convention into the typed [`Activation`](./ParagonNodeComponent/Activation.md); each carries its [`Source`](./NodeActivation/Source.md) provenance per `feedback_widget-name-not-role`.
 
 ```csharp
 public record ParagonNodeRecipe
@@ -10,8 +18,8 @@ public record ParagonNodeRecipe
 
 | name | description |
 | --- | --- |
-| [ParagonNodeRecipe](ParagonNodeRecipe/ParagonNodeRecipe.md)(…) | FR-C16 — the engine's per-node render PROGRAM: the ordered list of state-widget layers the engine composes for one paragon node. Each [`ParagonNodeRecipeLayer`](./ParagonNodeRecipeLayer.md) is drawn when its predicate holds; the list is in z-order (= the scene's serialization / child order = the engine's draw order). The consumer is a pure interpreter: it supplies the runtime predicate values (selected / selectable / purchased / socketed / per-direction neighbour-selectable / rarity / …) and maps each layer's [`WidgetName`](./ParagonNodeRecipeLayer/WidgetName.md) to one. Why name-keyed predicates: the scene stores no structural per-widget state/predicate field (verified FR-C16 R2 — every candidate field is layout / anchoring / opacity; the one uncracked `DT_INT` `0x0CDB00E9` is not a state code). The engine's own widget name (e.g. `Node_Purchased`, `NodeAvailableGlow`, `Arrow_Top`) is the state discriminator; per memory `feedback_widget-name-not-role` CASC surfaces it verbatim and never normalizes it into a guessed role taxonomy. The thin, explicit `name → runtime-predicate` binding lives once on the consumer side (it is glue, not composition invention — the composition itself, the ordered layer list with handles/rects/alpha, is fully engine-sourced here). |
-| [Layers](ParagonNodeRecipe/Layers.md) { get; set; } |  |
+| [ParagonNodeRecipe](ParagonNodeRecipe/ParagonNodeRecipe.md)(…) | FR-C16 R14 — the engine's per-node render PROGRAM as a flat, truly-z-ordered list of atomic components. The consumer is a pure interpreter with one rule: |
+| [Components](ParagonNodeRecipe/Components.md) { get; set; } |  |
 
 ## See Also
 

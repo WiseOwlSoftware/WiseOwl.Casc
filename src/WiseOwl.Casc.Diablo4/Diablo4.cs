@@ -128,7 +128,9 @@ public static class Diablo4
             [0x05A90F13] = "hImageFrameIconDisable",
             // Enum / SNO refs — FR-C14 R8 critical cracks
             [0x07DB38D3] = "snoTiledStyle",      // → TiledStyleDefinition
-            [0x093CBAA8] = "eGroupType",
+            [0x093CBAA8] = "eHorizontalAnchoring",  // FR-C16 R14: was mislabelled
+                                                    // "eGroupType" (whose real
+                                                    // FieldHash is 0x05862894)
             [0x03D55658] = "eVerticalAnchoring",
             // NSlice / TiledStyle struct fields — FR-C14 R10
             // (from the blizzhackers/d4data !NSlice schema). Computed
