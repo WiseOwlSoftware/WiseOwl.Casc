@@ -812,7 +812,8 @@ public sealed class Diablo4Storage : IDisposable
     /// name-keyed-predicate rationale.
     /// </summary>
     public ParagonNodeRecipe ReadParagonNodeRecipe() =>
-        ParagonRenderProjection.NodeRecipe(ReadUiScene(657304));
+        ParagonRenderProjection.NodeRecipe(
+            ReadUiScene(657304), IsParagonTextureHandle);
 
     /// <summary>
     /// FR-C17 — read the engine's paragon-board grid-layout metric

@@ -188,23 +188,31 @@ public sealed record ParagonBoardGrid(
 /// template extent).</param>
 /// <param name="Alpha">The layer's <c>dwAlpha</c> opacity byte
 /// (<c>0xFF</c> when unspecified).</param>
-/// <param name="CompositeHandles">FR-C16 R4 — additional texture
-/// handles bound on this layer via the multi-layer (0x58-block) path,
-/// beyond the single <see cref="ImageHandle"/>. For the per-rarity
-/// sub-template layers (<c>Template_Node_Magic</c>/<c>Rare</c>/<c>Legendary</c>/…)
-/// this is the rarity-specific disc composite — e.g.
-/// <c>Template_Node_Magic</c> carries the magic disc handles
-/// <c>0x621CB6FF</c> + <c>0x72C29402</c>, <c>Template_Node_Rare</c> the
-/// rare <c>0xB71BD068</c> + <c>0x03EDABAB</c> (matching the owner's
-/// FR-C12 rarity-disc oracle). The per-node <b>rarity substitution</b>
-/// works by: the generic <c>Node_IconBase</c> grey disc is the default;
-/// for a node of a given rarity the consumer draws the matching
-/// <c>Template_Node_&lt;rarity&gt;</c> layer's composite instead. The
-/// per-node <b>symbol</b> is a separate substitution: the
-/// <c>Node_Icon</c> slot's handle is the node's own
-/// <see cref="ParagonNodeDefinition.HIconMask"/> (runtime-filled — its
-/// template <see cref="ImageHandle"/> is <c>0</c>). Empty for ordinary
-/// single-handle layers.</param>
+/// <param name="CompositeHandles">FR-C16 R5 — the layer's additional
+/// texture handles bound via the multi-layer (0x58-block) path, beyond
+/// the single <see cref="ImageHandle"/>, in scene order. <b>Resolvable
+/// handles only</b> — the interleaved 0x58-block <c>int</c> params (rect
+/// insets, including <i>small-negative</i> overscan values such as
+/// <c>0xFFFFFFFD</c> = −3 on the larger Legendary disc) are excluded by
+/// the same icon-catalog validator used across FR-C9..C12 (CL-46
+/// surfaced the negatives as bogus handles — fixed here). For the
+/// per-rarity sub-templates the rarity disc <i>state pair</i> is lifted
+/// out into <see cref="SelectionDiscs"/>; what remains here is the
+/// rarity's always-drawn interior-fill handle(s) (e.g.
+/// <c>Template_Node_Magic</c> → <c>0xFEC31E48</c>). For the
+/// non-rarity composite templates (<c>Template_Node_Starter</c> /
+/// <c>Quest</c> / <c>Socketable</c>) this is the full ordered layer
+/// stack. Empty for ordinary single-handle layers.</param>
+/// <param name="SelectionDiscs">FR-C16 R5 — non-<see langword="null"/>
+/// only for the rarity sub-templates
+/// (<c>Template_Node_Magic</c>/<c>Rare</c>/<c>Legendary</c>): the
+/// per-selection-state disc composite (unselected vs selected). CL-46
+/// flattened both states into one <c>CompositeHandles</c> list, so a
+/// consumer drawing the list verbatim painted the selected-state ring on
+/// <i>unselected</i> nodes; this splits them so the interpreter draws
+/// <see cref="NodeSelectionDiscs.Selected"/> only on the currently
+/// selected node and <see cref="NodeSelectionDiscs.Unselected"/>
+/// otherwise. See <see cref="NodeSelectionDiscs"/>.</param>
 public sealed record ParagonNodeRecipeLayer(
     int ZOrder,
     string WidgetName,
@@ -212,7 +220,34 @@ public sealed record ParagonNodeRecipeLayer(
     uint ImageHandle,
     WidgetRect Rect,
     byte Alpha,
-    IReadOnlyList<uint> CompositeHandles);
+    IReadOnlyList<uint> CompositeHandles,
+    NodeSelectionDiscs? SelectionDiscs);
+
+/// <summary>
+/// FR-C16 R5 — the per-selection-state disc composite of a rarity
+/// sub-template (<c>Template_Node_Magic</c>/<c>Rare</c>/<c>Legendary</c>).
+/// <br/><br/>
+/// <b>Structural claim:</b> each rarity template is a parent widget whose
+/// anonymous child sub-records (each a <c>UIWindowStyle</c> +
+/// <c>0xFFFFFFFF</c> marker, name-less) bind one disc handle apiece; the
+/// first two handle-bearing children, in scene order, are
+/// <see cref="Unselected"/> then <see cref="Selected"/>.
+/// <b>Role claim (separate):</b> that child[0]=unselected and
+/// child[1]=selected (with the red perimeter ring baked into the selected
+/// disc) is the owner's FR-C12 rarity-disc oracle, which matches all six
+/// handles across the three rarities
+/// (<c>0x621CB6FF</c>/<c>0x72C29402</c> Magic,
+/// <c>0xB71BD068</c>/<c>0x03EDABAB</c> Rare,
+/// <c>0x232DF7F9</c>/<c>0xBD27FB7C</c> Legendary). The consumer draws
+/// <see cref="Selected"/> for the currently-selected node and
+/// <see cref="Unselected"/> for every other node of that rarity; never
+/// both.
+/// </summary>
+/// <param name="Unselected">The unselected-state disc-composite handle
+/// (no perimeter ring).</param>
+/// <param name="Selected">The selected-state disc-composite handle (red
+/// perimeter ring baked in).</param>
+public sealed record NodeSelectionDiscs(uint Unselected, uint Selected);
 
 /// <summary>The UI design space the raw rects are authored in (decoded
 /// from the root <c>ParagonBoard_main</c> widget; verified
@@ -320,11 +355,27 @@ internal static class ParagonRenderProjection
         return 0;
     }
 
+    // FR-C16 R5: a rect inset is an authored reference-unit value, always
+    // small in magnitude (the design canvas is 1920×1200). A widget that
+    // binds only a SUBSET of its schema fields (sparse binding, e.g.
+    // Node_Icon) breaks the parser's positional record→field keying, so a
+    // texture handle can land in a rect field (Node_Icon.nBottom decoded
+    // as 0x25DAA956 = 635087190). Reject magnitudes beyond the canvas so a
+    // mis-keyed handle never propagates as a real inset; a genuine inset
+    // is never this large. (The robust fix is the instance-binding-grammar
+    // RE tracked for a later round; this guard stops the garbage now.)
+    private const int RectSaneBound = 4096;
+    private static int RectVal(UiWidget w, uint fieldHash)
+    {
+        int v = Val(w, fieldHash);
+        return v is > RectSaneBound or < -RectSaneBound ? 0 : v;
+    }
+
     private static WidgetRect Rect(UiWidget? w) => w is null
         ? default
         : new WidgetRect(
-            Val(w, FnLeft), Val(w, FnRight), Val(w, FnTop),
-            Val(w, FnBottom), Val(w, FnWidth), Val(w, FnHeight));
+            RectVal(w, FnLeft), RectVal(w, FnRight), RectVal(w, FnTop),
+            RectVal(w, FnBottom), RectVal(w, FnWidth), RectVal(w, FnHeight));
 
     public static ParagonRenderLayout Project(
         UiScene scene,
@@ -987,8 +1038,22 @@ internal static class ParagonRenderProjection
     /// predicate map naturally ignores any layer it has no predicate for,
     /// so an over-inclusive run is harmless.
     /// </summary>
-    public static ParagonNodeRecipe NodeRecipe(UiScene mainBoard)
+    public static ParagonNodeRecipe NodeRecipe(
+        UiScene mainBoard, Func<uint, bool>? isTextureHandle = null)
     {
+        // FR-C16 R5: a composite handle must RESOLVE to an atlas frame —
+        // not merely exceed a magnitude. CL-46's `v >= 0x10000u` guard let
+        // the 0x58-block's small-negative rect insets (0xFFFFFFFD = −3,
+        // 0xFFFFFFEE = −18, 0xFFFFFFEC = −20 — overscan for the larger
+        // Legendary disc) through as bogus handles. The icon-catalog
+        // validator (Diablo4Storage.IsParagonTextureHandle) excludes them;
+        // a conservative fallback keeps the magnitude+sentinel guard plus
+        // an explicit small-negative reject when no validator is supplied.
+        bool IsHandle(uint v) => v is not 0u and not 0xFFFFFFFFu &&
+            (isTextureHandle is not null
+                ? isTextureHandle(v)
+                : v is >= 0x10000u and < 0xFFFFFF00u);
+
         var ws = mainBoard.Widgets;
         int first = -1, last = -1;
         for (int k = 0; k < ws.Count; k++)
@@ -1003,6 +1068,14 @@ internal static class ParagonRenderProjection
         if (first < 0 || last < first)
             return new ParagonNodeRecipe(Array.Empty<ParagonNodeRecipeLayer>());
 
+        // The rarity sub-templates whose 0x58-block carries a
+        // [unselected, selected, …interior] disc state pair (owner FR-C12
+        // oracle). Other Template_Node_* widgets (Starter/Quest/Socketable)
+        // are layer stacks, not selection-state pairs.
+        static bool IsRarityTemplate(string n) =>
+            n is "Template_Node_Magic" or "Template_Node_Rare"
+              or "Template_Node_Legendary";
+
         var layers = new List<ParagonNodeRecipeLayer>(last - first + 1);
         for (int k = first; k <= last; k++)
         {
@@ -1014,16 +1087,24 @@ internal static class ParagonRenderProjection
                 if (f.FieldHash == FhImageFrame && handle == 0) handle = f.RawValue;
                 else if (f.FieldHash == FdwAlpha && !sawAlpha) { alpha = (byte)f.RawValue; sawAlpha = true; }
             }
-            // FR-C16 R4: the rarity sub-templates bind their disc
-            // composite via the 0x58-block path (ExtraLayerValues);
-            // surface the texture-handle-magnitude ones (drop the
-            // interleaved small rect-inset ints).
-            var composite = wd.ExtraLayerValues
-                .Where(v => v >= 0x10000u && v != 0xFFFFFFFFu)
-                .ToArray();
+
+            // Resolvable composite handles in scene order (sentinels +
+            // negative insets excluded). For a rarity template the first
+            // two are the unselected/selected disc state pair; the rest
+            // are the always-drawn interior layers.
+            var composite = wd.ExtraLayerValues.Where(IsHandle).ToArray();
+            NodeSelectionDiscs? discs = null;
+            IReadOnlyList<uint> remaining = composite;
+            if (IsRarityTemplate(wd.Name ?? string.Empty) && composite.Length >= 2)
+            {
+                discs = new NodeSelectionDiscs(composite[0], composite[1]);
+                remaining = composite.Skip(2).ToArray();
+            }
+
             layers.Add(new ParagonNodeRecipeLayer(
                 k, wd.Name ?? string.Empty, wd.ClassId, handle, Rect(wd), alpha,
-                composite.Length == 0 ? Array.Empty<uint>() : composite));
+                remaining.Count == 0 ? Array.Empty<uint>() : remaining,
+                discs));
         }
         return new ParagonNodeRecipe(layers);
     }

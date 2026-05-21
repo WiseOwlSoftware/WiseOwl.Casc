@@ -993,15 +993,57 @@ public sealed class Diablo4StorageIntegrationTests
         // The glow layers are UIBlinkerStyle (pulsing-glow class).
         Assert.Equal(0x145F2056u, L("NodeAvailableGlow").WidgetClassId);
 
-        // FR-C16 R4 — per-rarity disc composites surface on the
-        // Template_Node_<rarity> layers (owner #22 oracle: Magic discs
-        // 0x621CB6FF/0x72C29402, Rare 0xB71BD068/0x03EDABAB).
-        Assert.Contains(0x621CB6FFu, L("Template_Node_Magic").CompositeHandles);
-        Assert.Contains(0x72C29402u, L("Template_Node_Magic").CompositeHandles);
-        Assert.Contains(0xB71BD068u, L("Template_Node_Rare").CompositeHandles);
-        Assert.Contains(0x03EDABABu, L("Template_Node_Rare").CompositeHandles);
-        // The generic base disc is the default (no composite override).
+        // FR-C16 R5 — the per-rarity disc state pair is split into
+        // SelectionDiscs (unselected vs selected), matching the owner #22
+        // oracle for all three rarities. CL-46 flattened both into one
+        // CompositeHandles list (drew the selected ring on unselected
+        // nodes); the split is the fix.
+        var magic = L("Template_Node_Magic").SelectionDiscs;
+        Assert.NotNull(magic);
+        Assert.Equal(0x621CB6FFu, magic!.Unselected);   // magic unselected disc
+        Assert.Equal(0x72C29402u, magic.Selected);      // magic selected (ring baked in)
+
+        var rare = L("Template_Node_Rare").SelectionDiscs;
+        Assert.NotNull(rare);
+        Assert.Equal(0xB71BD068u, rare!.Unselected);    // rare unselected
+        Assert.Equal(0x03EDABABu, rare.Selected);       // rare selected
+
+        var leg = L("Template_Node_Legendary").SelectionDiscs;
+        Assert.NotNull(leg);
+        Assert.Equal(0x232DF7F9u, leg!.Unselected);     // legendary unselected
+        Assert.Equal(0xBD27FB7Cu, leg.Selected);        // legendary selected
+
+        // FR-C16 R5 — the small-negative rect-inset sentinels CL-46
+        // surfaced as bogus composite handles (0xFFFFFFFD = −3 overscan on
+        // the larger Legendary disc, etc.) are excluded: every surfaced
+        // composite handle resolves to a real atlas frame.
+        foreach (var layer in recipe.Layers)
+        {
+            foreach (var h in layer.CompositeHandles)
+                Assert.True(d4.IsParagonTextureHandle(h),
+                    $"{layer.WidgetName} composite 0x{h:X8} is not a resolvable handle");
+            if (layer.SelectionDiscs is { } sd)
+            {
+                Assert.True(d4.IsParagonTextureHandle(sd.Unselected));
+                Assert.True(d4.IsParagonTextureHandle(sd.Selected));
+            }
+        }
+
+        // Non-rarity layers carry no selection-disc pair.
+        Assert.Null(L("Node_IconBase").SelectionDiscs);
         Assert.Empty(L("Node_IconBase").CompositeHandles);
+
+        // FR-C16 R5 — the implausible-rect guard: Node_Icon is a
+        // sparse-bound widget whose positional record→field keying mis-
+        // assigns a texture handle (0x25DAA956 = 635087190) into nBottom.
+        // The guard rejects out-of-canvas magnitudes, so no rect field on
+        // any layer carries that garbage.
+        foreach (var layer in recipe.Layers)
+        {
+            var r = layer.Rect;
+            foreach (var v in new[] { r.Left, r.Right, r.Top, r.Bottom, r.Width, r.Height })
+                Assert.InRange(v, -4096, 4096);
+        }
     }
 
     /// <summary>FR-C11 R3 §2 — per-node-cell background tile.

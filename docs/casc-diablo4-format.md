@@ -1497,6 +1497,44 @@ derived from FR-C14 R8's `snoTiledStyle` crack and R10's variant
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
 
+- **CL-47 — node recipe per-state disc split + sentinel/rect decode
+  fixes (FR-C16 R5).** Three CL-46 decode-quality defects, found when
+  the Optimizer's interpreter drew the recipe verbatim against the live
+  board. (1) **Per-selection-state disc split.** CL-46's
+  `CompositeHandles` flattened a rarity sub-template's *unselected* and
+  *selected* disc into one list, so a verbatim draw painted the
+  selected-state ring on unselected nodes. The
+  `Template_Node_<rarity>` widgets are parent widgets whose anonymous
+  child sub-records (`UIWindowStyle` + `0xFFFFFFFF` marker, name-less)
+  bind one disc handle each; the first two handle-bearing children, in
+  scene order, are the unselected then selected disc. Lifted into a new
+  `ParagonNodeRecipeLayer.SelectionDiscs: NodeSelectionDiscs?`
+  (`Unselected`/`Selected`) — `0x621CB6FF`/`0x72C29402` Magic,
+  `0xB71BD068`/`0x03EDABAB` Rare, `0x232DF7F9`/`0xBD27FB7C` Legendary
+  (all six match the owner FR-C12 oracle). The consumer draws `Selected`
+  only on the currently-selected node. (2) **Sentinel exclusion.**
+  CL-46's `v >= 0x10000u` composite filter let the 0x58-block's
+  small-*negative* rect insets (`0xFFFFFFFD` = −3, `0xFFFFFFEE` = −18,
+  `0xFFFFFFEC` = −20 — overscan for the larger 189² Legendary disc)
+  through as bogus handles. `NodeRecipe` now requires the icon-catalog
+  validator (`IsParagonTextureHandle`) to resolve each composite handle;
+  the negatives — which are *rect insets*, never delimiters or state
+  codes — are excluded. (3) **Implausible-rect guard.** `Node_Icon`
+  (and other sparse-bound widgets) bind only a *subset* of their schema
+  fields, which breaks the §10.3 positional record→field keying so a
+  texture handle lands in a rect field (`Node_Icon.nBottom` decoded as
+  `0x25DAA956` = 635087190). A projection-level guard rejects rect
+  magnitudes beyond the design canvas (±4096), so the garbage no longer
+  propagates. `Node_Icon` is the per-node symbol slot (runtime-filled
+  `HIconMask`, drawn fit-to-disc-centre) — its template rect is not
+  load-bearing. The root-cause fix (re-RE of the sparse instance-binding
+  grammar so *every* rect decodes exactly) is tracked for a later round;
+  this guard contains the symptom now. Acceptance:
+  `ReadParagonNodeRecipe_surfaces_ordered_state_widget_layers` extended
+  to assert the three rarity state-pairs, resolvable-only composites,
+  and in-range rects. 43/43 tests green on build `3.0.2.71886`. Devlog
+  0042.
+
 - **CL-46 — node recipe per-rarity composite handles + substitution
   model (FR-C16 R4).** `ParagonNodeRecipeLayer` gains
   `CompositeHandles: IReadOnlyList<uint>` — the additional 0x58-block

@@ -73,10 +73,6 @@ namespace WiseOwl.Casc.Diablo4;
 /// <param name="ImageScale">The <c>flImageScale</c> field at +0x58 —
 /// the engine's per-record scale factor for the composed tile. Observed
 /// values 1.0, 0.5, 0.9 across the dumped records.</param>
-/// <param name="PrimaryHandle">The texture handle at +0x60. In the
-/// 3-slice <c>HorizontalTiledWindowPieces</c> variant this is the
-/// <c>hPieceMiddle</c>; in other variants its semantic role differs.
-/// Resolved via the engine's icon-frame index; <c>0u</c> means absent.</param>
 /// <param name="HasPartialDecode"><see langword="true"/> when the
 /// record's trailing variant-specific bytes (additional piece handles,
 /// sub-rects) were not fully decoded by the current
