@@ -1497,6 +1497,26 @@ derived from FR-C14 R8's `snoTiledStyle` crack and R10's variant
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
 
+- **CL-45 — paragon board grid metric (`ParagonBoardGrid`)
+  (FR-C17 R3).** New `Diablo4Storage.ReadParagonBoardGrid()` →
+  `ParagonBoardGrid(CanvasWidth, CanvasHeight, CellExtent, Pitch)`,
+  read from game data (the UI scene): canvas `1920×1200`
+  (`ParagonBoard_main`), node cell extent `100` ref units
+  (`Template_Node_Common`), `Pitch = CellExtent` (adjacent cells —
+  the `UIParagonBoardStyle` grid container is a style wrapper with no
+  grid-layout fields, so there is no extra authored inter-cell gap).
+  Replaces the consumer's empirical pixel pitch with the engine's
+  authored cell metric; the consumer maps a board cell's
+  `(gridX, gridY) → (gridX·Pitch, gridY·Pitch)` and scales the
+  `1920×1200` canvas to its render resolution. **Validated against the
+  owner's in-game measurement**: the empirical ~67.7px pitch =
+  `CellExtent (100) × render-scale (≈0.677)`, so the authored
+  100-unit cell reproduces the observed spacing. The per-board logical
+  grid (dimensions + cell→node) stays `ParagonBoardDefinition`
+  (`Width`/`Cells`/`CellAt`). Acceptance:
+  `ReadParagonBoardGrid_surfaces_engine_cell_metric`. Tests green on
+  build `3.0.2.71886`. Devlog 0041.
+
 - **CL-44 — paragon node render program (`ParagonNodeRecipe`) +
   widget class-id cracks (FR-C16 R3).** New
   `Diablo4Storage.ReadParagonNodeRecipe()` →

@@ -815,6 +815,18 @@ public sealed class Diablo4Storage : IDisposable
         ParagonRenderProjection.NodeRecipe(ReadUiScene(657304));
 
     /// <summary>
+    /// FR-C17 — read the engine's paragon-board grid-layout metric
+    /// (<see cref="ParagonBoardGrid"/>): the design-canvas extent + node
+    /// cell extent + cell pitch, in authored reference units. The
+    /// consumer positions a board's grid cells with this metric (scaled
+    /// to its render resolution) instead of an empirical pixel pitch.
+    /// The per-board logical grid (dimensions + cell→node) stays
+    /// <see cref="ReadParagonBoard"/>.
+    /// </summary>
+    public ParagonBoardGrid ReadParagonBoardGrid() =>
+        ParagonRenderProjection.BoardGrid(ReadUiScene(657304));
+
+    /// <summary>
     /// Read and decode a <see cref="TiledStyleDefinition"/> by SNO id
     /// (group <see cref="SnoGroup.UiStyle"/> = 103). The record describes
     /// a UI tile-rendering composition (piece handles + scale +

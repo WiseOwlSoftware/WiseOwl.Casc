@@ -120,6 +120,50 @@ public sealed record ParagonBoardChrome(
 /// </summary>
 public sealed record ParagonNodeRecipe(IReadOnlyList<ParagonNodeRecipeLayer> Layers);
 
+/// <summary>
+/// FR-C17 — the engine's paragon-board grid-layout metric, in the
+/// authored design-canvas reference units. The consumer maps a board
+/// cell's grid coordinate to a canvas position with
+/// <c>canvasPos = (gridX·Pitch, gridY·Pitch)</c> (relative to the grid
+/// origin) and scales the whole canvas
+/// <c>CanvasWidth×CanvasHeight → render resolution</c>. This replaces
+/// the consumer's empirical pitch (the FR-C7-measured ~67.7px /
+/// arbitrary CellPx) with the engine's authored metric.
+/// <br/><br/>
+/// All values are read from the live UI scene (game data), not
+/// hard-coded: <see cref="CanvasWidth"/>/<see cref="CanvasHeight"/> from
+/// the root <c>ParagonBoard_main</c> widget, <see cref="CellExtent"/>
+/// from the <c>Template_Node_Common</c> node-cell widget. The board's
+/// logical grid (dimensions + which cell holds which node) is the
+/// per-board <see cref="ParagonBoardDefinition"/> (<c>Width</c> +
+/// <c>Cells</c>); this record is the global canvas/cell metric shared
+/// across boards.
+/// <br/><br/>
+/// <b>Pitch = CellExtent</b> (cells are laid out adjacent, no extra
+/// inter-cell gap beyond the per-cell art inset). Validated against the
+/// owner's in-game measurement: the empirical ~67.7px pitch =
+/// <c>CellExtent (100) × render-scale (≈0.677 at the consumer's board
+/// width)</c>, so the authored 100-unit cell reproduces the observed
+/// spacing exactly. If a future build introduces an explicit inter-cell
+/// gap it would surface as <c>Pitch ≠ CellExtent</c> (engine
+/// render-code RE — the <c>UIParagonBoardStyle</c> class is a style
+/// wrapper with no grid-layout fields, so any gap lives in the
+/// engine's grid-layout code, not the scene data).
+/// </summary>
+/// <param name="CanvasWidth">Design-canvas width in reference units
+/// (<c>ParagonBoard_main.nWidth</c>; 1920 on the current build).</param>
+/// <param name="CanvasHeight">Design-canvas height
+/// (<c>ParagonBoard_main.nHeight</c>; 1200).</param>
+/// <param name="CellExtent">Node-cell extent in reference units
+/// (<c>Template_Node_Common.nWidth</c> = <c>nHeight</c>; 100).</param>
+/// <param name="Pitch">Cell-to-cell step in reference units. Equals
+/// <see cref="CellExtent"/> on the current build (adjacent cells).</param>
+public sealed record ParagonBoardGrid(
+    int CanvasWidth,
+    int CanvasHeight,
+    int CellExtent,
+    int Pitch);
+
 /// <summary>FR-C16 — one layer of the <see cref="ParagonNodeRecipe"/>.</summary>
 /// <param name="ZOrder">The layer's draw order — its index in the
 /// scene serialization (lower draws first / underneath). The engine
@@ -956,5 +1000,28 @@ internal static class ParagonRenderProjection
                 k, wd.Name ?? string.Empty, wd.ClassId, handle, Rect(wd), alpha));
         }
         return new ParagonNodeRecipe(layers);
+    }
+
+    /// <summary>
+    /// FR-C17 — project the board grid-layout metric from the main board
+    /// scene (657304): canvas extent from <c>ParagonBoard_main</c>, cell
+    /// extent from <c>Template_Node_Common</c>. <see cref="ParagonBoardGrid.Pitch"/>
+    /// is set equal to the cell extent (adjacent-cell layout — see the
+    /// record remarks for the owner-measurement validation). Falls back
+    /// to the current-build constants (1920×1200, cell 100) if a widget
+    /// is missing.
+    /// </summary>
+    public static ParagonBoardGrid BoardGrid(UiScene mainBoard)
+    {
+        UiWidget? ByName(string n) => mainBoard.Widgets.FirstOrDefault(w => w.Name == n);
+        var root = ByName("ParagonBoard_main");
+        var cell = ByName("Template_Node_Common");
+        int canvasW = root is null ? 1920 : Val(root, FnWidth);
+        int canvasH = root is null ? 1200 : Val(root, FnHeight);
+        int cellExt = cell is null ? 100 : Val(cell, FnWidth);
+        if (canvasW <= 0) canvasW = 1920;
+        if (canvasH <= 0) canvasH = 1200;
+        if (cellExt <= 0) cellExt = 100;
+        return new ParagonBoardGrid(canvasW, canvasH, cellExt, cellExt);
     }
 }

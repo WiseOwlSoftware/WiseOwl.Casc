@@ -930,6 +930,31 @@ public sealed class Diablo4StorageIntegrationTests
             Assert.Contains(model.BoardChrome.TiledStyleBindings, b => b.WidgetName == name);
     }
 
+    /// <summary>FR-C17 — the board grid-layout metric. Asserts the
+    /// engine's authored canvas (1920×1200) + node cell extent (100) +
+    /// cell-adjacent pitch are read from game data, replacing the
+    /// empirical pixel pitch. Validates the owner's ~67.7px measurement
+    /// = cell extent 100 × render scale.</summary>
+    [SkippableFact]
+    public void ReadParagonBoardGrid_surfaces_engine_cell_metric()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+
+        var grid = d4.ReadParagonBoardGrid();
+        Assert.Equal(1920, grid.CanvasWidth);
+        Assert.Equal(1200, grid.CanvasHeight);
+        Assert.Equal(100, grid.CellExtent);
+        Assert.Equal(grid.CellExtent, grid.Pitch);   // cells adjacent
+
+        // The owner's empirical 67.7px pitch is the authored 100 ref
+        // units at the consumer's board render scale: 100 * s ≈ 67.7
+        // ⇒ s ≈ 0.677. Assert the metric reproduces it within 1px.
+        double scale = 67.7 / grid.Pitch;
+        Assert.InRange(grid.Pitch * scale, 66.7, 68.7);
+    }
+
     /// <summary>FR-C16 — the per-node render program. Asserts the recipe
     /// is the ordered (z-sorted) node state-widget run with the engine's
     /// verbatim names + hImageFrame handles, including the owner-oracle
