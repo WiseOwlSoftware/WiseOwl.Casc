@@ -763,6 +763,28 @@ switch (cmd)
         }
         return 0;
     }
+    case "stylefor":
+    {
+        // Reverse index: which TiledStyle(s) (group 103) 9-slice a target
+        // atlas. stylefor <atlasSno>  — used to find the authored selection-
+        // highlight recipe that composes a given selection texture.
+        if (argv.Count < 2) { Console.Error.WriteLine("stylefor <atlasSno>"); return 2; }
+        int target = int.Parse(argv[1]);
+        int scanned = 0, hits = 0;
+        foreach (var e in toc.Entries)
+        {
+            if ((int)e.Group != 103) continue;
+            scanned++;
+            if (!d4.TryReadTiledStyle(e.Id, out var ts) || ts.SourceImageHandle is 0 or 0xFFFFFFFF) continue;
+            if (d4.TryGetIconFrame(ts.SourceImageHandle, out int sn, out _) && sn == target)
+            {
+                Console.WriteLine($"  {e.Id,9}  '{e.Name}'  src=0x{ts.SourceImageHandle:X8} partial={ts.HasPartialDecode}");
+                hits++;
+            }
+        }
+        Console.WriteLine($"scanned {scanned} TiledStyles; {hits} compose atlas {target}");
+        return 0;
+    }
     case "codecscan":
     {
         // Tally the texture codec across all UI atlases (2DUI*, group 44) to

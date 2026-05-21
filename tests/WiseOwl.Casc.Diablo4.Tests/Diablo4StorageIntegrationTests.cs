@@ -1590,6 +1590,43 @@ public sealed class Diablo4StorageIntegrationTests
         Assert.False(ByHandle(MagicUnselDisc).Activation.Evaluate(commonUnpurch));  // magic disc off on a common node
     }
 
+    [SkippableFact]
+    public void ReadSelectionHighlight_surfaces_authored_tiledstyle_recipes()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+
+        var hl = d4.ReadSelectionHighlight();
+        Assert.False(hl.IsEmpty);
+
+        // The selection highlight is authored as named TiledStyle 9-slice
+        // recipes (group 103) — the consumer applies them via ReadTiledStyle,
+        // not by reassembling loose atlas frames.
+        SelectionHighlightStyle Named(string n) => hl.Styles.Single(s => s.Name == n);
+
+        // Square node selection: the inset rectangle over the tiled sheet.
+        Assert.Equal(SelectionShape.Rectangle, Named("SelectionRectangleInset").Shape);
+
+        // Per-shape controller-selection recipes. The Shape comes from the
+        // engine's OWN recipe name — which corrects earlier frame-size guesses:
+        // 0x0BD8A829 is the Circle source (not a diamond) and 0xBA7D2638 is the
+        // TearDrop source (not a circle).
+        var circle = Named("ControllerSelectionCircle");
+        Assert.Equal(SelectionShape.Circle, circle.Shape);
+        Assert.Equal(0x0BD8A829u, circle.SourceImageHandle);
+
+        var tear = Named("ControllerSelectionTearDrop");
+        Assert.Equal(SelectionShape.TearDrop, tear.Shape);
+        Assert.Equal(0xBA7D2638u, tear.SourceImageHandle);
+
+        Assert.Equal(SelectionShape.Diamond, Named("ControllerSelectionDiamond").Shape);
+
+        // Every surfaced style resolves to a real, decodable TiledStyle.
+        foreach (var s in hl.Styles)
+            Assert.True(d4.TryReadTiledStyle(s.TiledStyleSno, out _));
+    }
+
     /// <summary>FR-C11 R3 §2 — scene-bound binding on the
     /// <c>Common_Node_Revealed</c> widget. <c>0xC1473C21</c> via the
     /// standard <c>0x6B1C5D9C</c> texture-handle field; authored rect

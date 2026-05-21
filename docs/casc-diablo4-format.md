@@ -1735,6 +1735,31 @@ derived from FR-C14 R8's `snoTiledStyle` crack and R10's variant
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
 
+- **CL-53 — selection highlight is itself authored as TiledStyle 9-slice
+  recipes; `ReadSelectionHighlight()` returns those recipes (FR-C19).**
+  The CL-52 lead (a bespoke flat slice/shape inventory the consumer would
+  reassemble) was the wrong shape — it would have pushed 9-slice composition
+  onto the consumer, violating the zero-dispatch rule. The engine authors the
+  selection highlight as named `TiledStyle`s (group 103) over the
+  `2DUI_SelectionHighlight` (337357) / `2DUITiled_SelectionHighlight` (585030)
+  atlases, decodable through the existing `ReadTiledStyle` path:
+  - `SelectionRectangleInset` (585031) — the square node frame (inset 9-slice
+    over the tiled sheet 585030).
+  - `ControllerSelection{Rectangle,Circle,Diamond,TearDrop,APS}`
+    (478960/478961/1298996/2314766/2434945) — per-silhouette recipes over
+    337357.
+  - **Shape labels corrected from authored names** (a `no-atlas-name-jumps`
+    catch): the frame the FR-C19 info-delivery guessed "circle" (`0xBA7D2638`)
+    is the source of `ControllerSelectionTearDrop`; the guessed "diamond"
+    (`0x0BD8A829`) is `ControllerSelectionCircle`. `SelectionShape` is derived
+    from the engine's own TiledStyle name, never from frame geometry.
+  `ReadSelectionHighlight()` ⇒ `SelectionHighlight(Styles)` of
+  `SelectionHighlightStyle(TiledStyleSno, Name, Shape, SourceImageHandle,
+  AtlasSno)`; the consumer picks the style matching the node silhouette and
+  applies it via `ReadTiledStyle` — no composition on its side. Acceptance:
+  `ReadSelectionHighlight_surfaces_authored_tiledstyle_recipes`. 51/51 tests
+  green on `3.0.2.71886`. Devlog 0052.
+
 - **CL-52 — flat `ParagonNodeRecipe.Components` + `bActive`-driven
   activation; owner-oracle-validated render model (FR-C16 R14).** Replaces
   the CL-50/51 layer/disc/slot nesting with a single z-ordered list of

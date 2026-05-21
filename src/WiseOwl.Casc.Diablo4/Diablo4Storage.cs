@@ -823,6 +823,42 @@ public sealed class Diablo4Storage : IDisposable
         ParagonRenderProjection.BoardGrid(ReadUiScene(657304));
 
     /// <summary>
+    /// FR-C19 — read the mouse-over / cursor <see cref="SelectionHighlight"/>:
+    /// the set of authored <see cref="TiledStyleDefinition">TiledStyle</see>
+    /// 9-slice recipes (group <see cref="SnoGroup.UiStyle"/>) that compose the
+    /// selection highlight over the <c>2DUI_SelectionHighlight</c> /
+    /// <c>2DUITiled_SelectionHighlight</c> atlases. The consumer draws the
+    /// matching style <b>topmost</b> over a selected node (selection is
+    /// orthogonal to the node render recipe) and applies it via
+    /// <see cref="ReadTiledStyle"/> — the same path as any other tiled UI
+    /// drawing, with no composition on the consumer side. Returns an empty
+    /// highlight (<see cref="SelectionHighlight.IsEmpty"/>) if the atlases are
+    /// absent.
+    /// </summary>
+    public SelectionHighlight ReadSelectionHighlight()
+    {
+        // Resolve the selection atlases by name (build-stable), then return the
+        // authored TiledStyles that 9-slice them — letting the consumer reuse
+        // ReadTiledStyle rather than reassemble loose frames.
+        var atlases = new HashSet<int>();
+        foreach (var name in SelectionHighlight.AtlasNames)
+            if (CoreToc.TryGetId(SnoGroup.Texture, name, out var s)) atlases.Add(s);
+
+        var styles = new List<SelectionHighlightStyle>();
+        foreach (var e in CoreToc.EntriesInGroup(SnoGroup.UiStyle))
+        {
+            if (!TryReadTiledStyle(e.Id, out var ts) || ts.SourceImageHandle is 0 or 0xFFFFFFFF)
+                continue;
+            if (!TryGetIconFrame(ts.SourceImageHandle, out var atlas, out _) || !atlases.Contains(atlas))
+                continue;
+            styles.Add(new SelectionHighlightStyle(
+                e.Id, e.Name, SelectionHighlight.ShapeOf(e.Name), ts.SourceImageHandle, atlas));
+        }
+        styles.Sort(static (a, b) => string.CompareOrdinal(a.Name, b.Name));
+        return new SelectionHighlight(styles);
+    }
+
+    /// <summary>
     /// Read and decode a <see cref="TiledStyleDefinition"/> by SNO id
     /// (group <see cref="SnoGroup.UiStyle"/> = 103). The record describes
     /// a UI tile-rendering composition (piece handles + scale +
