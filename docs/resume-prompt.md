@@ -36,23 +36,32 @@ public repo; never commit it). Read CLAUDE.md before any FR action.
 
 ### Active branch / PR / release state
 
-- **Branch `fr-c14-r9-tiled-style` → PR #34 (open, into `main`)** carries
-  the FR-C14/C16/C17 + transport work: **CL-42..CL-49**. Commit the FR
-  code/docs here; docs-only still commit straight to `main` (pref §7).
-- **Published on nuget.org (immutable): `0.1.0-alpha`, `0.2.0-alpha`.**
-  **Everything since FR-C8 (CL-23..CL-49) is unreleased** — on `main` /
-  PR #34, in no package. Release is owner-driven & batched (never cut for
-  one fix without explicit "release now").
-- 44/44 integration tests green on live build `3.0.2.71886`.
+- **PR #34 (`fr-c14-r9-tiled-style`) is MERGED and RELEASED** in
+  `v0.3.0-alpha` (CL-42..CL-49). Active work is now branch
+  **`fr-c16-c18-node-child-rects` (open, into `main`)** — **CL-50**
+  (FR-C16 R9 / FR-C18 node-template child sub-records + per-child rects),
+  unreleased. Commit FR code/docs here; docs-only still commit straight to
+  `main` (pref §7).
+- **Published on nuget.org (immutable): `0.1.0-alpha`, `0.2.0-alpha`,
+  `0.3.0-alpha`.** **CL-50 is unreleased** — on its branch, in no package.
+  Release is owner-driven & batched (never cut for one fix without explicit
+  "release now").
+- 57/57 integration tests green on live build `3.0.2.71886`.
 
 ### Open casc-fr issues (2026-05-21 snapshot — re-poll, this drifts)
 
-- **#26** FR-C16 node render recipe — `awaiting:optimizer` (CL-44/46/47/48).
+- **#26** FR-C16 node render recipe — CL-50 delivered (child sub-record
+  rects: symbol z-order/socket/starter/gate answers); `released:v0.3.0-alpha`
+  covers CL-44/46/47/48. Turn → optimizer on CL-50.
+- **#29** FR-C18 rarity-template WidgetRect all-zero — `fr:accepted`; CL-50
+  delivered (parent rect faithful; disc inset 7 on the children). Turn →
+  optimizer.
 - **#27** FR-C17 board grid/composition — `awaiting:optimizer` (CL-45).
 - **#22** FR-C12 special-node composites — `awaiting:optimizer`.
 - **#24** FR-C14 ParagonBoardChrome — `needs:owner` (CL-42/43; CL-48 note).
 - **#25** FR-C15 per-node cell tile — `needs:owner`.
-- **#28** `DecodeMip0` BC row-pitch bug — `awaiting:optimizer` (CL-49).
+- **#28** `DecodeMip0` BC row-pitch bug — resolved (Optimizer: CL-49 stone
+  decodes clean ✓).
 
 ### Key recent findings (don't re-discover these)
 

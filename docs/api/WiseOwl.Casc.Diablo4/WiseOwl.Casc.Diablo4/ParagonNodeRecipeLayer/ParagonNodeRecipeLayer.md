@@ -4,7 +4,7 @@ FR-C16 — one layer of the [`ParagonNodeRecipe`](../ParagonNodeRecipe.md).
 
 ```csharp
 public ParagonNodeRecipeLayer(int ZOrder, string WidgetName, uint WidgetClassId, uint ImageHandle, 
-    WidgetRect Rect, byte Alpha, IReadOnlyList<uint> CompositeHandles, 
+    WidgetRect Rect, byte Alpha, IReadOnlyList<NodeDiscLayer> CompositeLayers, 
     NodeSelectionDiscs? SelectionDiscs)
 ```
 
@@ -16,12 +16,13 @@ public ParagonNodeRecipeLayer(int ZOrder, string WidgetName, uint WidgetClassId,
 | ImageHandle | The layer's `hImageFrame` texture handle. `0` ⇒ no static art: either a runtime-bound slot (the node's own icon/symbol, the equipped-glyph image) or a pure-predicate marker widget — surfaced (not dropped) so the consumer sees the full program. |
 | Rect | The layer's authored reference-unit rect (inset within the node cell; `default` ⇒ inherits the node template extent). |
 | Alpha | The layer's `dwAlpha` opacity byte (`0xFF` when unspecified). |
-| CompositeHandles | FR-C16 R5 — the layer's additional texture handles bound via the multi-layer (0x58-block) path, beyond the single [`ImageHandle`](./ImageHandle.md), in scene order. Resolvable handles only — the interleaved 0x58-block `int` params (rect insets, including small-negative overscan values such as `0xFFFFFFFD` = −3 on the larger Legendary disc) are excluded by the same icon-catalog validator used across FR-C9..C12 (CL-46 surfaced the negatives as bogus handles — fixed here). For the per-rarity sub-templates the rarity disc state pair is lifted out into [`SelectionDiscs`](./SelectionDiscs.md); what remains here is the rarity's always-drawn interior-fill handle(s) (e.g. `Template_Node_Magic` → `0xFEC31E48`). For the non-rarity composite templates (`Template_Node_Starter` / `Quest` / `Socketable`) this is the full ordered layer stack. Empty for ordinary single-handle layers. |
-| SelectionDiscs | FR-C16 R5 — non-`null` only for the rarity sub-templates (`Template_Node_Magic`/`Rare`/`Legendary`): the per-selection-state disc composite (unselected vs selected). CL-46 flattened both states into one `CompositeHandles` list, so a consumer drawing the list verbatim painted the selected-state ring on unselected nodes; this splits them so the interpreter draws [`Selected`](../NodeSelectionDiscs/Selected.md) only on the currently selected node and [`Unselected`](../NodeSelectionDiscs/Unselected.md) otherwise. See [`NodeSelectionDiscs`](../NodeSelectionDiscs.md). |
+| CompositeLayers | FR-C16 R9 — the layer's additional composited child layers beyond the single [`ImageHandle`](./ImageHandle.md), in scene (z) order, each with its own authored rect. These are the parent template's anonymous child sub-records ([`Children`](../UiWidget/Children.md)) that bind a real texture handle — decoded structurally so every layer keeps its `hImageFrame` paired with its inset (the prior `CompositeHandles : uint[]` dropped the rect, so the consumer drew every layer full-cell — the starter filigree painted over, the rarity disc oversized). For the per-rarity sub-templates the disc state pair is lifted out into [`SelectionDiscs`](./SelectionDiscs.md); what remains here is the rarity's always-drawn interior-fill layer(s) (e.g. `Template_Node_Magic` → `0xFEC31E48`). For the non-rarity composite templates (`Template_Node_Starter` → filigree `0xA0F996FE` at inset −18 140², base `0xF8312CA8`; `Template_Node_Quest` = the gate → filigree `0xA0F996FE` at inset −20, ornate `0xC2DF4786`/ `0x0E6B6249` at inset 3, locator `0x6D68F45F` at inset 22/26/24/24) this is the full ordered layer stack. The small-negative insets are real overscan (the layer overhangs the cell), not handles. Empty for ordinary single-handle layers and for the authored-empty `Template_Node_Socketable`. |
+| SelectionDiscs | FR-C16 R5/R9 — non-`null` only for the rarity sub-templates (`Template_Node_Magic`/`Rare`/`Legendary`): the per-selection-state disc layer (unselected vs selected), each with its handle and authored rect. The consumer draws [`Selected`](../NodeSelectionDiscs/Selected.md) only on the currently selected node and [`Unselected`](../NodeSelectionDiscs/Unselected.md) otherwise; never both. See [`NodeSelectionDiscs`](../NodeSelectionDiscs.md). |
 
 ## See Also
 
 * struct [WidgetRect](../WidgetRect.md)
+* record [NodeDiscLayer](../NodeDiscLayer.md)
 * record [NodeSelectionDiscs](../NodeSelectionDiscs.md)
 * record [ParagonNodeRecipeLayer](../ParagonNodeRecipeLayer.md)
 * namespace [WiseOwl.Casc.Diablo4](../../WiseOwl.Casc.Diablo4.md)

@@ -194,31 +194,35 @@ public sealed record ParagonBoardGrid(
 /// template extent).</param>
 /// <param name="Alpha">The layer's <c>dwAlpha</c> opacity byte
 /// (<c>0xFF</c> when unspecified).</param>
-/// <param name="CompositeHandles">FR-C16 R5 — the layer's additional
-/// texture handles bound via the multi-layer (0x58-block) path, beyond
-/// the single <see cref="ImageHandle"/>, in scene order. <b>Resolvable
-/// handles only</b> — the interleaved 0x58-block <c>int</c> params (rect
-/// insets, including <i>small-negative</i> overscan values such as
-/// <c>0xFFFFFFFD</c> = −3 on the larger Legendary disc) are excluded by
-/// the same icon-catalog validator used across FR-C9..C12 (CL-46
-/// surfaced the negatives as bogus handles — fixed here). For the
-/// per-rarity sub-templates the rarity disc <i>state pair</i> is lifted
-/// out into <see cref="SelectionDiscs"/>; what remains here is the
-/// rarity's always-drawn interior-fill handle(s) (e.g.
-/// <c>Template_Node_Magic</c> → <c>0xFEC31E48</c>). For the
-/// non-rarity composite templates (<c>Template_Node_Starter</c> /
-/// <c>Quest</c> / <c>Socketable</c>) this is the full ordered layer
-/// stack. Empty for ordinary single-handle layers.</param>
-/// <param name="SelectionDiscs">FR-C16 R5 — non-<see langword="null"/>
+/// <param name="CompositeLayers">FR-C16 R9 — the layer's additional
+/// composited child layers beyond the single <see cref="ImageHandle"/>,
+/// in scene (z) order, <b>each with its own authored rect</b>. These are
+/// the parent template's anonymous child sub-records
+/// (<see cref="UiWidget.Children"/>) that bind a real texture handle —
+/// decoded structurally so every layer keeps its <c>hImageFrame</c>
+/// paired with its inset (the prior <c>CompositeHandles : uint[]</c>
+/// dropped the rect, so the consumer drew every layer full-cell — the
+/// starter filigree painted over, the rarity disc oversized). For the
+/// per-rarity sub-templates the disc <i>state pair</i> is lifted out into
+/// <see cref="SelectionDiscs"/>; what remains here is the rarity's
+/// always-drawn interior-fill layer(s) (e.g. <c>Template_Node_Magic</c> →
+/// <c>0xFEC31E48</c>). For the non-rarity composite templates
+/// (<c>Template_Node_Starter</c> → filigree <c>0xA0F996FE</c> at inset −18
+/// 140², base <c>0xF8312CA8</c>; <c>Template_Node_Quest</c> = the gate →
+/// filigree <c>0xA0F996FE</c> at inset −20, ornate <c>0xC2DF4786</c>/
+/// <c>0x0E6B6249</c> at inset 3, locator <c>0x6D68F45F</c> at inset
+/// 22/26/24/24) this is the full ordered layer stack. The small-negative
+/// insets are real <b>overscan</b> (the layer overhangs the cell), not
+/// handles. Empty for ordinary single-handle layers and for the
+/// authored-empty <c>Template_Node_Socketable</c>.</param>
+/// <param name="SelectionDiscs">FR-C16 R5/R9 — non-<see langword="null"/>
 /// only for the rarity sub-templates
 /// (<c>Template_Node_Magic</c>/<c>Rare</c>/<c>Legendary</c>): the
-/// per-selection-state disc composite (unselected vs selected). CL-46
-/// flattened both states into one <c>CompositeHandles</c> list, so a
-/// consumer drawing the list verbatim painted the selected-state ring on
-/// <i>unselected</i> nodes; this splits them so the interpreter draws
+/// per-selection-state disc layer (unselected vs selected), each with its
+/// handle and authored rect. The consumer draws
 /// <see cref="NodeSelectionDiscs.Selected"/> only on the currently
 /// selected node and <see cref="NodeSelectionDiscs.Unselected"/>
-/// otherwise. See <see cref="NodeSelectionDiscs"/>.</param>
+/// otherwise; never both. See <see cref="NodeSelectionDiscs"/>.</param>
 public sealed record ParagonNodeRecipeLayer(
     int ZOrder,
     string WidgetName,
@@ -226,11 +230,31 @@ public sealed record ParagonNodeRecipeLayer(
     uint ImageHandle,
     WidgetRect Rect,
     byte Alpha,
-    IReadOnlyList<uint> CompositeHandles,
+    IReadOnlyList<NodeDiscLayer> CompositeLayers,
     NodeSelectionDiscs? SelectionDiscs);
 
 /// <summary>
-/// FR-C16 R5 — the per-selection-state disc composite of a rarity
+/// FR-C16 R9 — one composited child layer of a paragon-node template: a
+/// single drawable disc / ornate / filigree / interior-fill / locator
+/// element with its own <c>hImageFrame</c> handle, authored rect inset,
+/// and <c>bActive</c> default-state flag. Decoded from a parent template's
+/// anonymous child sub-record (<see cref="UiWidgetChild"/>).
+/// </summary>
+/// <param name="ImageHandle">The child's <c>hImageFrame</c> texture
+/// handle.</param>
+/// <param name="Rect">The child's authored reference-unit rect inset.
+/// <see langword="default"/> (all-zero) ⇒ the child binds no rect and
+/// <b>inherits</b> its placement from the node template / its substitution
+/// target (for a rarity disc, the <c>Node_IconBase</c> inset-7 base-disc
+/// slot). Negative insets are intentional <b>overscan</b> (the layer
+/// extends beyond the cell, e.g. the start/gate filigree at −18/−20).</param>
+/// <param name="Active">The child's <c>bActive</c> default-visibility
+/// flag as authored (the engine still gates final visibility on the
+/// node's runtime state).</param>
+public sealed record NodeDiscLayer(uint ImageHandle, WidgetRect Rect, bool Active);
+
+/// <summary>
+/// FR-C16 R5/R9 — the per-selection-state disc layer pair of a rarity
 /// sub-template (<c>Template_Node_Magic</c>/<c>Rare</c>/<c>Legendary</c>).
 /// <br/><br/>
 /// <b>Structural claim:</b> each rarity template is a parent widget whose
@@ -248,12 +272,23 @@ public sealed record ParagonNodeRecipeLayer(
 /// <see cref="Selected"/> for the currently-selected node and
 /// <see cref="Unselected"/> for every other node of that rarity; never
 /// both.
+/// <br/><br/>
+/// <b>Placement (FR-C18):</b> the disc pair is co-sized — the engine
+/// authors the inset once (Magic/Rare carry it on the selected child:
+/// inset 7, i.e. the same 86² as the <c>Node_IconBase</c> grey base disc;
+/// Legendary carries inset −3 overscan on both). The pair's
+/// <see cref="NodeDiscLayer.Rect"/>s are resolved here so both states
+/// share that authored rect: a colored rarity disc is the same on-screen
+/// size as the grey base disc it substitutes — <b>not</b> a full-cell
+/// blit. (The <c>Template_Node_&lt;rarity&gt;</c> <i>parent</i> widget
+/// binds no usable rect of its own; the all-zero parent rect FR-C18
+/// reported is faithful — the disc geometry lives on these children.)
 /// </summary>
-/// <param name="Unselected">The unselected-state disc-composite handle
-/// (no perimeter ring).</param>
-/// <param name="Selected">The selected-state disc-composite handle (red
-/// perimeter ring baked in).</param>
-public sealed record NodeSelectionDiscs(uint Unselected, uint Selected);
+/// <param name="Unselected">The unselected-state disc layer (no perimeter
+/// ring).</param>
+/// <param name="Selected">The selected-state disc layer (red perimeter
+/// ring baked in).</param>
+public sealed record NodeSelectionDiscs(NodeDiscLayer Unselected, NodeDiscLayer Selected);
 
 /// <summary>The UI design space the raw rects are authored in (decoded
 /// from the root <c>ParagonBoard_main</c> widget; verified
@@ -354,18 +389,26 @@ internal static class ParagonRenderProjection
     private static readonly uint FnWidth  = Diablo4.FieldHash("nWidth");
     private static readonly uint FnHeight = Diablo4.FieldHash("nHeight");
 
-    private static int Val(UiWidget w, uint fieldHash)
+    private static int Val(UiWidget w, uint fieldHash) => Val(w.Fields, fieldHash);
+
+    private static int Val(IReadOnlyList<UiField> fields, uint fieldHash)
     {
-        foreach (var f in w.Fields)
+        foreach (var f in fields)
             if (f.FieldHash == fieldHash && f.HasValue) return (int)f.RawValue;
         return 0;
     }
 
-    private static WidgetRect Rect(UiWidget? w) => w is null
-        ? default
-        : new WidgetRect(
-            Val(w, FnLeft), Val(w, FnRight), Val(w, FnTop),
-            Val(w, FnBottom), Val(w, FnWidth), Val(w, FnHeight));
+    private static WidgetRect Rect(UiWidget? w) =>
+        w is null ? default : RectOf(w.Fields);
+
+    private static WidgetRect RectOf(IReadOnlyList<UiField> fields) =>
+        new(Val(fields, FnLeft), Val(fields, FnRight), Val(fields, FnTop),
+            Val(fields, FnBottom), Val(fields, FnWidth), Val(fields, FnHeight));
+
+    private static readonly uint FbActive = Diablo4.FieldHash("bActive");
+
+    private static bool RectIsEmpty(in WidgetRect r) =>
+        r is { Left: 0, Right: 0, Top: 0, Bottom: 0, Width: 0, Height: 0 };
 
     public static ParagonRenderLayout Project(
         UiScene scene,
@@ -1067,7 +1110,7 @@ internal static class ParagonRenderProjection
         if (first < 0 || last < first)
             return new ParagonNodeRecipe(Array.Empty<ParagonNodeRecipeLayer>());
 
-        // The rarity sub-templates whose 0x58-block carries a
+        // The rarity sub-templates whose child layers carry a
         // [unselected, selected, …interior] disc state pair (owner FR-C12
         // oracle). Other Template_Node_* widgets (Starter/Quest/Socketable)
         // are layer stacks, not selection-state pairs.
@@ -1087,22 +1130,45 @@ internal static class ParagonRenderProjection
                 else if (f.FieldHash == FdwAlpha && !sawAlpha) { alpha = (byte)f.RawValue; sawAlpha = true; }
             }
 
-            // Resolvable composite handles in scene order (sentinels +
-            // negative insets excluded). For a rarity template the first
-            // two are the unselected/selected disc state pair; the rest
-            // are the always-drawn interior layers.
-            var composite = wd.ExtraLayerValues.Where(IsHandle).ToArray();
-            NodeSelectionDiscs? discs = null;
-            uint[] remaining = composite;
-            if (IsRarityTemplate(wd.Name ?? string.Empty) && composite.Length >= 2)
+            // FR-C16 R9 / FR-C18: build the composited child layers from the
+            // parent's STRUCTURED children (UiWidget.Children), keeping each
+            // handle paired with its own authored rect. A child contributes
+            // a layer iff it binds a resolvable hImageFrame (the no-handle
+            // children are pure rect/anchor records — symbol-slot insets,
+            // bActive markers — not drawable layers). Scene order preserved.
+            var childLayers = new List<NodeDiscLayer>(wd.Children.Count);
+            foreach (var c in wd.Children)
             {
-                discs = new NodeSelectionDiscs(composite[0], composite[1]);
-                remaining = composite.Skip(2).ToArray();
+                uint h = (uint)Val(c.Fields, FhImageFrame);
+                if (!IsHandle(h)) continue;
+                childLayers.Add(new NodeDiscLayer(h, RectOf(c.Fields), Val(c.Fields, FbActive) != 0));
+            }
+
+            // For a rarity template the first two handle-bearing children
+            // are the unselected/selected disc pair; the rest are the
+            // always-drawn interior fill. The pair is co-sized: the engine
+            // authors the inset on whichever child carries it, so a disc
+            // whose own rect is empty inherits its sibling's rect (FR-C18 —
+            // the unselected disc draws at the same 86² as the selected one
+            // / the Node_IconBase base-disc slot, never full-cell).
+            NodeSelectionDiscs? discs = null;
+            IReadOnlyList<NodeDiscLayer> composite = childLayers;
+            if (IsRarityTemplate(wd.Name ?? string.Empty) && childLayers.Count >= 2)
+            {
+                var unsel = childLayers[0];
+                var sel = childLayers[1];
+                var shared = !RectIsEmpty(sel.Rect) ? sel.Rect
+                           : !RectIsEmpty(unsel.Rect) ? unsel.Rect
+                           : default;
+                if (RectIsEmpty(unsel.Rect)) unsel = unsel with { Rect = shared };
+                if (RectIsEmpty(sel.Rect)) sel = sel with { Rect = shared };
+                discs = new NodeSelectionDiscs(unsel, sel);
+                composite = childLayers.Skip(2).ToArray();
             }
 
             layers.Add(new ParagonNodeRecipeLayer(
                 k, wd.Name ?? string.Empty, wd.ClassId, handle, Rect(wd), alpha,
-                remaining.Length == 0 ? Array.Empty<uint>() : remaining,
+                composite.Count == 0 ? Array.Empty<NodeDiscLayer>() : composite,
                 discs));
         }
         return new ParagonNodeRecipe(layers);

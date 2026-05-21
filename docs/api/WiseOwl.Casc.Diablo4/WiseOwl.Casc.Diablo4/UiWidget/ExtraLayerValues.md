@@ -1,6 +1,6 @@
 # UiWidget.ExtraLayerValues property
 
-Values bound via the fixed 0x58-block shape (tag 2, sentinel at +0x28), in serialized order — the layer stack for templates like `Template_Node_Starter` / `Template_Node_Quest` whose composites the §10.3 0x22 scan does not model. Raw values (e.g. texture handles); interpretation is the consumer's / the typed projection's.
+Values bound via the fixed 0x58-block shape (tag 2, sentinel at +0x28), in serialized order — the layer stack for templates like `Template_Node_Starter` / `Template_Node_Quest` whose composites the §10.3 0x22 scan does not model. Raw values (e.g. texture handles); interpretation is the consumer's / the typed projection's. Flat and lossy for the per-child geometry (handles and rect insets are interleaved with no pairing) — prefer [`Children`](./Children.md) when the handle↔rect association matters; `ExtraLayerValues` is retained for the §10.14 losslessness/coverage guarantee.
 
 ```csharp
 public IReadOnlyList<uint> ExtraLayerValues { get; set; }

@@ -1,13 +1,14 @@
 # NodeSelectionDiscs.Unselected property
 
-The unselected-state disc-composite handle (no perimeter ring).
+The unselected-state disc layer (no perimeter ring).
 
 ```csharp
-public uint Unselected { get; set; }
+public NodeDiscLayer Unselected { get; set; }
 ```
 
 ## See Also
 
+* record [NodeDiscLayer](../NodeDiscLayer.md)
 * record [NodeSelectionDiscs](../NodeSelectionDiscs.md)
 * namespace [WiseOwl.Casc.Diablo4](../../WiseOwl.Casc.Diablo4.md)
 

@@ -4,7 +4,7 @@ One widget in a [`UiScene`](../UiScene.md): its inline name, its class id (`= Di
 
 ```csharp
 public UiWidget(string Name, uint ClassId, IReadOnlyList<UiField> Fields, 
-    IReadOnlyList<uint> ExtraLayerValues)
+    IReadOnlyList<uint> ExtraLayerValues, IReadOnlyList<UiWidgetChild> Children)
 ```
 
 | parameter | description |
@@ -12,11 +12,13 @@ public UiWidget(string Name, uint ClassId, IReadOnlyList<UiField> Fields,
 | Name | The widget's inline name. |
 | ClassId | The class id (`= Diablo4.TypeHash(class)`). |
 | Fields | Bound fields (56-byte 0x22 path), in order. |
-| ExtraLayerValues | Values bound via the fixed 0x58-block shape (tag 2, sentinel at +0x28), in serialized order — the layer stack for templates like `Template_Node_Starter` / `Template_Node_Quest` whose composites the §10.3 0x22 scan does not model. Raw values (e.g. texture handles); interpretation is the consumer's / the typed projection's. |
+| ExtraLayerValues | Values bound via the fixed 0x58-block shape (tag 2, sentinel at +0x28), in serialized order — the layer stack for templates like `Template_Node_Starter` / `Template_Node_Quest` whose composites the §10.3 0x22 scan does not model. Raw values (e.g. texture handles); interpretation is the consumer's / the typed projection's. Flat and lossy for the per-child geometry (handles and rect insets are interleaved with no pairing) — prefer [`Children`](./Children.md) when the handle↔rect association matters; [`ExtraLayerValues`](./ExtraLayerValues.md) is retained for the §10.14 losslessness/coverage guarantee. |
+| Children | FR-C16 R9 / FR-C18 — the anonymous child sub-records nested in this widget's span, in serialized (z) order, each parsed structurally as a name-less mini-widget (its own class id + bound fields). Empty for a leaf widget. The per-rarity / start / gate templates (`Template_Node_Magic`/`Rare`/`Legendary`/ `Starter`/`Quest`) carry their disc / ornate / filigree / locator layers here, each with its own authored `hImageFrame` + rect insets — the pairing [`ExtraLayerValues`](./ExtraLayerValues.md) flattens away. |
 
 ## See Also
 
 * struct [UiField](../UiField.md)
+* record [UiWidgetChild](../UiWidgetChild.md)
 * record [UiWidget](../UiWidget.md)
 * namespace [WiseOwl.Casc.Diablo4](../../WiseOwl.Casc.Diablo4.md)
 

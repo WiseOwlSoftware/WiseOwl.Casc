@@ -695,6 +695,21 @@ constant-heavy layout). Each field has two co-located parts:
   disc layers) confine their own field scan to the run **before the
   first child marker**, so child fields never bleed into the parent.
 
+  Each **child sub-record is itself a complete widget** minus the inline
+  name: a class id + `0xFFFFFFFF` sentinel, then its own schema run +
+  positionally-keyed value records, bounded by the next sibling marker (or
+  the parent's end). The parser decodes them recursively-shallow (one
+  level — no grandchildren observed) into `UiWidget.Children`, so each
+  layer's `hImageFrame` stays paired with its `nLeft/nTop/nRight/nBottom/
+  nWidth/nHeight` insets (Appendix A CL-50). This is load-bearing for the
+  node-render recipe: a `Template_Node_<rarity>` *parent* binds no usable
+  rect of its own (the all-zero parent rect FR-C18 #29 reported is
+  faithful), while its disc children carry the authored inset — Magic/Rare
+  disc at inset `7` (= `Node_IconBase`'s 86² base-disc slot), Legendary at
+  `−3` overscan, the start/gate filigree (`0xA0F996FE`) at `−18`/`−20`
+  overscan in a `140²` box. The flat `ExtraLayerValues` view is retained
+  for the §10.14 losslessness gate but is lossy for this pairing.
+
 So a widget's `nWidth` = the `+0x08` of the `0x22` **or** tag-2 record at
 `nWidth`'s position in that widget's schema run. Observed live values
 include `0x4B0` (1200) and `3`.
@@ -1719,6 +1734,55 @@ derived from FR-C14 R8's `snoTiledStyle` crack and R10's variant
 
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
+
+- **CL-50 — node-template child sub-records decode structurally; per-child
+  rect surfaced (FR-C16 R9 / FR-C18 #29 + #26 residuals).** CL-46/47/48
+  harvested a parent template's anonymous child sub-records only as a
+  **flat handle soup** (`UiWidget.ExtraLayerValues` / `CompositeHandles :
+  uint[]`), discarding each child's authored rect. That single loss
+  produced every reported render defect: the rarity disc oversized
+  (FR-C18), the start filigree over-painted (#26.3), the gate ornate /
+  locator mis-placed (#26.4). True grammar: each child is a **self-contained
+  name-less mini-widget** — a class id + `0xFFFFFFFF` sentinel, then its
+  own schema run + positionally-keyed value records (0x22 or tag-2),
+  structurally identical to a named widget. `UiScene.Parse` now decodes
+  them into `UiWidget.Children` (`UiWidgetChild{ClassId, Fields}`), so a
+  child's `hImageFrame` stays paired with its `nLeft/nTop/…` rect. Findings
+  (scene 657304):
+  - **FR-C18 #29 — the all-zero rarity-template rect is faithful.** The
+    `Template_Node_<rarity>` *parent* binds no usable rect (Magic:
+    `bActive,nBottom=0,nRight=0`; Rare: nothing; Legendary:
+    `nBottom=0,nRight=0`). The disc geometry lives on the **children**: the
+    Magic/Rare disc carries inset **7** (= `Node_IconBase`'s 86² base-disc
+    slot) on its selected child; Legendary carries inset **−3** (overscan,
+    larger). The pair is co-sized — the unselected disc inherits the
+    authored inset. Surfaced as `NodeSelectionDiscs.{Unselected,Selected} :
+    NodeDiscLayer{ImageHandle, Rect, Active}` (was `uint`).
+  - **#26.1 — symbol z-order.** The rarity disc child shares
+    `Node_IconBase`'s inset-7 geometry ⇒ the rarity disc **substitutes the
+    base disc** (it is the base, not a z=121 top layer). Blob order is the
+    draw order for the shared state-widget run (z 96–120) but the
+    `Template_Node_*` widgets (z 121–130) are mutually-exclusive *variant
+    definitions* appended after; the chosen template's disc draws at the
+    base-disc slot, with `Node_Icon` (the symbol, z=106) and overlays on
+    top. No hidden z field; no `Node_Icon` z bug.
+  - **#26.2 — `Template_Node_Socketable` is authored empty** (a 240-byte
+    stub: 0 children, 0 fields, 0 handles). The empty composite is faithful;
+    the socket visual is composed from the present `Node_Glyph` /
+    `Usage_Slot_*` widgets (`0x3084D186` bead), not this template.
+  - **#26.3 — `Template_Node_Starter`** filigree `0xA0F996FE` is a **140²
+    layer at −18 overscan** (surrounds the base), base `0xF8312CA8` inherits
+    the cell. Drawing each at its own rect (not both full-cell) is the fix.
+  - **#26.4 — `Template_Node_Quest` IS the gate** (no separate
+    `Template_Node_Gate`): filigree `0xA0F996FE` (−20), ornate
+    `0xC2DF4786`/`0x0E6B6249` (inset 3), and a **conditional locator**
+    `0x6D68F45F` (inset 22/26/24/24 — gate by predicate, don't drop). The
+    owner's diamond `0xACDA0144`/`0x61FB8387` is **not bound anywhere in
+    scene 657304** — a different scene/asset, flagged to the owner.
+  Acceptance: `ReadParagonNodeRecipe_surfaces_ordered_state_widget_layers`
+  extended (disc insets 7/7/−3, starter filigree −18/140², gate ornate +
+  locator rects, socketable empty). 57/57 tests green on build
+  `3.0.2.71886`. Devlog 0046.
 
 - **CL-49 — `DecodeMip0` BC row-pitch is texture-specific (#28).**
   `DecodeMip0` hard-coded the stored BC block-row pitch as
