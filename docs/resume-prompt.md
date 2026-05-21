@@ -37,25 +37,34 @@ public repo; never commit it). Read CLAUDE.md before any FR action.
 ### Active branch / PR / release state
 
 - **PR #34 (`fr-c14-r9-tiled-style`) MERGED and RELEASED** in
-  `v0.3.0-alpha` (CL-42..CL-49). **PR #36 (CL-50, FR-C16 R9 / FR-C18
-  node-template child sub-records + per-child rects) MERGED to `main`**
-  (squash `5397868`, 2026-05-21) — **unreleased** (no package). No open
-  PRs. New code work starts a fresh branch off `main`; docs-only commit
+  `v0.3.0-alpha` (CL-42..CL-49). **CL-50** (PR #36, FR-C16 R9 / FR-C18
+  child sub-record rects, squash `5397868`) and **CL-51** (PR #37, FR-C16
+  R11/R12 typed `NodeActivation` surface + EXE-RE of the binding mechanism,
+  squash `2614e9b`) both MERGED to `main`, **unreleased** (no package). No
+  open PRs. New code work starts a fresh branch off `main`; docs-only commit
   straight to `main` (pref §7).
 - **Published on nuget.org (immutable): `0.1.0-alpha`, `0.2.0-alpha`,
-  `0.3.0-alpha`.** **CL-50 is unreleased** — on `main`, in no package.
-  Release is owner-driven & batched (never cut for one fix without explicit
-  "release now").
-- 57/57 integration tests green on live build `3.0.2.71886`.
+  `0.3.0-alpha`.** **CL-50 + CL-51 are unreleased** — on `main`, in no
+  package. Release is owner-driven & batched (never cut for one fix without
+  explicit "release now").
+- 58/58 integration tests green on live build `3.0.2.71886`.
+- **FR-C16 activation finding (R10–R12):** the paragon UI scene stores NO
+  activation/condition field; the engine binds visibility to runtime state
+  BY NAME in the compiled `ParagonBoardUI` controller (named data-source
+  binding — `ParagonNodeIsPurchased`, `IsSelected`, …, EXE-confirmed). CASC
+  ships a typed `NodeActivation` (closed `NodeFact` vocab + `Evaluate`),
+  provenance-marked; the consumer evaluates facts, authors no predicate. EXE
+  field names are hashed/absent; see [[reference_exe-symbol-re]].
 
 ### Open casc-fr issues (2026-05-21 snapshot — re-poll, this drifts)
 
-- **#26** FR-C16 node render recipe — CL-50 delivered (child sub-record
-  rects: symbol z-order/socket/starter/gate answers); `released:v0.3.0-alpha`
-  covers CL-44/46/47/48. Turn → optimizer on CL-50.
-- **#29** FR-C18 rarity-template WidgetRect all-zero — `fr:accepted`; CL-50
-  delivered (parent rect faithful; disc inset 7 on the children). Turn →
-  optimizer.
+- **#26** FR-C16 node render recipe — CL-50 (child rects) + **CL-51 (typed
+  `NodeActivation` + EXE-RE binding mechanism)** delivered;
+  `released:v0.3.0-alpha` covers CL-44/46/47/48. `awaiting:optimizer`.
+  Open option: deeper `ParagonBoardUI` disassembly to verify literal
+  per-widget wiring (offered, not yet requested).
+- **#29** FR-C18 rarity-template WidgetRect all-zero — `fr:delivered`; CL-50
+  (parent rect faithful; disc inset 7 on the children). `awaiting:optimizer`.
 - **#27** FR-C17 board grid/composition — `awaiting:optimizer` (CL-45).
 - **#22** FR-C12 special-node composites — `awaiting:optimizer`.
 - **#24** FR-C14 ParagonBoardChrome — `needs:owner` (CL-42/43; CL-48 note).
