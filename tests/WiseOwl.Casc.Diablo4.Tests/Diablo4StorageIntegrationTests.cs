@@ -930,6 +930,45 @@ public sealed class Diablo4StorageIntegrationTests
             Assert.Contains(model.BoardChrome.TiledStyleBindings, b => b.WidgetName == name);
     }
 
+    /// <summary>FR-C16 — the per-node render program. Asserts the recipe
+    /// is the ordered (z-sorted) node state-widget run with the engine's
+    /// verbatim names + hImageFrame handles, including the owner-oracle
+    /// anchor (<c>Node_IconBase → 0x1D166DC7</c>) and the directional
+    /// arrows (<c>Arrow_Top/Right/Bottom/Left</c>).</summary>
+    [SkippableFact]
+    public void ReadParagonNodeRecipe_surfaces_ordered_state_widget_layers()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+
+        var recipe = d4.ReadParagonNodeRecipe();
+        Assert.NotEmpty(recipe.Layers);
+
+        // Z-order is strictly increasing (= scene serialization order).
+        for (int k = 1; k < recipe.Layers.Count; k++)
+            Assert.True(recipe.Layers[k].ZOrder > recipe.Layers[k - 1].ZOrder);
+
+        ParagonNodeRecipeLayer L(string name) =>
+            recipe.Layers.First(l => l.WidgetName == name);
+
+        // Owner-oracle anchor: the unselected grey base disc.
+        Assert.Equal(0x1D166DC7u, L("Node_IconBase").ImageHandle);
+        // Purchased-state disc.
+        Assert.Equal(0xD3051CCAu, L("Node_Purchased").ImageHandle);
+        // Directional arrows are present as their own ordered layers.
+        Assert.Equal(0xD51CAB25u, L("Arrow_Top").ImageHandle);
+        Assert.Equal(0x6D3CB8DEu, L("Arrow_Right").ImageHandle);
+        Assert.Equal(0x8EEAC178u, L("Arrow_Bottom").ImageHandle);
+        Assert.Equal(0xB6D8C741u, L("Arrow_Left").ImageHandle);
+
+        // The base disc draws before the purchased overlay (z-order).
+        Assert.True(L("Node_IconBase").ZOrder < L("Node_Purchased").ZOrder);
+
+        // The glow layers are UIBlinkerStyle (pulsing-glow class).
+        Assert.Equal(0x145F2056u, L("NodeAvailableGlow").WidgetClassId);
+    }
+
     /// <summary>FR-C11 R3 §2 — per-node-cell background tile.
     /// <c>Common_Node_BG_Revealed</c> (handle <c>0xC1473C21</c>,
     /// authored rect L=R=T=B=3 inside the 100-pitch NodeTemplate

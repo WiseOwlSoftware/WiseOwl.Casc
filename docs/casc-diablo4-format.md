@@ -1497,6 +1497,38 @@ derived from FR-C14 R8's `snoTiledStyle` crack and R10's variant
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
 
+- **CL-44 — paragon node render program (`ParagonNodeRecipe`) +
+  widget class-id cracks (FR-C16 R3).** New
+  `Diablo4Storage.ReadParagonNodeRecipe()` →
+  `ParagonNodeRecipe(IReadOnlyList<ParagonNodeRecipeLayer>)`. The
+  engine's per-node composition is a flat, z-ordered list of named
+  state-widget layers (each: `ZOrder`, verbatim `WidgetName`,
+  `WidgetClassId`, `hImageFrame` `ImageHandle`, `Rect`, `dwAlpha`
+  `Alpha`), drawn when the layer's predicate holds. **Hierarchy
+  finding (R3):** the UI-scene blob serializes widgets in depth-first
+  child order with **no explicit per-widget parent/z field** (the
+  widget headers' pre-class + post-sentinel words are all zero), so
+  **blob order = child order = draw/z-order** and the node subtree is
+  the contiguous sibling run (anchored positionally on the engine's
+  `Common_Node*` / `Template_Node_*` names). **No structural state
+  predicate field exists** (R2 — every per-widget field is
+  layout/anchoring/opacity; `0x0CDB00E9` uncracked is not a state
+  code); the engine's widget *name* is the state discriminator, so it
+  is surfaced verbatim (per `feedback_widget-name-not-role`) and the
+  consumer carries the thin `name → runtime-predicate` glue (the
+  Optimizer-confirmed pure-interpreter contract). Directional arrows
+  (`Arrow_Top/Right/Bottom/Left`) + connectors are their own ordered
+  layers. Also cracked the widget class-style ids via
+  `blizzhackers/d4data` `!!D4Checksums.yml` and added to
+  `Diablo4.KnownTypeNames`: `UIWindowStyle` (`0x1E3077C7`),
+  `UIStackPanelStyle` (`0x112661D5`), `UIParagonBoardStyle`
+  (`0x093D303F`), `UIBlinkerStyle` (`0x145F2056`), `UIRActorStyle`,
+  `UITextStyle`, `UIScrollBoxStyle`, `UIListBoxStyle`, `UIButtonStyle`,
+  `UIWrapPanelStyle`, `UIHotkeyStyle`, `UIControlStyle`. Acceptance:
+  `ReadParagonNodeRecipe_surfaces_ordered_state_widget_layers` (z-order
+  monotonic; `Node_IconBase → 0x1D166DC7` owner anchor; the 4 arrows).
+  42/42 tests green on build `3.0.2.71886`. Devlog 0041.
+
 - **CL-43 — NSlice TiledStyle full decode + variant/field cracks
   (FR-C14 R10).** §11.5. Extends CL-42's `TiledStyleDefinition` from
   "primary handle + scale + opaque suffix" to a full **NSlice**

@@ -803,6 +803,18 @@ public sealed class Diablo4Storage : IDisposable
     }
 
     /// <summary>
+    /// FR-C16 — read the engine's per-node render program from the main
+    /// paragon scene (657304): the ordered, z-sorted list of node
+    /// state-widget layers (<see cref="ParagonNodeRecipe"/>). The
+    /// consumer interprets it mechanically — supplying runtime predicates
+    /// keyed by each layer's verbatim widget name — instead of inventing
+    /// composition logic. See <see cref="ParagonNodeRecipe"/> for the
+    /// name-keyed-predicate rationale.
+    /// </summary>
+    public ParagonNodeRecipe ReadParagonNodeRecipe() =>
+        ParagonRenderProjection.NodeRecipe(ReadUiScene(657304));
+
+    /// <summary>
     /// Read and decode a <see cref="TiledStyleDefinition"/> by SNO id
     /// (group <see cref="SnoGroup.UiStyle"/> = 103). The record describes
     /// a UI tile-rendering composition (piece handles + scale +

@@ -94,6 +94,64 @@ public sealed record ParagonBoardChrome(
     IReadOnlyList<NodeElement> BoardSelectChrome,
     IReadOnlyList<TiledStyleBinding> TiledStyleBindings);
 
+/// <summary>
+/// FR-C16 — the engine's per-node render PROGRAM: the ordered list of
+/// state-widget layers the engine composes for one paragon node. Each
+/// <see cref="ParagonNodeRecipeLayer"/> is drawn when its predicate
+/// holds; the list is in z-order (= the scene's serialization / child
+/// order = the engine's draw order). The consumer is a pure
+/// interpreter: it supplies the runtime predicate values
+/// (selected / selectable / purchased / socketed / per-direction
+/// neighbour-selectable / rarity / …) and maps each layer's
+/// <see cref="ParagonNodeRecipeLayer.WidgetName"/> to one.
+/// <br/><br/>
+/// <b>Why name-keyed predicates:</b> the scene stores no structural
+/// per-widget state/predicate field (verified FR-C16 R2 — every
+/// candidate field is layout / anchoring / opacity; the one uncracked
+/// `DT_INT` `0x0CDB00E9` is not a state code). The engine's own widget
+/// <i>name</i> (e.g. <c>Node_Purchased</c>, <c>NodeAvailableGlow</c>,
+/// <c>Arrow_Top</c>) is the state discriminator; per memory
+/// <c>feedback_widget-name-not-role</c> CASC surfaces it <b>verbatim</b>
+/// and never normalizes it into a guessed role taxonomy. The thin,
+/// explicit <c>name → runtime-predicate</c> binding lives once on the
+/// consumer side (it is glue, not composition invention — the
+/// composition itself, the ordered layer list with handles/rects/alpha,
+/// is fully engine-sourced here).
+/// </summary>
+public sealed record ParagonNodeRecipe(IReadOnlyList<ParagonNodeRecipeLayer> Layers);
+
+/// <summary>FR-C16 — one layer of the <see cref="ParagonNodeRecipe"/>.</summary>
+/// <param name="ZOrder">The layer's draw order — its index in the
+/// scene serialization (lower draws first / underneath). The engine
+/// composes a node by drawing the predicate-satisfied layers in this
+/// order.</param>
+/// <param name="WidgetName">The engine's widget name, verbatim — the
+/// state discriminator the consumer maps to a runtime predicate (e.g.
+/// <c>Node_IconBase</c>, <c>Node_Purchased</c>, <c>Node_Purchasable</c>,
+/// <c>NodeAvailableGlow</c>, <c>Arrow_Top</c>/<c>Right</c>/<c>Bottom</c>/<c>Left</c>,
+/// <c>Connector_*</c>, <c>GlyphNodeGlow_*</c>, <c>Rarity_Display</c>,
+/// <c>Template_Node_Magic</c>/<c>Rare</c>/<c>Legendary</c>/…).</param>
+/// <param name="WidgetClassId">The widget's class style id (e.g.
+/// <c>UIWindowStyle</c> = drawable rect, <c>UIBlinkerStyle</c> =
+/// pulsing glow). Resolve via <see cref="Diablo4.KnownTypeNames"/>.</param>
+/// <param name="ImageHandle">The layer's <c>hImageFrame</c> texture
+/// handle. <c>0</c> ⇒ no static art: either a runtime-bound slot (the
+/// node's own icon/symbol, the equipped-glyph image) or a pure-predicate
+/// marker widget — surfaced (not dropped) so the consumer sees the full
+/// program.</param>
+/// <param name="Rect">The layer's authored reference-unit rect (inset
+/// within the node cell; <see langword="default"/> ⇒ inherits the node
+/// template extent).</param>
+/// <param name="Alpha">The layer's <c>dwAlpha</c> opacity byte
+/// (<c>0xFF</c> when unspecified).</param>
+public sealed record ParagonNodeRecipeLayer(
+    int ZOrder,
+    string WidgetName,
+    uint WidgetClassId,
+    uint ImageHandle,
+    WidgetRect Rect,
+    byte Alpha);
+
 /// <summary>The UI design space the raw rects are authored in (decoded
 /// from the root <c>ParagonBoard_main</c> widget; verified
 /// 1920×1200).</summary>
@@ -842,5 +900,61 @@ internal static class ParagonRenderProjection
 
         return new ParagonBoardChrome(
             center, top, right, bottom, left, selectLayers, tiledBindings);
+    }
+
+    private static readonly uint FhImageFrame = Diablo4.FieldHash("hImageFrame");
+    private static readonly uint FdwAlpha = Diablo4.FieldHash("dwAlpha");
+
+    /// <summary>
+    /// FR-C16 — project the per-node render program from the main board
+    /// scene (657304). The node's composition layers are the contiguous
+    /// widget run of the node-template subtree, identified positionally
+    /// as the widgets from the first <c>Common_Node*</c> / <c>Node_*</c>
+    /// widget through the last <c>Template_Node_*</c> rarity sub-template.
+    /// They are emitted in scene serialization order (= the engine's
+    /// draw / z-order). Each layer carries its verbatim widget name (the
+    /// consumer's predicate key), class id, <c>hImageFrame</c> handle,
+    /// authored rect, and <c>dwAlpha</c>.
+    /// <br/><br/>
+    /// The run boundary is positional (anchored on the engine's own
+    /// <c>Common_Node*</c> / <c>Template_Node_*</c> names) rather than a
+    /// decoded parent pointer: the UI-scene blob serializes widgets in
+    /// depth-first child order with no explicit per-widget parent field
+    /// (FR-C16 R3 — the widget headers carry no hierarchy words), so the
+    /// node subtree is the contiguous sibling run. The consumer's
+    /// predicate map naturally ignores any layer it has no predicate for,
+    /// so an over-inclusive run is harmless.
+    /// </summary>
+    public static ParagonNodeRecipe NodeRecipe(UiScene mainBoard)
+    {
+        var ws = mainBoard.Widgets;
+        int first = -1, last = -1;
+        for (int k = 0; k < ws.Count; k++)
+        {
+            var nm = ws[k].Name ?? string.Empty;
+            bool nodeMember =
+                nm.StartsWith("Common_Node", StringComparison.Ordinal) ||
+                nm.StartsWith("Node_", StringComparison.Ordinal);
+            if (nodeMember && first < 0) first = k;
+            if (nm.StartsWith("Template_Node_", StringComparison.Ordinal)) last = k;
+        }
+        if (first < 0 || last < first)
+            return new ParagonNodeRecipe(Array.Empty<ParagonNodeRecipeLayer>());
+
+        var layers = new List<ParagonNodeRecipeLayer>(last - first + 1);
+        for (int k = first; k <= last; k++)
+        {
+            var wd = ws[k];
+            uint handle = 0; byte alpha = 0xFF; bool sawAlpha = false;
+            foreach (var f in wd.Fields)
+            {
+                if (!f.HasValue) continue;
+                if (f.FieldHash == FhImageFrame && handle == 0) handle = f.RawValue;
+                else if (f.FieldHash == FdwAlpha && !sawAlpha) { alpha = (byte)f.RawValue; sawAlpha = true; }
+            }
+            layers.Add(new ParagonNodeRecipeLayer(
+                k, wd.Name ?? string.Empty, wd.ClassId, handle, Rect(wd), alpha));
+        }
+        return new ParagonNodeRecipe(layers);
     }
 }

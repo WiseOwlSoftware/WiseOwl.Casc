@@ -57,13 +57,26 @@ the implementations.
 `fTileHorizontalBorders`, `fTileVerticalBorders`. `TiledStyleDefinition`
 fields: `ptWindowPiece`, `hOptionalTiledStyleFields`.
 
-## Class hashes (widget classes)
+## Class hashes (widget class style ids)
 
-| Hash | Inferred role | Source / first observed |
+Cracked FR-C16/C17 R3 via `blizzhackers/d4data` `!!D4Checksums.yml`.
+These are `UiWidget.ClassId` values (each = a `UI*Style` SNO type).
+
+| Hash | Name | Role |
 |---|---|---|
-| `0x1E3077C7` | "draw textured rect" — used by `Template_Board_Background_*`, `Background`, `Framing`, `Vignette`, `Divider` (12,682 instances) | FR-C14 R6 (engine RE) |
-| `0x112661D5` | Stack/Layout container — used by `Layout_Stack`, `ControllerStack`, `Board_Selector_BG`, `Spirit_Selector` (3,717 instances) | FR-C14 R6 (engine RE) |
-| `0x42965258` | Class-registry record magic | FR-C14 R6 (engine RE) |
+| `0x1E3077C7` | `UIWindowStyle` | the drawable textured-rect widget (most common) |
+| `0x112661D5` | `UIStackPanelStyle` | layout/stack container |
+| `0x093D303F` | `UIParagonBoardStyle` | the `ParagonNodes` grid container |
+| `0x145F2056` | `UIBlinkerStyle` | pulsing glow (`*NodeGlow`, `NodeAvailableGlow`, `*_Tutorial_Highlight`) |
+| `0x98D4E83A` | `UIRActorStyle` | 3D / VFX canvas |
+| `0x079C2454` | `UITextStyle` | text |
+| `0x64A23287` | `UIScrollBoxStyle` | `Glyph_Grid` |
+| `0x8A5932F4` | `UIListBoxStyle` | `ParagonStats` |
+| `0xC81DED6B` | `UIButtonStyle` | buttons |
+| `0x4873BE59` | `UIWrapPanelStyle` | `Glyph_WrapPanel` |
+| `0x999CA9A3` | `UIHotkeyStyle` | hotkey prompts |
+| `0x0E1C5710` | `UIControlStyle` | base control style |
+| `0x42965258` | (class-registry record magic) | FR-C14 R6 (engine RE) |
 
 ## Known-uncracked (high-priority targets)
 

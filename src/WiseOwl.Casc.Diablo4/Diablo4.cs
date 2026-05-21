@@ -161,6 +161,21 @@ public static class Diablo4
             [0x6BFED904] = "VertTiledWindowPieces",
             [0x8E00F391] = "WindowPieces",
             [0xC5A830EC] = "WindowPiecesBase",
+            // UI widget *class* style ids — FR-C16/C17 R3
+            // (blizzhackers/d4data !!D4Checksums.yml). These are the
+            // `UiWidget.ClassId` values seen across the paragon scenes.
+            [0x1E3077C7] = "UIWindowStyle",          // the drawable rect widget
+            [0x112661D5] = "UIStackPanelStyle",      // layout/stack container
+            [0x093D303F] = "UIParagonBoardStyle",    // the ParagonNodes grid container
+            [0x145F2056] = "UIBlinkerStyle",         // pulsing glow (Node*Glow, AvailableGlow)
+            [0x98D4E83A] = "UIRActorStyle",          // 3D/VFX canvas
+            [0x079C2454] = "UITextStyle",
+            [0x64A23287] = "UIScrollBoxStyle",       // Glyph_Grid
+            [0x8A5932F4] = "UIListBoxStyle",         // ParagonStats
+            [0xC81DED6B] = "UIButtonStyle",
+            [0x4873BE59] = "UIWrapPanelStyle",       // Glyph_WrapPanel
+            [0x999CA9A3] = "UIHotkeyStyle",
+            [0x0E1C5710] = "UIControlStyle",         // base control style
         };
 
     /// <summary>Pretty-print a field hash as <c>"name (0xHHHHHHHH)"</c>
