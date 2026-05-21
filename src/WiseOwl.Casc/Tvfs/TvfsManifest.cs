@@ -144,11 +144,7 @@ public sealed class TvfsManifest
 
         /// <summary>The raw (un-normalized) assembled path, for diagnostics.</summary>
         public string Raw() =>
-#if NETSTANDARD2_0
-            System.Text.Encoding.ASCII.GetString(_buf, 0, Length);
-#else
             System.Text.Encoding.ASCII.GetString(_buf.AsSpan(0, Length));
-#endif
 
         /// <summary>Hash the accumulated path with the same normalization the
         /// storage uses: <c>/</c> → <c>\</c> and ASCII upper-cased (matching
@@ -298,11 +294,7 @@ public sealed class TvfsManifest
         }
 
         var hash = path.Hash();
-#if NETSTANDARD2_0
-        if (!ctx.Map.ContainsKey(hash)) ctx.Map[hash] = eKey;
-#else
         ctx.Map.TryAdd(hash, eKey);
-#endif
     }
 
     /// <summary>Decode one path-table entry: optional pre-separator, a name,

@@ -1,9 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <!-- Game-agnostic transport: broad reach (ns2.0 for older hosts) plus
-         modern TFMs for span/async fast paths. -->
-    <TargetFrameworks>netstandard2.0;net8.0;net10.0</TargetFrameworks>
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
     <IsPackable>true</IsPackable>
     <PackageId>WiseOwl.Casc</PackageId>
     <Title>WiseOwl.Casc — modern .NET CASC/TACT/TVFS/BLTE transport</Title>
@@ -13,18 +11,6 @@
          record terms. Single tokens only (nuget.org splits on space). -->
     <PackageTags>casc;tact;tvfs;blte;ngdp;mpq;blizzard;wow;warcraft;overwatch;starcraft;content-addressable-storage;game-data;data-extraction;modding;file-format</PackageTags>
   </PropertyGroup>
-
-  <!-- netstandard2.0 lacks System.Memory in-box; bring spans/async there so
-       the parsing code stays single-source across all TFMs. -->
-  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
-    <PackageReference Include="System.Memory" Version="4.6.0" />
-    <PackageReference Include="System.Threading.Tasks.Extensions" Version="4.6.0" />
-    <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="9.0.0" />
-  </ItemGroup>
-
-  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
-    <Compile Include="../Shared/Polyfills.cs" Link="Polyfills.cs" />
-  </ItemGroup>
 
   <!-- Source Link: step into library sources from the published .snupkg. -->
   <ItemGroup>

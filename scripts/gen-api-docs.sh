@@ -14,12 +14,12 @@ SRC="https://github.com/WiseOwlSoftware/WiseOwl.Casc/blob/main"
 dotnet tool restore
 dotnet build WiseOwl.Casc.slnx -c Release --nologo -v q
 
-# Generate from the netstandard2.0 build: the public surface is identical
-# across all TFMs, and the ns2.0 facade resolves cleanly under the doc tool.
+# Generate from the net8.0 build: the public surface is identical across
+# all TFMs, and the net8.0 assembly resolves cleanly under the doc tool.
 gen() {
   local proj="$1" pkg="$2"
   dotnet xmldocmd \
-    "src/$proj/bin/Release/netstandard2.0/$pkg.dll" \
+    "src/$proj/bin/Release/net8.0/$pkg.dll" \
     "docs/api/$pkg" \
     --visibility public --clean --source "$SRC"
 }

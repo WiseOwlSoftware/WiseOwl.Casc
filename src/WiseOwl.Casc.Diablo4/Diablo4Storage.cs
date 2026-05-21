@@ -439,12 +439,7 @@ public sealed class Diablo4Storage : IDisposable
 
         var token = boardSnoName.Substring(prefix.Length, lastUs - prefix.Length);
         var idxText = boardSnoName.Substring(lastUs + 1);
-#if NETSTANDARD2_0
-        if (token.Length == 0 || idxText.Length == 0 ||
-            !int.TryParse(idxText, out boardIndex))
-#else
         if (token.Length == 0 || !int.TryParse(idxText, out boardIndex))
-#endif
             throw new CascFormatException(
                 $"ParagonBoard name '{boardSnoName}' trailing index is not " +
                 "an integer (§6.6 — re-verify).");

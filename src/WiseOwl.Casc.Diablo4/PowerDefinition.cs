@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
@@ -188,14 +189,14 @@ public sealed class PowerDefinition
     /// to <see cref="double.NaN"/> for that slot.
     /// </summary>
     private static IReadOnlyDictionary<string, double> ResolveScriptFormulas(
-        IReadOnlyList<PowerScriptFormula> slots)
+        PowerScriptFormula[] slots)
     {
-        if (slots.Count == 0) return EmptyResolvedFormulas;
+        if (slots.Length == 0) return EmptyResolvedFormulas;
 
         // Build the lookup by SF_N name. Start each slot at NaN
         // (unresolved); iterate to fixed point.
-        var resolved = new Dictionary<string, double>(slots.Count);
-        var pending = new Dictionary<int, string>(slots.Count);
+        var resolved = new Dictionary<string, double>(slots.Length);
+        var pending = new Dictionary<int, string>(slots.Length);
         foreach (var slot in slots)
         {
             var key = "SF_" + slot.Index.ToString(CultureInfo.InvariantCulture);
@@ -216,7 +217,7 @@ public sealed class PowerDefinition
         // evaluate every pending slot — if the result is non-NaN AND
         // didn't trigger a function call (no resolver here at parse
         // time), commit it. Stop early when no progress was made.
-        for (int pass = 0; pass < slots.Count && pending.Count > 0; pass++)
+        for (int pass = 0; pass < slots.Length && pending.Count > 0; pass++)
         {
             var progressed = false;
             foreach (var idx in new List<int>(pending.Keys))
@@ -266,13 +267,13 @@ public sealed class PowerDefinition
     /// the literal-only operand sub-trees.
     /// </summary>
     private static IReadOnlyDictionary<string, double> ResolveCompiledFormulas(
-        IReadOnlyList<PowerScriptFormula> slots,
+        PowerScriptFormula[] slots,
         IReadOnlyDictionary<int, IReadOnlyList<float>> embeddedLiteralsBySlot)
     {
-        if (slots.Count == 0) return EmptyResolvedFormulas;
+        if (slots.Length == 0) return EmptyResolvedFormulas;
 
-        var compiled = new Dictionary<string, double>(slots.Count);
-        var pending = new Dictionary<int, string>(slots.Count);
+        var compiled = new Dictionary<string, double>(slots.Length);
+        var pending = new Dictionary<int, string>(slots.Length);
         foreach (var slot in slots)
         {
             var key = "SF_" + slot.Index.ToString(CultureInfo.InvariantCulture);
@@ -293,7 +294,7 @@ public sealed class PowerDefinition
         // Iterative fixed-point pass — same shape as Phase 2's
         // ResolveScriptFormulas but the evaluator substitutes binary
         // embedded literals for numeric sub-trees.
-        for (int pass = 0; pass < slots.Count && pending.Count > 0; pass++)
+        for (int pass = 0; pass < slots.Length && pending.Count > 0; pass++)
         {
             var progressed = false;
             foreach (var idx in new List<int>(pending.Keys))
@@ -735,9 +736,9 @@ public readonly record struct PowerScriptFormula(
     /// non-numeric characters typical of expressions
     /// (<c>SF_</c>, operators, function calls).</summary>
     public bool IsExpression =>
-        Text.IndexOf("SF_", StringComparison.Ordinal) >= 0 ||
-        Text.IndexOfAny(ExpressionOperators) >= 0;
+        Text.Contains("SF_", StringComparison.Ordinal) ||
+        Text.AsSpan().IndexOfAny(ExpressionOperators) >= 0;
 
-    private static readonly char[] ExpressionOperators =
-        new[] { '+', '-', '*', '/', '(', ')' };
+    private static readonly SearchValues<char> ExpressionOperators =
+        SearchValues.Create("+-*/()");
 }

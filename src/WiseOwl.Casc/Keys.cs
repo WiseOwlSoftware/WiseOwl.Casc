@@ -6,8 +6,7 @@ namespace WiseOwl.Casc;
 /// <summary>
 /// A 128-bit CASC key (the MD5-derived hash CASC uses to address content).
 /// Stored as two <see cref="ulong"/> halves so the type is a small,
-/// allocation-free value with O(1) equality on every target framework
-/// (including <c>netstandard2.0</c>, which lacks inline arrays).
+/// allocation-free value with O(1) equality.
 /// </summary>
 /// <remarks>
 /// This is the shared representation behind the strongly-typed

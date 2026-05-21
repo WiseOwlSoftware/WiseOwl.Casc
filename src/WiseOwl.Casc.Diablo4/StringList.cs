@@ -178,10 +178,6 @@ public sealed class StringListCatalog
         var n = len;
         while (n > 0 && b[off + n - 1] == 0) n--;
         if (n == 0) return string.Empty;
-#if NETSTANDARD2_0
-        return System.Text.Encoding.UTF8.GetString(b.Slice(off, n).ToArray());
-#else
         return System.Text.Encoding.UTF8.GetString(b.Slice(off, n));
-#endif
     }
 }

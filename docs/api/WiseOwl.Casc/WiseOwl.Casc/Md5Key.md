@@ -1,6 +1,6 @@
 # Md5Key structure
 
-A 128-bit CASC key (the MD5-derived hash CASC uses to address content). Stored as two UInt64 halves so the type is a small, allocation-free value with O(1) equality on every target framework (including `netstandard2.0`, which lacks inline arrays).
+A 128-bit CASC key (the MD5-derived hash CASC uses to address content). Stored as two UInt64 halves so the type is a small, allocation-free value with O(1) equality.
 
 ```csharp
 public struct Md5Key : IEquatable<Md5Key>
