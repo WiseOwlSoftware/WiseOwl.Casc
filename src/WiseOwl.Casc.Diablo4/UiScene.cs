@@ -21,8 +21,12 @@ namespace WiseOwl.Casc.Diablo4;
 /// header (§10.3 — <c>classOff = nameStart + alignUp8(len+1) + 0x10</c>,
 /// <c>0xFFFFFFFF</c> sentinel at <c>classOff+0x08</c>), the 12-byte
 /// schema entry <c>(fieldHash, typeHash("DT_BINDABLEPROPERTY"),
-/// DT_type)</c>, and the fixed 56-byte <c>0x22</c> instance record with
-/// the bound value at <c>+0x08</c>, positionally keyed to the schema.
+/// DT_type)</c>, and the per-field instance value record — the bound
+/// value at <c>+0x08</c> of either a 56-byte <c>0x22</c> literal record
+/// or a 12-byte tag-2 block (<c>tag==2, +4==0</c>) — positionally keyed
+/// to the schema (FR-C16 R7; widgets use either encoding, sometimes
+/// mixed). Parent widgets whose span nests anonymous child sub-records
+/// confine their own field scan to the run before the first child.
 /// </remarks>
 public sealed record UiScene(int SnoId, IReadOnlyList<UiWidget> Widgets)
 {
@@ -93,18 +97,50 @@ public sealed record UiScene(int SnoId, IReadOnlyList<UiWidget> Widgets)
             i = e > i ? e : i + 1;
         }
 
+        // Pass 1b: the class ids actually used as widget headers — for
+        // nested-child detection below (a child sub-record reuses one of
+        // these class ids with the 0xFFFFFFFF sentinel at +0x08).
+        var classIds = new HashSet<uint>();
+        foreach (var st in starts) classIds.Add(st.classId);
+
         // Pass 2: per widget, its byte span is [nameStart, nextStart).
         // Within it, the schema run is every (x, DT_BINDABLEPROPERTY, y)
-        // triplet; the instance values are the +0x08 of every 56-byte
-        // 0x22 record, positionally keyed to the schema.
+        // triplet; each schema field has exactly one instance value
+        // record, positionally keyed to the schema. A value record is one
+        // of two interchangeable shapes (FR-C16 R7 — both proven against
+        // the live scene 657304):
+        //   • the 56-byte 0x22 literal record (value at +0x08), and
+        //   • the 12-byte tag-2 block (tag==2, +4==0, value at +0x08).
+        // Different widgets use different encodings for the same fields
+        // (e.g. Node_IconBase is all-0x22; Template_Board_Background_Center
+        // is all-tag-2; Node_Icon mixes them). Reading only 0x22 records
+        // (the pre-R7 parser) under-decoded the tag-2 widgets — a chrome
+        // centre's authored 1200² rect read as all-zero, and a mixed
+        // widget's positional keying collapsed (CL-47 errata). The
+        // field-value run is the first `fields.Count` records: they
+        // precede any trailing 0x58 layer-block (Pass 2c), so the count
+        // cleanly bounds the run.
         var widgets = new List<UiWidget>(starts.Count);
         for (int w = 0; w < starts.Count; w++)
         {
             int from = starts[w].nameStart;
             int to = w + 1 < starts.Count ? starts[w + 1].nameStart : blob.Length;
 
+            // FR-C16 R7: a PARENT widget's span can contain anonymous,
+            // name-less child sub-records (a class id + 0xFFFFFFFF sentinel
+            // at +0x08 — the rarity sub-templates' per-state disc layers).
+            // Confine the parent's own schema + value scan to [from, ownEnd)
+            // so child fields/values never bleed into the parent's keying.
+            // The 0x58-block scan (Pass 2c) keeps the full span — it
+            // harvests those child layer handles.
+            int ownClassOff = from + AlignUp8(starts[w].name.Length + 1) + 0x10;
+            int ownEnd = to;
+            for (int o = ownClassOff + 4; o + 12 <= to; o += 4)
+                if (U32(blob, o + 8) == Sentinel && classIds.Contains(U32(blob, o)))
+                { ownEnd = o; break; }
+
             var fields = new List<(uint f, uint t)>();
-            for (int k = from; k + 12 <= to; k += 4)
+            for (int k = from; k + 12 <= ownEnd; k += 4)
                 if (U32(blob, k + 4) == DtBindableProperty)
                 {
                     fields.Add((U32(blob, k), U32(blob, k + 8)));
@@ -112,27 +148,22 @@ public sealed record UiScene(int SnoId, IReadOnlyList<UiWidget> Widgets)
                 }
 
             var values = new List<uint>();
-            for (int p = from; p + 12 <= to; )
+            for (int p = from; p + 12 <= ownEnd && values.Count < fields.Count; )
             {
-                bool tag = blob[p] == RecordTag && U32(blob, p) == RecordTag;
-                if (p + RecordSize <= to)
+                if (blob[p] == RecordTag && U32(blob, p) == RecordTag)
                 {
-                    // Full record fits — original positional behaviour
-                    // (unchanged, so the FR-C7 decode is byte-identical).
-                    if (tag) { values.Add(U32(blob, p + 8)); p += RecordSize; }
-                    else p += 4;
+                    // 0x22 literal record. Its value (+0x08) is readable
+                    // even when the full 56 bytes straddle ownEnd (the
+                    // last record of a widget; FR-C8 R6 / CL-24).
+                    values.Add(U32(blob, p + 8));
+                    p += RecordSize;
                 }
-                else
+                else if (U32(blob, p) == 2u && U32(blob, p + 4) == 0u)
                 {
-                    // Tail: the *last* record of a widget can straddle
-                    // the next widget's nameStart (`to` is the name
-                    // boundary, not the record boundary). Its value
-                    // (+0x08) still fits; collect that one and stop, so
-                    // a widget whose final field is the texture handle
-                    // (e.g. Arrow_*) is not dropped (FR-C8 R6 / CL-24).
-                    if (tag) { values.Add(U32(blob, p + 8)); break; }
-                    p += 4;
+                    values.Add(U32(blob, p + 8)); // tag-2 block
+                    p += 12;
                 }
+                else p += 4;
             }
 
             var uf = new UiField[fields.Count];

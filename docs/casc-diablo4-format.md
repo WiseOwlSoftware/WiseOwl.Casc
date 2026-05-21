@@ -661,14 +661,34 @@ constant-heavy layout). Each field has two co-located parts:
   underlying type) )`. Every field is a `DT_BINDABLEPROPERTY` of a
   `DT_*` type — D4's UI data-binding system. `0x1332C78D` =
   `typeHash("DT_BINDABLEPROPERTY")`.
-- **Instance records** — fixed **56-byte (`0x38`)** records:
-  `+0x00 u32 = 0x22` (record tag), `+0x04 u32` sub-tag (`0`/`3`
-  observed), **`+0x08 u32` = the bound value**, `+0x0C..0x38` zero pad.
-  Records are **positionally keyed** to the schema field order (the
-  Nth record is the Nth schema field's value). `DT_INT`/`DT_SNO`/
-  `DT_RGBACOLOR`/`DT_BYTE` values all read from the `+0x08` slot.
+- **Instance records** — each schema field has exactly one value
+  record, **positionally keyed** to the schema order (the Nth record is
+  the Nth schema field's value), in **one of two interchangeable
+  encodings** (FR-C16 R7 — both proven against scene 657304):
+  - the fixed **56-byte (`0x38`) `0x22` record**: `+0x00 u32 = 0x22`
+    (tag), `+0x04 u32` sub-tag (`0`/`3` observed), **`+0x08 u32` = the
+    bound value**, `+0x0C..0x38` zero pad; and
+  - the **12-byte tag-2 block**: `+0x00 u32 = 2`, `+0x04 u32 = 0`,
+    **`+0x08 u32` = the bound value`**.
 
-So a widget's `nWidth` = the `+0x08` of the 56-byte `0x22` record at
+  Different widgets use different encodings for the *same* fields, and
+  some mix them: `Node_IconBase` is all-`0x22`;
+  `Template_Board_Background_Center` is all-tag-2 (its `nWidth`/`nHeight`
+  = `1200` live only in tag-2 blocks); `Node_Icon` interleaves both (a
+  symmetric `28`-inset). A parser that reads only `0x22` records
+  **under-decodes** the tag-2 widgets — the chrome centre's `1200×1200`
+  read as all-zero, and a mixed widget's positional keying collapsed
+  (Appendix A CL-47). The field-value run is the first *fieldCount*
+  records; any trailing `0x58` layer-blocks (§10.12) come after it.
+
+  `DT_INT`/`DT_SNO`/`DT_RGBACOLOR`/`DT_BYTE` values all read from the
+  `+0x08` slot of whichever record encodes the field. **Parent widgets**
+  whose span nests anonymous, name-less child sub-records (a class id +
+  `0xFFFFFFFF` sentinel at `+0x08` — the rarity sub-templates' per-state
+  disc layers) confine their own field scan to the run **before the
+  first child marker**, so child fields never bleed into the parent.
+
+So a widget's `nWidth` = the `+0x08` of the `0x22` **or** tag-2 record at
 `nWidth`'s position in that widget's schema run. Observed live values
 include `0x4B0` (1200) and `3`.
 
@@ -1496,6 +1516,29 @@ derived from FR-C14 R8's `snoTiledStyle` crack and R10's variant
 
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
+
+- **CL-48 — UI-scene tag-2 field-value encoding (FR-C16 R7).** The
+  §10.3 instance-record model read only the 56-byte `0x22` record. There
+  is a **second value-record encoding** — the 12-byte **tag-2 block**
+  (`tag==2, +4==0, value@+8`) — that some widgets use *instead of*
+  `0x22` for the same fields (and some mix them). The pre-R7 parser
+  therefore **under-decoded** every tag-2-encoded field: (1)
+  `Template_Board_Background_Center` reported an all-zero rect when its
+  authored size is **`1200×1200`** (the FR-C11/§10.16 "chrome carries no
+  authored sub-rect" claim was an artifact for the centre — the 4 rim
+  sides genuinely bind no `nWidth`/`nHeight`, so *they* stay zero
+  faithfully); (2) `Node_Icon`'s positional keying collapsed, landing the
+  `hImageFrame` handle in `nBottom` (CL-47's `635087190` garbage) — its
+  true rect is a symmetric **`28`-inset** symbol slot, so
+  `RenderRatios.SymbolOverDisc` corrects from the buggy `100/86` (1.163,
+  "fills the box") to **`44/86`** (0.512 — the class glyph inside the
+  disc with margin). The `UiScene` parser now reads field values from
+  **either** record shape, capped at the schema field count (the
+  field-value run precedes any `0x58` layer-block), and confines a parent
+  widget's field scan to the run before its first nested child marker.
+  This **retires the CL-47 ±4096 rect guard** (the exact decode makes it
+  unnecessary). 43/43 tests green on build `3.0.2.71886`. Devlogs 0043
+  (grammar crack) + 0044 (shipped).
 
 - **CL-47 — node recipe per-state disc split + sentinel/rect decode
   fixes (FR-C16 R5).** Three CL-46 decode-quality defects, found when

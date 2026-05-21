@@ -226,13 +226,17 @@ public sealed class Diablo4StorageIntegrationTests
         double impliedScale = 67.7 / (rl.Ratios.PitchRef * rl.CanvasReference.Height);
         Assert.InRange(impliedScale, 0.66, 0.69);
 
-        // Refinements (decode-true): ornate/symbol/socket-ring fill the
-        // 100-ref node box ⇒ ÷ disc(86) ≈ 1.163. The grey rim ring is
-        // app-drawn (absent from scene) ⇒ 0 (the truthful answer, not a
-        // gap). Per-rarity Tint / pulse AnimSpec are NOT bound (fixed
+        // Refinements (decode-true): ornate + socket-ring fill the
+        // 100-ref node box ⇒ ÷ disc(86) ≈ 1.163. The symbol is smaller —
+        // FR-C16 R7 decodes Node_Icon's true symmetric 28-inset (the
+        // tag-2-encoded rect the pre-R7 0x22-only parser could not read),
+        // so the symbol is 100−(28+28)=44 ref units ÷ disc(86) ≈ 0.512
+        // (the class glyph sits inside the disc with margin). The grey rim
+        // ring is app-drawn (absent from scene) ⇒ 0 (the truthful answer,
+        // not a gap). Per-rarity Tint / pulse AnimSpec are NOT bound (fixed
         // shader recipe / engine-driven, §2.3) ⇒ null is correct.
         Assert.Equal(100.0 / 86.0, rl.Ratios.OrnateOverDisc, 3);
-        Assert.Equal(100.0 / 86.0, rl.Ratios.SymbolOverDisc, 3);
+        Assert.Equal(44.0 / 86.0, rl.Ratios.SymbolOverDisc, 3);
         Assert.Equal(100.0 / 86.0, rl.Ratios.SocketRingOverDisc, 3);
         Assert.Equal(0d, rl.Ratios.GreyRingOverDisc);
         Assert.All(rl.States, s => Assert.Null(s.Tint));
@@ -801,13 +805,17 @@ public sealed class Diablo4StorageIntegrationTests
 
         var chrome = d4.ReadParagonRenderModel().BoardChrome;
 
-        // Centre background — handle, atlas SNO, native px all
-        // present. Authored rect is all-zero (engine convention).
+        // Centre background — handle, atlas SNO, native px all present.
+        // FR-C16 R7: the centre carries an authored 1200×1200 rect (its
+        // nWidth/nHeight are tag-2-encoded; the pre-R7 0x22-only parser
+        // read zero records for this widget and so reported an all-zero
+        // rect — that "no authored sub-rect" was an artifact, not a fact).
         Assert.Equal(0x2954DF0Cu, chrome.BackgroundCenter.TextureHandle);
         Assert.Equal(447106, chrome.BackgroundCenter.AtlasSno);
         Assert.True(chrome.BackgroundCenter.NativeWidth > 1000);
         Assert.True(chrome.BackgroundCenter.NativeHeight > 1000);
-        Assert.Equal(default, chrome.BackgroundCenter.Rect);
+        Assert.Equal(1200, chrome.BackgroundCenter.Rect.Width);
+        Assert.Equal(1200, chrome.BackgroundCenter.Rect.Height);
 
         // Rim — 4 cardinal sides, Top/Bottom share one band handle,
         // Left/Right share another. Handles are scene-bound but do
@@ -1033,11 +1041,21 @@ public sealed class Diablo4StorageIntegrationTests
         Assert.Null(L("Node_IconBase").SelectionDiscs);
         Assert.Empty(L("Node_IconBase").CompositeHandles);
 
-        // FR-C16 R5 — the implausible-rect guard: Node_Icon is a
-        // sparse-bound widget whose positional record→field keying mis-
-        // assigns a texture handle (0x25DAA956 = 635087190) into nBottom.
-        // The guard rejects out-of-canvas magnitudes, so no rect field on
-        // any layer carries that garbage.
+        // FR-C16 R7 — Node_Icon decodes exactly now: it is a
+        // tag-2-encoded sparse widget the pre-R7 0x22-only parser mis-keyed
+        // (the handle 0x25DAA956 landed in nBottom = 635087190). The R7
+        // reader keys it correctly: a symmetric 28-inset symbol slot with
+        // the handle on hImageFrame, not nBottom. (The handle is the
+        // template default; per-node it is replaced by ParagonNode.HIconMask.)
+        var nodeIcon = L("Node_Icon");
+        Assert.Equal(28, nodeIcon.Rect.Top);
+        Assert.Equal(28, nodeIcon.Rect.Bottom);
+        Assert.Equal(28, nodeIcon.Rect.Left);
+        Assert.Equal(28, nodeIcon.Rect.Right);
+        Assert.Equal(0x25DAA956u, nodeIcon.ImageHandle);
+
+        // Every rect field across the recipe is now a sane authored
+        // reference-unit value (no mis-keyed handle leaking into a rect).
         foreach (var layer in recipe.Layers)
         {
             var r = layer.Rect;

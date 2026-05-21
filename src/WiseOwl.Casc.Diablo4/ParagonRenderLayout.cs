@@ -70,9 +70,15 @@ public sealed record ParagonBoundWidget(
 /// <see cref="BorderBottom"/> share one band texture,
 /// <see cref="BorderLeft"/> / <see cref="BorderRight"/> share another.
 /// <see cref="BoardSelectChrome"/> carries the board-select panel's
-/// preview frame + filigree band from scene 964599. All chrome
-/// layers carry no authored sub-rect — the scene leaves them
-/// engine-positioned at native pixel size. The rim-band handles
+/// preview frame + filigree band from scene 964599. The centre field
+/// (<see cref="BackgroundCenter"/>) carries an authored
+/// <c>1200×1200</c> reference-unit rect (decoded FR-C16 R7 — its
+/// <c>nWidth</c>/<c>nHeight</c> are tag-2-encoded; pre-R7 the 0x22-only
+/// parser read no records for this widget and so reported an all-zero
+/// rect — an artifact, now corrected). The 4 rim sides bind no
+/// <c>nWidth</c>/<c>nHeight</c> at all, so they remain
+/// engine-positioned at native pixel size (their rect stays zero,
+/// faithfully). The rim-band handles
 /// (<see cref="BorderTop"/>'s, etc.) are scene-bound via the
 /// standard <c>0x6B1C5D9C</c> texture-handle field but resolve
 /// through a non-icon-catalog path CASC does not currently index, so
@@ -355,27 +361,11 @@ internal static class ParagonRenderProjection
         return 0;
     }
 
-    // FR-C16 R5: a rect inset is an authored reference-unit value, always
-    // small in magnitude (the design canvas is 1920×1200). A widget that
-    // binds only a SUBSET of its schema fields (sparse binding, e.g.
-    // Node_Icon) breaks the parser's positional record→field keying, so a
-    // texture handle can land in a rect field (Node_Icon.nBottom decoded
-    // as 0x25DAA956 = 635087190). Reject magnitudes beyond the canvas so a
-    // mis-keyed handle never propagates as a real inset; a genuine inset
-    // is never this large. (The robust fix is the instance-binding-grammar
-    // RE tracked for a later round; this guard stops the garbage now.)
-    private const int RectSaneBound = 4096;
-    private static int RectVal(UiWidget w, uint fieldHash)
-    {
-        int v = Val(w, fieldHash);
-        return v is > RectSaneBound or < -RectSaneBound ? 0 : v;
-    }
-
     private static WidgetRect Rect(UiWidget? w) => w is null
         ? default
         : new WidgetRect(
-            RectVal(w, FnLeft), RectVal(w, FnRight), RectVal(w, FnTop),
-            RectVal(w, FnBottom), RectVal(w, FnWidth), RectVal(w, FnHeight));
+            Val(w, FnLeft), Val(w, FnRight), Val(w, FnTop),
+            Val(w, FnBottom), Val(w, FnWidth), Val(w, FnHeight));
 
     public static ParagonRenderLayout Project(
         UiScene scene,
