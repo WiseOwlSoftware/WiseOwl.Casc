@@ -42,21 +42,24 @@ public repo; never commit it). Read CLAUDE.md before any FR action.
   R11/R12 typed `NodeActivation` surface + EXE-RE of the binding mechanism,
   squash `2614e9b`), and **CL-52** (PR #38, FR-C16 R14 flat
   `ParagonNodeRecipe.Components` + `bActive`-driven activation, squash
-  `d97ff8b`) MERGED to `main`, **unreleased** (no package). No open PRs. New
-  code work starts a fresh branch off `main`; docs-only commit straight to
-  `main` (pref §7).
+  `d97ff8b`) MERGED to `main`, **unreleased** (no package). **CL-53** (PR
+  **#39** `fr-c19-selection-highlight-api`, FR-C19 `ReadSelectionHighlight()`
+  → authored TiledStyle recipes, commit `b09cf03`) **OPEN, CI pending** — not
+  yet merged. New code work starts a fresh branch off `main`; docs-only
+  commit straight to `main` (pref §7).
 - **Published on nuget.org (immutable): `0.1.0-alpha`, `0.2.0-alpha`,
   `0.3.0-alpha`.** **CL-50/51/52 are unreleased** — on `main`, in no
   package. Release is owner-driven & batched (never cut for one fix without
   explicit "release now").
-- 50/50 Diablo4 + 8/8 transport tests green on live build `3.0.2.71886`.
+- 51/51 Diablo4 + 8/8 transport tests green on live build `3.0.2.71886`.
 - **FR-C16 node recipe is the flat `Components` model (CL-52, R14).** Draw
   every `ParagonNodeComponent` whose `Activation.Evaluate(facts)` holds, in
   z-order, at its rect/alpha/tint. Owner-oracle-validated this session: base
   disc = **Unpurchased↔Purchased** swap (`bActive`-driven, NOT selection);
   node KIND is one mutually-exclusive dimension; purchased add-on = arrows
   (→purchasable nbr) + connectors (→purchased nbr); `rgbaTint` + anchoring
-  applied; selection highlight is an EXTERNAL engine cursor (→ FR-C19).
+  applied; selection highlight is engine-applied topmost, NOT in the node
+  recipe — but it IS authored as TiledStyle 9-slice recipes (CL-53, → FR-C19).
   Hash-dictionary mislabel fixed (`0x093CBAA8` = `eHorizontalAnchoring`, not
   `eGroupType`) via the new `build/SnoScan checkfields` validator. The
   engine binds visibility BY NAME in the compiled `ParagonBoardUI`
@@ -68,13 +71,17 @@ public repo; never commit it). Read CLAUDE.md before any FR action.
   model, R14) delivered**, `WiseOwl.Casc@d97ff8b`. Comprehensive R14 closeout
   spec posted (consumer draws facts→components, no dispatch). `awaiting:optimizer`.
 - **#30** FR-C19 selection-highlight resource — **DELIVERED** (`fr:delivered`,
-  `awaiting:optimizer`). Located: atlas `2DUI_SelectionHighlight` (Texture SNO
-  **337357**, BC3, 13 frames). Square node selection = 9-slice from 8 corner/edge
-  handles (`0x9558B90E`,`0xC57DE6C1`,`0xC673B1FB`,`0x7432E23C`,`0xD4F66D69`,
-  `0xC84712B0`,`0x34C458DF`,`0xFE4C5F5D`); shape variants: circle `0xBA7D2638`,
-  diamonds `0x0BD8A829`/`0xD2B9D393`/`0xB2531CFB`, teardrop `0x0558DE82`. Drawn
-  topmost on the moused-over node (orthogonal to the node recipe). Offered a
-  typed `ReadSelectionHighlight()` accessor if the consumer wants it typed.
+  `awaiting:optimizer`). The highlight is authored as **named TiledStyle 9-slice
+  recipes** (group 103) over atlases `2DUI_SelectionHighlight` (**337357**) /
+  `2DUITiled_SelectionHighlight` (**585030**): `SelectionRectangleInset` (585031,
+  square node), `ControllerSelection{Rectangle,Circle,Diamond,TearDrop,APS}`
+  (478960/478961/1298996/2314766/2434945). Typed accessor
+  `ReadSelectionHighlight()` → `SelectionHighlightStyle(TiledStyleSno, Name,
+  Shape, SourceImageHandle, AtlasSno)` shipped (CL-53, PR #39, unreleased);
+  consumer picks by `Shape` and applies via `ReadTiledStyle` (no composition).
+  **Corrected** my earlier eyeballed labels: `0xBA7D2638`=TearDrop (not circle),
+  `0x0BD8A829`=Circle (not diamond) — authored names are authoritative
+  ([[feedback_no-atlas-name-jumps]]).
 - **#31** FR-T1 UI texture-atlas catalog API + browser app — `awaiting:casc`
   (scoping done: 4,726 atlases, BC1/BC3=99%; hierarchical-tree API design).
 - **#29** FR-C18 rarity-template WidgetRect all-zero — `fr:delivered`; CL-50
