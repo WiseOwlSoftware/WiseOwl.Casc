@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    FR-C16 R14 validation tool (NOT in WiseOwl.Casc.slnx, NOT packed).
+    Interprets ParagonNodeRecipe verbatim — for each node kind × state it
+    evaluates every component's NodeActivation and composites the active
+    components at their authored rects — into one labeled grid PNG. Proves
+    the flat recipe + the unified node-kind classification render correctly.
+    Run: dotnet run on build/RecipeRender with optional [install] [out.png] args.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="SkiaSharp" Version="2.88.8" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Win32" Version="2.88.8" />
+    <ProjectReference Include="../../src/WiseOwl.Casc.Diablo4/WiseOwl.Casc.Diablo4.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,12 +1,12 @@
-# ParagonNodeRecipe.Layers property
+# ParagonNodeRecipe.Components property
 
 ```csharp
-public IReadOnlyList<ParagonNodeRecipeLayer> Layers { get; set; }
+public IReadOnlyList<ParagonNodeComponent> Components { get; set; }
 ```
 
 ## See Also
 
-* record [ParagonNodeRecipeLayer](../ParagonNodeRecipeLayer.md)
+* record [ParagonNodeComponent](../ParagonNodeComponent.md)
 * record [ParagonNodeRecipe](../ParagonNodeRecipe.md)
 * namespace [WiseOwl.Casc.Diablo4](../../WiseOwl.Casc.Diablo4.md)
 

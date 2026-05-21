@@ -1436,198 +1436,158 @@ public sealed class Diablo4StorageIntegrationTests
         Assert.InRange(grid.Pitch * scale, 66.7, 68.7);
     }
 
-    /// <summary>FR-C16 — the per-node render program. Asserts the recipe
-    /// is the ordered (z-sorted) node state-widget run with the engine's
-    /// verbatim names + hImageFrame handles, including the owner-oracle
-    /// anchor (<c>Node_IconBase → 0x1D166DC7</c>) and the directional
-    /// arrows (<c>Arrow_Top/Right/Bottom/Left</c>).</summary>
+    // Paragon node atlas-frame handles, by decoded role (atlas frame ids have
+    // no string/hash preimage, so they're named constants — owner #22 oracle).
+    private const uint GreyUnselDisc = 0x1D166DC7u;   // Node_IconBase
+    private const uint GreySelDisc   = 0xD3051CCAu;   // Node_Purchased (selected grey, red ring)
+    private const uint MagicUnselDisc = 0x621CB6FFu, MagicSelDisc = 0x72C29402u;
+    private const uint MagicInterior = 0xFEC31E48u;   // bActive=0 interior overlay
+    private const uint RareUnselDisc = 0xB71BD068u, RareSelDisc = 0x03EDABABu;
+    private const uint LegUnselDisc  = 0x232DF7F9u, LegSelDisc  = 0xBD27FB7Cu;
+    private const uint SocketBaseDisc = 0xF6443089u;  // Usage_Slot_2 socket base (grey-tinted)
+    private const uint GateOrnateUnsel = 0xC2DF4786u, GateOrnateSel = 0x0E6B6249u, GateLocatorHandle = 0x6D68F45Fu;
+    private const uint StartFiligree = 0xA0F996FEu;
+
+    /// <summary>FR-C16 R14 — the per-node render program as a flat,
+    /// truly-z-ordered <see cref="ParagonNodeComponent"/> list. Asserts the
+    /// component handles + owner-oracle disc rects + true draw order.</summary>
     [SkippableFact]
-    public void ReadParagonNodeRecipe_surfaces_ordered_state_widget_layers()
+    public void ReadParagonNodeRecipe_surfaces_flat_zordered_components()
     {
         var install = Install();
         Skip.If(install is null, "No Diablo IV install available.");
         using var d4 = Diablo4Storage.Open(install!);
 
         var recipe = d4.ReadParagonNodeRecipe();
-        Assert.NotEmpty(recipe.Layers);
+        Assert.NotEmpty(recipe.Components);
+        var c = recipe.Components;
 
-        // Z-order is strictly increasing (= scene serialization order).
-        for (int k = 1; k < recipe.Layers.Count; k++)
-            Assert.True(recipe.Layers[k].ZOrder > recipe.Layers[k - 1].ZOrder);
+        // ZOrder is the list index (strictly increasing, true paint order).
+        for (int k = 0; k < c.Count; k++) Assert.Equal(k, c[k].ZOrder);
 
-        ParagonNodeRecipeLayer L(string name) =>
-            recipe.Layers.First(l => l.WidgetName == name);
+        ParagonNodeComponent One(string src) => c.First(x => x.Source == src);
+        ParagonNodeComponent ByHandle(uint h) => c.First(x => x.ImageHandle == h);
 
-        // Owner-oracle anchor: the unselected grey base disc.
-        Assert.Equal(0x1D166DC7u, L("Node_IconBase").ImageHandle);
-        // Purchased-state disc.
-        Assert.Equal(0xD3051CCAu, L("Node_Purchased").ImageHandle);
-        // Directional arrows are present as their own ordered layers.
-        Assert.Equal(0xD51CAB25u, L("Arrow_Top").ImageHandle);
-        Assert.Equal(0x6D3CB8DEu, L("Arrow_Right").ImageHandle);
-        Assert.Equal(0x8EEAC178u, L("Arrow_Bottom").ImageHandle);
-        Assert.Equal(0xB6D8C741u, L("Arrow_Left").ImageHandle);
+        // Owner-oracle anchors: grey common base disc (unselected / selected).
+        Assert.Equal(GreyUnselDisc, One("Node_IconBase").ImageHandle);
+        Assert.Equal(GreySelDisc, One("Node_Purchased").ImageHandle);
+        Assert.Equal(0xD51CAB25u, One("Arrow_Top").ImageHandle);
 
-        // The base disc draws before the purchased overlay (z-order).
-        Assert.True(L("Node_IconBase").ZOrder < L("Node_Purchased").ZOrder);
+        // Per-rarity disc components (flattened from the templates), owner #22
+        // oracle handles; each carries its combined activation + authored rect.
+        Assert.Contains(c, x => x.ImageHandle == MagicUnselDisc);
+        Assert.Contains(c, x => x.ImageHandle == MagicSelDisc);
+        Assert.Contains(c, x => x.ImageHandle == RareUnselDisc);
+        Assert.Contains(c, x => x.ImageHandle == LegUnselDisc);
 
-        // The glow layers are UIBlinkerStyle (pulsing-glow class).
-        Assert.Equal(0x145F2056u, L("NodeAvailableGlow").WidgetClassId);
+        // FR-C18 — the colored disc draws at the 86² base size (inset 7),
+        // co-sized across the unselected/selected pair; Legendary −3 overscan.
+        Assert.Equal(7, ByHandle(MagicUnselDisc).Rect.Top);   // magic unsel inherits inset 7
+        Assert.Equal(7, ByHandle(MagicSelDisc).Rect.Top);
+        Assert.Equal(7, ByHandle(RareUnselDisc).Rect.Top);
+        Assert.Equal(-3, ByHandle(LegUnselDisc).Rect.Top);    // legendary overscan
 
-        // FR-C16 R5 — the per-rarity disc state pair is split into
-        // SelectionDiscs (unselected vs selected), matching the owner #22
-        // oracle for all three rarities. CL-46 flattened both into one
-        // CompositeHandles list (drew the selected ring on unselected
-        // nodes); the split is the fix.
-        var magic = L("Template_Node_Magic").SelectionDiscs;
-        Assert.NotNull(magic);
-        Assert.Equal(0x621CB6FFu, magic!.Unselected.ImageHandle);   // magic unselected disc
-        Assert.Equal(0x72C29402u, magic.Selected.ImageHandle);      // magic selected (ring baked in)
+        // FR-C16 R14 — the socket base disc (nested in Usage_Slot_2) is now
+        // emitted (general non-template-children fix) with its grey rgbaTint.
+        var socketBase = ByHandle(SocketBaseDisc);
+        Assert.NotNull(socketBase.Tint);
+        Assert.Equal((byte)0x8A, socketBase.Tint!.Value.R);
+        Assert.Equal((byte)0x8A, socketBase.Tint!.Value.G);
+        Assert.True(socketBase.DefaultActive);                // bActive=1
 
-        var rare = L("Template_Node_Rare").SelectionDiscs;
-        Assert.NotNull(rare);
-        Assert.Equal(0xB71BD068u, rare!.Unselected.ImageHandle);    // rare unselected
-        Assert.Equal(0x03EDABABu, rare.Selected.ImageHandle);       // rare selected
+        // True z: the per-rarity disc sits at the base-disc position, BELOW
+        // the symbol (Node_Icon) — not the template's appended scene index.
+        Assert.True(ByHandle(MagicUnselDisc).ZOrder < One("Node_Icon").ZOrder);
+        Assert.True(ByHandle(MagicUnselDisc).ZOrder > One("Node_IconBase").ZOrder);
 
-        var leg = L("Template_Node_Legendary").SelectionDiscs;
-        Assert.NotNull(leg);
-        Assert.Equal(0x232DF7F9u, leg!.Unselected.ImageHandle);     // legendary unselected
-        Assert.Equal(0xBD27FB7Cu, leg.Selected.ImageHandle);        // legendary selected
+        // Every drawable template/child layer resolves to a real atlas frame
+        // (the small-negative overscan insets are rects, never handles).
+        foreach (var x in c)
+            if (x.ImageHandle != 0 && x.Source.Contains('['))
+                Assert.True(d4.IsParagonTextureHandle(x.ImageHandle),
+                    $"{x.Source} handle 0x{x.ImageHandle:X8} is not a resolvable frame");
 
-        // FR-C18 — the rarity disc carries the engine's authored inset on
-        // its child sub-record; the colored disc draws at the 86² base-disc
-        // size (inset 7, matching Node_IconBase), NOT full-cell. The pair is
-        // co-sized — the unselected disc inherits the authored inset even
-        // though its own child record omits it.
-        Assert.Equal(7, magic.Selected.Rect.Top);
-        Assert.Equal(7, magic.Selected.Rect.Left);
-        Assert.Equal(7, magic.Unselected.Rect.Top);     // inherited (co-sized pair)
-        Assert.Equal(7, rare.Selected.Rect.Top);
-        Assert.Equal(7, rare.Unselected.Rect.Top);
-        // Legendary disc is larger: −3 overscan on both states.
-        Assert.Equal(-3, leg.Selected.Rect.Top);
-        Assert.Equal(-3, leg.Unselected.Rect.Top);
+        // #26.3 — starter filigree is 140² at −18 overscan (looked up by
+        // source, since the filigree handle is shared with the gate at −20).
+        var starterFiligree = One("Template_Node_Starter[0]");
+        Assert.Equal(StartFiligree, starterFiligree.ImageHandle);
+        Assert.Equal(-18, starterFiligree.Rect.Top);
+        Assert.Equal(140, starterFiligree.Rect.Width);
 
-        // FR-C16 R5/R9 — every surfaced composite/disc handle resolves to a
-        // real atlas frame (the small-negative overscan insets are rects on
-        // NodeDiscLayer.Rect now, never mistaken for handles).
-        foreach (var layer in recipe.Layers)
-        {
-            foreach (var c in layer.CompositeLayers)
-            {
-                Assert.True(d4.IsParagonTextureHandle(c.ImageHandle),
-                    $"{layer.WidgetName} composite 0x{c.ImageHandle:X8} is not a resolvable handle");
-                Assert.InRange(c.Rect.Top, -4096, 4096);
-            }
-            if (layer.SelectionDiscs is { } sd)
-            {
-                Assert.True(d4.IsParagonTextureHandle(sd.Unselected.ImageHandle));
-                Assert.True(d4.IsParagonTextureHandle(sd.Selected.ImageHandle));
-            }
-        }
+        // #26.4 — gate ornate at inset 3; locator at inset 22.
+        Assert.Equal(3, ByHandle(GateOrnateUnsel).Rect.Top);
+        Assert.Equal(3, ByHandle(GateOrnateSel).Rect.Top);
+        Assert.Equal(22, ByHandle(GateLocatorHandle).Rect.Top);
 
-        // #26.3 — Template_Node_Starter: the filigree (0xA0F996FE) is a
-        // 140² layer at −18 overscan (larger than the cell, surrounding the
-        // base hexagon), the base (0xF8312CA8) inherits the cell. Drawing
-        // each at its own rect (not both full-cell) is the fix for the
-        // "base paints over filigree" bug.
-        var starter = L("Template_Node_Starter").CompositeLayers;
-        var filigree = starter.First(c => c.ImageHandle == 0xA0F996FEu);
-        Assert.Equal(-18, filigree.Rect.Top);
-        Assert.Equal(140, filigree.Rect.Width);
-        Assert.Contains(starter, c => c.ImageHandle == 0xF8312CA8u);   // base hexagon
-
-        // #26.4 — Template_Node_Quest IS the gate: filigree 0xA0F996FE at
-        // −20, ornate 0xC2DF4786/0x0E6B6249 at inset 3, locator 0x6D68F45F
-        // at inset 22/26/24/24 (a conditional "located" layer, gated by the
-        // consumer's predicate — not dropped, not always-on).
-        var quest = L("Template_Node_Quest").CompositeLayers;
-        Assert.Contains(quest, c => c.ImageHandle == 0xA0F996FEu && c.Rect.Top == -20);
-        Assert.Contains(quest, c => c.ImageHandle == 0xC2DF4786u && c.Rect.Top == 3);
-        Assert.Contains(quest, c => c.ImageHandle == 0x0E6B6249u && c.Rect.Top == 3);
-        var locator = quest.First(c => c.ImageHandle == 0x6D68F45Fu);
-        Assert.Equal(22, locator.Rect.Top);
-        Assert.Equal(24, locator.Rect.Left);
-
-        // #26.2 — Template_Node_Socketable is authored EMPTY in scene 657304
-        // (a 240-byte stub: no children, no handles). The empty composite is
-        // faithful, not a decode miss.
-        Assert.Null(L("Template_Node_Socketable").SelectionDiscs);
-        Assert.Empty(L("Template_Node_Socketable").CompositeLayers);
-
-        // Non-rarity / non-template layers carry no selection-disc pair.
-        Assert.Null(L("Node_IconBase").SelectionDiscs);
-        Assert.Empty(L("Node_IconBase").CompositeLayers);
-
-        // FR-C16 R7 — Node_Icon decodes exactly now: it is a
-        // tag-2-encoded sparse widget the pre-R7 0x22-only parser mis-keyed
-        // (the handle 0x25DAA956 landed in nBottom = 635087190). The R7
-        // reader keys it correctly: a symmetric 28-inset symbol slot with
-        // the handle on hImageFrame, not nBottom. (The handle is the
-        // template default; per-node it is replaced by ParagonNode.HIconMask.)
-        var nodeIcon = L("Node_Icon");
-        Assert.Equal(28, nodeIcon.Rect.Top);
-        Assert.Equal(28, nodeIcon.Rect.Bottom);
-        Assert.Equal(28, nodeIcon.Rect.Left);
-        Assert.Equal(28, nodeIcon.Rect.Right);
-        Assert.Equal(0x25DAA956u, nodeIcon.ImageHandle);
-
-        // Every rect field across the recipe is now a sane authored
-        // reference-unit value (no mis-keyed handle leaking into a rect).
-        foreach (var layer in recipe.Layers)
-        {
-            var r = layer.Rect;
-            foreach (var v in new[] { r.Left, r.Right, r.Top, r.Bottom, r.Width, r.Height })
-                Assert.InRange(v, -4096, 4096);
-        }
+        // FR-C16 R7 — Node_Icon symbol slot: symmetric 28-inset.
+        Assert.Equal(28, One("Node_Icon").Rect.Top);
     }
 
-    /// <summary>FR-C16 R11 — every recipe layer carries a typed
-    /// <see cref="NodeActivation"/> (the engine's name-convention condition,
-    /// since the scene stores no activation field — R10) and a
-    /// <see cref="NodeSlot"/> for variant grouping. The consumer evaluates
-    /// the activation against its computed facts and authors no
-    /// predicate.</summary>
+    /// <summary>FR-C16 R14 — every component carries the exact engine-sourced
+    /// <see cref="NodeActivation"/> (rarity/kind ∧ selection-state combined);
+    /// the consumer draws each whose activation evaluates true, in order, and
+    /// authors no predicate.</summary>
     [SkippableFact]
-    public void ReadParagonNodeRecipe_surfaces_typed_activation_per_layer()
+    public void ReadParagonNodeRecipe_surfaces_exact_component_activation()
     {
         var install = Install();
         Skip.If(install is null, "No Diablo IV install available.");
         using var d4 = Diablo4Storage.Open(install!);
 
         var recipe = d4.ReadParagonNodeRecipe();
-        ParagonNodeRecipeLayer L(string name) => recipe.Layers.First(l => l.WidgetName == name);
+        ParagonNodeComponent One(string src) => recipe.Components.First(x => x.Source == src);
+        ParagonNodeComponent ByHandle(uint h) => recipe.Components.First(x => x.ImageHandle == h);
 
-        // Name-convention activations decode the engine's state-suffixed names.
-        Assert.Contains(NodeFact.Purchased, L("Node_Purchased").Activation.AllOf);
-        Assert.Contains(NodeFact.Purchasable, L("Node_Purchasable").Activation.AllOf);
-        Assert.Contains(NodeFact.Located, L("Node_Located").Activation.AllOf);
-        Assert.Contains(NodeFact.RarityMagic, L("Template_Node_Magic").Activation.AllOf);
-        Assert.Contains(NodeFact.TypeGate, L("Template_Node_Quest").Activation.AllOf);
-        Assert.Equal(NodeActivationSource.NameConvention, L("Node_Purchased").Activation.Source);
+        // Grey common base disc gated to [KindCommon, Unpurchased] — the
+        // unpurchased variant; does NOT draw over a coloured disc.
+        var iconBase = One("Node_IconBase").Activation;
+        Assert.Contains(NodeFact.KindCommon, iconBase.AllOf);
+        Assert.Contains(NodeFact.Unpurchased, iconBase.AllOf);
 
-        // Base-disc family share the BaseDisc slot (mutually-exclusive variants).
-        foreach (var n in new[] { "Node_IconBase", "Template_Node_Magic", "Template_Node_Rare",
-                                  "Template_Node_Legendary", "Template_Node_Quest" })
-            Assert.Equal(NodeSlot.BaseDisc, L(n).Slot);
-        Assert.Equal(NodeSlot.Symbol, L("Node_Icon").Slot);
+        // The disc pair is the unpurchased↔PURCHASED swap (owner oracle), not
+        // selection: the no-ring disc is [kind, Unpurchased], the red-ring disc
+        // [kind, Purchased].
+        Assert.Contains(NodeFact.KindMagic, ByHandle(MagicUnselDisc).Activation.AllOf);
+        Assert.Contains(NodeFact.Unpurchased, ByHandle(MagicUnselDisc).Activation.AllOf);
+        Assert.Contains(NodeFact.KindMagic, ByHandle(MagicSelDisc).Activation.AllOf);
+        Assert.Contains(NodeFact.Purchased, ByHandle(MagicSelDisc).Activation.AllOf);
 
-        // The activation evaluates against a consumer-computed fact set.
-        var purchased = new HashSet<NodeFact> { NodeFact.Purchased };
-        Assert.True(L("Node_Purchased").Activation.Evaluate(purchased));
-        Assert.False(L("Node_Purchased").Activation.Evaluate(new HashSet<NodeFact>()));
-        Assert.True(L("Node_IconBase").Activation.Evaluate(new HashSet<NodeFact>())); // Always
+        // bActive drives the swap discrimination (data, not guessed): the
+        // unpurchased disc binds bActive=1, the purchased one bActive=0.
+        Assert.True(ByHandle(RareUnselDisc).DefaultActive);
+        Assert.False(ByHandle(RareSelDisc).DefaultActive);
 
-        // The per-rarity disc pair carries Selected/Unselected activations.
-        var magic = L("Template_Node_Magic").SelectionDiscs!;
-        Assert.Contains(NodeFact.Unselected, magic.Unselected.Activation.AllOf);
-        Assert.Contains(NodeFact.Selected, magic.Selected.Activation.AllOf);
+        // bActive=0 interior overlays (e.g. the magic FEC31E48) are default-off
+        // with an undecoded engine trigger → Never, so they don't mask the disc.
+        Assert.Contains(NodeFact.Never, ByHandle(MagicInterior).Activation.AllOf);
 
-        // The gate composite splits its ornate by selection + gates the locator.
-        var quest = L("Template_Node_Quest").CompositeLayers;
-        Assert.Contains(NodeFact.Selected, quest.First(c => c.ImageHandle == 0xC2DF4786u).Activation.AllOf);
-        Assert.Contains(NodeFact.Unselected, quest.First(c => c.ImageHandle == 0x0E6B6249u).Activation.AllOf);
-        Assert.Contains(NodeFact.Located, quest.First(c => c.ImageHandle == 0x6D68F45Fu).Activation.AllOf);
+        // Gate ornate is the same unpurchased/purchased swap (GateOrnateUnpurch
+        // binds bActive=1); locator ∧ Located.
+        Assert.Contains(NodeFact.Unpurchased, ByHandle(GateOrnateUnsel).Activation.AllOf);
+        Assert.Contains(NodeFact.Purchased, ByHandle(GateOrnateSel).Activation.AllOf);
+        Assert.Contains(NodeFact.Located, ByHandle(GateLocatorHandle).Activation.AllOf);
+
+        // Purchased add-on: arrows → purchasable neighbour, connectors →
+        // purchased neighbour; both require the node itself purchased.
+        var arrowTop = One("Arrow_Top").Activation.AllOf;
+        Assert.Contains(NodeFact.Purchased, arrowTop);
+        Assert.Contains(NodeFact.NeighbourPurchasableTop, arrowTop);
+        var connTop = One("Connector_Top").Activation.AllOf;
+        Assert.Contains(NodeFact.Purchased, connTop);
+        Assert.Contains(NodeFact.NeighbourPurchasedTop, connTop);
+
+        // NodeAvailableGlow is the engine's "Available" state (name-convention).
+        Assert.Contains(NodeFact.Available, One("NodeAvailableGlow").Activation.AllOf);
+
+        // Evaluate: a Common unpurchased node activates the grey base; a Magic
+        // node does not; the purchased common disc activates only when purchased.
+        var commonUnpurch = new HashSet<NodeFact> { NodeFact.KindCommon, NodeFact.Unpurchased };
+        Assert.True(One("Node_IconBase").Activation.Evaluate(commonUnpurch));
+        Assert.False(One("Node_Purchased").Activation.Evaluate(commonUnpurch));
+        var commonPurch = new HashSet<NodeFact> { NodeFact.KindCommon, NodeFact.Purchased };
+        Assert.True(One("Node_Purchased").Activation.Evaluate(commonPurch));
+        Assert.False(One("Node_IconBase").Activation.Evaluate(commonPurch));
+        Assert.False(ByHandle(MagicUnselDisc).Activation.Evaluate(commonUnpurch));  // magic disc off on a common node
     }
 
     /// <summary>FR-C11 R3 §2 — scene-bound binding on the

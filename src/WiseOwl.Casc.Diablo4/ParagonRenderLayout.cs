@@ -101,30 +101,79 @@ public sealed record ParagonBoardChrome(
     IReadOnlyList<TiledStyleBinding> TiledStyleBindings);
 
 /// <summary>
-/// FR-C16 — the engine's per-node render PROGRAM: the ordered list of
-/// state-widget layers the engine composes for one paragon node. Each
-/// <see cref="ParagonNodeRecipeLayer"/> is drawn when its predicate
-/// holds; the list is in z-order (= the scene's serialization / child
-/// order = the engine's draw order). The consumer is a pure
-/// interpreter: it supplies the runtime predicate values
-/// (selected / selectable / purchased / socketed / per-direction
-/// neighbour-selectable / rarity / …) and maps each layer's
-/// <see cref="ParagonNodeRecipeLayer.WidgetName"/> to one.
+/// FR-C16 R14 — the engine's per-node render PROGRAM as a <b>flat,
+/// truly-z-ordered list of atomic components</b>. The consumer is a pure
+/// interpreter with one rule:
+/// <code>
+/// foreach (var c in recipe.Components)            // already in paint order
+///     if (c.Activation.Evaluate(facts))           // facts = consumer's node state
+///         draw(c.ImageHandle, c.Rect, c.Alpha);
+/// </code>
+/// No mutual-exclusion, substitution, slot-tiebreak, or per-state grouping
+/// is left to the consumer — each component carries its <b>exact</b>
+/// activation (the per-rarity / per-type / per-selection-state condition,
+/// parent ∧ child combined) and its <b>true draw order</b>
+/// (<see cref="ParagonNodeComponent.ZOrder"/> = index; the per-rarity disc
+/// sits at the base-disc position, below the symbol — not the template's
+/// appended scene z). The only consumer-owned input is
+/// <c>computeFacts(boardState)</c>.
 /// <br/><br/>
-/// <b>Why name-keyed predicates:</b> the scene stores no structural
-/// per-widget state/predicate field (verified FR-C16 R2 — every
-/// candidate field is layout / anchoring / opacity; the one uncracked
-/// `DT_INT` `0x0CDB00E9` is not a state code). The engine's own widget
-/// <i>name</i> (e.g. <c>Node_Purchased</c>, <c>NodeAvailableGlow</c>,
-/// <c>Arrow_Top</c>) is the state discriminator; per memory
-/// <c>feedback_widget-name-not-role</c> CASC surfaces it <b>verbatim</b>
-/// and never normalizes it into a guessed role taxonomy. The thin,
-/// explicit <c>name → runtime-predicate</c> binding lives once on the
-/// consumer side (it is glue, not composition invention — the
-/// composition itself, the ordered layer list with handles/rects/alpha,
-/// is fully engine-sourced here).
+/// <b>Why the activation is engine-sourced, not consumer-authored:</b> the
+/// scene stores no per-widget condition field (FR-C16 R10, exhaustive); the
+/// engine binds visibility to state by widget/asset name in its compiled
+/// <c>ParagonBoardUI</c> controller (named data-source binding —
+/// <c>ParagonNodeIsPurchased</c> is registry-confirmed, R12/R13). CASC
+/// decodes that naming convention into the typed
+/// <see cref="ParagonNodeComponent.Activation"/>; each carries its
+/// <see cref="NodeActivation.Source"/> provenance per
+/// <c>feedback_widget-name-not-role</c>.
 /// </summary>
-public sealed record ParagonNodeRecipe(IReadOnlyList<ParagonNodeRecipeLayer> Layers);
+public sealed record ParagonNodeRecipe(IReadOnlyList<ParagonNodeComponent> Components);
+
+/// <summary>
+/// FR-C16 R14 — one atomic drawable component of a <see cref="ParagonNodeRecipe"/>:
+/// a single atlas frame drawn at its rect/alpha when its
+/// <see cref="Activation"/> holds. The flattening of the former
+/// layer/disc/composite nesting — every per-rarity disc, per-state ornate,
+/// interior fill, glow, arrow, and symbol slot is its own component with
+/// the exact combined condition.
+/// </summary>
+/// <param name="ZOrder">The component's true paint order — its index in
+/// <see cref="ParagonNodeRecipe.Components"/> (lower draws first /
+/// underneath). The per-rarity/-type disc is remapped to the base-disc
+/// position (below the symbol), NOT the template widget's appended scene
+/// position.</param>
+/// <param name="Source">The originating widget name (and child index for a
+/// template sub-record, e.g. <c>Template_Node_Magic[1]</c>) — verbatim, for
+/// traceability; never a normalized role.</param>
+/// <param name="ImageHandle">The component's atlas frame handle. <c>0</c> ⇒
+/// a runtime-filled slot (e.g. <c>Node_Icon</c> → the node's
+/// <c>HIconMask</c>) — drawn, not dropped, so the program is complete.</param>
+/// <param name="Rect">The component's authored reference-unit rect inset
+/// (<see langword="default"/> ⇒ inherits the cell; negative ⇒ overscan).</param>
+/// <param name="Alpha">The component's <c>dwAlpha</c> opacity byte.</param>
+/// <param name="Activation">The exact engine-sourced condition gating this
+/// component (rarity/type ∧ selection-state combined). Evaluate against the
+/// consumer-computed fact set; see <see cref="NodeActivation"/>.</param>
+/// <param name="DefaultActive">The layer's authored <c>bActive</c> — its
+/// default (resting) visibility. <see langword="true"/> (or unbound) ⇒ shown
+/// in the default/unselected state; <see langword="false"/> ⇒ default-off,
+/// shown only when the engine toggles it for a runtime state (selected,
+/// purchased, located, …). This is the field that disambiguates a swap pair:
+/// the <c>bActive=1</c> disc is the unselected variant, the <c>bActive=0</c>
+/// disc the selected one.</param>
+/// <param name="Tint">The layer's authored <c>rgbaTint</c> (multiply colour),
+/// or <see langword="null"/> for no tint. E.g. the glyph-socket base disc is
+/// drawn through a grey <c>0xFF8A8A8A</c> tint.</param>
+public sealed record ParagonNodeComponent(
+    int ZOrder,
+    string Source,
+    uint ImageHandle,
+    WidgetRect Rect,
+    byte Alpha,
+    NodeActivation Activation,
+    bool DefaultActive,
+    RgbaTint? Tint);
 
 /// <summary>
 /// FR-C17 — the engine's paragon-board grid-layout metric, in the
@@ -169,171 +218,6 @@ public sealed record ParagonBoardGrid(
     int CanvasHeight,
     int CellExtent,
     int Pitch);
-
-/// <summary>FR-C16 — one layer of the <see cref="ParagonNodeRecipe"/>.</summary>
-/// <param name="ZOrder">The layer's draw order — its index in the
-/// scene serialization (lower draws first / underneath). The engine
-/// composes a node by drawing the predicate-satisfied layers in this
-/// order.</param>
-/// <param name="WidgetName">The engine's widget name, verbatim — the
-/// state discriminator the consumer maps to a runtime predicate (e.g.
-/// <c>Node_IconBase</c>, <c>Node_Purchased</c>, <c>Node_Purchasable</c>,
-/// <c>NodeAvailableGlow</c>, <c>Arrow_Top</c>/<c>Right</c>/<c>Bottom</c>/<c>Left</c>,
-/// <c>Connector_*</c>, <c>GlyphNodeGlow_*</c>, <c>Rarity_Display</c>,
-/// <c>Template_Node_Magic</c>/<c>Rare</c>/<c>Legendary</c>/…).</param>
-/// <param name="WidgetClassId">The widget's class style id (e.g.
-/// <c>UIWindowStyle</c> = drawable rect, <c>UIBlinkerStyle</c> =
-/// pulsing glow). Resolve via <see cref="Diablo4.KnownTypeNames"/>.</param>
-/// <param name="ImageHandle">The layer's <c>hImageFrame</c> texture
-/// handle. <c>0</c> ⇒ no static art: either a runtime-bound slot (the
-/// node's own icon/symbol, the equipped-glyph image) or a pure-predicate
-/// marker widget — surfaced (not dropped) so the consumer sees the full
-/// program.</param>
-/// <param name="Rect">The layer's authored reference-unit rect (inset
-/// within the node cell; <see langword="default"/> ⇒ inherits the node
-/// template extent).</param>
-/// <param name="Alpha">The layer's <c>dwAlpha</c> opacity byte
-/// (<c>0xFF</c> when unspecified).</param>
-/// <param name="CompositeLayers">FR-C16 R9 — the layer's additional
-/// composited child layers beyond the single <see cref="ImageHandle"/>,
-/// in scene (z) order, <b>each with its own authored rect</b>. These are
-/// the parent template's anonymous child sub-records
-/// (<see cref="UiWidget.Children"/>) that bind a real texture handle —
-/// decoded structurally so every layer keeps its <c>hImageFrame</c>
-/// paired with its inset (the prior <c>CompositeHandles : uint[]</c>
-/// dropped the rect, so the consumer drew every layer full-cell — the
-/// starter filigree painted over, the rarity disc oversized). For the
-/// per-rarity sub-templates the disc <i>state pair</i> is lifted out into
-/// <see cref="SelectionDiscs"/>; what remains here is the rarity's
-/// always-drawn interior-fill layer(s) (e.g. <c>Template_Node_Magic</c> →
-/// <c>0xFEC31E48</c>). For the non-rarity composite templates
-/// (<c>Template_Node_Starter</c> → filigree <c>0xA0F996FE</c> at inset −18
-/// 140², base <c>0xF8312CA8</c>; <c>Template_Node_Quest</c> = the gate →
-/// filigree <c>0xA0F996FE</c> at inset −20, ornate <c>0xC2DF4786</c>/
-/// <c>0x0E6B6249</c> at inset 3, locator <c>0x6D68F45F</c> at inset
-/// 22/26/24/24) this is the full ordered layer stack. The small-negative
-/// insets are real <b>overscan</b> (the layer overhangs the cell), not
-/// handles. Empty for ordinary single-handle layers and for the
-/// authored-empty <c>Template_Node_Socketable</c>.</param>
-/// <param name="SelectionDiscs">FR-C16 R5/R9 — non-<see langword="null"/>
-/// only for the rarity sub-templates
-/// (<c>Template_Node_Magic</c>/<c>Rare</c>/<c>Legendary</c>): the
-/// per-selection-state disc layer (unselected vs selected), each with its
-/// handle and authored rect. The consumer draws
-/// <see cref="NodeSelectionDiscs.Selected"/> only on the currently
-/// selected node and <see cref="NodeSelectionDiscs.Unselected"/>
-/// otherwise; never both. See <see cref="NodeSelectionDiscs"/>.</param>
-/// <param name="Activation">FR-C16 R11 — the engine-sourced condition that
-/// gates whether this layer draws, over the closed <see cref="NodeFact"/>
-/// vocabulary. The consumer supplies the node's currently-true facts and
-/// calls <see cref="NodeActivation.Evaluate"/>; it authors no predicate.
-/// Recovered from the engine's widget-name convention (the scene stores no
-/// activation field — FR-C16 R10); <see cref="NodeActivation.Source"/>
-/// marks the provenance.</param>
-/// <param name="Slot">FR-C16 R11 — the composition slot this layer
-/// competes for. Layers sharing a non-<see cref="NodeSlot.None"/> slot are
-/// mutually-exclusive variants (the grey/rarity/type base discs all share
-/// <see cref="NodeSlot.BaseDisc"/>); the consumer draws the one whose
-/// <see cref="Activation"/> holds. Types CL-50's prose "the rarity template
-/// substitutes <c>Node_IconBase</c>".</param>
-public sealed record ParagonNodeRecipeLayer(
-    int ZOrder,
-    string WidgetName,
-    uint WidgetClassId,
-    uint ImageHandle,
-    WidgetRect Rect,
-    byte Alpha,
-    IReadOnlyList<NodeDiscLayer> CompositeLayers,
-    NodeSelectionDiscs? SelectionDiscs,
-    NodeActivation Activation,
-    NodeSlot Slot);
-
-/// <summary>FR-C16 R11 — the composition slot a recipe layer competes for.
-/// Layers with the same slot are mutually-exclusive variants; the consumer
-/// draws the one whose <see cref="ParagonNodeRecipeLayer.Activation"/>
-/// evaluates true for the node.</summary>
-public enum NodeSlot
-{
-    /// <summary>No exclusivity — the layer composes independently.</summary>
-    None = 0,
-    /// <summary>The node's base disc (grey / per-rarity / per-type variants
-    /// all compete here — exactly one is drawn per node).</summary>
-    BaseDisc,
-    /// <summary>The node's emblem/symbol slot (<c>Node_Icon</c> →
-    /// the node's <c>HIconMask</c>).</summary>
-    Symbol,
-    /// <summary>A directional pointer/connector toward a neighbour.</summary>
-    Directional,
-    /// <summary>A state glow overlay (available/revealed/purchased/equip).</summary>
-    Glow,
-    /// <summary>The glyph-socket composite (glyph image + usage beads).</summary>
-    Socket,
-}
-
-/// <summary>
-/// FR-C16 R9 — one composited child layer of a paragon-node template: a
-/// single drawable disc / ornate / filigree / interior-fill / locator
-/// element with its own <c>hImageFrame</c> handle, authored rect inset,
-/// and <c>bActive</c> default-state flag. Decoded from a parent template's
-/// anonymous child sub-record (<see cref="UiWidgetChild"/>).
-/// </summary>
-/// <param name="ImageHandle">The child's <c>hImageFrame</c> texture
-/// handle.</param>
-/// <param name="Rect">The child's authored reference-unit rect inset.
-/// <see langword="default"/> (all-zero) ⇒ the child binds no rect and
-/// <b>inherits</b> its placement from the node template / its substitution
-/// target (for a rarity disc, the <c>Node_IconBase</c> inset-7 base-disc
-/// slot). Negative insets are intentional <b>overscan</b> (the layer
-/// extends beyond the cell, e.g. the start/gate filigree at −18/−20).</param>
-/// <param name="Active">The child's <c>bActive</c> default-visibility
-/// flag as authored (the engine still gates final visibility on the
-/// node's runtime state).</param>
-/// <param name="Activation">FR-C16 R11 — the per-child activation
-/// condition. For the gate (<c>Template_Node_Quest</c>) the ornate
-/// children split by selection (<c>0xC2DF4786</c> →
-/// <see cref="NodeFact.Selected"/>, <c>0x0E6B6249</c> →
-/// <see cref="NodeFact.Unselected"/>) and the locator (<c>0x6D68F45F</c>)
-/// gates on <see cref="NodeFact.Located"/>; other children are
-/// <see cref="NodeActivation.Always"/>.</param>
-public sealed record NodeDiscLayer(
-    uint ImageHandle, WidgetRect Rect, bool Active, NodeActivation Activation);
-
-/// <summary>
-/// FR-C16 R5/R9 — the per-selection-state disc layer pair of a rarity
-/// sub-template (<c>Template_Node_Magic</c>/<c>Rare</c>/<c>Legendary</c>).
-/// <br/><br/>
-/// <b>Structural claim:</b> each rarity template is a parent widget whose
-/// anonymous child sub-records (each a <c>UIWindowStyle</c> +
-/// <c>0xFFFFFFFF</c> marker, name-less) bind one disc handle apiece; the
-/// first two handle-bearing children, in scene order, are
-/// <see cref="Unselected"/> then <see cref="Selected"/>.
-/// <b>Role claim (separate):</b> that child[0]=unselected and
-/// child[1]=selected (with the red perimeter ring baked into the selected
-/// disc) is the owner's FR-C12 rarity-disc oracle, which matches all six
-/// handles across the three rarities
-/// (<c>0x621CB6FF</c>/<c>0x72C29402</c> Magic,
-/// <c>0xB71BD068</c>/<c>0x03EDABAB</c> Rare,
-/// <c>0x232DF7F9</c>/<c>0xBD27FB7C</c> Legendary). The consumer draws
-/// <see cref="Selected"/> for the currently-selected node and
-/// <see cref="Unselected"/> for every other node of that rarity; never
-/// both.
-/// <br/><br/>
-/// <b>Placement (FR-C18):</b> the disc pair is co-sized — the engine
-/// authors the inset once (Magic/Rare carry it on the selected child:
-/// inset 7, i.e. the same 86² as the <c>Node_IconBase</c> grey base disc;
-/// Legendary carries inset −3 overscan on both). The pair's
-/// <see cref="NodeDiscLayer.Rect"/>s are resolved here so both states
-/// share that authored rect: a colored rarity disc is the same on-screen
-/// size as the grey base disc it substitutes — <b>not</b> a full-cell
-/// blit. (The <c>Template_Node_&lt;rarity&gt;</c> <i>parent</i> widget
-/// binds no usable rect of its own; the all-zero parent rect FR-C18
-/// reported is faithful — the disc geometry lives on these children.)
-/// </summary>
-/// <param name="Unselected">The unselected-state disc layer (no perimeter
-/// ring).</param>
-/// <param name="Selected">The selected-state disc layer (red perimeter
-/// ring baked in).</param>
-public sealed record NodeSelectionDiscs(NodeDiscLayer Unselected, NodeDiscLayer Selected);
 
 /// <summary>The UI design space the raw rects are authored in (decoded
 /// from the root <c>ParagonBoard_main</c> widget; verified
@@ -451,73 +335,167 @@ internal static class ParagonRenderProjection
             Val(fields, FnBottom), Val(fields, FnWidth), Val(fields, FnHeight));
 
     private static readonly uint FbActive = Diablo4.FieldHash("bActive");
+    // Anchoring field for placement resolution. The node widgets carry both
+    // eVerticalAnchoring (0x03D55658) and eHorizontalAnchoring (0x093CBAA8) —
+    // both =3 for centred widgets, =0 for absolute. (The latter was previously
+    // mislabelled "eGroupType" in KnownFieldNames; the real eGroupType hashes
+    // to 0x05862894, caught by the field-hash sanity check.) Both axes agree
+    // on the node-recipe widgets, so eVerticalAnchoring carries the decision.
+    private static readonly uint FeAnchor = Diablo4.FieldHash("eVerticalAnchoring");
+    private static readonly uint FrgbaTint = Diablo4.FieldHash("rgbaTint");
+    private static readonly uint FdwAlphaField = Diablo4.FieldHash("dwAlpha");
+
+    // The authored bActive default visibility: bActive == 0 (explicitly bound)
+    // ⇒ default-OFF; bActive == 1 or unbound ⇒ default-ON. This is the field
+    // that disambiguates a swap pair (the bActive=1 variant is the
+    // unselected/default one).
+    private static bool DefaultActiveOf(IReadOnlyList<UiField> fields)
+    {
+        foreach (var f in fields)
+            if (f.FieldHash == FbActive && f.HasValue) return f.RawValue != 0;
+        return true;
+    }
+
+    // The authored rgbaTint (multiply colour), stored ARGB; null if unbound.
+    private static RgbaTint? TintOf(IReadOnlyList<UiField> fields)
+    {
+        foreach (var f in fields)
+            if (f.FieldHash == FrgbaTint && f.HasValue)
+            {
+                uint v = f.RawValue;   // ARGB
+                return new RgbaTint((byte)(v >> 16), (byte)(v >> 8), (byte)v, (byte)(v >> 24));
+            }
+        return null;
+    }
+
+    private static byte AlphaOf(IReadOnlyList<UiField> fields)
+    {
+        foreach (var f in fields)
+            if (f.FieldHash == FdwAlphaField && f.HasValue) return (byte)f.RawValue;
+        return 0xFF;
+    }
+
+    // FR-C16 R14 — resolve a widget's authored insets + size + anchoring to an
+    // absolute placement rect in cell-reference space, so the component is
+    // directly drawable (no consumer layout logic). eGroupType decodes the
+    // anchoring mode: 0 = absolute top-left (the directional arrows/connectors
+    // position at nLeft/nTop); 3/other = centered/stretch in the parent cell —
+    // an explicit nWidth/nHeight centers at that size (e.g. the 120² Located
+    // ring → centred, overscanning the 100 cell), otherwise the element
+    // stretches to the cell minus its insets (the inset-7 disc → 86² centred).
+    private static WidgetRect ResolvePlacement(in WidgetRect r, int groupType, int cell)
+    {
+        int w = r.Width > 0 ? r.Width : System.Math.Max(0, cell - r.Left - r.Right);
+        int h = r.Height > 0 ? r.Height : System.Math.Max(0, cell - r.Top - r.Bottom);
+        int x, y;
+        if (groupType == 0)                       // absolute top-left
+        {
+            x = r.Left; y = r.Top;
+        }
+        else if (r.Width > 0 || r.Height > 0)     // centred at explicit size
+        {
+            x = (cell - w) / 2 + (r.Left - r.Right) / 2;
+            y = (cell - h) / 2 + (r.Top - r.Bottom) / 2;
+        }
+        else                                      // inset-stretch
+        {
+            x = r.Left; y = r.Top;
+        }
+        return new WidgetRect(x, cell - (x + w), y, cell - (y + h), w, h);
+    }
 
     private static bool RectIsEmpty(in WidgetRect r) =>
         r is { Left: 0, Right: 0, Top: 0, Bottom: 0, Width: 0, Height: 0 };
 
-    // FR-C16 R11 — the engine binds a widget's visibility to a runtime
-    // state BY NAME in its C++ UI controller; the scene stores no activation
-    // field (FR-C16 R10). This table decodes that naming convention into a
-    // typed (activation, slot), provenance-marked: NameConvention where the
-    // name literally spells the state, EngineBehavior where the name is
-    // suggestive but the fact is inferred (validate vs the owner oracle).
-    private static (NodeActivation Act, NodeSlot Slot) LayerActivation(string name)
+    // FR-C16 R11/R14 — the engine binds a widget's visibility to a runtime
+    // state BY NAME in its compiled UI controller; the scene stores no
+    // activation field (FR-C16 R10). This decodes the naming convention into
+    // a typed activation, provenance-marked: NameConvention where the name
+    // literally spells the state, EngineBehavior where the name is suggestive
+    // but a fact is inferred (validate vs the owner oracle). The grey base
+    // discs are the COMMON-rarity variant (eRarity 0), peer to the per-rarity
+    // templates — gated [RarityCommon, …] so they don't draw over a coloured
+    // disc (exactly one rarity fact holds per node).
+    private static NodeActivation BaseActivation(string name)
     {
-        const NodeActivationSource Name = NodeActivationSource.NameConvention;
+        const NodeActivationSource Nm = NodeActivationSource.NameConvention;
         const NodeActivationSource Eng = NodeActivationSource.EngineBehavior;
-        static NodeActivation Eng0() => new(new[] { NodeFact.Always }, NodeActivationSource.EngineBehavior);
+        static NodeActivation A(NodeActivationSource s, params NodeFact[] f) => new(f, s);
         return name switch
         {
-            // Base-disc slot: grey base, per-rarity, per-type variants all
-            // compete here — exactly one draws per node (mutual exclusion
-            // falls out of the activations: a node is one rarity/type).
-            "Node_IconBase"             => (NodeActivation.Always, NodeSlot.BaseDisc),
-            "Rarity_Display"            => (Eng0(), NodeSlot.BaseDisc),
-            "Node_Purchased"            => (NodeActivation.Of(NodeFact.Purchased, Name), NodeSlot.BaseDisc),
-            "Purchased_Rarity_Display"  => (NodeActivation.Of(NodeFact.Purchased, Name), NodeSlot.BaseDisc),
-            "Template_Node_Magic"       => (NodeActivation.Of(NodeFact.RarityMagic, Name), NodeSlot.BaseDisc),
-            "Template_Node_Rare"        => (NodeActivation.Of(NodeFact.RarityRare, Name), NodeSlot.BaseDisc),
-            "Template_Node_Legendary"   => (NodeActivation.Of(NodeFact.RarityLegendary, Name), NodeSlot.BaseDisc),
-            "Template_Node_Socketable"  => (NodeActivation.Of(NodeFact.TypeSocket, Name), NodeSlot.BaseDisc),
-            "Template_Node_Starter"     => (NodeActivation.Of(NodeFact.TypeStart, Name), NodeSlot.BaseDisc),
-            "Template_Node_Quest"       => (NodeActivation.Of(NodeFact.TypeGate, Name), NodeSlot.BaseDisc),
-            // Symbol slot.
-            "Node_Icon"                 => (NodeActivation.Always, NodeSlot.Symbol),
+            // Common-kind base disc (grey): the 0x1D166DC7 / 0xD3051CCA pair
+            // is the COMMON unpurchased/PURCHASED disc swap (the red ring on
+            // 0xD3051CCA is the purchased variant) — parallel to the per-rarity
+            // disc pairs. The widget name "Node_Purchased" is literally its
+            // role (owner oracle 2026-05-21).
+            "Node_IconBase"             => A(Eng, NodeFact.KindCommon, NodeFact.Unpurchased),
+            "Node_Purchased"            => A(Nm,  NodeFact.KindCommon, NodeFact.Purchased),
+            "Rarity_Display"            => A(Eng, NodeFact.KindCommon, NodeFact.Unpurchased),
+            "Purchased_Rarity_Display"  => A(Eng, NodeFact.KindCommon, NodeFact.Purchased),
+            // Symbol slot (runtime HIconMask).
+            "Node_Icon"                 => NodeActivation.Always,
             // State overlays / glows.
-            "Common_Node_Revealed"      => (NodeActivation.Of(NodeFact.Revealed, Name), NodeSlot.None),
-            "GlyphNodeGlow_Revealed"    => (NodeActivation.Of(NodeFact.Revealed, Eng), NodeSlot.Glow),
-            "GlyphNodeGlow_Purchased"   => (NodeActivation.Of(NodeFact.Purchased, Eng), NodeSlot.Glow),
-            "NodeAvailableGlow"         => (NodeActivation.Of(NodeFact.Purchasable, Eng), NodeSlot.Glow),
-            "Node_Purchasable"          => (NodeActivation.Of(NodeFact.Purchasable, Name), NodeSlot.None),
-            "Node_EquipGlow"            => (NodeActivation.Of(NodeFact.Equipped, Name), NodeSlot.Glow),
-            "Node_SearchResultHighlight"=> (NodeActivation.Of(NodeFact.SearchMatch, Name), NodeSlot.Glow),
-            "Node_Located"              => (NodeActivation.Of(NodeFact.Located, Name), NodeSlot.None),
-            "Node_Tutorial_Highlight"   => (NodeActivation.Of(NodeFact.Tutorial, Name), NodeSlot.Glow),
-            // Glyph-socket composite.
-            "Node_Glyph"                => (NodeActivation.Of(NodeFact.Socketed, Eng), NodeSlot.Socket),
-            "Node_Glyph_Usage_Stack"    => (NodeActivation.Of(NodeFact.Socketed, Eng), NodeSlot.Socket),
-            "Usage_Slot_1" or "Usage_Slot_2" => (NodeActivation.Of(NodeFact.Socketed, Eng), NodeSlot.Socket),
-            // Directional pointers/connectors (per-cardinal-neighbour).
-            "Arrow_Top"      or "Connector_Top"    => (NodeActivation.Of(NodeFact.NeighbourPurchasableTop, Eng), NodeSlot.Directional),
-            "Arrow_Right"    or "Connector_Right"  => (NodeActivation.Of(NodeFact.NeighbourPurchasableRight, Eng), NodeSlot.Directional),
-            "Arrow_Bottom"   or "Connector_Bottom" => (NodeActivation.Of(NodeFact.NeighbourPurchasableBottom, Eng), NodeSlot.Directional),
-            "Arrow_Left"     or "Connector_Left"   => (NodeActivation.Of(NodeFact.NeighbourPurchasableLeft, Eng), NodeSlot.Directional),
-            // Always-on / unrecovered (the per-cell darken bg, hit-target,
-            // aura tile) — Always with EngineBehavior provenance.
-            _ => (Eng0(), NodeSlot.None),
+            "Common_Node_Revealed"      => A(Nm, NodeFact.Revealed),
+            // The GlyphNodeGlow ring is a glyph-SOCKET element (its name) —
+            // gated to the socket kind, not drawn on every node's
+            // purchased/revealed state (the "red ring only on a socket").
+            "GlyphNodeGlow_Revealed"    => A(Eng, NodeFact.KindSocket, NodeFact.Revealed),
+            "GlyphNodeGlow_Purchased"   => A(Eng, NodeFact.KindSocket, NodeFact.Purchased),
+            "NodeAvailableGlow"         => A(Nm, NodeFact.Available),
+            "Node_Purchasable"          => A(Nm, NodeFact.Purchasable),
+            "Node_EquipGlow"            => A(Nm, NodeFact.Equipped),
+            "Node_SearchResultHighlight"=> A(Nm, NodeFact.SearchMatch),
+            "Node_Located"              => A(Nm, NodeFact.Located),
+            "Node_Tutorial_Highlight"   => A(Nm, NodeFact.Tutorial),
+            // Glyph-socket node composition (base disc, beads, glow) — drawn
+            // for the socket KIND (the socket node always shows its base),
+            // not merely when a glyph is currently socketed.
+            "Node_Glyph" or "Node_Glyph_Usage_Stack"
+              or "Usage_Slot_1" or "Usage_Slot_2" => A(Eng, NodeFact.KindSocket),
+            // Purchased-node add-on: arrows point to PURCHASABLE neighbours,
+            // connectors bridge to already-PURCHASED neighbours; both only on a
+            // purchased node (owner oracle 2026-05-21).
+            "Arrow_Top"      => A(Eng, NodeFact.Purchased, NodeFact.NeighbourPurchasableTop),
+            "Arrow_Right"    => A(Eng, NodeFact.Purchased, NodeFact.NeighbourPurchasableRight),
+            "Arrow_Bottom"   => A(Eng, NodeFact.Purchased, NodeFact.NeighbourPurchasableBottom),
+            "Arrow_Left"     => A(Eng, NodeFact.Purchased, NodeFact.NeighbourPurchasableLeft),
+            "Connector_Top"    => A(Eng, NodeFact.Purchased, NodeFact.NeighbourPurchasedTop),
+            "Connector_Right"  => A(Eng, NodeFact.Purchased, NodeFact.NeighbourPurchasedRight),
+            "Connector_Bottom" => A(Eng, NodeFact.Purchased, NodeFact.NeighbourPurchasedBottom),
+            "Connector_Left"   => A(Eng, NodeFact.Purchased, NodeFact.NeighbourPurchasedLeft),
+            // Always-on / unrecovered (per-cell darken bg, hit-target, aura tile).
+            _ => A(Eng, NodeFact.Always),
         };
     }
 
-    // FR-C16 R11 — per-child activation for composite template children.
-    // The gate (Template_Node_Quest) ornate splits by selection (owner
-    // FR-C8/CL-23 oracle: 0xC2DF4786 selected / 0x0E6B6249 unselected) and
-    // its locator gates on Located; all other children are Always.
-    private static NodeActivation ChildActivation(uint handle) => handle switch
+    // The per-rarity / per-type fact a Template_Node_* widget owns.
+    private static NodeFact? TemplateFact(string name) => name switch
     {
-        0xC2DF4786u => NodeActivation.Of(NodeFact.Selected, NodeActivationSource.EngineBehavior),
-        0x0E6B6249u => NodeActivation.Of(NodeFact.Unselected, NodeActivationSource.EngineBehavior),
-        0x6D68F45Fu => NodeActivation.Of(NodeFact.Located, NodeActivationSource.EngineBehavior),
-        _ => NodeActivation.Always,
+        "Template_Node_Magic"      => NodeFact.KindMagic,
+        "Template_Node_Rare"       => NodeFact.KindRare,
+        "Template_Node_Legendary"  => NodeFact.KindLegendary,
+        "Template_Node_Socketable" => NodeFact.KindSocket,
+        "Template_Node_Starter"    => NodeFact.KindStart,
+        "Template_Node_Quest"      => NodeFact.KindGate,
+        _ => null,
+    };
+
+    // Decoded gate (Template_Node_Quest) composite roles. These are atlas
+    // frame handles — they have no string/hash preimage, so they're named
+    // constants by their decoded role. The unpurchased/purchased split is
+    // data-confirmed: GateOrnateUnpurchased binds bActive=1 (the resting
+    // default); the other is the purchased (red-ring) variant — the same
+    // unpurchased→purchased disc swap as the rarity discs.
+    private const uint GateOrnateUnpurchased = 0xC2DF4786u;
+    private const uint GateOrnatePurchased   = 0x0E6B6249u;
+    private const uint GateLocator           = 0x6D68F45Fu;
+
+    private static NodeFact? GateRoleFact(uint handle) => handle switch
+    {
+        GateOrnateUnpurchased => NodeFact.Unpurchased,
+        GateOrnatePurchased   => NodeFact.Purchased,
+        GateLocator           => NodeFact.Located,
+        _ => null,
     };
 
     public static ParagonRenderLayout Project(
@@ -1171,123 +1149,161 @@ internal static class ParagonRenderProjection
     private static readonly uint FdwAlpha = Diablo4.FieldHash("dwAlpha");
 
     /// <summary>
-    /// FR-C16 — project the per-node render program from the main board
-    /// scene (657304). The node's composition layers are the contiguous
-    /// widget run of the node-template subtree, identified positionally
-    /// as the widgets from the first <c>Common_Node*</c> / <c>Node_*</c>
-    /// widget through the last <c>Template_Node_*</c> rarity sub-template.
-    /// They are emitted in scene serialization order (= the engine's
-    /// draw / z-order). Each layer carries its verbatim widget name (the
-    /// consumer's predicate key), class id, <c>hImageFrame</c> handle,
-    /// authored rect, and <c>dwAlpha</c>.
+    /// FR-C16 R14 — project the per-node render program from the main board
+    /// scene (657304) as a flat, truly-z-ordered list of atomic
+    /// <see cref="ParagonNodeComponent"/>s (see
+    /// <see cref="ParagonNodeRecipe"/> for the consumer's draw-all-active
+    /// rule). The node-composition widget run is the contiguous subtree from
+    /// the first <c>Common_Node*</c>/<c>Node_*</c> widget through the last
+    /// <c>Template_Node_*</c> (the blob serializes widgets in depth-first
+    /// child order with no parent field — FR-C16 R3).
     /// <br/><br/>
-    /// The run boundary is positional (anchored on the engine's own
-    /// <c>Common_Node*</c> / <c>Template_Node_*</c> names) rather than a
-    /// decoded parent pointer: the UI-scene blob serializes widgets in
-    /// depth-first child order with no explicit per-widget parent field
-    /// (FR-C16 R3 — the widget headers carry no hierarchy words), so the
-    /// node subtree is the contiguous sibling run. The consumer's
-    /// predicate map naturally ignores any layer it has no predicate for,
-    /// so an over-inclusive run is harmless.
+    /// Each <c>Template_Node_&lt;rarity/type&gt;</c> parent is flattened: its
+    /// anonymous child sub-records each become a component whose activation
+    /// is the parent rarity/type fact <b>AND</b> the child's selection state,
+    /// and whose z is remapped to the base-disc position (below the symbol),
+    /// since the per-rarity disc <i>substitutes</i> <c>Node_IconBase</c>
+    /// rather than drawing at the template's appended scene index. The grey
+    /// <c>Node_IconBase</c>/<c>Node_Purchased</c> discs are the Common-rarity
+    /// variant, gated <c>[RarityCommon, …]</c> so they don't paint over a
+    /// coloured disc.
     /// </summary>
     public static ParagonNodeRecipe NodeRecipe(
         UiScene mainBoard, Func<uint, bool>? isTextureHandle = null)
     {
-        // FR-C16 R5: a composite handle must RESOLVE to an atlas frame —
-        // not merely exceed a magnitude. CL-46's `v >= 0x10000u` guard let
-        // the 0x58-block's small-negative rect insets (0xFFFFFFFD = −3,
-        // 0xFFFFFFEE = −18, 0xFFFFFFEC = −20 — overscan for the larger
-        // Legendary disc) through as bogus handles. The icon-catalog
-        // validator (Diablo4Storage.IsParagonTextureHandle) excludes them;
-        // a conservative fallback keeps the magnitude+sentinel guard plus
-        // an explicit small-negative reject when no validator is supplied.
+        // A drawable handle must RESOLVE to an atlas frame (FR-C16 R5), not
+        // merely exceed a magnitude — excludes the small-negative overscan
+        // insets the 0x58 blocks interleave.
         bool IsHandle(uint v) => v is not 0u and not 0xFFFFFFFFu &&
             (isTextureHandle is not null
                 ? isTextureHandle(v)
                 : v is >= 0x10000u and < 0xFFFFFF00u);
 
         var ws = mainBoard.Widgets;
-        int first = -1, last = -1;
+        int first = -1, last = -1, iconBaseIdx = -1;
         for (int k = 0; k < ws.Count; k++)
         {
             var nm = ws[k].Name ?? string.Empty;
-            bool nodeMember =
-                nm.StartsWith("Common_Node", StringComparison.Ordinal) ||
-                nm.StartsWith("Node_", StringComparison.Ordinal);
-            if (nodeMember && first < 0) first = k;
+            if ((nm.StartsWith("Common_Node", StringComparison.Ordinal) ||
+                 nm.StartsWith("Node_", StringComparison.Ordinal)) && first < 0) first = k;
             if (nm.StartsWith("Template_Node_", StringComparison.Ordinal)) last = k;
+            if (nm == "Node_IconBase") iconBaseIdx = k;
         }
         if (first < 0 || last < first)
-            return new ParagonNodeRecipe(Array.Empty<ParagonNodeRecipeLayer>());
+            return new ParagonNodeRecipe(Array.Empty<ParagonNodeComponent>());
 
-        // The rarity sub-templates whose child layers carry a
-        // [unselected, selected, …interior] disc state pair (owner FR-C12
-        // oracle). Other Template_Node_* widgets (Starter/Quest/Socketable)
-        // are layer stacks, not selection-state pairs.
-        static bool IsRarityTemplate(string n) =>
-            n is "Template_Node_Magic" or "Template_Node_Rare"
-              or "Template_Node_Legendary";
+        // Cell reference extent (for anchoring resolution) — Template_Node_Common.
+        int cellExtent = 100;
+        var commonCell = ws.FirstOrDefault(w => w.Name == "Template_Node_Common");
+        if (commonCell is not null) { int cw = Val(commonCell.Fields, FnWidth); if (cw > 0) cellExtent = cw; }
 
-        var layers = new List<ParagonNodeRecipeLayer>(last - first + 1);
+        // The base-disc slot z (where a rarity/type disc substitutes the grey
+        // base): Node_IconBase's scene index. Template disc components remap
+        // here so they sort below the symbol (Node_Icon), not at z≈121.
+        double baseZ = iconBaseIdx >= 0 ? iconBaseIdx : first;
+
+        var eng = NodeActivationSource.EngineBehavior;
+        NodeActivation Never() => new(new[] { NodeFact.Never }, eng);
+        NodeActivation Kind(NodeFact pf, params NodeFact[] extra) =>
+            new(extra.Length == 0 ? new[] { pf } : new[] { pf }.Concat(extra).ToArray(), eng);
+
+        // The resting state: any kind, unpurchased, unselected, no other
+        // runtime state. A layer authored default-OFF (bActive=0) must NOT be
+        // active here — if its name/position activation would fire at rest,
+        // that's a contradiction (it's an engine-toggled overlay whose trigger
+        // isn't decoded) → Never. This keeps a bActive=0 widget like
+        // Rarity_Display from drawing over the unpurchased base disc.
+        var resting = new HashSet<NodeFact>
+        {
+            NodeFact.Unpurchased, NodeFact.Unselected, NodeFact.KindCommon, NodeFact.KindMagic,
+            NodeFact.KindRare, NodeFact.KindLegendary, NodeFact.KindSocket, NodeFact.KindGate, NodeFact.KindStart,
+        };
+        NodeActivation Finalize(NodeActivation a, IReadOnlyList<UiField> fields) =>
+            DefaultActiveOf(fields) || !a.Evaluate(resting) ? a : Never();
+
+        var staged = new List<(double Sort, ParagonNodeComponent Comp)>();
+        // Emit one component per drawable layer (a widget's own hImageFrame, or
+        // a handle-bearing child sub-record), carrying its authored bActive
+        // (default visibility), rgbaTint, anchoring-resolved rect, and alpha.
+        void Emit(double sort, string src, uint handle, IReadOnlyList<UiField> fields,
+                  WidgetRect rawRect, NodeActivation act)
+        {
+            var placed = ResolvePlacement(rawRect, Val(fields, FeAnchor), cellExtent);
+            staged.Add((sort, new ParagonNodeComponent(
+                0, src, handle, placed, AlphaOf(fields), act,
+                DefaultActiveOf(fields), TintOf(fields))));
+        }
+
         for (int k = first; k <= last; k++)
         {
             var wd = ws[k];
-            uint handle = 0; byte alpha = 0xFF; bool sawAlpha = false;
-            foreach (var f in wd.Fields)
-            {
-                if (!f.HasValue) continue;
-                if (f.FieldHash == FhImageFrame && handle == 0) handle = f.RawValue;
-                else if (f.FieldHash == FdwAlpha && !sawAlpha) { alpha = (byte)f.RawValue; sawAlpha = true; }
-            }
+            var name = wd.Name ?? string.Empty;
+            var handleChildren = wd.Children
+                .Where(c => IsHandle((uint)Val(c.Fields, FhImageFrame))).ToList();
 
-            // FR-C16 R9 / FR-C18: build the composited child layers from the
-            // parent's STRUCTURED children (UiWidget.Children), keeping each
-            // handle paired with its own authored rect. A child contributes
-            // a layer iff it binds a resolvable hImageFrame (the no-handle
-            // children are pure rect/anchor records — symbol-slot insets,
-            // bActive markers — not drawable layers). Scene order preserved.
-            var childLayers = new List<NodeDiscLayer>(wd.Children.Count);
-            foreach (var c in wd.Children)
+            if (TemplateFact(name) is NodeFact pf)
             {
-                uint h = (uint)Val(c.Fields, FhImageFrame);
-                if (!IsHandle(h)) continue;
-                childLayers.Add(new NodeDiscLayer(
-                    h, RectOf(c.Fields), Val(c.Fields, FbActive) != 0, ChildActivation(h)));
-            }
+                // Template widget → one component per handle-bearing child,
+                // remapped into the base-disc band (below the symbol).
+                bool rarity = pf is NodeFact.KindMagic or NodeFact.KindRare or NodeFact.KindLegendary;
 
-            // For a rarity template the first two handle-bearing children
-            // are the unselected/selected disc pair; the rest are the
-            // always-drawn interior fill. The pair is co-sized: the engine
-            // authors the inset on whichever child carries it, so a disc
-            // whose own rect is empty inherits its sibling's rect (FR-C18 —
-            // the unselected disc draws at the same 86² as the selected one
-            // / the Node_IconBase base-disc slot, never full-cell).
-            NodeSelectionDiscs? discs = null;
-            IReadOnlyList<NodeDiscLayer> composite = childLayers;
-            if (IsRarityTemplate(wd.Name ?? string.Empty) && childLayers.Count >= 2)
+                // Disc-pair co-sizing (FR-C18): the unselected (child 0) /
+                // selected (child 1) discs share one authored inset; a side
+                // with an empty rect inherits the other.
+                WidgetRect shared = default;
+                if (rarity && handleChildren.Count >= 2)
+                {
+                    var r0 = RectOf(handleChildren[0].Fields);
+                    var r1 = RectOf(handleChildren[1].Fields);
+                    shared = !RectIsEmpty(r1) ? r1 : !RectIsEmpty(r0) ? r0 : default;
+                }
+
+                for (int i = 0; i < handleChildren.Count; i++)
+                {
+                    var cf = handleChildren[i].Fields;
+                    uint h = (uint)Val(cf, FhImageFrame);
+                    var rect = RectOf(cf);
+
+                    // Activation grounded in the authored layout (the swap pair
+                    // child 0/1 → unselected/selected disc; a known gate
+                    // ornate/locator role; otherwise always-for-this-kind), then
+                    // Finalize against bActive: a default-off layer that would
+                    // fire at rest becomes Never.
+                    NodeActivation act;
+                    if (rarity && i == 0) { if (RectIsEmpty(rect)) rect = shared; act = Kind(pf, NodeFact.Unpurchased); }
+                    else if (rarity && i == 1) { if (RectIsEmpty(rect)) rect = shared; act = Kind(pf, NodeFact.Purchased); }
+                    else if (!rarity && GateRoleFact(h) is NodeFact gr) act = Kind(pf, gr);
+                    else act = Kind(pf);
+
+                    Emit(baseZ + 0.001 * (i + 1), $"{name}[{i}]", h, cf, rect, Finalize(act, cf));
+                }
+            }
+            else
             {
-                var unsel = childLayers[0];
-                var sel = childLayers[1];
-                var shared = !RectIsEmpty(sel.Rect) ? sel.Rect
-                           : !RectIsEmpty(unsel.Rect) ? unsel.Rect
-                           : default;
-                if (RectIsEmpty(unsel.Rect)) unsel = unsel with { Rect = shared };
-                if (RectIsEmpty(sel.Rect)) sel = sel with { Rect = shared };
-                // The disc pair's per-state activation (structural order +
-                // owner FR-C12 oracle): child[0] unselected, child[1] selected.
-                unsel = unsel with { Activation = NodeActivation.Of(NodeFact.Unselected, NodeActivationSource.EngineBehavior) };
-                sel = sel with { Activation = NodeActivation.Of(NodeFact.Selected, NodeActivationSource.EngineBehavior) };
-                discs = new NodeSelectionDiscs(unsel, sel);
-                composite = childLayers.Skip(2).ToArray();
-            }
+                // Non-template widget: emit its own hImageFrame layer (the name
+                // encodes its state — Node_Purchased→selected, Arrow_*→neighbour,
+                // …) plus any handle-bearing child layers (e.g. the glyph-socket
+                // base/overlay nested in Usage_Slot_2). A default-off (bActive=0)
+                // child with no named state is Never (engine-toggled, undecoded).
+                uint own = (uint)Val(wd.Fields, FhImageFrame);
+                Emit(k, name, own, wd.Fields, RectOf(wd.Fields), Finalize(BaseActivation(name), wd.Fields));
 
-            var (act, slot) = LayerActivation(wd.Name ?? string.Empty);
-            layers.Add(new ParagonNodeRecipeLayer(
-                k, wd.Name ?? string.Empty, wd.ClassId, handle, Rect(wd), alpha,
-                composite.Count == 0 ? Array.Empty<NodeDiscLayer>() : composite,
-                discs, act, slot));
+                for (int j = 0; j < handleChildren.Count; j++)
+                {
+                    var cf = handleChildren[j].Fields;
+                    uint h = (uint)Val(cf, FhImageFrame);
+                    Emit(k + 0.001 * (j + 1), $"{name}[{j}]", h, cf, RectOf(cf), Finalize(BaseActivation(name), cf));
+                }
+            }
         }
-        return new ParagonNodeRecipe(layers);
+
+        // True paint order = list order: stable-sort by the remapped z, then
+        // assign ZOrder = final index.
+        var ordered = staged.OrderBy(s => s.Sort).ToList();
+        var comps = new List<ParagonNodeComponent>(ordered.Count);
+        for (int i = 0; i < ordered.Count; i++)
+            comps.Add(ordered[i].Comp with { ZOrder = i });
+        return new ParagonNodeRecipe(comps);
     }
 
     /// <summary>

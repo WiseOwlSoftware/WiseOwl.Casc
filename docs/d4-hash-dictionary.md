@@ -34,7 +34,7 @@ the implementations.
 | `0x0DAEFCAA` | `hImageFrameDisable` | FR-C16 R11 (recombination crack) — per-state image-slot family |
 | `0x07DB38D3` | `snoTiledStyle` | **FR-C14 R8 — the FR-C14 missing field** (blizzhackers/d4data FieldChecksums) |
 | `0x07F1EF79` | `nLeft` | pre-existing (CASC source) |
-| `0x093CBAA8` | `eGroupType` | FR-C14 R8 (blizzhackers/d4data FieldChecksums) |
+| `0x093CBAA8` | `eHorizontalAnchoring` | FR-C16 R14 — **corrected** from the FR-C14 mislabel "eGroupType" (real `FieldHash("eGroupType")`=`0x05862894`); caught by the field-hash sanity check |
 | `0x09A3F17B` | `rgbaTint` | pre-existing (CASC source) |
 
 ## Type hashes (full 32-bit)
@@ -96,7 +96,8 @@ are where the next crack delivers the biggest re-decode payoff.
 | `0x0B63D29B`, `0x0D75128C`, `0x0DAEFCAA`, `0x0A2C2344` | `UIImageHandleReference` | 1–2× | rarely-bound texture-handle fields (mostly value 0; `0x0A2C2344` binds real handles `0x5620532A`/`0x7DFC4A3F` in 964599) — names uncracked |
 
 Cracked since the table above was first written (FR-C14 R8/R10),
-moved to the field-hash table: `0x093CBAA8 = eGroupType`,
+moved to the field-hash table: `0x093CBAA8 = eHorizontalAnchoring`
+(corrected from the FR-C14 "eGroupType" mislabel — FR-C16 R14),
 `0x03D55658 = eVerticalAnchoring`, `0x07DB38D3 = snoTiledStyle`.
 
 ## Known-uncracked types (high-priority)
