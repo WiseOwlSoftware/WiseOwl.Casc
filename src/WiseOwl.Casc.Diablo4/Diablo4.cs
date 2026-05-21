@@ -115,6 +115,14 @@ public static class Diablo4
             // State / handle (DT_BOOL / DT_HANDLE)
             [0x06AB76DE] = "bActive",
             [0x0789C1CD] = "hText",
+            [0x0204DBB8] = "hTooltipText",   // FR-C16 R12 (EXE symbol extract)
+            // Per-state image-slot family (FR-C16 R11): the engine encodes
+            // a widget's interaction state by the field-name suffix. Two
+            // tiers — the widget background image and its icon image, each
+            // with normal/pressed/mouse-over/disable variants.
+            [0x0D75128C] = "hImageFramePressed",
+            [0x0B63D29B] = "hImageFrameMouseOver",
+            [0x0DAEFCAA] = "hImageFrameDisable",
             [0x02330CBF] = "hImageFrameIcon",
             [0x056F24F5] = "hImageFrameIconPressed",
             [0x05A90F13] = "hImageFrameIconDisable",

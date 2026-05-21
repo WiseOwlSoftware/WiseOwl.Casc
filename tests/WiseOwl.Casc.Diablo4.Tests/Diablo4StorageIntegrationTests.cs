@@ -1582,6 +1582,54 @@ public sealed class Diablo4StorageIntegrationTests
         }
     }
 
+    /// <summary>FR-C16 R11 — every recipe layer carries a typed
+    /// <see cref="NodeActivation"/> (the engine's name-convention condition,
+    /// since the scene stores no activation field — R10) and a
+    /// <see cref="NodeSlot"/> for variant grouping. The consumer evaluates
+    /// the activation against its computed facts and authors no
+    /// predicate.</summary>
+    [SkippableFact]
+    public void ReadParagonNodeRecipe_surfaces_typed_activation_per_layer()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+
+        var recipe = d4.ReadParagonNodeRecipe();
+        ParagonNodeRecipeLayer L(string name) => recipe.Layers.First(l => l.WidgetName == name);
+
+        // Name-convention activations decode the engine's state-suffixed names.
+        Assert.Contains(NodeFact.Purchased, L("Node_Purchased").Activation.AllOf);
+        Assert.Contains(NodeFact.Purchasable, L("Node_Purchasable").Activation.AllOf);
+        Assert.Contains(NodeFact.Located, L("Node_Located").Activation.AllOf);
+        Assert.Contains(NodeFact.RarityMagic, L("Template_Node_Magic").Activation.AllOf);
+        Assert.Contains(NodeFact.TypeGate, L("Template_Node_Quest").Activation.AllOf);
+        Assert.Equal(NodeActivationSource.NameConvention, L("Node_Purchased").Activation.Source);
+
+        // Base-disc family share the BaseDisc slot (mutually-exclusive variants).
+        foreach (var n in new[] { "Node_IconBase", "Template_Node_Magic", "Template_Node_Rare",
+                                  "Template_Node_Legendary", "Template_Node_Quest" })
+            Assert.Equal(NodeSlot.BaseDisc, L(n).Slot);
+        Assert.Equal(NodeSlot.Symbol, L("Node_Icon").Slot);
+
+        // The activation evaluates against a consumer-computed fact set.
+        var purchased = new HashSet<NodeFact> { NodeFact.Purchased };
+        Assert.True(L("Node_Purchased").Activation.Evaluate(purchased));
+        Assert.False(L("Node_Purchased").Activation.Evaluate(new HashSet<NodeFact>()));
+        Assert.True(L("Node_IconBase").Activation.Evaluate(new HashSet<NodeFact>())); // Always
+
+        // The per-rarity disc pair carries Selected/Unselected activations.
+        var magic = L("Template_Node_Magic").SelectionDiscs!;
+        Assert.Contains(NodeFact.Unselected, magic.Unselected.Activation.AllOf);
+        Assert.Contains(NodeFact.Selected, magic.Selected.Activation.AllOf);
+
+        // The gate composite splits its ornate by selection + gates the locator.
+        var quest = L("Template_Node_Quest").CompositeLayers;
+        Assert.Contains(NodeFact.Selected, quest.First(c => c.ImageHandle == 0xC2DF4786u).Activation.AllOf);
+        Assert.Contains(NodeFact.Unselected, quest.First(c => c.ImageHandle == 0x0E6B6249u).Activation.AllOf);
+        Assert.Contains(NodeFact.Located, quest.First(c => c.ImageHandle == 0x6D68F45Fu).Activation.AllOf);
+    }
+
     /// <summary>FR-C11 R3 §2 — scene-bound binding on the
     /// <c>Common_Node_Revealed</c> widget. <c>0xC1473C21</c> via the
     /// standard <c>0x6B1C5D9C</c> texture-handle field; authored rect

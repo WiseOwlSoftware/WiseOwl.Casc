@@ -223,6 +223,19 @@ public sealed record ParagonBoardGrid(
 /// <see cref="NodeSelectionDiscs.Selected"/> only on the currently
 /// selected node and <see cref="NodeSelectionDiscs.Unselected"/>
 /// otherwise; never both. See <see cref="NodeSelectionDiscs"/>.</param>
+/// <param name="Activation">FR-C16 R11 — the engine-sourced condition that
+/// gates whether this layer draws, over the closed <see cref="NodeFact"/>
+/// vocabulary. The consumer supplies the node's currently-true facts and
+/// calls <see cref="NodeActivation.Evaluate"/>; it authors no predicate.
+/// Recovered from the engine's widget-name convention (the scene stores no
+/// activation field — FR-C16 R10); <see cref="NodeActivation.Source"/>
+/// marks the provenance.</param>
+/// <param name="Slot">FR-C16 R11 — the composition slot this layer
+/// competes for. Layers sharing a non-<see cref="NodeSlot.None"/> slot are
+/// mutually-exclusive variants (the grey/rarity/type base discs all share
+/// <see cref="NodeSlot.BaseDisc"/>); the consumer draws the one whose
+/// <see cref="Activation"/> holds. Types CL-50's prose "the rarity template
+/// substitutes <c>Node_IconBase</c>".</param>
 public sealed record ParagonNodeRecipeLayer(
     int ZOrder,
     string WidgetName,
@@ -231,7 +244,31 @@ public sealed record ParagonNodeRecipeLayer(
     WidgetRect Rect,
     byte Alpha,
     IReadOnlyList<NodeDiscLayer> CompositeLayers,
-    NodeSelectionDiscs? SelectionDiscs);
+    NodeSelectionDiscs? SelectionDiscs,
+    NodeActivation Activation,
+    NodeSlot Slot);
+
+/// <summary>FR-C16 R11 — the composition slot a recipe layer competes for.
+/// Layers with the same slot are mutually-exclusive variants; the consumer
+/// draws the one whose <see cref="ParagonNodeRecipeLayer.Activation"/>
+/// evaluates true for the node.</summary>
+public enum NodeSlot
+{
+    /// <summary>No exclusivity — the layer composes independently.</summary>
+    None = 0,
+    /// <summary>The node's base disc (grey / per-rarity / per-type variants
+    /// all compete here — exactly one is drawn per node).</summary>
+    BaseDisc,
+    /// <summary>The node's emblem/symbol slot (<c>Node_Icon</c> →
+    /// the node's <c>HIconMask</c>).</summary>
+    Symbol,
+    /// <summary>A directional pointer/connector toward a neighbour.</summary>
+    Directional,
+    /// <summary>A state glow overlay (available/revealed/purchased/equip).</summary>
+    Glow,
+    /// <summary>The glyph-socket composite (glyph image + usage beads).</summary>
+    Socket,
+}
 
 /// <summary>
 /// FR-C16 R9 — one composited child layer of a paragon-node template: a
@@ -251,7 +288,15 @@ public sealed record ParagonNodeRecipeLayer(
 /// <param name="Active">The child's <c>bActive</c> default-visibility
 /// flag as authored (the engine still gates final visibility on the
 /// node's runtime state).</param>
-public sealed record NodeDiscLayer(uint ImageHandle, WidgetRect Rect, bool Active);
+/// <param name="Activation">FR-C16 R11 — the per-child activation
+/// condition. For the gate (<c>Template_Node_Quest</c>) the ornate
+/// children split by selection (<c>0xC2DF4786</c> →
+/// <see cref="NodeFact.Selected"/>, <c>0x0E6B6249</c> →
+/// <see cref="NodeFact.Unselected"/>) and the locator (<c>0x6D68F45F</c>)
+/// gates on <see cref="NodeFact.Located"/>; other children are
+/// <see cref="NodeActivation.Always"/>.</param>
+public sealed record NodeDiscLayer(
+    uint ImageHandle, WidgetRect Rect, bool Active, NodeActivation Activation);
 
 /// <summary>
 /// FR-C16 R5/R9 — the per-selection-state disc layer pair of a rarity
@@ -409,6 +454,71 @@ internal static class ParagonRenderProjection
 
     private static bool RectIsEmpty(in WidgetRect r) =>
         r is { Left: 0, Right: 0, Top: 0, Bottom: 0, Width: 0, Height: 0 };
+
+    // FR-C16 R11 — the engine binds a widget's visibility to a runtime
+    // state BY NAME in its C++ UI controller; the scene stores no activation
+    // field (FR-C16 R10). This table decodes that naming convention into a
+    // typed (activation, slot), provenance-marked: NameConvention where the
+    // name literally spells the state, EngineBehavior where the name is
+    // suggestive but the fact is inferred (validate vs the owner oracle).
+    private static (NodeActivation Act, NodeSlot Slot) LayerActivation(string name)
+    {
+        const NodeActivationSource Name = NodeActivationSource.NameConvention;
+        const NodeActivationSource Eng = NodeActivationSource.EngineBehavior;
+        static NodeActivation Eng0() => new(new[] { NodeFact.Always }, NodeActivationSource.EngineBehavior);
+        return name switch
+        {
+            // Base-disc slot: grey base, per-rarity, per-type variants all
+            // compete here — exactly one draws per node (mutual exclusion
+            // falls out of the activations: a node is one rarity/type).
+            "Node_IconBase"             => (NodeActivation.Always, NodeSlot.BaseDisc),
+            "Rarity_Display"            => (Eng0(), NodeSlot.BaseDisc),
+            "Node_Purchased"            => (NodeActivation.Of(NodeFact.Purchased, Name), NodeSlot.BaseDisc),
+            "Purchased_Rarity_Display"  => (NodeActivation.Of(NodeFact.Purchased, Name), NodeSlot.BaseDisc),
+            "Template_Node_Magic"       => (NodeActivation.Of(NodeFact.RarityMagic, Name), NodeSlot.BaseDisc),
+            "Template_Node_Rare"        => (NodeActivation.Of(NodeFact.RarityRare, Name), NodeSlot.BaseDisc),
+            "Template_Node_Legendary"   => (NodeActivation.Of(NodeFact.RarityLegendary, Name), NodeSlot.BaseDisc),
+            "Template_Node_Socketable"  => (NodeActivation.Of(NodeFact.TypeSocket, Name), NodeSlot.BaseDisc),
+            "Template_Node_Starter"     => (NodeActivation.Of(NodeFact.TypeStart, Name), NodeSlot.BaseDisc),
+            "Template_Node_Quest"       => (NodeActivation.Of(NodeFact.TypeGate, Name), NodeSlot.BaseDisc),
+            // Symbol slot.
+            "Node_Icon"                 => (NodeActivation.Always, NodeSlot.Symbol),
+            // State overlays / glows.
+            "Common_Node_Revealed"      => (NodeActivation.Of(NodeFact.Revealed, Name), NodeSlot.None),
+            "GlyphNodeGlow_Revealed"    => (NodeActivation.Of(NodeFact.Revealed, Eng), NodeSlot.Glow),
+            "GlyphNodeGlow_Purchased"   => (NodeActivation.Of(NodeFact.Purchased, Eng), NodeSlot.Glow),
+            "NodeAvailableGlow"         => (NodeActivation.Of(NodeFact.Purchasable, Eng), NodeSlot.Glow),
+            "Node_Purchasable"          => (NodeActivation.Of(NodeFact.Purchasable, Name), NodeSlot.None),
+            "Node_EquipGlow"            => (NodeActivation.Of(NodeFact.Equipped, Name), NodeSlot.Glow),
+            "Node_SearchResultHighlight"=> (NodeActivation.Of(NodeFact.SearchMatch, Name), NodeSlot.Glow),
+            "Node_Located"              => (NodeActivation.Of(NodeFact.Located, Name), NodeSlot.None),
+            "Node_Tutorial_Highlight"   => (NodeActivation.Of(NodeFact.Tutorial, Name), NodeSlot.Glow),
+            // Glyph-socket composite.
+            "Node_Glyph"                => (NodeActivation.Of(NodeFact.Socketed, Eng), NodeSlot.Socket),
+            "Node_Glyph_Usage_Stack"    => (NodeActivation.Of(NodeFact.Socketed, Eng), NodeSlot.Socket),
+            "Usage_Slot_1" or "Usage_Slot_2" => (NodeActivation.Of(NodeFact.Socketed, Eng), NodeSlot.Socket),
+            // Directional pointers/connectors (per-cardinal-neighbour).
+            "Arrow_Top"      or "Connector_Top"    => (NodeActivation.Of(NodeFact.NeighbourPurchasableTop, Eng), NodeSlot.Directional),
+            "Arrow_Right"    or "Connector_Right"  => (NodeActivation.Of(NodeFact.NeighbourPurchasableRight, Eng), NodeSlot.Directional),
+            "Arrow_Bottom"   or "Connector_Bottom" => (NodeActivation.Of(NodeFact.NeighbourPurchasableBottom, Eng), NodeSlot.Directional),
+            "Arrow_Left"     or "Connector_Left"   => (NodeActivation.Of(NodeFact.NeighbourPurchasableLeft, Eng), NodeSlot.Directional),
+            // Always-on / unrecovered (the per-cell darken bg, hit-target,
+            // aura tile) — Always with EngineBehavior provenance.
+            _ => (Eng0(), NodeSlot.None),
+        };
+    }
+
+    // FR-C16 R11 — per-child activation for composite template children.
+    // The gate (Template_Node_Quest) ornate splits by selection (owner
+    // FR-C8/CL-23 oracle: 0xC2DF4786 selected / 0x0E6B6249 unselected) and
+    // its locator gates on Located; all other children are Always.
+    private static NodeActivation ChildActivation(uint handle) => handle switch
+    {
+        0xC2DF4786u => NodeActivation.Of(NodeFact.Selected, NodeActivationSource.EngineBehavior),
+        0x0E6B6249u => NodeActivation.Of(NodeFact.Unselected, NodeActivationSource.EngineBehavior),
+        0x6D68F45Fu => NodeActivation.Of(NodeFact.Located, NodeActivationSource.EngineBehavior),
+        _ => NodeActivation.Always,
+    };
 
     public static ParagonRenderLayout Project(
         UiScene scene,
@@ -1141,7 +1251,8 @@ internal static class ParagonRenderProjection
             {
                 uint h = (uint)Val(c.Fields, FhImageFrame);
                 if (!IsHandle(h)) continue;
-                childLayers.Add(new NodeDiscLayer(h, RectOf(c.Fields), Val(c.Fields, FbActive) != 0));
+                childLayers.Add(new NodeDiscLayer(
+                    h, RectOf(c.Fields), Val(c.Fields, FbActive) != 0, ChildActivation(h)));
             }
 
             // For a rarity template the first two handle-bearing children
@@ -1162,14 +1273,19 @@ internal static class ParagonRenderProjection
                            : default;
                 if (RectIsEmpty(unsel.Rect)) unsel = unsel with { Rect = shared };
                 if (RectIsEmpty(sel.Rect)) sel = sel with { Rect = shared };
+                // The disc pair's per-state activation (structural order +
+                // owner FR-C12 oracle): child[0] unselected, child[1] selected.
+                unsel = unsel with { Activation = NodeActivation.Of(NodeFact.Unselected, NodeActivationSource.EngineBehavior) };
+                sel = sel with { Activation = NodeActivation.Of(NodeFact.Selected, NodeActivationSource.EngineBehavior) };
                 discs = new NodeSelectionDiscs(unsel, sel);
                 composite = childLayers.Skip(2).ToArray();
             }
 
+            var (act, slot) = LayerActivation(wd.Name ?? string.Empty);
             layers.Add(new ParagonNodeRecipeLayer(
                 k, wd.Name ?? string.Empty, wd.ClassId, handle, Rect(wd), alpha,
                 composite.Count == 0 ? Array.Empty<NodeDiscLayer>() : composite,
-                discs));
+                discs, act, slot));
         }
         return new ParagonNodeRecipe(layers);
     }

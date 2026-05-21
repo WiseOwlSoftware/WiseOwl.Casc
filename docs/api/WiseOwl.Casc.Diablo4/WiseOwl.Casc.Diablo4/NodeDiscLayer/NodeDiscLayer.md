@@ -3,7 +3,7 @@
 FR-C16 R9 — one composited child layer of a paragon-node template: a single drawable disc / ornate / filigree / interior-fill / locator element with its own `hImageFrame` handle, authored rect inset, and `bActive` default-state flag. Decoded from a parent template's anonymous child sub-record ([`UiWidgetChild`](../UiWidgetChild.md)).
 
 ```csharp
-public NodeDiscLayer(uint ImageHandle, WidgetRect Rect, bool Active)
+public NodeDiscLayer(uint ImageHandle, WidgetRect Rect, bool Active, NodeActivation Activation)
 ```
 
 | parameter | description |
@@ -11,10 +11,12 @@ public NodeDiscLayer(uint ImageHandle, WidgetRect Rect, bool Active)
 | ImageHandle | The child's `hImageFrame` texture handle. |
 | Rect | The child's authored reference-unit rect inset. `default` (all-zero) ⇒ the child binds no rect and inherits its placement from the node template / its substitution target (for a rarity disc, the `Node_IconBase` inset-7 base-disc slot). Negative insets are intentional overscan (the layer extends beyond the cell, e.g. the start/gate filigree at −18/−20). |
 | Active | The child's `bActive` default-visibility flag as authored (the engine still gates final visibility on the node's runtime state). |
+| Activation | FR-C16 R11 — the per-child activation condition. For the gate (`Template_Node_Quest`) the ornate children split by selection (`0xC2DF4786` → Selected, `0x0E6B6249` → Unselected) and the locator (`0x6D68F45F`) gates on Located; other children are [`Always`](../NodeActivation/Always.md). |
 
 ## See Also
 
 * struct [WidgetRect](../WidgetRect.md)
+* record [NodeActivation](../NodeActivation.md)
 * record [NodeDiscLayer](../NodeDiscLayer.md)
 * namespace [WiseOwl.Casc.Diablo4](../../WiseOwl.Casc.Diablo4.md)
 

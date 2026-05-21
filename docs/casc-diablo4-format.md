@@ -1735,6 +1735,36 @@ derived from FR-C14 R8's `snoTiledStyle` crack and R10's variant
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
 
+- **CL-51 — typed per-layer activation surface; the scene encodes state by
+  NAME, not by a condition field (FR-C16 R10/R11).** The owner ruled that
+  the consumer must author *no* dispatch — predicates, draw order, and
+  variant selection must all come from CASC. Foundational decode of scene
+  657304 (recon `recdump`/`members`/`snorefs`): the scene stores **no**
+  activation/condition/visibility field, **no** binding expression in the
+  `DT_BINDABLEPROPERTY` value records (full 56-byte decode = literal value +
+  44 zero bytes), and **no** condition-SNO reference (its only `DT_SNO`
+  field, `snoTiledStyle`, points at group-103 style SNOs). The engine binds
+  a widget's `bActive` to a runtime state **by the widget's name** in its
+  C++ UI controller; the data-side representation of the association is the
+  **naming convention** — per-state field-name suffixes (cracked this round:
+  `hImageFramePressed` `0x0D75128C`, `hImageFrameMouseOver` `0x0B63D29B`,
+  `hImageFrameDisable` `0x0DAEFCAA`, `hImageFrameIcon` `0x02330CBF`,
+  `hText` `0x0789C1CD`) and per-state widget/asset names
+  (`Node_Purchased`, `Node_Purchasable`, `Template_Node_Magic`, …). CASC
+  decodes that convention into a typed `NodeActivation` (a closed
+  `NodeFact` vocabulary + `Evaluate(factSet)`), surfaced on every
+  `ParagonNodeRecipeLayer` and `NodeDiscLayer`, plus a `NodeSlot` for
+  variant grouping (the grey/rarity/type base discs all share
+  `NodeSlot.BaseDisc`). Each activation is **provenance-marked**
+  (`NameConvention` where the name literally spells the state,
+  `EngineBehavior` for documented inference, `SceneField` reserved) per the
+  `feedback_widget-name-not-role` discipline. The consumer supplies its
+  computed facts and evaluates; it authors no predicate. The selected-state
+  brightness is **baked into the selected disc texture** (no scene tint op
+  on the discs — the only `rgbaTint` `0x09A3F17B` bindings are on chrome).
+  Acceptance: `ReadParagonNodeRecipe_surfaces_typed_activation_per_layer`.
+  58/58 tests green on build `3.0.2.71886`. Devlog 0048.
+
 - **CL-50 — node-template child sub-records decode structurally; per-child
   rect surfaced (FR-C16 R9 / FR-C18 #29 + #26 residuals).** CL-46/47/48
   harvested a parent template's anonymous child sub-records only as a
