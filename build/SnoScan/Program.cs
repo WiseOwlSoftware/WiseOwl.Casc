@@ -763,6 +763,30 @@ switch (cmd)
         }
         return 0;
     }
+    case "codecscan":
+    {
+        // Tally the texture codec across all UI atlases (2DUI*, group 44) to
+        // size the decode-coverage work for a UI atlas catalog.
+        var byCodec = new Dictionary<string, (int atlases, long frames)>();
+        int total = 0, noMeta = 0;
+        foreach (var e in toc.Entries)
+        {
+            if ((int)e.Group != 44 || !e.Name.StartsWith("2DUI", StringComparison.OrdinalIgnoreCase)) continue;
+            total++;
+            if (d4.TextureMeta.TryGet(e.Id, out var td))
+            {
+                var c = td.Codec.ToString();
+                byCodec.TryGetValue(c, out var v);
+                byCodec[c] = (v.atlases + 1, v.frames + td.Frames.Count);
+            }
+            else noMeta++;
+        }
+        Console.WriteLine($"UI atlases (2DUI*, group 44): {total}  (no combined-meta: {noMeta})");
+        Console.WriteLine($"{"codec",-14} {"atlases",8} {"frames",10}");
+        foreach (var kv in byCodec.OrderByDescending(k => k.Value.atlases))
+            Console.WriteLine($"{kv.Key,-14} {kv.Value.atlases,8} {kv.Value.frames,10}");
+        return 0;
+    }
     default:
         Console.Error.WriteLine($"unknown command '{cmd}'");
         return 2;

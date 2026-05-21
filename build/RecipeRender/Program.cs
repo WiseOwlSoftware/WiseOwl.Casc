@@ -13,6 +13,23 @@ string outPath = args.FirstOrDefault(a => a.EndsWith(".png", StringComparison.Or
                  ?? @"E:\tmp\paragon-node-recipe-grid.png";
 
 using var d4 = Diablo4Storage.Open(install);
+
+// Atlas-dump mode: `atlas <textureSno> <out.png>` — decode a texture's mip0
+// to PNG (validation that DecodeMip0 produces coherent UI art beyond paragon).
+if (args.Length >= 2 && args[0] == "atlas")
+{
+    int asno = int.Parse(args[1]);
+    string apath = args.Length >= 3 ? args[2] : $@"E:\tmp\atlas-{asno}.png";
+    if (!d4.TextureMeta.TryGet(asno, out var atd)) { Console.WriteLine($"no meta {asno}"); return 1; }
+    var aimg = atd.DecodeMip0(d4.ReadSno(SnoGroup.Texture, asno, SnoFolder.Payload));
+    var abmp = new SKBitmap(new SKImageInfo(aimg.Width, aimg.Height, SKColorType.Rgba8888, SKAlphaType.Unpremul));
+    Marshal.Copy(aimg.Rgba, 0, abmp.GetPixels(), aimg.Rgba.Length);
+    using (var aenc = SKImage.FromBitmap(abmp).Encode(SKEncodedImageFormat.Png, 90))
+    using (var afs = File.OpenWrite(apath)) aenc.SaveTo(afs);
+    Console.WriteLine($"atlas {asno} {atd.Codec} {aimg.Width}x{aimg.Height} frames={atd.Frames.Count} -> {apath}");
+    return 0;
+}
+
 var recipe = d4.ReadParagonNodeRecipe();
 int cell = d4.ReadParagonBoardGrid().CellExtent;          // 100 ref units
 Console.WriteLine($"recipe: {recipe.Components.Count} components, cell extent {cell}");
@@ -202,3 +219,4 @@ using (var fimg = fsurf.Snapshot())
 using (var fdata = fimg.Encode(SKEncodedImageFormat.Png, 100))
 using (var ffs = File.OpenWrite(framesPath)) fdata.SaveTo(ffs);
 Console.WriteLine($"wrote {framesPath} ({fw}x{fh})");
+return 0;
