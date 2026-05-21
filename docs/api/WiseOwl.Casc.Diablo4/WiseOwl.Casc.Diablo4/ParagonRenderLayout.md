@@ -13,8 +13,8 @@ public record ParagonRenderLayout
 | [ParagonRenderLayout](ParagonRenderLayout/ParagonRenderLayout.md)(…) | The typed paragon-board render projection (FR-C7), built on top of the generic [`UiScene`](./UiScene.md) decode of `ParagonBoard` (SNO 657304). Raw decoded geometry only — the consumer owns the resolution/zoom scale and all imaging/compositing (boundary: `docs/casc-diablo4-format.md` Appendix C, §10.7). |
 | [BoardRotationQuadrant](ParagonRenderLayout/BoardRotationQuadrant.md) { get; set; } |  |
 | [CanvasReference](ParagonRenderLayout/CanvasReference.md) { get; set; } |  |
+| [CommonNodeRevealedLayer](ParagonRenderLayout/CommonNodeRevealedLayer.md) { get; set; } |  |
 | [Disc](ParagonRenderLayout/Disc.md) { get; set; } |  |
-| [NodeCellBackground](ParagonRenderLayout/NodeCellBackground.md) { get; set; } |  |
 | [NodeContainer](ParagonRenderLayout/NodeContainer.md) { get; set; } |  |
 | [NodeTemplate](ParagonRenderLayout/NodeTemplate.md) { get; set; } |  |
 | [Ratios](ParagonRenderLayout/Ratios.md) { get; set; } |  |

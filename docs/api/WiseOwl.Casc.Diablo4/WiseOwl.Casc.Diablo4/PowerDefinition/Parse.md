@@ -1,6 +1,6 @@
 # PowerDefinition.Parse method
 
-Decode a Power from its raw SNO blob. Identity only — the localized fields need [`CoreToc`](../CoreToc.md); use [`ReadPower`](../Diablo4Storage/ReadPower.md).
+Decode a Power from its raw SNO blob. Identity + [`ScriptFormulas`](./ScriptFormulas.md) + [`ResolvedFormulas`](./ResolvedFormulas.md); the localized fields (and the [`FunctionRefs`](./FunctionRefs.md) scan, which reads them) need [`CoreToc`](../CoreToc.md); use [`ReadPower`](../Diablo4Storage/ReadPower.md).
 
 ```csharp
 public static PowerDefinition Parse(ReadOnlySpan<byte> blob)

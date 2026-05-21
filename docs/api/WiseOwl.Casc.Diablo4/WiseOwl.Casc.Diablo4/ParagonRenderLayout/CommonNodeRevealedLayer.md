@@ -1,7 +1,7 @@
-# ParagonRenderLayout.NodeCellBackground property
+# ParagonRenderLayout.CommonNodeRevealedLayer property
 
 ```csharp
-public NodeElement NodeCellBackground { get; set; }
+public NodeElement CommonNodeRevealedLayer { get; set; }
 ```
 
 ## See Also
