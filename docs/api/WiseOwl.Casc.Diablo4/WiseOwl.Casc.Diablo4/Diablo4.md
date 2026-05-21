@@ -10,7 +10,11 @@ public static class Diablo4
 
 | name | description |
 | --- | --- |
+| static [KnownFieldNames](Diablo4/KnownFieldNames.md) { get; } | Cracked-hash registry — a cumulative dictionary of [`FieldHash`](./Diablo4/FieldHash.md) values whose source name has been recovered (via first-party brute force or community schema lookups, e.g. `blizzhackers/d4data`'s `!!D4FieldChecksums.yml`). Per the `feedback_cumulative-hash-decode` principle, every newly cracked hash is added here so all prior scene/SNO blobs become retroactively interpretable. Curated and authoritative — only cracks verified to round-trip through [`FieldHash`](./Diablo4/FieldHash.md) are added. |
+| static [KnownTypeNames](Diablo4/KnownTypeNames.md) { get; } | Cracked-hash registry for [`TypeHash`](./Diablo4/TypeHash.md) (full 32-bit). Companion to [`KnownFieldNames`](./Diablo4/KnownFieldNames.md); see remarks there. |
 | static [FieldHash](Diablo4/FieldHash.md)(…) | The Diablo IV field hash: [`TypeHash`](./Diablo4/TypeHash.md) masked to 28 bits (`& 0x0FFFFFFF`). D4 identifies serialized struct field names with this; the 28-bit mask is why field ids in SNO meta cluster below `0x10000000`. |
+| static [FormatFieldHash](Diablo4/FormatFieldHash.md)(…) | Pretty-print a field hash as `"name (0xHHHHHHHH)"` when [`KnownFieldNames`](./Diablo4/KnownFieldNames.md) covers it; otherwise `"0xHHHHHHHH"`. Convenience for debug output and dictionary-driven scene dumps. |
+| static [FormatTypeHash](Diablo4/FormatTypeHash.md)(…) | Pretty-print a type hash. See [`FormatFieldHash`](./Diablo4/FormatFieldHash.md). |
 | static [GbidHash](Diablo4/GbidHash.md)(…) | The Diablo IV GBID hash: a case-insensitive DJB2 over the name's ASCII bytes (`h = 0; h = h*33 + tolower(c)`, unsigned 32-bit, stopping at the first NUL). This is the canonical hash D4 uses to reference shared values across GameBalance / affix / skill / formula tables. |
 | static [TypeHash](Diablo4/TypeHash.md)(…) | The Diablo IV type hash: the same DJB2 core as [`GbidHash`](./Diablo4/GbidHash.md) (`h = 0; h = h*33 + c`, unsigned 32-bit, stopping at the first NUL) but case-sensitive (no lower-casing). D4 identifies serialized type / class / struct names with this — e.g. `DT_INT`, `DT_BINDABLEPROPERTY`, and the UI widget class ids in the `0xE4825AB8` UI-scene format. |
 

@@ -22,6 +22,7 @@ public enum SnoGroup
 | ParagonBoard | `108` | Paragon board definitions (`.pbd`). |
 | ParagonGlyph | `111` | Paragon glyph definitions (`.gph`). |
 | ParagonGlyphAffix | `112` | Paragon glyph-affix definitions (`.gaf`). |
+| UiStyle | `103` | UI Style — [`TiledStyleDefinition`](./TiledStyleDefinition.md) records. Carry the engine's tile-rendering composition for UI overlays (piece handles for the 3-slice / 9-slice composition, image scale, padding). Identified from FR-C14 R8 by cracking [`FieldHash`](./Diablo4/FieldHash.md)(`"snoTiledStyle"`) = 0x07DB38D3 and tracing the bound SNO ids to this group (format hash 0x80504E18). Sample entries: 843662 "InnerShadow", 603760 "BagBackground", 1309282 "Frame_AbilityPoints", 872641 "Tutorial_Highlight", 1841254 "Expansion_Frame_Ultimate". |
 
 ## Remarks
 

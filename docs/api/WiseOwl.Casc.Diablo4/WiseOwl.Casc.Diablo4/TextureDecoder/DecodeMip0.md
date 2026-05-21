@@ -1,6 +1,6 @@
 # TextureDecoder.DecodeMip0 method
 
-Decode mip 0 of a texture payload to a [`DecodedImage`](../DecodedImage.md). Diablo IV stores BC rows aligned up to 64 px; this decodes at the aligned width and crops back to the true [`Width`](../TextureDefinition/Width.md)× [`Height`](../TextureDefinition/Height.md). mip0 is taken from `SerTex[0]` when present (else payload offset 0 — the paragon atlas case).
+Decode mip 0 of a texture payload to a [`DecodedImage`](../DecodedImage.md). Diablo IV stores BC block-rows at a texture-specific aligned row pitch (observed 64- and 128-px alignments — e.g. atlas 447106 at 1208 px wide is stored at a 1280-px pitch, 128-aligned). The true stored pitch is recovered from the mip0 byte count ([`SizeAndFlags`](../SerialDataInfo/SizeAndFlags.md) ÷ block-rows ÷ block size = blocks-per-row), which is exact for every atlas; a hard-coded `Align(width, 64)` drifts the row stride on the 128-aligned ones and garbles the image (slanted banding). When the mip0 size is unavailable, falls back to `Align(width, 64)`. This decodes at the stored pitch and crops back to the true [`Width`](../TextureDefinition/Width.md)×[`Height`](../TextureDefinition/Height.md). mip0 is taken from `SerTex[0]` when present (else payload offset 0 — the paragon atlas case).
 
 ```csharp
 public static DecodedImage DecodeMip0(this TextureDefinition td, ReadOnlySpan<byte> payload)

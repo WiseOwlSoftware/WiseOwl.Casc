@@ -19,7 +19,7 @@ public record UiScene
 
 ## Remarks
 
-Byte format: `docs/casc-diablo4-format.md §10`. The parser is built only on the independently-proven facts: the pinned record header (§10.3 — `classOff = nameStart + alignUp8(len+1) + 0x10`, `0xFFFFFFFF` sentinel at `classOff+0x08`), the 12-byte schema entry `(fieldHash, typeHash("DT_BINDABLEPROPERTY"), DT_type)`, and the fixed 56-byte `0x22` instance record with the bound value at `+0x08`, positionally keyed to the schema.
+Byte format: `docs/casc-diablo4-format.md §10`. The parser is built only on the independently-proven facts: the pinned record header (§10.3 — `classOff = nameStart + alignUp8(len+1) + 0x10`, `0xFFFFFFFF` sentinel at `classOff+0x08`), the 12-byte schema entry `(fieldHash, typeHash("DT_BINDABLEPROPERTY"), DT_type)`, and the per-field instance value record — the bound value at `+0x08` of either a 56-byte `0x22` literal record or a 12-byte tag-2 block (`tag==2, +4==0`) — positionally keyed to the schema (FR-C16 R7; widgets use either encoding, sometimes mixed). Parent widgets whose span nests anonymous child sub-records confine their own field scan to the run before the first child.
 
 ## See Also
 
