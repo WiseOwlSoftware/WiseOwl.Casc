@@ -870,8 +870,9 @@ public sealed class Diablo4StorageIntegrationTests
     /// <see cref="ParagonBoardChrome.TiledStyleBindings"/>, (b) the
     /// canonical <c>Vignette → InnerShadow</c> (SNO 843662) binding is
     /// present and read, (c) the parsed <see cref="TiledStyleDefinition"/>
-    /// carries the expected <c>flImageScale</c> = 1.0 +
-    /// <see cref="TiledStyleDefinition.TypeTagHorizontalPieces"/>.</summary>
+    /// carries the expected <c>flImageScale</c> = 1.0 + the
+    /// <see cref="TiledStyleDefinition.TypeTagNSlice"/> variant, fully
+    /// decoded (R10).</summary>
     [SkippableFact]
     public void ReadParagonRenderModel_surfaces_tiled_style_bindings()
     {
@@ -882,19 +883,35 @@ public sealed class Diablo4StorageIntegrationTests
         var model = d4.ReadParagonRenderModel();
         Assert.NotEmpty(model.BoardChrome.TiledStyleBindings);
 
-        // The Vignette → SNO 843662 ("InnerShadow") binding is the
-        // canonical anchor surfaced by FR-C14 R8 (the widget with the
-        // most-plausible role as a board-area overlay).
+        // The Vignette → SNO 843662 ("InnerShadow") binding. FR-C14 R10
+        // decoded the NSlice variant fully: this is a STRETCHED
+        // inner-shadow (all tile flags 0), NOT a tiled pattern — which
+        // corrects the R8/R9 "Vignette is the board pattern overlay"
+        // hypothesis.
         var vignette = model.BoardChrome.TiledStyleBindings
             .FirstOrDefault(b => b.WidgetName == "Vignette");
         Assert.NotNull(vignette);
         Assert.Equal(843662, vignette!.TiledStyleSnoId);
         Assert.NotNull(vignette.Style);
         Assert.Equal(843662, vignette.Style!.SnoId);
-        Assert.Equal(TiledStyleDefinition.TypeTagHorizontalPieces, vignette.Style.TypeTag);
+        Assert.Equal(TiledStyleDefinition.TypeTagNSlice, vignette.Style.TypeTag);
+        Assert.Equal("NSlice", vignette.Style.VariantName);
         Assert.Equal(1.0f, vignette.Style.ImageScale);
-        Assert.True(vignette.Style.HasPartialDecode,
-            "168-byte record should carry trailing variant data not yet decoded");
+        Assert.False(vignette.Style.HasPartialDecode);
+        Assert.Equal(0, vignette.Style.TileCenter);
+        Assert.Equal(0, vignette.Style.TileHorizontalBorders);
+        Assert.Equal(0, vignette.Style.TileVerticalBorders);
+
+        // Frame_AbilityPoints (SNO 1309282) IS a genuinely tiled NSlice
+        // (fTileCenter=1) — confirms the decode distinguishes
+        // stretched vs tiled.
+        var pts = model.BoardChrome.TiledStyleBindings
+            .FirstOrDefault(b => b.WidgetName == "Paragon_Points_Container");
+        if (pts?.Style is not null && pts.Style.VariantName == "NSlice")
+        {
+            Assert.Equal(1, pts.Style.TileCenter);
+            Assert.Equal(0.5f, pts.Style.ImageScale);
+        }
 
         // The standalone reader matches the chrome surface's pre-read.
         var direct = d4.ReadTiledStyle(843662);

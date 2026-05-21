@@ -35,11 +35,25 @@ the implementations.
 
 | Hash | Name | Source / first observed |
 |---|---|---|
+| `0x02E46583` | `TiledWindowPieces` | FR-C14 R10 (blizzhackers/d4data D4Checksums) |
+| `0x02F5672C` | `TiledStyleDefinition` | FR-C14 R10 (blizzhackers/d4data D4Checksums) |
 | `0x1332C78D` | `DT_BINDABLEPROPERTY` | pre-existing (CASC source) |
 | `0x3D4646AB` | `DT_BYTE` | FR-C14 R7 |
 | `0x3D47BD2C` | `DT_ENUM` | FR-C14 R6 (brute force) |
+| `0x5943238D` | `HorizontalTiledWindowPieces` | FR-C14 R10 (blizzhackers/d4data D4Checksums) |
+| `0x6B1C5D9C` | `UIImageHandleReference` | FR-C14 R10 (blizzhackers/d4data D4Checksums) |
+| `0x6BFED904` | `VertTiledWindowPieces` | FR-C14 R10 (blizzhackers/d4data D4Checksums) |
+| `0x8E00F391` | `WindowPieces` | FR-C14 R10 (blizzhackers/d4data D4Checksums) |
 | `0xA4C42E02` | `DT_INT` | pre-existing (CASC source) |
 | `0xA4C45887` | `DT_SNO` | FR-C14 R6 (brute force) |
+| `0xBC0D579E` | `NSlice` | **FR-C14 R10 — the TiledStyle 9-slice variant** (blizzhackers/d4data D4Checksums) |
+| `0xC5A830EC` | `WindowPiecesBase` | FR-C14 R10 (blizzhackers/d4data D4Checksums) |
+
+`NSlice` struct fields (from `!NSlice.bc0d579e.yml`, all added to
+`Diablo4.KnownFieldNames` via `FieldHash`): `flImageScale`,
+`nPadding`, `hSourceImage`, `eSliceStyle`, `fTileCenter`,
+`fTileHorizontalBorders`, `fTileVerticalBorders`. `TiledStyleDefinition`
+fields: `ptWindowPiece`, `hOptionalTiledStyleFields`.
 
 ## Class hashes (widget classes)
 
@@ -56,17 +70,19 @@ are where the next crack delivers the biggest re-decode payoff.
 
 | Hash | Kind | Freq | Notes |
 |---|---|---|---|
-| `0x093CBAA8` | `DT_ENUM` | 228× | top unknown; likely a near-universal widget property (eState? eVisibility? eOrientation?) |
-| `0x03D55658` | `DT_ENUM` | 189× | second-most-common enum |
-| `0x0C152636` | `0x6B1C5D9C` | 136× | texture-handle-ish; the field on `Board_Selector_BG` that *should* hold its bound texture (it's unbound on that instance — value comes via ExtraLayerValues) |
-| `0x07DB38D3` | `DT_SNO` | 45× | sibling/child SNO ref |
-| `0x0CDB00E9` | `DT_INT` | 32× | 3rd coordinate field on widgets (not nTop/nBottom/nWidth/nHeight — those have different hashes) |
+| `0x0C152636` | `UIImageHandleReference` | 136× | a texture-handle field (the field on `Board_Selector_BG` that *should* hold its bound texture — unbound on that instance; value comes via ExtraLayerValues). Still needs the field *name* cracked. |
+| `0x0CDB00E9` | `DT_INT` | 32× | a coordinate-ish field (not nTop/nBottom/nWidth/nHeight) |
 | `0x0C2AFA21` | `DT_BYTE` | 25× | common byte-flag field |
+
+Cracked since the table above was first written (FR-C14 R8/R10),
+moved to the field-hash table: `0x093CBAA8 = eGroupType`,
+`0x03D55658 = eVerticalAnchoring`, `0x07DB38D3 = snoTiledStyle`.
 
 ## Known-uncracked types (high-priority)
 
 | Hash | Notes |
 |---|---|
-| `0x6B1C5D9C` | Used by ≥5 distinct field hashes carrying texture-handle-shaped values; some `DT_HANDLE`-variant the d4parse community hasn't named |
 | `0xE549F591` | Less common; 2 fields observed |
 | `0x2B0285C0` | 1 field observed |
+
+(`0x6B1C5D9C` cracked R10 = `UIImageHandleReference`.)

@@ -1431,59 +1431,98 @@ and composes the overlay. Distinct from the widget's `hImage` (the
 primary content); `snoTiledStyle` defines the *framing/composition*
 applied to the widget's rect. Group format hash `0x80504E18`.
 
-Record layout (verified across 8 dumped SNOs from scene 657304's
-`snoTiledStyle` bindings):
+The record is a `TiledStyleDefinition` SNO (type hash `0x02F5672C`)
+holding a polymorphic `ptWindowPiece` array; CASC decodes the first
+(and only, in every record observed) element. The element's
+PolymorphicBase header stores the variant tag at blob `+0x50`; for
+the **`NSlice`** variant (tag `0xBC0D579E` — the 9-slice composition
+class, the common case) the struct fields map `struct +N → blob
++0x48+N`:
 
 ```
-+0x00  uint32   magic        = 0xDEADBEEF
-+0x10  int32    SnoId        (self-reference)
-+0x50  uint32   TypeTag      (polymorphic variant — 0xBC0D579E most common;
-                              0x02E46583 observed on at least one record)
-+0x58  float32  flImageScale (1.0 / 0.5 / 0.9 observed)
-+0x60  uint32   PrimaryHandle (hPieceMiddle in HorizontalTiledWindowPieces;
-                              role varies by TypeTag variant)
-+0x68..end variable-length per-variant suffix (additional piece handles,
-           sub-rects, per-piece padding) — only partially decoded.
++0x00  uint32   magic                  = 0xDEADBEEF
++0x10  int32    SnoId                  (self-reference)
++0x50  uint32   TypeTag (= dwType)     0xBC0D579E NSlice | 0x02E46583 TiledWindowPieces | …
++0x58  float32  flImageScale           (1.0 / 0.5 / 0.9 observed)
++0x5C  uint32   nPadding
++0x60  uint32   hSourceImage           (the sliced/tiled texture handle)
++0x64  uint32   eSliceStyle            (slice mode enum)
++0x68  16 bytes DT_VARIABLEARRAY        (struct +0x20 — opaque)
++0x78  16 bytes DT_VARIABLEARRAY        (struct +0x30 — opaque)
++0x88  int32    fTileCenter            (≠0 ⇒ interior is TILED, not stretched)
++0x8C  int32    fTileHorizontalBorders (≠0 ⇒ top/bottom strips tiled)
++0x90  int32    fTileVerticalBorders   (≠0 ⇒ left/right strips tiled)
 ```
 
-The full multi-piece structure (`hPieceLeft` / `hPieceRight` /
-`hPieceTop` / `hPieceBottom` + per-piece sub-rects) is encoded in
-the trailing bytes per the
-`HorizontalTiledWindowPieces` / `VerticalTiledWindowPieces` schemas
-published by the `blizzhackers/d4data` community catalog (cited as
-intel only — see memory `feedback_third-party-re-as-intel`). The
-variant is selected via `TypeTag`. CASC R9 surfaces the verified
-primary handle + image scale + type tag; cumulative-decode
-iterations will widen the surface as more variant fields are
-verified (memory `feedback_cumulative-hash-decode`).
+Field/type names cracked from the `blizzhackers/d4data`
+`!!D4Checksums.yml` + `!NSlice.bc0d579e.yml` schemas (cited as intel
+only — see memory `feedback_third-party-re-as-intel`). The N-slice
+model — fixed corners + (optionally tiled) edges + (optionally
+tiled) centre — is exactly the "raised perimeter edges + tiled
+interior" composition the FR-C14 owner observations described.
 
 Anchors verified (scene 657304 `snoTiledStyle` bindings):
 
-| Widget | SNO id | CoreToc name | `flImageScale` | `TypeTag` |
-|---|--:|---|--:|---|
-| `Vignette` | 843662 | InnerShadow | 1.0 | `0xBC0D579E` |
-| `Paragon_Points_Container` | 1309282 | Frame_AbilityPoints | 0.5 | `0xBC0D579E` |
-| `Points_Tutorial_Highlight` | 872641 | Tutorial_Highlight | 1.0 | `0xBC0D579E` |
-| `ParagonStats` | 787949 | HellGothicChill | 0.9 | `0xBC0D579E` |
-| `Board_Info` | 603760 | BagBackground | 0.9 | `0x02E46583` |
-| `CoreStatEntryStack` | 792649 | HellGothicSuperChillEdge | 0.5 | `0xBC0D579E` |
+| Widget | SNO id | CoreToc name | variant | `flImageScale` | `fTileCenter` |
+|---|--:|---|---|--:|--:|
+| `Vignette` | 843662 | InnerShadow | NSlice | 1.0 | **0** (stretched) |
+| `Paragon_Points_Container` | 1309282 | Frame_AbilityPoints | NSlice | 0.5 | 1 (tiled) |
+| `Points_Tutorial_Highlight` | 872641 | Tutorial_Highlight | NSlice | 1.0 | 0 |
+| `ParagonStats` | 787949 | HellGothicChill | NSlice | 0.9 | 1 |
+| `Board_Info` | 603760 | BagBackground | TiledWindowPieces | 0.9 | (suffix not decoded) |
+| `CoreStatEntryStack` | 792649 | HellGothicSuperChillEdge | NSlice | 0.5 | 1 |
+
+`Vignette → InnerShadow` has `fTileCenter = 0` — a *stretched*
+inner-shadow, **not** a tiled pattern; it is therefore not the
+paragon-board background pattern overlay (correcting the R8/R9
+working hypothesis). No `SnoGroup.UiStyle` record sources the
+owner-confirmed board pattern `0x22FF3AF6` (411 scanned) — the
+board's pattern is rendered via the Stack-widget `ExtraLayerValues`
+path, not the TiledStyle/NSlice path.
 
 Surface: `Diablo4Storage.ReadTiledStyle(int)` returns the typed
-record; the per-widget binding is exposed on
-`ParagonBoardChrome.TiledStyleBindings` as
-`IReadOnlyList<TiledStyleBinding>` for the consumer's runtime
-composer. The cracked-hash registry (`Diablo4.KnownFieldNames` /
-`KnownTypeNames`) is the persistent surface for hashes recovered
-across FRs.
+record (NSlice variant fully decoded ⇒ `HasPartialDecode = false`;
+other variants keep the tile flags at `-1` + `HasPartialDecode =
+true`). The per-widget binding is on
+`ParagonBoardChrome.TiledStyleBindings`. The cracked-hash registry
+(`Diablo4.KnownFieldNames` / `KnownTypeNames`) is the persistent
+surface for hashes recovered across FRs.
 
-CL-42, derived from FR-C14 R8's hash crack of `snoTiledStyle` (via
-the `blizzhackers/d4data` `!!D4FieldChecksums.yml` upstream
-registry) and R9's typed-surface lift.
+CL-42 (R9 typed-surface lift) + CL-43 (R10 NSlice full decode),
+derived from FR-C14 R8's `snoTiledStyle` crack and R10's variant
++ field cracks via the `blizzhackers/d4data` checksum registries.
 
 ## Appendix A — correction log (Diablo IV errata)
 
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
+
+- **CL-43 — NSlice TiledStyle full decode + variant/field cracks
+  (FR-C14 R10).** §11.5. Extends CL-42's `TiledStyleDefinition` from
+  "primary handle + scale + opaque suffix" to a full **NSlice**
+  (9-slice) decode: `hSourceImage`, `eSliceStyle`, `nPadding`,
+  `fTileCenter`, `fTileHorizontalBorders`, `fTileVerticalBorders`.
+  `HasPartialDecode` is now `false` for the `NSlice` variant (tag
+  `0xBC0D579E`); other variants (`TiledWindowPieces` `0x02E46583`,
+  etc.) keep their tile flags at `-1` + `HasPartialDecode = true`.
+  Cracked the variant + field names via the `blizzhackers/d4data`
+  `!!D4Checksums.yml` type registry + `!NSlice.bc0d579e.yml` schema
+  (intel-only). Type tags added to `Diablo4.KnownTypeNames`: `NSlice`,
+  `TiledWindowPieces`, `TiledStyleDefinition`,
+  `HorizontalTiledWindowPieces`, `VertTiledWindowPieces`,
+  `WindowPieces`, `WindowPiecesBase`, `UIImageHandleReference`
+  (the `0x6B1C5D9C` texture-handle field type). NSlice field names
+  added to `Diablo4.KnownFieldNames`. **Correction:**
+  `Vignette → InnerShadow (843662)` has `fTileCenter = 0` (a
+  stretched inner-shadow, not a tiled pattern) — so it is NOT the
+  paragon-board pattern overlay (the CL-42 R9 working hypothesis is
+  retracted). No `SnoGroup.UiStyle` record sources the board pattern
+  `0x22FF3AF6` (411 scanned); that pattern renders via the
+  Stack-widget `ExtraLayerValues` path, separate from TiledStyle.
+  Acceptance: `ReadParagonRenderModel_surfaces_tiled_style_bindings`
+  asserts Vignette's NSlice decode (all tile flags 0) +
+  Frame_AbilityPoints's tiled NSlice (`fTileCenter = 1`). Tests green
+  on build `3.0.2.71886`. Devlog 0040 (R9) + this entry (R10).
 
 - **CL-42 — UI tile-style (`.uis`) typed surface + per-widget
   `snoTiledStyle` binding (FR-C14 R9).** §11.5 + new

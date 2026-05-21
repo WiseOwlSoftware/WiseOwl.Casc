@@ -122,6 +122,17 @@ public static class Diablo4
             [0x07DB38D3] = "snoTiledStyle",      // → TiledStyleDefinition
             [0x093CBAA8] = "eGroupType",
             [0x03D55658] = "eVerticalAnchoring",
+            // NSlice / TiledStyle struct fields — FR-C14 R10
+            // (from the blizzhackers/d4data !NSlice schema). Computed
+            // via FieldHash so they round-trip through the canonical
+            // hasher rather than hard-coding magic numbers.
+            [FieldHash("flImageScale")] = "flImageScale",
+            [FieldHash("nPadding")] = "nPadding",
+            [FieldHash("hSourceImage")] = "hSourceImage",
+            [FieldHash("eSliceStyle")] = "eSliceStyle",
+            [FieldHash("fTileCenter")] = "fTileCenter",
+            [FieldHash("fTileHorizontalBorders")] = "fTileHorizontalBorders",
+            [FieldHash("fTileVerticalBorders")] = "fTileVerticalBorders",
         };
 
     /// <summary>Cracked-hash registry for <see cref="TypeHash"/>
@@ -135,6 +146,16 @@ public static class Diablo4
             [0x3D47BD2C] = "DT_ENUM",
             [0x3D4646AB] = "DT_BYTE",
             [0x1332C78D] = "DT_BINDABLEPROPERTY",
+            // UI widget / TiledStyle type tags — FR-C14 R10
+            // (blizzhackers/d4data !!D4Checksums.yml).
+            [0x6B1C5D9C] = "UIImageHandleReference",
+            [0xBC0D579E] = "NSlice",
+            [0x02E46583] = "TiledWindowPieces",
+            [0x02F5672C] = "TiledStyleDefinition",
+            [0x5943238D] = "HorizontalTiledWindowPieces",
+            [0x6BFED904] = "VertTiledWindowPieces",
+            [0x8E00F391] = "WindowPieces",
+            [0xC5A830EC] = "WindowPiecesBase",
         };
 
     /// <summary>Pretty-print a field hash as <c>"name (0xHHHHHHHH)"</c>

@@ -83,11 +83,42 @@ namespace WiseOwl.Casc.Diablo4;
 /// <see cref="Parse(ReadOnlySpan{byte})"/> implementation. Consumers
 /// that need the full composition should treat the absent fields as
 /// "unknown" rather than "zero".</param>
+/// <param name="VariantName">The decoded polymorphic-variant name for
+/// <see cref="TypeTag"/> — <c>"NSlice"</c>, <c>"TiledWindowPieces"</c>,
+/// <c>"HorizontalTiledWindowPieces"</c>, <c>"VertTiledWindowPieces"</c>,
+/// <c>"WindowPieces"</c>, or <c>"0xHHHHHHHH?"</c> for an unrecognised
+/// tag. Cracked from the `blizzhackers/d4data` `!!D4Checksums.yml`
+/// type registry (FR-C14 R10).</param>
+/// <param name="SourceImageHandle">The <c>hSourceImage</c> field
+/// (NSlice +0x18) — the texture handle the engine slices/tiles.
+/// Resolves via the icon-frame index. <c>0u</c> when absent.</param>
+/// <param name="SliceStyle">The <c>eSliceStyle</c> enum (NSlice +0x1c)
+/// — the engine's slicing mode. Surfaced raw (its enum-value names are
+/// not yet cracked); <c>0</c> is the common "default" mode.</param>
+/// <param name="TileCenter">The <c>fTileCenter</c> flag (NSlice +0x40)
+/// — non-zero ⇒ the centre region is *tiled* (repeated) rather than
+/// stretched. This is the field that decides whether the interior
+/// pattern repeats across the rect. <c>-1</c> when the variant suffix
+/// wasn't decoded (see <see cref="HasPartialDecode"/>).</param>
+/// <param name="TileHorizontalBorders">The <c>fTileHorizontalBorders</c>
+/// flag (NSlice +0x44) — non-zero ⇒ the top/bottom border strips are
+/// tiled rather than stretched. <c>-1</c> when undecoded.</param>
+/// <param name="TileVerticalBorders">The <c>fTileVerticalBorders</c>
+/// flag (NSlice +0x48) — non-zero ⇒ the left/right border strips are
+/// tiled rather than stretched. <c>-1</c> when undecoded.</param>
+/// <param name="NPadding">The <c>nPadding</c> field (NSlice +0x14) —
+/// inter-piece padding in the composition.</param>
 public sealed record TiledStyleDefinition(
     int SnoId,
     uint TypeTag,
+    string VariantName,
     float ImageScale,
-    uint PrimaryHandle,
+    uint SourceImageHandle,
+    uint SliceStyle,
+    int TileCenter,
+    int TileHorizontalBorders,
+    int TileVerticalBorders,
+    uint NPadding,
     bool HasPartialDecode)
 {
     /// <summary>The magic that prefixes every <c>.uis</c> SNO blob — the
@@ -99,17 +130,48 @@ public sealed record TiledStyleDefinition(
     /// callers that want to verify the group binding before reading.</summary>
     public const uint FormatHash = 0x80504E18u;
 
-    /// <summary>The polymorphic-variant tag for the most common
-    /// TiledStyle records (e.g. InnerShadow 843662, Tutorial_Highlight
-    /// 872641, Frame_AbilityPoints 1309282) — 7 of 8 records dumped
-    /// during FR-C14 R8 carry this tag. Its underlying type name (a
-    /// <see cref="Diablo4.TypeHash"/>) is uncracked.</summary>
-    public const uint TypeTagHorizontalPieces = 0xBC0D579Eu;
+    /// <summary><c>TypeHash("NSlice")</c> — the N-slice (9-slice)
+    /// composition variant. The common TiledStyle shape (7 of 8 records
+    /// dumped during FR-C14 R8). Fully decoded by
+    /// <see cref="Parse(ReadOnlySpan{byte})"/> (FR-C14 R10).</summary>
+    public const uint TypeTagNSlice = 0xBC0D579Eu;
+
+    /// <summary><c>TypeHash("TiledWindowPieces")</c> — the alternate
+    /// composition variant (observed on <c>BagBackground</c> 603760).
+    /// Its trailing layout differs from <see cref="TypeTagNSlice"/>;
+    /// the tile-flag fields are left undecoded
+    /// (<see cref="HasPartialDecode"/> = <see langword="true"/>).</summary>
+    public const uint TypeTagTiledWindowPieces = 0x02E46583u;
+
+    private static string VariantNameFor(uint tag) => tag switch
+    {
+        TypeTagNSlice => "NSlice",
+        TypeTagTiledWindowPieces => "TiledWindowPieces",
+        0x5943238Du => "HorizontalTiledWindowPieces",
+        0x6BFED904u => "VertTiledWindowPieces",
+        0x8E00F391u => "WindowPieces",
+        _ => $"0x{tag:X8}?",
+    };
 
     /// <summary>Parse a tile-style record from its raw SNO blob.</summary>
-    /// <param name="blob">The raw <c>.uis</c> blob (≥ 96 bytes; the
-    /// records observed in FR-C14 are 152..168 bytes depending on the
-    /// variant suffix). The first 4 bytes must be <see cref="Magic"/>.</param>
+    /// <remarks>
+    /// The record is a <c>TiledStyleDefinition</c> SNO whose first
+    /// (and only, in every record observed) polymorphic
+    /// <c>ptWindowPiece</c> element is decoded. The element's
+    /// PolymorphicBase header puts the variant tag (<c>dwType</c>) at
+    /// blob <c>+0x50</c>; the <c>NSlice</c> struct fields then map as
+    /// <c>struct +N → blob +0x48+N</c> (so <c>flImageScale</c> @ struct
+    /// +0x10 → blob +0x58, <c>hSourceImage</c> @ +0x18 → blob +0x60,
+    /// <c>fTileCenter</c> @ +0x40 → blob +0x88, etc.). The two
+    /// intervening <c>DT_VARIABLEARRAY</c> fields (struct +0x20 / +0x30)
+    /// are 16-byte descriptors. Only the <see cref="TypeTagNSlice"/>
+    /// variant's tile-flag suffix is decoded; other variants set the
+    /// tile flags to <c>-1</c> and <see cref="HasPartialDecode"/> to
+    /// <see langword="true"/>.
+    /// </remarks>
+    /// <param name="blob">The raw <c>.uis</c> blob (≥ 0x68 bytes; the
+    /// records observed in FR-C14 are 152..168 bytes). The first 4
+    /// bytes must be <see cref="Magic"/>.</param>
     /// <exception cref="FormatException">If <paramref name="blob"/> is
     /// too short or doesn't start with <see cref="Magic"/>.</exception>
     public static TiledStyleDefinition Parse(ReadOnlySpan<byte> blob)
@@ -123,14 +185,28 @@ public sealed record TiledStyleDefinition(
                 $"TiledStyle blob: expected magic 0x{Magic:X8}, got 0x{magic:X8}.");
         var snoId = Bytes.I32LE(blob, 0x10);
         var typeTag = Bytes.U32LE(blob, 0x50);
-        var scaleU = Bytes.U32LE(blob, 0x58);
-        var imageScale = BitConverter.ToSingle(BitConverter.GetBytes(scaleU), 0);
-        var primaryHandle = Bytes.U32LE(blob, 0x60);
-        // The 152..168-byte records have variant-specific trailing data
-        // we don't fully decode yet (additional piece handles, sub-rects).
-        // Mark partial-decode so callers don't mistake silence for zeros.
-        var hasPartial = blob.Length > 0x68;
-        return new TiledStyleDefinition(snoId, typeTag, imageScale, primaryHandle, hasPartial);
+        var imageScale = BitConverter.ToSingle(BitConverter.GetBytes(Bytes.U32LE(blob, 0x58)), 0);
+        var nPadding = Bytes.U32LE(blob, 0x5C);
+        var sourceImage = Bytes.U32LE(blob, 0x60);
+        var sliceStyle = Bytes.U32LE(blob, 0x64);
+
+        // The NSlice tile-flag suffix (fTileCenter / fTileHorizontalBorders
+        // / fTileVerticalBorders) is at blob +0x88..+0x93. Decode it only
+        // for the NSlice variant (verified layout); other variants keep
+        // the flags at -1 + HasPartialDecode = true.
+        int tileCenter = -1, tileH = -1, tileV = -1;
+        bool partial = true;
+        if (typeTag == TypeTagNSlice && blob.Length >= 0x94)
+        {
+            tileCenter = Bytes.I32LE(blob, 0x88);
+            tileH = Bytes.I32LE(blob, 0x8C);
+            tileV = Bytes.I32LE(blob, 0x90);
+            partial = false;
+        }
+
+        return new TiledStyleDefinition(
+            snoId, typeTag, VariantNameFor(typeTag), imageScale,
+            sourceImage, sliceStyle, tileCenter, tileH, tileV, nPadding, partial);
     }
 }
 
