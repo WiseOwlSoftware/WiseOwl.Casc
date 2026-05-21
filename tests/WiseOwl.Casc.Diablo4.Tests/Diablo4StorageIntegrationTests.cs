@@ -992,6 +992,16 @@ public sealed class Diablo4StorageIntegrationTests
 
         // The glow layers are UIBlinkerStyle (pulsing-glow class).
         Assert.Equal(0x145F2056u, L("NodeAvailableGlow").WidgetClassId);
+
+        // FR-C16 R4 — per-rarity disc composites surface on the
+        // Template_Node_<rarity> layers (owner #22 oracle: Magic discs
+        // 0x621CB6FF/0x72C29402, Rare 0xB71BD068/0x03EDABAB).
+        Assert.Contains(0x621CB6FFu, L("Template_Node_Magic").CompositeHandles);
+        Assert.Contains(0x72C29402u, L("Template_Node_Magic").CompositeHandles);
+        Assert.Contains(0xB71BD068u, L("Template_Node_Rare").CompositeHandles);
+        Assert.Contains(0x03EDABABu, L("Template_Node_Rare").CompositeHandles);
+        // The generic base disc is the default (no composite override).
+        Assert.Empty(L("Node_IconBase").CompositeHandles);
     }
 
     /// <summary>FR-C11 R3 §2 — per-node-cell background tile.

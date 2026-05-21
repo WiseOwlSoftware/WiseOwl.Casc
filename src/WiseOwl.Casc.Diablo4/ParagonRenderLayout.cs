@@ -188,13 +188,31 @@ public sealed record ParagonBoardGrid(
 /// template extent).</param>
 /// <param name="Alpha">The layer's <c>dwAlpha</c> opacity byte
 /// (<c>0xFF</c> when unspecified).</param>
+/// <param name="CompositeHandles">FR-C16 R4 — additional texture
+/// handles bound on this layer via the multi-layer (0x58-block) path,
+/// beyond the single <see cref="ImageHandle"/>. For the per-rarity
+/// sub-template layers (<c>Template_Node_Magic</c>/<c>Rare</c>/<c>Legendary</c>/…)
+/// this is the rarity-specific disc composite — e.g.
+/// <c>Template_Node_Magic</c> carries the magic disc handles
+/// <c>0x621CB6FF</c> + <c>0x72C29402</c>, <c>Template_Node_Rare</c> the
+/// rare <c>0xB71BD068</c> + <c>0x03EDABAB</c> (matching the owner's
+/// FR-C12 rarity-disc oracle). The per-node <b>rarity substitution</b>
+/// works by: the generic <c>Node_IconBase</c> grey disc is the default;
+/// for a node of a given rarity the consumer draws the matching
+/// <c>Template_Node_&lt;rarity&gt;</c> layer's composite instead. The
+/// per-node <b>symbol</b> is a separate substitution: the
+/// <c>Node_Icon</c> slot's handle is the node's own
+/// <see cref="ParagonNodeDefinition.HIconMask"/> (runtime-filled — its
+/// template <see cref="ImageHandle"/> is <c>0</c>). Empty for ordinary
+/// single-handle layers.</param>
 public sealed record ParagonNodeRecipeLayer(
     int ZOrder,
     string WidgetName,
     uint WidgetClassId,
     uint ImageHandle,
     WidgetRect Rect,
-    byte Alpha);
+    byte Alpha,
+    IReadOnlyList<uint> CompositeHandles);
 
 /// <summary>The UI design space the raw rects are authored in (decoded
 /// from the root <c>ParagonBoard_main</c> widget; verified
@@ -996,8 +1014,16 @@ internal static class ParagonRenderProjection
                 if (f.FieldHash == FhImageFrame && handle == 0) handle = f.RawValue;
                 else if (f.FieldHash == FdwAlpha && !sawAlpha) { alpha = (byte)f.RawValue; sawAlpha = true; }
             }
+            // FR-C16 R4: the rarity sub-templates bind their disc
+            // composite via the 0x58-block path (ExtraLayerValues);
+            // surface the texture-handle-magnitude ones (drop the
+            // interleaved small rect-inset ints).
+            var composite = wd.ExtraLayerValues
+                .Where(v => v >= 0x10000u && v != 0xFFFFFFFFu)
+                .ToArray();
             layers.Add(new ParagonNodeRecipeLayer(
-                k, wd.Name ?? string.Empty, wd.ClassId, handle, Rect(wd), alpha));
+                k, wd.Name ?? string.Empty, wd.ClassId, handle, Rect(wd), alpha,
+                composite.Length == 0 ? Array.Empty<uint>() : composite));
         }
         return new ParagonNodeRecipe(layers);
     }

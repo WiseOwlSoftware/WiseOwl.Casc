@@ -1497,6 +1497,26 @@ derived from FR-C14 R8's `snoTiledStyle` crack and R10's variant
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
 
+- **CL-46 — node recipe per-rarity composite handles + substitution
+  model (FR-C16 R4).** `ParagonNodeRecipeLayer` gains
+  `CompositeHandles: IReadOnlyList<uint>` — the additional 0x58-block
+  texture handles on a layer beyond its single `ImageHandle`. Answers
+  the Optimizer's per-rarity-disc / per-node-symbol substitution
+  question: it is a **hybrid**. (1) **Per-rarity disc = per-rarity
+  sub-template:** the `Template_Node_<rarity>` layers carry their
+  rarity disc composite in `CompositeHandles` — `Template_Node_Magic`
+  → `0x621CB6FF` + `0x72C29402`, `Template_Node_Rare` → `0xB71BD068` +
+  `0x03EDABAB` (exact match to the owner's FR-C12 rarity-disc oracle);
+  the generic `Node_IconBase` (`0x1D166DC7`) is the default, drawn
+  unless a rarity sub-template applies. (2) **Per-node symbol =
+  substitution slot:** the `Node_Icon` layer's handle is the node's own
+  `ParagonNodeDefinition.HIconMask` (runtime-filled; its template
+  `ImageHandle` is 0). So the recipe defines WHERE/size/z; the node +
+  rarity data define WHICH handle. Acceptance:
+  `ReadParagonNodeRecipe_surfaces_ordered_state_widget_layers` extended
+  to assert the Magic/Rare composites. 43/43 tests green on build
+  `3.0.2.71886`. Devlog 0041.
+
 - **CL-45 — paragon board grid metric (`ParagonBoardGrid`)
   (FR-C17 R3).** New `Diablo4Storage.ReadParagonBoardGrid()` →
   `ParagonBoardGrid(CanvasWidth, CanvasHeight, CellExtent, Pitch)`,
