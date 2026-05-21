@@ -40,29 +40,37 @@ public repo; never commit it). Read CLAUDE.md before any FR action.
   `v0.3.0-alpha` (CL-42..CL-49). **CL-50** (PR #36, FR-C16 R9 / FR-C18
   child sub-record rects, squash `5397868`) and **CL-51** (PR #37, FR-C16
   R11/R12 typed `NodeActivation` surface + EXE-RE of the binding mechanism,
-  squash `2614e9b`) both MERGED to `main`, **unreleased** (no package). No
-  open PRs. New code work starts a fresh branch off `main`; docs-only commit
-  straight to `main` (pref §7).
+  squash `2614e9b`), and **CL-52** (PR #38, FR-C16 R14 flat
+  `ParagonNodeRecipe.Components` + `bActive`-driven activation, squash
+  `d97ff8b`) MERGED to `main`, **unreleased** (no package). No open PRs. New
+  code work starts a fresh branch off `main`; docs-only commit straight to
+  `main` (pref §7).
 - **Published on nuget.org (immutable): `0.1.0-alpha`, `0.2.0-alpha`,
-  `0.3.0-alpha`.** **CL-50 + CL-51 are unreleased** — on `main`, in no
+  `0.3.0-alpha`.** **CL-50/51/52 are unreleased** — on `main`, in no
   package. Release is owner-driven & batched (never cut for one fix without
   explicit "release now").
-- 58/58 integration tests green on live build `3.0.2.71886`.
-- **FR-C16 activation finding (R10–R12):** the paragon UI scene stores NO
-  activation/condition field; the engine binds visibility to runtime state
-  BY NAME in the compiled `ParagonBoardUI` controller (named data-source
-  binding — `ParagonNodeIsPurchased`, `IsSelected`, …, EXE-confirmed). CASC
-  ships a typed `NodeActivation` (closed `NodeFact` vocab + `Evaluate`),
-  provenance-marked; the consumer evaluates facts, authors no predicate. EXE
-  field names are hashed/absent; see [[reference_exe-symbol-re]].
+- 50/50 Diablo4 + 8/8 transport tests green on live build `3.0.2.71886`.
+- **FR-C16 node recipe is the flat `Components` model (CL-52, R14).** Draw
+  every `ParagonNodeComponent` whose `Activation.Evaluate(facts)` holds, in
+  z-order, at its rect/alpha/tint. Owner-oracle-validated this session: base
+  disc = **Unpurchased↔Purchased** swap (`bActive`-driven, NOT selection);
+  node KIND is one mutually-exclusive dimension; purchased add-on = arrows
+  (→purchasable nbr) + connectors (→purchased nbr); `rgbaTint` + anchoring
+  applied; selection highlight is an EXTERNAL engine cursor (→ FR-C19).
+  Hash-dictionary mislabel fixed (`0x093CBAA8` = `eHorizontalAnchoring`, not
+  `eGroupType`) via the new `build/SnoScan checkfields` validator. The
+  engine binds visibility BY NAME in the compiled `ParagonBoardUI`
+  controller; EXE field names are hashed/absent; see [[reference_exe-symbol-re]].
 
 ### Open casc-fr issues (2026-05-21 snapshot — re-poll, this drifts)
 
-- **#26** FR-C16 node render recipe — CL-50 (child rects) + **CL-51 (typed
-  `NodeActivation` + EXE-RE binding mechanism)** delivered;
-  `released:v0.3.0-alpha` covers CL-44/46/47/48. `awaiting:optimizer`.
-  Open option: deeper `ParagonBoardUI` disassembly to verify literal
-  per-widget wiring (offered, not yet requested).
+- **#26** FR-C16 node render recipe — **CL-52 (flat `Components` + `bActive`
+  model, R14) delivered**, `WiseOwl.Casc@d97ff8b`. Comprehensive R14 closeout
+  spec posted (consumer draws facts→components, no dispatch). `awaiting:optimizer`.
+- **#30** FR-C19 selection-highlight resource (orange-fuzz + white square) —
+  **CASC-opened**, `awaiting:casc`. Lead: `ContextualHighlight_Square`
+  TiledStyle 2434982, source `0xB320888F` (shared UI atlas, not yet decoded).
+  Selection is an external engine cursor, NOT in the node recipe.
 - **#29** FR-C18 rarity-template WidgetRect all-zero — `fr:delivered`; CL-50
   (parent rect faithful; disc inset 7 on the children). `awaiting:optimizer`.
 - **#27** FR-C17 board grid/composition — `awaiting:optimizer` (CL-45).
