@@ -86,8 +86,10 @@ are where the next crack delivers the biggest re-decode payoff.
 | Hash | Kind | Freq | Notes |
 |---|---|---|---|
 | `0x0C152636` | `UIImageHandleReference` | 136× | a texture-handle field (the field on `Board_Selector_BG` that *should* hold its bound texture — unbound on that instance; value comes via ExtraLayerValues). Still needs the field *name* cracked. |
-| `0x0CDB00E9` | `DT_INT` | 32× | a coordinate-ish field (not nTop/nBottom/nWidth/nHeight) |
+| `0x0CDB00E9` | `DT_INT` | 22× | small **signed** ints (not a coordinate/rect field): scene 657304 `{4,5,6,10,15,−6,−4}`, scene 964599 `{0,3,10,15,20,30}` (re-read with the FR-C16 R7 complete grammar). Plausibly a layout offset / spacing / z-bias / anchor-offset; a blind candidate-name brute (≈9k UI-field permutations) did **not** hit it — needs the d4data `FieldChecksums` registry for a confident crack. |
 | `0x0C2AFA21` | `DT_BYTE` | 25× | common byte-flag field |
+| `0x03445DCD`, `0x08CF4C5D` | `DT_INT` | 1× | singletons in 657304 (value 8); blind brute no-hit |
+| `0x0B63D29B`, `0x0D75128C`, `0x0DAEFCAA`, `0x0A2C2344` | `UIImageHandleReference` | 1–2× | rarely-bound texture-handle fields (mostly value 0; `0x0A2C2344` binds real handles `0x5620532A`/`0x7DFC4A3F` in 964599) — names uncracked |
 
 Cracked since the table above was first written (FR-C14 R8/R10),
 moved to the field-hash table: `0x093CBAA8 = eGroupType`,
