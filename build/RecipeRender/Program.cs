@@ -27,6 +27,12 @@ if (args.Length >= 2 && args[0] == "atlas")
     using (var aenc = SKImage.FromBitmap(abmp).Encode(SKEncodedImageFormat.Png, 90))
     using (var afs = File.OpenWrite(apath)) aenc.SaveTo(afs);
     Console.WriteLine($"atlas {asno} {atd.Codec} {aimg.Width}x{aimg.Height} frames={atd.Frames.Count} -> {apath}");
+    for (int fi = 0; fi < atd.Frames.Count; fi++)
+    {
+        var fr = atd.Frames[fi];
+        var (px, py, pw, ph) = fr.PixelRect(aimg.Width, aimg.Height);
+        Console.WriteLine($"  frame[{fi,2}] handle=0x{fr.ImageHandle:X8}  px=({px},{py},{pw},{ph})");
+    }
     return 0;
 }
 
@@ -126,7 +132,7 @@ for (int ri = 0; ri < kinds.Length; ri++)
                         or NodeFact.KindRare or NodeFact.KindLegendary;
         foreach (var f in states[ci].Facts)
         {
-            bool isNeighbour = f.ToString().StartsWith("Neighbour");
+            bool isNeighbour = f.ToString().StartsWith("Neighbour", StringComparison.Ordinal);
             if (isNeighbour && !statKind) continue;
             facts.Add(f);
         }
