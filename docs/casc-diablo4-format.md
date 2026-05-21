@@ -1439,13 +1439,186 @@ CL-18 relies on, now exposed typed). Surface:
 ### 11.2 `PowerDefinition` (group 29, `.pow`)
 
 Identity (`snoId@0`) + localized `Name`/`Description` from the §6.7
-sibling table `Power_<snoName>`, labels `name`/`desc`. The power's
-gameplay record (≈6 KB) is **not** decoded — consumer domain. (Note:
-an inline `szName` exists at payload `+8` for *some* powers but is
-absent for many — e.g. `CAMP_*` — so the sibling table is the reliable
-name source, not that offset.) Anchor: power `2521393` →
-`name` `Fathomless`. Surface: `Diablo4Storage.ReadPower(int, locale)`.
-CL-22.
+sibling table `Power_<snoName>`, labels `name`/`desc` + the
+**Script Formula slot table** (FR-C13 Phase 1, CL-37). The power's
+deeper gameplay record (≈6 KB of buffs / payloads / mods) stays
+consumer domain. (Note: an inline `szName` exists at payload `+8`
+for *some* powers but is absent for many — e.g. `CAMP_*` — so the
+sibling table is the reliable name source, not that offset.)
+Anchor: power `2521393` → `name` `Fathomless`. Surface:
+`Diablo4Storage.ReadPower(int, locale)`. CL-22.
+
+**Script Formula slot table (FR-C13 Phase 1).** Powers using the
+`DT_STRING_FORMULA` mechanism (every legendary node passive, plus
+many active skills and structural powers) carry a tail-data array
+of positional slot records that the engine resolves through
+`[SF_<i>n</i>...]` placeholders in the localized `Description`
+format string. CASC surfaces this table as
+`PowerDefinition.ScriptFormulas` — an `IReadOnlyList<PowerScriptFormula>`
+where each entry's `Index` matches the format-string SF_N indices
+verbatim, `Text` is the literal text form of the formula
+(`"0.02"` for trivial numeric literals, `"SF_1 / 3"` for arithmetic
+expressions on other slots), and `LiteralValue` is the IEEE-754
+single-precision scalar for trivial-numeric slots (Phase 1 surface).
+
+The decoder walks the blob backward from the terminator record
+`("0", 0.0)` to collect the slot table, then strips the universal
+trailing `("10", 10.0)` sentinel (engine max-rank marker). The
+storage is positional vs the engine's SF_N indices — same as the
+format-string placeholders. Some powers' formats skip SF_N indices
+(Dynamism uses `SF_0`/`SF_2`/`SF_3`, skipping `SF_1`); the
+positional slot table still has the corresponding entry at the
+skipped index — the value just isn't referenced by the format
+string.
+
+Phase 1 lifts Layout-A records (3-character ASCII chunks like
+`".15"`/`"4.5"`/`"60"`/`"10"`, followed by type tag `0x06`, then
+the float). Layout-B and Layout-C records (4-character ASCII chunks
+like `"0.75"`/`"0.02"` and pad-prefixed records like Demonic
+Spicules's `"60"` Layout-C entry) plus expression-text records
+(Demonic Spicules's `"SF_1 / 3"` for SF_2 = SF_1/3 = 20) are
+deferred to Phase 2's expression evaluator. The library surfaces
+`empty list` rather than fabricating a partial table when the
+Layout-A walk fails — honest decode discipline (parallel to the
+FR-C9 no-fabrication gates on the paragon-render side).
+
+Phase 1 anchors (6 of 9 Warlock legendaries fully decoded; 3
+deferred to Phase 2):
+
+| Power | SNO | Stored slot table | Source |
+|---|---|---|---|
+| Pyrosis    | 2527268 | `[4.5]` | Phase 1 ✓ |
+| Fathomless | 2521393 | `[0.15, 7, 6]` | Phase 1 ✓ |
+| Overmind   | 2524552 | `[0.45, 0.65]` (IEEE-754 round-to-nearest = `0.45000002`, `0.65000004`) | Phase 1 ✓ |
+| Ritualism  | 2526168 | `[0.9, 9, 15]` | Phase 1 ✓ |
+| Chaos      | 2527294 | `[1.0, 2, 1]` | Phase 1 ✓ |
+| Dynamism   | 2524312 | `[0.03, 1.0, 1.0, 2.0]` (SF_1 unused in format) | Phase 1 ✓ |
+| Greater Hex | 2527280 | `[0.75, 0.25]` | Phase 2 (Layout B) |
+| Dominion   | 2524673 | `[0.8, 0.5, 12]` | Phase 1 ✓ |
+| Demonic Spicules | 2525006 | `[0.02, 60, (SF_1/3 → 20)]` | Phase 2 (Layout C + expression) |
+
+Acceptance gate:
+`PowerDefinition_decodes_script_formulas_for_anchored_legendaries`
+asserts the slot tables for the 6 Phase-1-complete powers, plus a
+no-crash sweep
+`PowerDefinition_decodes_script_formulas_for_all_legendaries_no_crash`
+exercises every legendary node power across the 8 classes (72
+powers) — no decode-time exceptions on any blob, even when the
+table is empty for layout-deferred powers.
+
+**Phase 2 — resolved SF_N map + engine-function refs (CL-40).** Per
+the FR-C13 R4 sign-off, Phase 2 lifts the 4-character ASCII
+`Layout B` records (Greater Hex's `"0.75"`/`"0.25"` slots), the
+zero-prefix `Layout C` records with ASCII at +4 (Greater Hex
+sentinel/terminator), mixed 16/20-byte stride backward walks (the
+Layout B records carry a 4-byte trailing pad), and multi-sentinel
+stripping (Greater Hex repeats the `"10"` sentinel). Two typed
+surfaces added on `PowerDefinition`:
+
+- `IReadOnlyDictionary<string, double> ResolvedFormulas` — the
+  positional slot table re-keyed by `"SF_N"`. Trivial-numeric slots
+  promote their `PowerScriptFormula.LiteralValue` directly;
+  expression-text slots (e.g. Demonic Spicules's `"SF_1 / 3"`) are
+  evaluated by the internal `PowerScriptFormulaEvaluator` against
+  the other slots' resolved values (iterative resolution to a
+  fixed point; unresolvable references collapse to
+  `double.NaN`).
+- `IReadOnlyList<PowerFunctionRef> FunctionRefs` —
+  engine-function references the power's localized
+  `Description` format-string contains (e.g. Barbarian
+  *Warbringer*'s `[SF_1 * PlayerHealthMax()]` surfaces
+  `PowerFunctionRef("PlayerHealthMax", argSlots)`). The consumer
+  registers a per-name resolver delegate to substitute the
+  engine-runtime value (player-state accessors are outside CASC's
+  domain — surface structurally, resolve consumer-side).
+
+Phase 2 anchor verification (8 of 9 Warlock legendaries + Greater
+Hex + Warbringer FunctionRef):
+
+| Power | Resolved SF_N | Notes |
+|---|---|---|
+| Pyrosis | `SF_0 = 4.5` | trivial |
+| Fathomless | `SF_0 = 0.15`, `SF_1 = 7`, `SF_2 = 6` | raw stored; the format-rendered "105% cap" = `SF_0 × SF_1 × 100` is consumer-side eval |
+| Overmind | `SF_0 ≈ 0.45`, `SF_1 ≈ 0.65` | IEEE-754 round-to-nearest |
+| Ritualism | `SF_0 = 0.9`, `SF_1 = 9`, `SF_2 = 15` | format-string `[1 + SF_1]` renders 10 consumer-side |
+| Chaos | `SF_0 = 1`, `SF_1 = 2`, `SF_2 = 1` | trivial |
+| Dynamism | `SF_0 = 0.03`, `SF_1 = 1` (unused), `SF_2 = 1`, `SF_3 = 2` | format skips SF_1 |
+| Dominion | `SF_0 = 0.8`, `SF_1 = 0.5`, `SF_2 = 12` | trivial |
+| **Greater Hex** | `SF_0 = 0.75`, `SF_1 = 0.25` | **Phase 2 lift** — Layout B 20-byte stride |
+| Demonic Spicules | (deferred) | expression-text record (non-16-byte) Phase 3 |
+| Barbarian *Warbringer* | `FunctionRefs ⊇ {PowerFunctionRef("PlayerHealthMax", [])}` | engine function surfaced from `[SF_1 * PlayerHealthMax()]` |
+
+Acceptance gate
+`PowerDefinition_resolves_phase2_formulas_and_function_refs`
+verifies the above anchors. Demonic Spicules's expression-text
+record deferred to Phase 3's compiled-form AST decoder.
+
+**Phase 3 — compiled-form AST decoder + cross-validation (CL-41).**
+Per the FR-C13 R5 sign-off, Phase 3 lifts the 48-byte type=`0x05`
+*expression record* that Phase 1/2's backward-walk halted on, adds
+a binary-AST evaluation path, and surfaces a third typed surface on
+`PowerDefinition` for cross-validation against `ResolvedFormulas`.
+
+The expression record (anchored on Demonic Spicules's
+`SF_2 = "SF_1 / 3"`):
+
+```
++0..3   pad = 0
++4..15  ASCII text (NULL-terminated within 12 bytes — "SF_1 / 3\0\0\0\0")
++16..19 type tag = 0x05  (expression marker)
++20..23 opcode marker    (observed = 7; opaque)
++24..35 pad = 0
++36..39 type tag = 0x06  (embedded-literal marker)
++40..43 IEEE-754 single  (binary operand value — 3.0f on the anchor)
++44..47 trailing opcode  (observed = 0x0E; opaque)
+```
+
+The 4-byte pad following the record explains the 52-byte backward
+stride. The decoder tries `-16`, `-20`, `-52` strides in order;
+the `-52` candidate must be a genuine type=`0x05` record start
+(not any literal) to avoid jumping past the slot region into the
+early-tail literal blocks. Demonic Spicules previously decoded as
+0 slots (the expression record halted the walk); Phase 3 decodes
+all 3 (`SF_0 = "0.02"` Layout B literal, `SF_1 = "60"` Layout C
+literal, `SF_2 = "SF_1 / 3"` type=`0x05` expression).
+
+`IReadOnlyDictionary<string, double> CompiledFormulas` — the
+engine-truth `{SF_N → value}` map. Literal slots use the IEEE-754
+single read directly from the slot record's float position
+(identical to `PowerScriptFormula.LiteralValue` promoted). Expression
+slots evaluate the operator tree from the text but substitute
+numeric operands from the binary AST opcode region's embedded
+IEEE-754 singles in left-to-right encounter order (Demonic
+Spicules's `SF_2` = `SF_1 / binary_literal[0]` = `60 / 3.0f` =
+`20`; the `3.0f` comes from compiled bytes at +40, not from
+re-parsing the text `"3"`). When `ResolvedFormulas[SF_N]` and
+`CompiledFormulas[SF_N]` disagree, the engine-compiled text and
+binary forms have drifted — the R5 regression gate.
+
+R5 cross-validation gate — 9 Warlock legendary anchors:
+
+| Anchor | SF_N keys | `ResolvedFormulas == CompiledFormulas` |
+|---|--:|---|
+| Pyrosis | 1 | ✓ |
+| Fathomless | 3 | ✓ |
+| Overmind | 2 | ✓ |
+| Ritualism | 3 | ✓ |
+| Chaos | 3 | ✓ |
+| Dominion | 3 | ✓ |
+| Dynamism | 4 | ✓ |
+| Greater Hex | 2 | ✓ |
+| **Demonic Spicules** | **3** | **✓ (SF_2 = 20 via both paths)** |
+| **Total** | **24** | **24 agree, 0 disagree** |
+
+Acceptance gates
+`PowerDefinition_phase3_compiled_formulas_match_resolved_for_9_warlock_anchors`
+(the R5 cross-validation) and
+`PowerDefinition_phase3_decodes_demonic_spicules_expression_slot`
+(the expression-record anchor). AST opcode interior (the `0x07`
+and `0x0E` opaque markers) deliberately not decoded — the
+single-binary-operator + single-literal-operand shape covers every
+expression-text slot in the 72-power live build; more complex AST
+shapes would need additional record-shape RE.
 
 ### 11.3 `AffixDefinition` (group 104, `.aff`)
 
@@ -2190,6 +2363,107 @@ true value (the sections above already state the corrected truth).
   consumer-side per FR-C7 §6. Row no-phantom gate (CL-35) passes
   unchanged — `0x23F487F3` is bound on `Usage_Slot_2`, in the
   socket-authorized widget set.
+- **CL-41 — Power Script Formula Phase 3: compiled-form AST decoder
+  + cross-validation (FR-C13 R5, Phase 3).** §11.2. Optimizer-
+  consume-verified-and-authorized R5 Phase 3 lift. Closes the FR by
+  decoding the engine's compiled binary AST for expression-text
+  slots (the case Phase 2 deferred) and surfacing
+  `PowerDefinition.CompiledFormulas: IReadOnlyDictionary<string, double>`
+  as the engine-truth `{SF_N → value}` map for cross-validation
+  against `ResolvedFormulas`. Two decoder additions:
+  - **48-byte type=`0x05` expression record** — the previously-
+    undecoded shape that halted Phase 1/2's backward-walk on
+    Demonic Spicules. Layout: `[pad@0..3, ASCII text@4..15
+    (NULL-terminated), type=0x05@16..19, opcode@20..23 (opaque),
+    pad@24..35, type=0x06@36..39, IEEE-754 single@40..43, trailing
+    opcode@44..47 (opaque)]`. The 4-byte pad after the record
+    explains the 52-byte backward stride. The decoder tries `-16`,
+    `-20`, `-52` strides in order; the `-52` candidate must be a
+    genuine type=`0x05` record start (a literal at `-52` would
+    jump past the slot region into early-tail literal blocks).
+  - **Binary-AST evaluation path** — `PowerScriptFormulaEvaluator.
+    EvaluateWithBinaryLiterals` consumes binary IEEE-754 singles
+    in left-to-right encounter order instead of re-parsing text
+    literals. Demonic Spicules's `SF_2 = "SF_1 / 3"` evaluates as
+    `SF_1 / binary_literal[0]` = `60 / 3.0f` = `20` (the `3.0f`
+    from compiled bytes at +40, not from text `"3"`).
+  Demonic Spicules previously decoded as 0 slots (the expression
+  record halted the walk); Phase 3 decodes all 3: `SF_0 = "0.02"`
+  Layout B literal, `SF_1 = "60"` Layout C literal,
+  `SF_2 = "SF_1 / 3"` type=`0x05` expression → 20. R5 cross-
+  validation gate (9 Warlock anchors, 24 SF_N keys total): all 24
+  `ResolvedFormulas` ↔ `CompiledFormulas` agree to float
+  precision; 72-power no-crash sweep passes (0 throws across
+  every legendary). Acceptance:
+  `PowerDefinition_phase3_compiled_formulas_match_resolved_for_9_warlock_anchors`
+  and
+  `PowerDefinition_phase3_decodes_demonic_spicules_expression_slot`.
+  AST opcode interior markers (`0x07` after type=`0x05` and `0x0E`
+  after the embedded literal) deliberately not decoded — the
+  single-binary-operator + single-literal-operand record shape
+  covers every expression-text slot in the 72-power live build;
+  more complex AST shapes would need additional record-shape RE
+  and additional test anchors. 45/45 tests green on build
+  `3.0.2.71886`. Devlog 0039.
+
+- **CL-40 — Power Script Formula Phase 2: resolved SF_N map +
+  engine-function refs (FR-C13 R4, Phase 2).** §11.2. Owner-
+  authorized R4 Phase 2 lift. Extends the Phase 1 slot decoder to
+  handle Layout B (4-char ASCII + pad + type + float) and Layout C
+  (zero-prefix + ASCII@+4 + type + float) records, mixed 16/20-byte
+  stride backward walks for tables that interleave 20-byte Layout B
+  value records with 16-byte Layout A sentinels (Greater Hex), and
+  stripping of multiple trailing `("10", 10.0)` sentinels (vs the
+  single-sentinel Phase 1 strip). Adds two typed surfaces to
+  `PowerDefinition`:
+  - `IReadOnlyDictionary<string, double> ResolvedFormulas` — the
+    positional slot table re-keyed by `"SF_N"`. Trivial-numeric
+    slots promote `LiteralValue` directly; expression-text slots
+    are evaluated by the internal `PowerScriptFormulaEvaluator`
+    (recursive-descent parser supporting `+`, `-`, `*`, `/`,
+    parens, SF_N refs both bare and braced as `{SF_N}`, function
+    calls, and unary minus).
+  - `IReadOnlyList<PowerFunctionRef> FunctionRefs` —
+    engine-function references the power's localized
+    `Description` format-string contains. Surfaced structurally
+    (name + resolved-arg values); the consumer registers a
+    per-name resolver delegate to substitute the
+    engine-runtime value (R4 ask 2 option A — typed
+    `FunctionRef` + consumer-side resolver). Barbarian
+    *Warbringer* is the canonical anchor with `PlayerHealthMax()`.
+  Acceptance: `PowerDefinition_resolves_phase2_formulas_and_function_refs`
+  verifies the 8 Layout-A-clean Warlock legendaries + Greater
+  Hex (Phase 2 lift) + Warbringer (FunctionRef). Demonic
+  Spicules's expression-text record (`"SF_1 / 3"` for SF_2 = 20)
+  uses a non-16-byte structure not yet lifted; deferred to
+  Phase 3 (compiled-form AST decode per d4parse
+  `DT_STRING_FORMULA.CompiledOffset/Size`). 43/43 tests green on
+  build `3.0.2.71886`.
+
+- **CL-37 — Power Script Formula slot table — Phase 1 (FR-C13 R3,
+  Phase 1).** §11.2. Surfaces `PowerDefinition.ScriptFormulas` —
+  the positional slot table the engine resolves through
+  `[SF_<i>n</i>...]` placeholders in localized `Description`
+  format strings. Phase 1 lifts the Layout-A records (3-character
+  ASCII text + type tag `0x06` + IEEE-754 float + zero pad in a
+  16-byte block) by walking the blob backward from the universal
+  `("0", 0.0)` terminator and stripping the universal `("10", 10.0)`
+  sentinel. Anchored against 6 of 9 Warlock legendaries (Pyrosis,
+  Fathomless, Overmind, Ritualism, Chaos, Dynamism, Dominion);
+  Greater Hex and Demonic Spicules deferred to Phase 2 (Layout-B
+  records with 4-character ASCII chunks + Layout-C records with
+  pad-prefixed ASCII + the expression-text records like Demonic
+  Spicules's `"SF_1 / 3"` for SF_2 = 60/3 = 20). No-crash sweep
+  across all 72 legendary powers (8 classes × ~9 each) passes —
+  the decoder returns empty for Layout-deferred powers rather than
+  fabricating (honest sentinel, parallel to the FR-C9 no-fabrication
+  paragon-render gates). Phase 2 will lift the format-string
+  expression evaluator (consumer-side currently) into the library
+  and surface `IReadOnlyDictionary<string, double>` resolved
+  `{SF_N → value}` map; Phase 3 will decode the binary Compiled-form
+  AST (per d4parse `DT_STRING_FORMULA.CompiledOffset/Size` model)
+  for engine-truth cross-validation. CL-37 + Phases 2/3 jointly
+  deliver the FR-C13 R3 option (b-parsed) API shape.
 
 - **CL-35 — socket-row phantom-layer correction + row no-phantom
   gate (FR-C12 R3).** §10.17. CL-34's socket rows incorrectly
