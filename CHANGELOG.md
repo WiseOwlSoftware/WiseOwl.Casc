@@ -6,62 +6,50 @@ Semantic Versioning once it reaches `1.0.0`.
 
 ## [0.3.0-alpha] — 2026-05-21
 
-Adds the full paragon-board render model, the power script-formula
-reader, several decode corrections, and one texture-transport bug fix.
-All decoded clean-room and verified against a live install
-(`3.0.2.71886`); the library still returns raw decoded data only — no
-scoring, imaging, or composition policy.
-
-### WiseOwl.Casc — transport
-
-- **Fixed `DecodeMip0` BC row-pitch for non-64-aligned atlases.** The
-  stored BC block-row pitch is texture-specific (64- and 128-aligned
-  both occur); it is now derived from the exact mip0 byte count rather
-  than a hard-coded `Align(width, 64)`, which drifted the row stride and
-  garbled every frame of a 128-aligned atlas (e.g. `2DUI_Paragon`,
-  1208×1464, stored at a 1280-px pitch).
+Adds the paragon-board render model, the power script-formula reader,
+UI tile-style decode, and broader texture-atlas support. Decoded
+clean-room and verified against a live install (`3.0.2.71886`); the
+library returns raw decoded data only.
 
 ### WiseOwl.Casc.Diablo4 — paragon render model
 
-- **Per-node render program:** `ReadParagonNodeRecipe()` →
-  `ParagonNodeRecipe` / `ParagonNodeRecipeLayer` — the engine's ordered,
-  z-sorted node state-widget layers (verbatim widget names as the
-  consumer's predicate keys), with `NodeSelectionDiscs` splitting each
-  rarity disc into its unselected/selected pair.
-- **Board grid metric:** `ReadParagonBoardGrid()` → `ParagonBoardGrid`
-  (design-canvas extent + node-cell extent + pitch), validated against
-  the in-game measurement.
-- **UI tile-style:** `ReadTiledStyle` / `TryReadTiledStyle` →
-  `TiledStyleDefinition` (incl. the NSlice 9-slice variant) +
-  `ParagonBoardChrome.TiledStyleBindings`; `SnoGroup.UiStyle`.
-- **Board chrome + node composites** (FR-C8..C12): `ReadParagonRenderModel`,
-  the exhaustive scene-binding model + completeness gate, the 5-piece
-  board chrome, per-rarity node composites, special-node (socket / start
-  / gate) recipes, directional arrows + connectors, the per-node cell
-  binding, and the available-glow overlay.
-- **Completed the UI-scene field grammar:** instance values bind via
-  **either** a 56-byte `0x22` record **or** a 12-byte tag-2 block; the
-  prior 0x22-only reader under-decoded tag-2-encoded fields (the board
-  chrome centre's authored 1200² rect, sparse node fields). Parent
-  widgets confine their field scan past nested anonymous child records.
-- **Hash recovery:** `Diablo4.KnownFieldNames` / `KnownTypeNames` +
-  `FormatFieldHash` / `FormatTypeHash` (the cumulative hash dictionary).
+- `ReadParagonNodeRecipe()` → `ParagonNodeRecipe` /
+  `ParagonNodeRecipeLayer`: the engine's ordered, z-sorted per-node
+  render program (verbatim widget names as predicate keys), with
+  `NodeSelectionDiscs` exposing each rarity disc's unselected/selected
+  pair.
+- `ReadParagonBoardGrid()` → `ParagonBoardGrid`: the design-canvas
+  extent, node-cell extent, and grid pitch.
+- `ReadParagonRenderModel()` → `ParagonRenderModel` /
+  `ParagonRenderLayout` / `ParagonSceneModel`: the board render layout,
+  the exhaustive per-scene atlas-binding model, per-rarity node
+  composites, special-node (socket / start / gate) recipes, directional
+  arrows + connectors, the per-node cell binding, and the available-glow
+  overlay.
+- `ParagonBoardChrome`: the 5-piece board chrome (centre field + four
+  rim sides) and `TiledStyleBindings`.
+- `ReadTiledStyle` / `TryReadTiledStyle` → `TiledStyleDefinition`
+  (including the NSlice 9-slice variant); `SnoGroup.UiStyle`.
+- `ReadUiScene()` → `UiScene`: the raw UI-scene widget graph (names,
+  class ids, and bound field values).
+- `Diablo4.KnownFieldNames` / `KnownTypeNames` + `FormatFieldHash` /
+  `FormatTypeHash`: recovered field/type names for decoded hashes.
 
-### WiseOwl.Casc.Diablo4 — power script formulas (FR-C13)
+### WiseOwl.Casc.Diablo4 — power script formulas
 
-- `PowerDefinition` now surfaces `ScriptFormulas` (`PowerScriptFormula`
-  slot table — literal vs expression), `ResolvedFormulas` (the resolved
-  `SF_N → value` map), `FunctionRefs` (`PowerFunctionRef` engine-function
-  references), and `CompiledFormulas` (the decoded compiled-form AST),
-  cross-validated text-vs-binary. Raw decoded values only — the library
-  still ships no general formula evaluator beyond these resolved slots.
+- `PowerDefinition.ScriptFormulas` (`PowerScriptFormula`),
+  `ResolvedFormulas` (`SF_N → value`), `FunctionRefs`
+  (`PowerFunctionRef`), and `CompiledFormulas` (decoded compiled-form
+  AST). Raw decoded values only.
+
+### WiseOwl.Casc — transport
+
+- `DecodeMip0` supports BC1/BC3 atlases at any stored block-row
+  alignment (the row pitch is determined per texture).
 
 ### Notes
 
-- Public API for the surfaces above is frozen for this release. See
-  `docs/casc-diablo4-format.md` Appendix A (CL-23 … CL-49) for the
-  decode-correction history and `docs/devlog/0016`–`0045` for the
-  narrative.
+- Public API for the surfaces above is frozen for this release.
 
 ## [0.2.0-alpha] — 2026-05-17
 
