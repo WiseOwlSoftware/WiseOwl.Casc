@@ -1166,23 +1166,34 @@ public sealed class Diablo4StorageIntegrationTests
         }
     }
 
-    /// <summary>FR-C11 R3 §2 — per-node-cell background tile.
-    /// <c>Common_Node_BG_Revealed</c> (handle <c>0xC1473C21</c>,
-    /// authored rect L=R=T=B=3 inside the 100-pitch NodeTemplate
-    /// box → 94×94 tile centred in the 100×100 cell, inter-tile gap
-    /// ~6 ref units) is surfaced on
-    /// <see cref="ParagonRenderLayout.NodeCellBackground"/>. Drawn
-    /// beneath the rarity-specific node composite (§10.15); empty
-    /// lattice cells stay bare.</summary>
+    /// <summary>FR-C11 R3 §2 — scene-bound binding on the
+    /// <c>Common_Node_Revealed</c> widget. <c>0xC1473C21</c> via the
+    /// standard <c>0x6B1C5D9C</c> texture-handle field; authored rect
+    /// L=R=T=B=3 inside the 100-pitch <c>NodeTemplate</c> box (94×94
+    /// footprint centred in the 100×100 cell). Surfaced on
+    /// <see cref="ParagonRenderLayout.CommonNodeRevealedLayer"/>.
+    /// <br/><br/>
+    /// <b>FR-C15 R2 / CL-39 role retraction:</b> CL-33 originally
+    /// proposed this binding as the "per-node cell background tile"
+    /// (the persistent darker rounded square the lighter field shows
+    /// through); the role-claim was retracted after the consumer
+    /// plumbed the binding end-to-end and visual inspection of
+    /// <c>0xC1473C21</c>'s atlas frame revealed a horizontal
+    /// ember-strip / cell-reveal glow, NOT a clean rounded square.
+    /// The actual visual role is more likely a transient cell-reveal
+    /// effect (consistent with the widget name <c>_Revealed</c>) than
+    /// the persistent per-node tile owner sees in-game. This test
+    /// asserts ONLY the binding facts (handle, rect, atlas) — no
+    /// role assertion.</summary>
     [SkippableFact]
-    public void ReadParagonRenderLayout_surfaces_per_node_cell_background()
+    public void ReadParagonRenderLayout_surfaces_common_node_revealed_binding()
     {
         var install = Install();
         Skip.If(install is null, "No Diablo IV install available.");
         using var d4 = Diablo4Storage.Open(install!);
 
         var rl = d4.ReadParagonRenderLayout();
-        var bg = rl.NodeCellBackground;
+        var bg = rl.CommonNodeRevealedLayer;
 
         Assert.Equal(0xC1473C21u, bg.TextureHandle);
         Assert.Equal(447106, bg.AtlasSno);
@@ -1358,7 +1369,8 @@ public sealed class Diablo4StorageIntegrationTests
         // because the FR-C12 R2 owner atlas-frame oracle proved the
         // on-board socket composite reuses its 0x58-block handles.
         // Common_Node_Revealed is included because its 0xC1473C21 IS
-        // surfaced as NodeCellBackground.
+        // surfaced as CommonNodeRevealedLayer (binding-only field;
+        // role retracted per CL-39).
         bool IsRowBearingWidget(string n) =>
             n.StartsWith("Template_Node_", StringComparison.Ordinal) ||
             n == "Node_IconBase" || n == "Node_Purchased" ||
@@ -1399,8 +1411,8 @@ public sealed class Diablo4StorageIntegrationTests
 
         var rowHandles = new HashSet<uint>(
             rl.States.SelectMany(s => s.Layers).Select(l => l.TextureHandle));
-        if (rl.NodeCellBackground.TextureHandle != 0)
-            rowHandles.Add(rl.NodeCellBackground.TextureHandle);
+        if (rl.CommonNodeRevealedLayer.TextureHandle != 0)
+            rowHandles.Add(rl.CommonNodeRevealedLayer.TextureHandle);
 
         var unrowed = rawHandles
             .Where(h => !rowHandles.Contains(h) && !documentedExclusions.Contains(h))

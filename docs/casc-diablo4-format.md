@@ -1301,20 +1301,44 @@ target is non-icon-catalog so `Scenes` filters them out).
 
 ### 10.17 Per-node-cell background + special-node addendum (FR-C11 R3 / FR-C12)
 
-**Per-node-cell background tile (FR-C11 R3 §2).** Drawn beneath every
-revealed/visible node-cell composite (§10.15). Bound on
-`Common_Node_Revealed` (handle `0xC1473C21`, catalog-resolvable in
-2DUI atlas SNO 447106) via the standard `0x6B1C5D9C` texture-handle
-field, with authored rect `L=R=T=B=3` inside the 100-pitch
-`NodeTemplate` box → a 94×94 tile centred in the 100×100 cell with a
-~6-ref-unit inter-tile gap (the lighter board field showing through
-between adjacent cells — no drawn grey border grid, owner oracle
-2026-05-19). The atlas frame carries its own semi-transparent alpha;
-the widget records `dwAlpha = 0xFF`, so the consumer composites at
-the frame's authored opacity. `Common_Node_BG_Black` is the sibling
-hidden-state variant (same handle, same rect — pre-revelation
-state). Empty lattice cells (no node) draw neither widget. Surfaced
-as `ParagonRenderLayout.NodeCellBackground` (single `NodeElement`).
+**`Common_Node_Revealed` binding (FR-C11 R3 §2 / FR-C15 R2).** A
+scene-bound layer on the `Common_Node_Revealed` widget — handle
+`0xC1473C21` (catalog-resolvable in 2DUI atlas SNO 447106) via the
+standard `0x6B1C5D9C` texture-handle field; authored rect
+`L=R=T=B=3` inside the 100-pitch `NodeTemplate` (94×94 footprint
+centred in the 100×100 cell, ~6-ref-unit inter-cell gap); widget
+records `dwAlpha = 0xFF` so the atlas frame's own alpha drives the
+composite. The sibling `Common_Node_BG_Black` widget binds the
+same handle at the same rect — likely the hidden-state variant per
+the widget name. Surfaced as
+`ParagonRenderLayout.CommonNodeRevealedLayer` (single `NodeElement`).
+The field is **binding-named, not role-named** — see the role
+retraction below.
+
+**FR-C15 R2 / CL-39 — role retraction.** CL-33 (FR-C11 R3 §2)
+originally proposed this binding as the "per-node cell background
+tile" — the persistent darker rounded square the lighter board
+field shows through between cells (owner game-vs-app oracle). The
+consumer plumbed
+`ParagonRenderLayout.NodeCellBackground` (the CL-33 field name)
+end-to-end and visually inspected the resolved `0xC1473C21` atlas
+frame: the texture is a **horizontal ember-strip / cell-reveal
+glow pattern**, NOT a clean rounded dark square. The binding
+traversal is correct (the widget DOES bind this handle through the
+standard texture-handle field), but the proposed VISUAL ROLE
+("per-node cell background tile") is empirically wrong. The actual
+role is more likely a **transient cell-reveal effect** (consistent
+with the widget name `_Revealed` — engine animation when a cell
+becomes visible), not the persistent per-node tile owner sees in
+the steady-state board. The typed field was renamed from
+`NodeCellBackground` → `CommonNodeRevealedLayer` (binding-derived
+name, no role assertion) to comply with the lesson learned: a
+widget's name is not authoritative evidence of its visual role.
+The persistent per-node cell tile owner sees in-game remains
+**unidentified** in CASC's current decode — possibly bound on a
+different widget the FR-C12 R2 broad probe didn't flag, possibly
+bound via a non-`0x6B1C5D9C` DT-type, possibly engine-procedural
+(parallel to CL-31 §3 rim-fire). See FR-C15 R2 follow-up.
 
 **`NodeAvailableGlow` authored extent (FR-C11 R3 §3).** The
 selectable-glow widget's authored rect is genuinely all-zero — the
@@ -2236,6 +2260,34 @@ true value (the sections above already state the corrected truth).
   own frame extraction artifact (`socket-composite-stack.png` in
   `e:/tmp/scene-probe`) is the cross-verification of the recipe
   against owner's atlas-frame oracle.
+
+- **CL-39 — `NodeCellBackground` → `CommonNodeRevealedLayer` rename +
+  role-claim retraction (FR-C15 R2).** §10.17. CL-33 surfaced the
+  `Common_Node_Revealed` scene-binding (handle `0xC1473C21`,
+  authored rect L=R=T=B=3 in the 100-pitch `NodeTemplate`) as
+  `ParagonRenderLayout.NodeCellBackground` — the field name
+  asserted a role: "per-node cell background tile". The binding
+  traversal was correct (the widget genuinely binds this handle
+  through the standard `0x6B1C5D9C` texture-handle field), but the
+  proposed visual role was wrong: consumer plumbed the binding
+  end-to-end and the resolved `0xC1473C21` atlas frame renders as
+  a **horizontal ember-strip / cell-reveal glow pattern**, not the
+  clean rounded darker square owner sees in-game as the persistent
+  per-node tile. Likely the widget represents a transient
+  cell-reveal animation (engine renders the ember glow as a cell
+  becomes visible), not the steady-state per-node background.
+  Rename `NodeCellBackground` → `CommonNodeRevealedLayer` to remove
+  the role assertion from the field name; surface the binding facts
+  (handle, rect, atlas) without asserting visual role. New memory
+  `feedback_widget-name-not-role` captures the lesson: a widget's
+  name is not authoritative evidence of its visual role. The
+  persistent per-node cell tile owner sees remains unidentified in
+  CASC's current decode — needs further RE under owner direction
+  (FR-C15 R2 standing). Acceptance: existing
+  `ReadParagonRenderLayout_surfaces_common_node_revealed_binding`
+  test (renamed from `*_surfaces_per_node_cell_background`) asserts
+  only the binding facts; no role assertion. Pattern parallel:
+  CL-38 (atlas-name jump retracted 2026-05-20).
 
 - **CL-33 — per-node-cell background + special-node addendum (FR-C11
   R3 §2/§3, FR-C12 §1/§2/§3/§4).** §10.17. Added

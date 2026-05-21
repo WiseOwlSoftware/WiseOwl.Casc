@@ -31,7 +31,7 @@ public sealed record ParagonRenderLayout(
     NodeElement Disc,
     NodeElement Symbol,
     IReadOnlyList<StateElements> States,
-    NodeElement NodeCellBackground);
+    NodeElement CommonNodeRevealedLayer);
 
 /// <summary>
 /// The <b>exhaustive</b> paragon render-model (FR-C9): the role-assigned
@@ -781,21 +781,30 @@ internal static class ParagonRenderProjection
         states.Add(new StateElements(-1, "overlay.availableGlow",
             Overlay("NodeAvailableGlow"), null, null, null));
 
-        // FR-C11 R3 §2: per-node-cell background tile drawn beneath
-        // every revealed/visible node-cell composite. Bound on
-        // `Common_Node_Revealed` (handle 0xC1473C21) via the standard
-        // 0x6B1C5D9C texture-handle field, with authored rect
-        // L=R=T=B=3 inside the 100-pitch NodeTemplate box (a 94×94
-        // tile centred in the 100×100 cell — inter-tile gap is
-        // ~6 ref units, the lighter board field showing through). The
-        // atlas frame itself carries semi-transparent alpha; the
-        // widget records `dwAlpha = 0xFF`, so consumer composites at
-        // the frame's authored opacity. Drawn beneath the
-        // rarity-specific node composite (§10.15); empty lattice
-        // cells stay bare. `Common_Node_BG_Black` is the sibling
-        // hidden-state variant — same texture, same rect; the
-        // Revealed widget is the one used when the cell is visible.
-        var nodeCellBg = Elem("Common_Node_Revealed");
+        // FR-C11 R3 §2 / CL-33 + FR-C15 R2 / CL-39 (role retraction):
+        // scene-bound binding on the `Common_Node_Revealed` widget
+        // (handle `0xC1473C21` via the standard 0x6B1C5D9C texture-
+        // handle field, authored rect L=R=T=B=3 inside the 100-pitch
+        // `NodeTemplate` → 94×94 cell footprint; the widget records
+        // `dwAlpha=0xFF` so the atlas frame's own alpha drives the
+        // composite). The BINDING is correct (scene-bound; auditable
+        // from the FR-C9 exhaustive widget model). CL-33 originally
+        // proposed this binding as the "per-node cell background
+        // tile" (the persistent darker rounded square the lighter
+        // field shows through) — that role-claim was retracted in
+        // CL-39 after the consumer plumbed the binding end-to-end and
+        // visual inspection of `0xC1473C21`'s atlas frame revealed a
+        // horizontal ember-strip / cell-reveal glow pattern, NOT a
+        // clean rounded square. The actual visual role is more likely
+        // a transient cell-reveal effect (consistent with the widget
+        // name `_Revealed`) than the persistent per-node tile. The
+        // typed field is named after the BINDING (`CommonNodeRevealedLayer`)
+        // not the role; consumer + owner determine the rendering role
+        // via the visual oracle. `Common_Node_BG_Black` is the sibling
+        // hidden-state widget (same handle, same rect) per CL-33 — not
+        // separately surfaced; reachable via the FR-C9 exhaustive view
+        // if needed.
+        var commonNodeRevealedLayer = Elem("Common_Node_Revealed");
 
         return new ParagonRenderLayout(
             ratios, canvas,
@@ -803,7 +812,7 @@ internal static class ParagonRenderProjection
             boardRotationQuadrant,
             Disc: disc, Symbol: default,
             States: states,
-            NodeCellBackground: nodeCellBg);
+            CommonNodeRevealedLayer: commonNodeRevealedLayer);
     }
 
     /// <summary>
