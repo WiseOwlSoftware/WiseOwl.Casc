@@ -36,14 +36,14 @@ public repo; never commit it). Read CLAUDE.md before any FR action.
 
 ### Active branch / PR / release state
 
-- **PR #34 (`fr-c14-r9-tiled-style`) is MERGED and RELEASED** in
-  `v0.3.0-alpha` (CL-42..CL-49). Active work is now branch
-  **`fr-c16-c18-node-child-rects` (open, into `main`)** — **CL-50**
-  (FR-C16 R9 / FR-C18 node-template child sub-records + per-child rects),
-  unreleased. Commit FR code/docs here; docs-only still commit straight to
-  `main` (pref §7).
+- **PR #34 (`fr-c14-r9-tiled-style`) MERGED and RELEASED** in
+  `v0.3.0-alpha` (CL-42..CL-49). **PR #36 (CL-50, FR-C16 R9 / FR-C18
+  node-template child sub-records + per-child rects) MERGED to `main`**
+  (squash `5397868`, 2026-05-21) — **unreleased** (no package). No open
+  PRs. New code work starts a fresh branch off `main`; docs-only commit
+  straight to `main` (pref §7).
 - **Published on nuget.org (immutable): `0.1.0-alpha`, `0.2.0-alpha`,
-  `0.3.0-alpha`.** **CL-50 is unreleased** — on its branch, in no package.
+  `0.3.0-alpha`.** **CL-50 is unreleased** — on `main`, in no package.
   Release is owner-driven & batched (never cut for one fix without explicit
   "release now").
 - 57/57 integration tests green on live build `3.0.2.71886`.
