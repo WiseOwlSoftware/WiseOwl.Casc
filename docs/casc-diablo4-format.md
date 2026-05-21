@@ -1333,8 +1333,7 @@ with the §10.15 per-rarity table. Surfaced via `States` rows with
 
 | State | Layers (back → front) | Source |
 |---|---|---|
-| `socket.unselected` / `socket.selected` | ornate outer disk `0xF6443089` (135²) + red bead ring `0xBED4CF21` (135²) + inner spike-frame `0x23F487F3` (136²) | scene-bound — outer disk + inner well on `Usage_Slot_2`'s 0x58-block; bead ring on `GlyphNodeGlow_Revealed`'s texture-handle field (the engine reuses the same atlas frames for both the side-panel and the on-board per-node render). The socket-class node has its OWN ornate outer disk and does NOT composite the shared per-rarity grey-base `0x1D166DC7` — the engine's state dispatch for socket cells never references `Node_IconBase`. |
-| `socket.socketed` | outer disk `0xF6443089` + `GlyphNodeGlow_Purchased` `0xBED4CF21` (per-state bead-ring binding) + per-node glyph image (`HIconMask`, seats in the inner spike-frame's center depression) | scene-bound; glyph from `ParagonNodeDefinition`. Per-state variation (whether the inner spike-frame `0x23F487F3` stays on socketed, whether the bead-ring pulse animation stops) is not yet decoded — `needs:owner` for the next visual oracle. |
+| `socket.unselected` / `socket.selected` / `socket.socketed` | ornate outer disk `0xF6443089` (135²) + red bead ring `0xBED4CF21` (135²) + inner spike-frame `0x23F487F3` (136²); `.socketed` adds the per-node glyph image (`HIconMask` from `ParagonNodeDefinition`) seated in the inner spike-frame's center depression | scene-bound — outer disk + inner well on `Usage_Slot_2`'s 0x58-block; bead ring on `GlyphNodeGlow_Revealed`'s texture-handle field for `.unselected`/`.selected`, on `GlyphNodeGlow_Purchased` for `.socketed` (the engine reuses the same atlas frames for both the side-panel and the on-board per-node render). The socket-class node has its OWN ornate outer disk and does NOT composite the shared per-rarity grey-base `0x1D166DC7` — the engine's state dispatch for socket cells never references `Node_IconBase`. Per-state activation policy (bead-ring pulse animation on `.unselected` only, static at opacity 1.0 on `.selected` / `.socketed`) is consumer-side per FR-C7 §6 (CL-36 owner visual-oracle confirmation). |
 | `overlay.locatedHighlight` | `Node_Located` `0x87A89F86` (135²) | scene-bound via the 0x58-block |
 | `overlay.equipGlow` | `Node_EquipGlow` `0xFC806F42` (91×90) | scene-bound via the 0x58-block |
 | `start.unselected` / `start.selected` | `Template_Node_Starter` 0x58 block: filigree `0xA0F996FE` + grey hexagon `0xF8312CA8` | scene-bound; selected variant authored as same handles (no visual change) |
@@ -2150,6 +2149,23 @@ true value (the sections above already state the corrected truth).
   `ReadParagonBoardChrome_layers_are_scene_bound` extends to assert
   the 4 rim-side handles against the raw scene-657304 widget data
   (the icon-catalog-filtered `Scenes` view doesn't see them).
+
+- **CL-36 — socket.socketed inner-well restored (FR-C12 R5).**
+  §10.17. CL-35 tentatively dropped the inner spike-frame
+  `0x23F487F3` from the `socket.socketed` row "pending visual-oracle
+  confirmation of socketed-state inner-frame behavior". Owner
+  visual-oracle on the rebuilt app (post-CL-35 consumer integration)
+  ruled definitively: socketed looks exactly like selected, with the
+  placed glyph icon additionally overlaid. The inner spike-frame
+  stays on `.socketed`. Restored: `socket.socketed = [outerDisk,
+  beadRing-via-Purchased, innerWell]` — identical 3-layer composite
+  across all three socket states. The per-state activation policy
+  (bead-ring pulse animation on `.unselected` only; static at
+  opacity 1.0 on `.selected` / `.socketed`; placed-glyph-icon
+  overlay on `.socketed` from `ParagonNodeDefinition.HIconMask`) is
+  consumer-side per FR-C7 §6. Row no-phantom gate (CL-35) passes
+  unchanged — `0x23F487F3` is bound on `Usage_Slot_2`, in the
+  socket-authorized widget set.
 
 - **CL-35 — socket-row phantom-layer correction + row no-phantom
   gate (FR-C12 R3).** §10.17. CL-34's socket rows incorrectly

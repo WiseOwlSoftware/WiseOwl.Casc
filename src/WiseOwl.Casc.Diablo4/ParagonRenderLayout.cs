@@ -680,14 +680,14 @@ internal static class ParagonRenderProjection
         // ring on GlyphNodeGlow_Revealed for unselected/selected and
         // GlyphNodeGlow_Purchased for socketed — the engine reuses the
         // same atlas frames for the side-panel equipped-glyph display
-        // and the on-board per-node render).
-        //
-        // Per-state variations between unselected/selected/socketed
-        // (whether the bead-ring pulse animation stays on selected,
-        // whether socketed adds visible glyph art at the inner well)
-        // are not yet decoded — the LIBRARY surfaces the decode-true
-        // scene-bound LAYER INVENTORY for each state; per-state pulse-
-        // on/off refinement awaits the next visual oracle.
+        // and the on-board per-node render). The three-layer recipe
+        // is identical across all three states; per-state activation
+        // policy (pulse animation on/off, placed-glyph-icon overlay at
+        // the inner-well centre depression on .socketed) is consumer-
+        // side per FR-C7 §6 (CL-36 owner visual-oracle confirmation:
+        // .selected = bead-ring static @ opacity 1.0; .socketed =
+        // .selected + glyph icon overlay; .unselected = bead-ring
+        // pulse 0.15↔1.0 sine, 4 s period — all consumer-side).
         states.Add(new StateElements(-1, "socket.unselected",
             L(socketOuterDisk, pulse, socketInnerWell),
             null, null, Animation: null));
@@ -695,7 +695,7 @@ internal static class ParagonRenderProjection
             L(socketOuterDisk, pulse, socketInnerWell),
             null, null, null));
         states.Add(new StateElements(-1, "socket.socketed",
-            L(socketOuterDisk, pulseSocketed),
+            L(socketOuterDisk, pulseSocketed, socketInnerWell),
             null, null, null));
 
         // Rows 12–15: gate / start. CORRECTION (FR-C8, CL-23): the
