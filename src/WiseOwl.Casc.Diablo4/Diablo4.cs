@@ -133,6 +133,11 @@ public static class Diablo4
             [FieldHash("fTileCenter")] = "fTileCenter",
             [FieldHash("fTileHorizontalBorders")] = "fTileHorizontalBorders",
             [FieldHash("fTileVerticalBorders")] = "fTileVerticalBorders",
+            // Node-widget fields — FR-C12 R-redecode (brute force):
+            // every paragon node state-widget binds its disc handle via
+            // hImageFrame and its opacity via dwAlpha.
+            [FieldHash("hImageFrame")] = "hImageFrame",
+            [FieldHash("dwAlpha")] = "dwAlpha",
         };
 
     /// <summary>Cracked-hash registry for <see cref="TypeHash"/>

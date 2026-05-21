@@ -26,6 +26,8 @@ the implementations.
 | `0x06AB76DE` | `bActive` | FR-C14 R7 |
 | `0x06F9158E` | `nWidth` | pre-existing (CASC source) |
 | `0x0789C1CD` | `hText` | FR-C14 R7 |
+| `0x0C152636` | `hImageFrame` | FR-C12 re-decode (brute force) — node disc-handle field (type `UIImageHandleReference`) |
+| `0x0C2AFA21` | `dwAlpha` | FR-C12 re-decode (brute force) — per-widget opacity byte |
 | `0x07DB38D3` | `snoTiledStyle` | **FR-C14 R8 — the FR-C14 missing field** (blizzhackers/d4data FieldChecksums) |
 | `0x07F1EF79` | `nLeft` | pre-existing (CASC source) |
 | `0x093CBAA8` | `eGroupType` | FR-C14 R8 (blizzhackers/d4data FieldChecksums) |
