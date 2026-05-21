@@ -7,6 +7,94 @@
 > layer) — each with its own correction log; `docs/devlog/` (the
 > narrative), `docs/ARTICLE-SOURCE.md` (wiseowl.com article source).
 
+## CURRENT STATE (2026-05-21) — read this first
+
+The sections below this one ("Status (end of session 1)", the numbered
+"Next steps") are **historical** — accurate for their era but superseded
+by what follows. This block is the live state.
+
+### How work arrives now: the CASC⇄Optimizer FR loop (GitHub Issues)
+
+Feature requests + bugs no longer come from local backlog files — they
+are **GitHub Issues at the private `WiseOwlSoftware/casc-fr` repo**, and
+you act as the bot **`wiseowl-casc-bot`**. The full protocol + the
+token-bootstrap (`export GH_TOKEN="$CASC_BOT_TOKEN"; unset GITHUB_TOKEN`,
+`MSYS_NO_PATHCONV=1` for `gh api`) is in **`CLAUDE.md`** (git-ignored —
+public repo; never commit it). Read CLAUDE.md before any FR action.
+
+- **Roles:** you are the library/producer (CASC); the consumer is the
+  ParagonOptimizer (`wiseowl-optimizer-bot`); Brent is the owner.
+- **Turn labels:** `awaiting:casc` (your turn), `awaiting:optimizer`,
+  `needs:owner`. Lifecycle: `fr:proposed`→`accepted`→`delivered`
+  (`CL-NN`+`WiseOwl.Casc@SHA`+release-or-"unreleased")→`consumed`.
+- **CASC never closes an issue** (only the Optimizer, on owner-validated
+  `fr:consumed`). Comments are role-tagged `**[CASC]**`.
+- **Operating mode:** self-paced `/loop` — poll `awaiting:casc`, do the
+  work, schedule a fallback wake. **`needs:owner` is the only hard stop.**
+  After >1 idle poll with nothing queued, do available work (cumulative
+  hash-decode, deferred RE) — owner-approved standing directive.
+
+### Active branch / PR / release state
+
+- **Branch `fr-c14-r9-tiled-style` → PR #34 (open, into `main`)** carries
+  the FR-C14/C16/C17 + transport work: **CL-42..CL-49**. Commit the FR
+  code/docs here; docs-only still commit straight to `main` (pref §7).
+- **Published on nuget.org (immutable): `0.1.0-alpha`, `0.2.0-alpha`.**
+  **Everything since FR-C8 (CL-23..CL-49) is unreleased** — on `main` /
+  PR #34, in no package. Release is owner-driven & batched (never cut for
+  one fix without explicit "release now").
+- 44/44 integration tests green on live build `3.0.2.71886`.
+
+### Open casc-fr issues (2026-05-21 snapshot — re-poll, this drifts)
+
+- **#26** FR-C16 node render recipe — `awaiting:optimizer` (CL-44/46/47/48).
+- **#27** FR-C17 board grid/composition — `awaiting:optimizer` (CL-45).
+- **#22** FR-C12 special-node composites — `awaiting:optimizer`.
+- **#24** FR-C14 ParagonBoardChrome — `needs:owner` (CL-42/43; CL-48 note).
+- **#25** FR-C15 per-node cell tile — `needs:owner`.
+- **#28** `DecodeMip0` BC row-pitch bug — `awaiting:optimizer` (CL-49).
+
+### Key recent findings (don't re-discover these)
+
+- **UI-scene §10.3 field grammar is now COMPLETE (CL-48).** A field's
+  value is stored as **either** a 56-byte `0x22` record **or** a 12-byte
+  **tag-2 block** (`tag==2,+4==0,value@+8`); widgets use either, mixed.
+  The old 0x22-only parser under-decoded tag-2 widgets (e.g. chrome
+  centre's 1200² rect read as zero). Parent widgets nest **anonymous,
+  name-less child sub-records** (a class id + `0xFFFFFFFF` at +0x08 — the
+  rarity disc state layers); a parent confines its field scan to the run
+  before its first child.
+- **Node recipe per-state (CL-47):** `ParagonNodeRecipeLayer.SelectionDiscs`
+  (`Unselected`/`Selected`) splits the rarity disc pair — don't flatten
+  them (selected ring would draw on unselected nodes). Handles match the
+  owner #22 oracle (Magic `0x621CB6FF`/`0x72C29402`, etc.).
+- **`DecodeMip0` BC row-pitch is texture-specific (CL-49):** derive
+  blocks-per-row from the exact mip0 byte count (`SerTex[0].SizeAndFlags
+  ÷ (blockRows×blockSize)`), NOT `Align(width,64)`. Atlas 447106 is
+  128-aligned (pitch 1280, not 1216) — the guess garbled it.
+- **Surfaces shipped this arc:** `ReadParagonNodeRecipe` /
+  `ParagonNodeRecipe`, `ReadParagonBoardGrid` / `ParagonBoardGrid`,
+  `TiledStyleDefinition` (+ `ReadTiledStyle`), `Diablo4.KnownFieldNames`/
+  `KnownTypeNames`, `ParagonBoardChrome.TiledStyleBindings`.
+- **Cumulative hash-decode** (owner directive): persistent dictionary
+  `docs/d4-hash-dictionary.md` + `Diablo4.KnownFieldNames`/`KnownTypeNames`;
+  re-scan opaque blobs after each crack. Still-uncracked of note:
+  field `0x0CDB00E9` (DT_INT, small signed ints — a blind name-brute
+  missed it; needs the d4data `FieldChecksums` registry, not on disk here).
+- **Discipline lessons (memory):** never name an API role from
+  atlas-name/dimensions or widget-name alone (structural evidence only);
+  validate a decode-correctness claim on a **structured** frame, not a
+  flat one (a flat frame masked the CL-49 row-pitch bug → I wrongly
+  blamed the consumer on #26); subagents must never touch `e:\Casc`.
+
+### Devlogs for this arc
+
+0016–0026 (FR-C8/C9/C10/C11/C12), 0033–0034 (FR-C13 power formulas),
+0039 (FR-C13 phase 3), 0040 (TiledStyle), 0041 (node recipe + grid),
+0042 (per-state split), 0043 (tag-2 grammar crack), 0044 (tag-2 shipped),
+0045 (DecodeMip0 row-pitch). `docs/casc-diablo4-format.md` Appendix A is
+the authoritative CL log; `docs/d4-hash-dictionary.md` the hash registry.
+
 ## What this project is
 
 `WiseOwl.Casc` — a clean-room, modern, fully-documented .NET library for
