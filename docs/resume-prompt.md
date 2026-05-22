@@ -109,10 +109,14 @@ awaiting:casc; 2 fixed, 1 in progress:**
 - **#22** Start node oversized → **FIXED CL-61 (`01ddeca`)**: Starter base
   `0xF8312CA8` all-zero rect was full-cell; now inherits base-disc inset (86²).
   `needs:owner` visual-close. (Filigree authored 140² unchanged — flag if still off.)
-- **#30** cursor stretch wrong (corner-only) → **FIXED CL-62 (`faf3879`)**:
-  `SelectionRectangleInset` is the **`TiledWindowPieces`** variant; decoded its
-  **9 piece handles** (`TiledStyleDefinition.WindowPieces`, row-major 3×3,
-  idx4=centre). Consumer switches stretch→true 9-slice. `awaiting:optimizer`.
+- **#30** cursor → decoded `WindowPieces` (CL-62) but the 3×3 placement recipe
+  was WRONG (consumer got overlapping brackets) → **RETRACTED CL-63 (`f622598`)**.
+  Pieces are quadrant/edge brackets; tested 4 composites (zone/full/corners/quad)
+  — all messy; blob ends ~`0x98` (handles + ImageScale + 3 flags, NO per-piece
+  crop geometry). **Composition is engine-side, not in data** (≈ #24 mesh rim).
+  `WindowPieces` field stays (authored handle set); doc no longer asserts a
+  recipe. **`needs:owner`**: (a) calibrate vs live oracle (`AtlasExport compose`
+  harness ready) or (b) procedural border (#24 precedent, my lean).
 - **#31** atlas browser → **GUI DELIVERED**: `build/AtlasBrowser` (WinForms,
   `b1c685a`) over `d4.Catalog` (filter/peek/decode/frames). Compile-verified
   only — `needs:owner` to run + visual-close, then iterate (tree-nav,
@@ -121,7 +125,7 @@ awaiting:casc; 2 fixed, 1 in progress:**
 - **#24** rim = mesh/material (not a frame) — **`fr:consumed`** (owner accepted
   the procedural rim ✓).
 
-Latest CL = **62** (CL-61 #22 start-node, CL-62 #30 9-slice). AtlasExport +
+Latest CL = **63** (CL-61 #22 start-node, CL-62 #30 9-slice). AtlasExport +
 AtlasBrowser are build tools (no CL). Queue empty; #30 `awaiting:optimizer`,
 #32/#22/#31 `needs:owner`. Next branch off `main`.
 
