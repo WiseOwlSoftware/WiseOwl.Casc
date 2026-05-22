@@ -1494,6 +1494,21 @@ public sealed class Diablo4StorageIntegrationTests
         Assert.Equal((byte)0x8A, socketBase.Tint!.Value.R);
         Assert.Equal((byte)0x8A, socketBase.Tint!.Value.G);
         Assert.True(socketBase.DefaultActive);                // bActive=1
+        Assert.Equal(NodeFact.KindSocket, Assert.Single(socketBase.Activation.AllOf));
+
+        // FR-C16 #26.4 — Usage_Slot_* is the socket type-disc carrier: its disc
+        // children are remapped into the base-disc band, so the socket disc
+        // sits ABOVE the base but BELOW the symbol AND the purchased add-on
+        // (arrows/connectors) — which previously it painted over.
+        Assert.True(socketBase.ZOrder > One("Node_IconBase").ZOrder);
+        Assert.True(socketBase.ZOrder < One("Node_Icon").ZOrder);
+        Assert.True(socketBase.ZOrder < One("Arrow_Top").ZOrder);
+        Assert.True(socketBase.ZOrder < One("Connector_Top").ZOrder);
+
+        // The Usage_Slot_* widgets' OWN hImageFrame (0x3084D186, the 12² side-
+        // panel usage-pip bead) is side-panel-only and must NOT be on-board.
+        Assert.DoesNotContain(c, x => x.ImageHandle == 0x3084D186u);
+        Assert.DoesNotContain(c, x => x.Source is "Usage_Slot_1" or "Usage_Slot_2");
 
         // True z: the per-rarity disc sits at the base-disc position, BELOW
         // the symbol (Node_Icon) — not the template's appended scene index.

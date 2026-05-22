@@ -1735,6 +1735,29 @@ derived from FR-C14 R8's `snoTiledStyle` crack and R10's variant
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
 
+- **CL-54 — the SOCKET node's on-board type-disc is carried by the
+  `Usage_Slot_*` widgets and must be remapped into the base-disc band, like
+  a rarity type-disc (FR-C16 #26.4).** `Template_Node_Socketable` is empty
+  (no handle, no children) — the socket disc art lives on the equipped-glyph
+  side-panel widgets `Usage_Slot_1`/`Usage_Slot_2`, whose disc frames the
+  engine reuses on-board (FR-C12 / CL-34). CL-52 routed them through the
+  generic non-template branch, so they emitted at the widget's high scene-z
+  (above the symbol and the purchased add-on) with the side-panel layout:
+  - the full-cell socket disk (`0xF6443089` + inner `0x23F487F3` + ring
+    `0xBED4CF21`) **painted over the cardinal arrows and connector bars**;
+  - the widget's own `hImageFrame` `0x3084D186` (12² usage-pip bead — a
+    side-panel equipped-glyph indicator) leaked on-board as a stray dot.
+  Fix (interpretation, not a patch): treat `Usage_Slot_*` as the
+  **`KindSocket` type-disc carrier**. Emit only its handle-bearing disc
+  children, remapped into the base-disc band (`Node_IconBase`'s z), gated
+  `[KindSocket]` + `bActive`-finalized — so the socket disc composes below
+  the symbol/arrows/connectors like any base disc. The widget's own 12²
+  pip is **not** part of the on-board node and is not emitted. Disc geometry
+  stays authored (centred, ~100²) — not refit. Owner-oracle validated
+  (2026-05-21). Acceptance: `ReadParagonNodeRecipe_surfaces_flat_zordered_components`
+  (socket disc z above base, below symbol/arrows/connectors; `0x3084D186`
+  absent). Devlog 0053.
+
 - **CL-52 — flat `ParagonNodeRecipe.Components` + `bActive`-driven
   activation; owner-oracle-validated render model (FR-C16 R14).** Replaces
   the CL-50/51 layer/disc/slot nesting with a single z-ordered list of

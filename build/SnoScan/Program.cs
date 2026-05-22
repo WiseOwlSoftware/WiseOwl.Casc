@@ -763,6 +763,39 @@ switch (cmd)
         }
         return 0;
     }
+    case "widgetdump":
+    {
+        // widgetdump <sceneSno> <nameSubstr> — via the PARSED UiScene, print
+        // each matching widget's own hImageFrame + rect + bActive + anchoring,
+        // and each handle-bearing child likewise. Grounds node-recipe geometry
+        // questions (e.g. socket disc on Template_Node_Socketable vs Usage_Slot_2).
+        if (argv.Count < 3) { Console.Error.WriteLine("widgetdump <sceneSno> <nameSubstr>"); return 2; }
+        int sc = int.Parse(argv[1]); string sub = argv[2];
+        uint FH(string n) => Diablo4.FieldHash(n);
+        uint hImg = FH("hImageFrame");
+        (string, uint)[] rectF = [("L", FH("nLeft")), ("R", FH("nRight")), ("T", FH("nTop")),
+            ("B", FH("nBottom")), ("W", FH("nWidth")), ("H", FH("nHeight"))];
+        uint bAct = FH("bActive"), vAnc = FH("eVerticalAnchoring"), hAnc = FH("eHorizontalAnchoring"), tint = FH("rgbaTint");
+        long V(IReadOnlyList<UiField> fs, uint h) { foreach (var f in fs) if (f.FieldHash == h && f.HasValue) return (int)f.RawValue; return 0; }
+        bool Has(IReadOnlyList<UiField> fs, uint h) { foreach (var f in fs) if (f.FieldHash == h && f.HasValue) return true; return false; }
+        string Line(IReadOnlyList<UiField> fs)
+        {
+            var rect = string.Join(",", rectF.Select(rf => $"{rf.Item1}={V(fs, rf.Item2)}"));
+            string b = Has(fs, bAct) ? V(fs, bAct).ToString() : "(unset=1)";
+            string a = $"vAnc={(Has(fs, vAnc) ? V(fs, vAnc).ToString() : "-")} hAnc={(Has(fs, hAnc) ? V(fs, hAnc).ToString() : "-")}";
+            string ti = Has(fs, tint) ? $" tint=0x{(uint)V(fs, tint):X8}" : "";
+            return $"img=0x{(uint)V(fs, hImg):X8} [{rect}] bActive={b} {a}{ti}";
+        }
+        var scene = d4.ReadUiScene(sc);
+        foreach (var w in scene.Widgets)
+        {
+            if (!(w.Name ?? "").Contains(sub, StringComparison.OrdinalIgnoreCase)) continue;
+            Console.WriteLine($"'{w.Name}'  {Line(w.Fields)}  children={w.Children.Count}");
+            for (int c = 0; c < w.Children.Count; c++)
+                Console.WriteLine($"    [{c}] {Line(w.Children[c].Fields)}");
+        }
+        return 0;
+    }
     case "codecscan":
     {
         // Tally the texture codec across all UI atlases (2DUI*, group 44) to
