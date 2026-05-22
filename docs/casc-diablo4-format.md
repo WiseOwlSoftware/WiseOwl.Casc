@@ -452,11 +452,24 @@ Cells = `dataSize / 4` LE `u32` SNO ids, row-major
 | 0 | DT_INT | `snoId` |
 | 8 | DT_UINT | `hIcon` |
 | 12 | DT_UINT | `hIconMask` |
+| 16 | DT_ENUM | `eNodeType` (0=Normal/structural/gate/rare, 3=Magic, 5=Start) |
 | 20 | DT_ENUM | `eRarityOverride` (0=Common, 2=Magic, 3=Rare, 4=Legendary) |
 | 24 | DT_SNO (group 29) | `snoPassivePower` |
 | 32 | DT_VARIABLEARRAY[AttributeSpecifier] | `ptAttributes` (`dataOffset@+8`, `dataSize@+12`) |
 | 80 | DT_INT | `bHasSocket` |
 | 84 | DT_INT | `bIsGate` |
+| 88 | DT_VARIABLEARRAY[DT_UINT] | per-attribute GBID array (`dataOffset@+8`, `dataSize@+12`); one u32 per `ptAttributes` element, same order |
+
+`eNodeType` (offset 16) is a **distinct axis** from `eRarityOverride`: every
+class start node is `5` (verified on all seven class boards); magic nodes are
+`3`; normal, structural, gate, and (observed) rare nodes are `0`. Use it (not
+rarity) to identify the start node.
+
+The **per-attribute GBID array** (offset 88) parallels `ptAttributes`
+element-for-element. Each u32 is a stable key for that attribute's
+`eAttribute` — e.g. `eAttribute 9` (Strength) → `0x1E663884` everywhere it
+appears — but its canonical resource name is not yet recovered (it is not a
+DJB2/GBID hash of any tested attribute label); it is surfaced raw.
 
 `AttributeSpecifier` — stride **88**:
 
@@ -1734,6 +1747,22 @@ derived from FR-C14 R8's `snoTiledStyle` crack and R10's variant
 
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
+
+- **CL-66 — `ParagonNodeDefinition`: the two undecoded fields decoded —
+  `eNodeType@16` and the per-attribute GBID array @88 (FR-C21 foundation).**
+  Closing the "RE all fields of every data type we use" debt on the node
+  record. `eNodeType` (payload `+16`, previously skipped) is a distinct axis
+  from `eRarityOverride`: `5`=Start (verified on all seven class start boards),
+  `3`=Magic, `0`=Normal/structural/gate/rare — the reliable start-node marker.
+  A **second** `DT_VARIABLEARRAY[DT_UINT]` (descriptor @88, `dataOffset@+8`/
+  `dataSize@+12`) holds **one GBID per `ptAttributes` element, same order**;
+  it is a stable per-`eAttribute` key (`eAttribute 9` → `0x1E663884`
+  everywhere) whose canonical name did not crack against any tested DJB2/GBID
+  candidate, so it is surfaced raw on `NodeAttribute.AttributeGbid`. Earlier
+  near-miss this confirms: the start marker is `eNodeType=5` at `+16`, **not**
+  `eRarityOverride=5` (all class start nodes are `RarityOverride 0`) — reading
+  `+16` is what distinguishes them. Surface: `NodeTypeRaw`/`NodeType`
+  (`ParagonNodeType`)/`IsStart` + `NodeAttribute.AttributeGbid`.
 
 - **CL-64 — `ReadNodeSelectionHighlight()`: the AUTHORED node hover recipe
   (`ContextualHighlight_Square`) + its corner art (FR-C19 #30).** Resolution of

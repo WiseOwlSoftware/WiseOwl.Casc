@@ -24,6 +24,30 @@ public enum ParagonRarity
 }
 
 /// <summary>
+/// The verified first-party paragon node <c>eNodeType</c> values
+/// (<see cref="ParagonNodeDefinition.NodeType"/>, payload <c>+16</c>). A
+/// named-int convenience over the raw int — not policy; the raw int remains
+/// the serialized contract. Observed across all seven class boards: every
+/// class start node is <see cref="Start"/> (5); magic nodes are
+/// <see cref="Magic"/> (3); normal/structural/gate/rare nodes are
+/// <see cref="Normal"/> (0). This is a distinct axis from
+/// <see cref="ParagonRarity"/> (e.g. a rare node is <c>NodeType 0</c> with
+/// <c>RarityOverride 3</c>); values other than 0/3/5 have not been observed
+/// and would surface here as the raw cast.
+/// </summary>
+public enum ParagonNodeType
+{
+    /// <summary>Normal / structural node — also the gate and (observed) rare
+    /// nodes. Value 0.</summary>
+    Normal = 0,
+    /// <summary>Magic node. Value 3.</summary>
+    Magic = 3,
+    /// <summary>Board start node (the class emblem). Value 5 — verified on all
+    /// seven class start boards.</summary>
+    Start = 5,
+}
+
+/// <summary>
 /// One attribute grant on a paragon node (an <c>AttributeSpecifier</c>,
 /// stride 88). Raw decoded fields only — the magnitude is produced by
 /// evaluating <see cref="InlineFormula"/> or the GameBalance formula named
@@ -46,6 +70,15 @@ public enum ParagonRarity
 /// <param name="InlineFormula">The node's own formula source text (read at
 /// specifier <c>+24</c> offset / <c>+28</c> size, payload-relative) when
 /// <see cref="FormulaGbid"/> is <c>0xFFFFFFFF</c>; otherwise empty.</param>
+/// <param name="AttributeGbid">The attribute's GBID from the node's second
+/// parallel array (descriptor at payload <c>+88</c>; one <see cref="uint"/>
+/// per attribute, in <see cref="ParagonNodeDefinition.Attributes"/> order).
+/// Stable per <see cref="AttributeId"/> across nodes (e.g.
+/// <c>AttributeId 9</c> → <c>0x1E663884</c> everywhere it appears), so it is a
+/// reliable secondary key for the same <c>eAttribute</c>. Its canonical
+/// resource name is not yet recovered (it is not a DJB2/GBID hash of any
+/// tested attribute label); surfaced raw rather than left undecoded. <c>0</c>
+/// when the node has no parallel entry for this attribute.</param>
 [SuppressMessage("Naming", "CA1711:Identifiers should not have incorrect suffix",
     Justification = "\"Attribute\" is the established Diablo IV domain term " +
         "(the serialized eAttribute field; matches the spec, ARTICLE-SOURCE, " +
@@ -57,7 +90,8 @@ public readonly record struct NodeAttribute(
     int NParam,
     int ParamPlus12,
     uint FormulaGbid,
-    string InlineFormula)
+    string InlineFormula,
+    uint AttributeGbid)
 {
     /// <summary>The <see cref="FormulaGbid"/> sentinel meaning "use
     /// <see cref="InlineFormula"/>".</summary>
@@ -77,24 +111,33 @@ public readonly record struct NodeAttribute(
 /// Byte layout per the canonical reference (<c>docs/casc-diablo4-format.md §7.2</c>,
 /// migrated/verified from the upstream <c>d4-binary-formats.md §5</c>):
 /// payload base <c>0x10</c>; <c>snoId@0</c>; <c>hIcon@8</c> (DT_UINT);
-/// <c>hIconMask@12</c> (DT_UINT); <c>eRarityOverride@20</c> (0/2/3/4);
+/// <c>hIconMask@12</c> (DT_UINT); <c>eNodeType@16</c> (0/3/5; see
+/// <see cref="ParagonNodeType"/>); <c>eRarityOverride@20</c> (0/2/3/4);
 /// <c>snoPassivePower@24</c> (DT_SNO, group 29 Power); <c>ptAttributes</c>
 /// <c>DT_VARIABLEARRAY[AttributeSpecifier]</c> descriptor <c>@32</c>
 /// (<c>dataOffset</c> payload-relative <c>@+8</c>, <c>dataSize@+12</c>;
-/// element stride 88); <c>bHasSocket@80</c>; <c>bIsGate@84</c>.
+/// element stride 88); <c>bHasSocket@80</c>; <c>bIsGate@84</c>; a second
+/// <c>DT_VARIABLEARRAY[DT_UINT]</c> descriptor <c>@88</c> — one per-attribute
+/// GBID, parallel to <c>ptAttributes</c> (see
+/// <see cref="NodeAttribute.AttributeGbid"/>).
 /// </remarks>
 public sealed class ParagonNodeDefinition
 {
     private const int AttrStride = 88;
 
+    /// <summary>Payload offset of the parallel per-attribute GBID array's
+    /// <c>DT_VARIABLEARRAY</c> descriptor.</summary>
+    private const int AttrGbidArrayDescriptor = 88;
+
     private readonly NodeAttribute[] _attributes;
 
     private ParagonNodeDefinition(
-        int snoId, int rarityOverride, bool hasSocket, bool isGate,
+        int snoId, int nodeType, int rarityOverride, bool hasSocket, bool isGate,
         uint hIcon, uint hIconMask, int snoPassivePower,
         NodeAttribute[] attributes)
     {
         SnoId = snoId;
+        NodeTypeRaw = nodeType;
         RarityOverride = rarityOverride;
         HasSocket = hasSocket;
         IsGate = isGate;
@@ -106,6 +149,22 @@ public sealed class ParagonNodeDefinition
 
     /// <summary>The node's own SNO id.</summary>
     public int SnoId { get; }
+
+    /// <summary>Raw <c>eNodeType</c> (payload <c>+16</c>): <b>0</b>=Normal/
+    /// structural/gate/rare, <b>3</b>=Magic, <b>5</b>=Start. This exact int is
+    /// the serialized contract — kept raw deliberately; see
+    /// <see cref="NodeType"/> for the named enum.</summary>
+    public int NodeTypeRaw { get; }
+
+    /// <summary><see cref="NodeTypeRaw"/> as the verified enum (convenience;
+    /// the raw int remains authoritative). A distinct axis from
+    /// <see cref="Rarity"/>.</summary>
+    public ParagonNodeType NodeType => (ParagonNodeType)NodeTypeRaw;
+
+    /// <summary>True when this is a board start node
+    /// (<see cref="NodeTypeRaw"/> == 5) — verified on all seven class start
+    /// boards.</summary>
+    public bool IsStart => NodeTypeRaw == (int)ParagonNodeType.Start;
 
     /// <summary>Raw <c>eRarityOverride</c> (<b>0</b>=Common/structural,
     /// <b>2</b>=Magic, <b>3</b>=Rare, <b>4</b>=Legendary). This exact int is
@@ -149,6 +208,7 @@ public sealed class ParagonNodeDefinition
         var snoId = r.SnoId;
         var hIcon = r.U32(8);
         var hIconMask = r.U32(12);
+        var nodeType = r.I32(16);
         var rarity = r.I32(20);
         var snoPassivePower = r.I32(24);
         var hasSocket = r.I32(80) != 0;
@@ -159,6 +219,12 @@ public sealed class ParagonNodeDefinition
         var dataOffset = (int)r.U32(32 + 8);
         var dataSize = (int)r.U32(32 + 12);
         var count = dataSize > 0 ? dataSize / AttrStride : 0;
+
+        // Parallel per-attribute GBID array — a second DT_VARIABLEARRAY whose
+        // descriptor is at payload +88 (one DT_UINT per attribute, same order).
+        var gbidBytes = r.VariableArray(AttrGbidArrayDescriptor);
+        var gbidCount = gbidBytes.Length / 4;
+
         var attrs = new NodeAttribute[count];
         for (var i = 0; i < count; i++)
         {
@@ -174,11 +240,12 @@ public sealed class ParagonNodeDefinition
                 NParam: r.I32(e + 4),
                 ParamPlus12: r.I32(e + 12),
                 FormulaGbid: gbid,
-                InlineFormula: inline);
+                InlineFormula: inline,
+                AttributeGbid: i < gbidCount ? Bytes.U32LE(gbidBytes, i * 4) : 0);
         }
 
         return new ParagonNodeDefinition(
-            snoId, rarity, hasSocket, isGate, hIcon, hIconMask,
+            snoId, nodeType, rarity, hasSocket, isGate, hIcon, hIconMask,
             snoPassivePower, attrs);
     }
 }
