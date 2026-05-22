@@ -95,6 +95,14 @@ pixel-correct; 4,726 atlases codec-classified decode-free). Plus **AtlasExport
 CLI** (`build/AtlasExport`, `0b45c2a`) — list/export atlases over the Catalog
 (FR-T1 interim browser; GUI deferred by owner).
 
+**FR-C20 CONSENSUS BACKLOG COMPLETE (P1–P5 + Q2/Q4/P2b, all consume-verified).**
+**P5 (CL-60, `d8f7969`):** `Catalog.Related(ref)` → `AssetLink(Role, AssetRef
+Target)` — authored FK traversal: board→`node`, node→`power` (`SnoPassivePower`>0),
+glyph→`affix`+`class`; each Target chains. Node↔glyph is runtime (not a link);
+affix→power doesn't exist (use node→power). Deferred (no consumer need):
+power→class facet (skill-kit RE), item NameConvention facets, codec tail, atlas
+GUI. #32 `awaiting:optimizer` (P5 consume).
+
 **P2b shipped marked-A (CL-59, `0a868f4`):** `Facet(Key,Value,FacetSource{NameConvention,
 Decoded,SceneField})` + `Catalog.Facets(ref)` + `FindByFacet(kind,key,value)`.
 `ParagonGlyph→class` = **Decoded** (`UsableByClassSnoIds`→PlayerClass name);
