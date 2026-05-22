@@ -1735,6 +1735,45 @@ derived from FR-C14 R8's `snoTiledStyle` crack and R10's variant
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
 
+- **CL-55 — `Catalog` asset discovery/retrieval API (`d4.Catalog`, FR-C20).**
+  A facade so the consumer can **find / enumerate (filtered) / retrieve** any
+  catalogued recipe or definition without hardcoding SNO ids/names or knowing
+  which typed reader to call — replacing the "one bespoke `ReadX()` per thing"
+  surface for discovery. Shape:
+  - `Find(AssetQuery)` → lazy `AssetRef(Kind, Group, Sno, Name, Tags)` stream;
+    `OfKind`, `TryResolve(kind,name)`. `AssetQuery` filters by kind/kinds, name
+    substring, tag(s), `RenderRecipesOnly`, or a `Where` predicate.
+  - `TryGet(ref, out object)` / `TryGet<T>(ref, out T)` → the **real** decoded
+    type (e.g. `TiledStyleDefinition`, `ItemDefinition`) — pattern-match it or
+    ask for `T`. No closed wrapper union, so a new family is one provider +
+    one `AssetKind`, zero facade edits (future-proofs to weapons/armor/etc.;
+    `Item`/`Affix` seeded). Exception-safe: a malformed/sentinel blob (e.g. the
+    leading "Bad Data" board) yields `false`, never throws.
+  - Backed by an internal `IAssetProvider` registry (one per kind), each
+    delegating decode to the existing typed reader. Kinds: render recipes
+    (`ParagonNodeRender`, `TiledStyle`, `SelectionHighlight`,
+    `ParagonBoardGrid`, `TextureAtlas`) + paragon domain (`ParagonBoard/Node/
+    Glyph/GlyphAffix`, `Power`, `PlayerClass`, `AttributeFormulas`) + broader
+    (`Item`, `Affix`).
+  - **Folds in CL-53** (the standalone selection-highlight surface): the
+    `SelectionHighlight` provider discovers the shape-tagged selection
+    TiledStyles; `ReadSelectionHighlight()` is now a typed shortcut over the
+    Catalog. PR #39 (CL-53 standalone) is **superseded — closed unmerged**.
+  Acceptance: `Catalog_discovers_and_retrieves_assets_by_kind_filter`. 51/51
+  tests green on `3.0.2.71886`. Devlog 0054.
+
+- **CL-53 — typed `ReadSelectionHighlight()` → authored selection-highlight
+  TiledStyle recipes (FR-C19).** Selection highlight is authored as named
+  `TiledStyle` 9-slice recipes (group 103) over `2DUI_SelectionHighlight`
+  (337357) / `2DUITiled_SelectionHighlight` (585030):
+  `SelectionRectangleInset` (square node) + `ControllerSelection{Rectangle,
+  Circle,Diamond,TearDrop,APS}`. Shape comes from the authored TiledStyle name
+  (corrects the eyeballed delivery: `0xBA7D2638`=TearDrop not "circle";
+  `0x0BD8A829`=Circle not "diamond" — a `no-atlas-name-jumps` catch).
+  **Folded into CL-55 (`Catalog`)** rather than shipped standalone; the
+  surface (`SelectionHighlight`/`SelectionHighlightStyle`/`SelectionShape` +
+  `ReadSelectionHighlight()`) is unchanged.
+
 - **CL-54 — the SOCKET node's on-board type-disc is carried by the
   `Usage_Slot_*` widgets and must be remapped into the base-disc band, like
   a rarity type-disc (FR-C16 #26.4).** `Template_Node_Socketable` is empty
