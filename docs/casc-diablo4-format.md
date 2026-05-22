@@ -1735,6 +1735,17 @@ derived from FR-C14 R8's `snoTiledStyle` crack and R10's variant
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
 
+- **CL-58 — `Catalog` query ergonomics: `DecodableOnly` + `OrderByName` (FR-C20
+  Q2); `AssetRef` identity/stability documented (Q4).** `AssetQuery.DecodableOnly`
+  yields only assets that decode (drops the "Bad Data" board; cost = a decode
+  per asset — `Find<T>` remains the lazy decodable-only path). `AssetQuery.OrderByName`
+  orders by (Kind, ordinal Name) (buffers; not lazy). Q4: documented that
+  `(Group, Sno)` is the canonical key, build-stable *within a build* (diff bakes
+  against `.build.info`), with `Name` the most patch-durable identity
+  (re-resolve via `TryResolve`). Acceptance: `Catalog_discovers_…` extended.
+  51/51 tests green on `3.0.2.71886`. (P2b item/power/glyph facets remain
+  pending the consumer's name-convention-vs-decode-fields A/B call on #32.)
+
 - **CL-57 — `Catalog` iteration 2: frame-pixel retrieval (FR-C20 P3) + a
   TexFrame-from-handle convenience.** The Optimizer consume-verified CL-56
   cleanly and named P3 its critical path (it unblocks the #30 selection-cursor

@@ -10,7 +10,7 @@ public sealed class Catalog
 
 | name | description |
 | --- | --- |
-| [Find](Catalog/Find.md)(…) | Discover assets matching *query* (lazy). A `null` query yields every catalogued asset. |
+| [Find](Catalog/Find.md)(…) | Discover assets matching *query* (lazy, unless [`OrderByName`](./AssetQuery/OrderByName.md) buffers to sort). A `null` query yields every catalogued asset. |
 | [Find&lt;T&gt;](Catalog/Find.md)(…) | FR-C20 P4 — discover and decode in one lazy pass: enumerate *query* and yield each asset already decoded to *T*, silently skipping non-matching kinds and undecodable blobs. The ergonomic "give me every [`TiledStyleDefinition`](./TiledStyleDefinition.md)" shortcut. |
 | [OfKind](Catalog/OfKind.md)(…) | Every asset of a kind (lazy). |
 | [TryGet](Catalog/TryGet.md)(…) | Decode an asset into its strongly-typed definition (the real type — e.g. [`TiledStyleDefinition`](./TiledStyleDefinition.md), [`ItemDefinition`](./ItemDefinition.md)). Returns `false` (no throw) on a malformed/absent blob or an unknown kind. (2 methods) |

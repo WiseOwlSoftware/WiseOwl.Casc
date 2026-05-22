@@ -1,6 +1,6 @@
 # Catalog.Find method (1 of 2)
 
-Discover assets matching *query* (lazy). A `null` query yields every catalogued asset.
+Discover assets matching *query* (lazy, unless [`OrderByName`](../AssetQuery/OrderByName.md) buffers to sort). A `null` query yields every catalogued asset.
 
 ```csharp
 public IEnumerable<AssetRef> Find(AssetQuery? query = null)

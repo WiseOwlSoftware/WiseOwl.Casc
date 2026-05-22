@@ -68,9 +68,15 @@ public enum AssetKind
 /// <param name="Kind">The asset family.</param>
 /// <param name="Group">The SNO group the asset lives in (for singletons, the
 /// source scene's group).</param>
-/// <param name="Sno">The SNO id (for singletons, the source scene id).</param>
+/// <param name="Sno">The SNO id (for singletons, the source scene id).
+/// <b>Identity/stability (FR-C20 Q4):</b> the <c>(Group, Sno)</c> pair is the
+/// canonical key and is stable <i>within a build</i> — ids are re-issued per
+/// build, so persisted bakes should diff against the install's
+/// <c>.build.info</c>. For the most patch-durable key across game updates,
+/// prefer <see cref="Name"/> (re-resolve to an id via
+/// <see cref="Catalog.TryResolve"/> on a new build).</param>
 /// <param name="Name">The <c>CoreTOC</c> name (or a synthetic name for a
-/// singleton).</param>
+/// singleton). The most patch-durable identity (see <paramref name="Sno"/>).</param>
 /// <param name="Tags">Authored-data-derived classification tags (e.g. a
 /// selection shape, an atlas family, an item slot) for filtering. Never a guess
 /// from geometry or art.</param>
@@ -95,6 +101,15 @@ public sealed record AssetQuery
     public IReadOnlyCollection<string>? TagsAll { get; init; }
     /// <summary>Restrict to render-recipe kinds (the draw/composition surface).</summary>
     public bool RenderRecipesOnly { get; init; }
+    /// <summary>FR-C20 Q2 — yield only assets that actually decode, dropping
+    /// malformed/sentinel blobs (e.g. the "Bad Data" board). <b>Cost:</b> a
+    /// decode per asset — for typed retrieval prefer <see cref="Catalog.Find{T}"/>,
+    /// which is decodable-only by construction.</summary>
+    public bool DecodableOnly { get; init; }
+    /// <summary>FR-C20 Q2 — order results by (<see cref="AssetRef.Kind"/>, then
+    /// ordinal <see cref="AssetRef.Name"/>). Buffers the results, so it is not
+    /// lazy.</summary>
+    public bool OrderByName { get; init; }
     /// <summary>An arbitrary predicate escape hatch.</summary>
     public Func<AssetRef, bool>? Where { get; init; }
 }
@@ -153,9 +168,17 @@ public sealed class Catalog
         _providers = AssetProviders.For(d4);
     }
 
-    /// <summary>Discover assets matching <paramref name="query"/> (lazy). A
+    /// <summary>Discover assets matching <paramref name="query"/> (lazy, unless
+    /// <see cref="AssetQuery.OrderByName"/> buffers to sort). A
     /// <see langword="null"/> query yields every catalogued asset.</summary>
-    public IEnumerable<AssetRef> Find(AssetQuery? query = null)
+    public IEnumerable<AssetRef> Find(AssetQuery? query = null) =>
+        query is { OrderByName: true }
+            ? FindCore(query)
+                .OrderBy(r => r.Kind)
+                .ThenBy(r => r.Name, StringComparer.Ordinal)
+            : FindCore(query);
+
+    private IEnumerable<AssetRef> FindCore(AssetQuery? query)
     {
         foreach (var p in _providers)
         {
@@ -165,12 +188,15 @@ public sealed class Catalog
 
             foreach (var r in p.Enumerate())
             {
-                if (query is null) { yield return r; continue; }
-                if (query.NameContains is { } nc &&
-                    !r.Name.Contains(nc, StringComparison.OrdinalIgnoreCase)) continue;
-                if (query.Tag is { } tg && !r.Tags.Contains(tg)) continue;
-                if (query.TagsAll is { } ta && !ta.All(r.Tags.Contains)) continue;
-                if (query.Where is { } w && !w(r)) continue;
+                if (query is not null)
+                {
+                    if (query.NameContains is { } nc &&
+                        !r.Name.Contains(nc, StringComparison.OrdinalIgnoreCase)) continue;
+                    if (query.Tag is { } tg && !r.Tags.Contains(tg)) continue;
+                    if (query.TagsAll is { } ta && !ta.All(r.Tags.Contains)) continue;
+                    if (query.Where is { } w && !w(r)) continue;
+                    if (query.DecodableOnly && !TryGet(r, out _)) continue;
+                }
                 yield return r;
             }
         }

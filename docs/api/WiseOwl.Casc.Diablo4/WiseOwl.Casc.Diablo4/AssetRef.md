@@ -10,8 +10,8 @@ public struct AssetRef : IEquatable<AssetRef>
 | --- | --- |
 | Kind | The asset family. |
 | Group | The SNO group the asset lives in (for singletons, the source scene's group). |
-| Sno | The SNO id (for singletons, the source scene id). |
-| Name | The `CoreTOC` name (or a synthetic name for a singleton). |
+| Sno | The SNO id (for singletons, the source scene id). Identity/stability (FR-C20 Q4): the `(Group, Sno)` pair is the canonical key and is stable within a build — ids are re-issued per build, so persisted bakes should diff against the install's `.build.info`. For the most patch-durable key across game updates, prefer [`Name`](./AssetRef/Name.md) (re-resolve to an id via [`TryResolve`](./Catalog/TryResolve.md) on a new build). |
+| Name | The `CoreTOC` name (or a synthetic name for a singleton). The most patch-durable identity (see *Sno*). |
 | Tags | Authored-data-derived classification tags (e.g. a selection shape, an atlas family, an item slot) for filtering. Never a guess from geometry or art. |
 
 ## Public Members
@@ -21,8 +21,8 @@ public struct AssetRef : IEquatable<AssetRef>
 | [AssetRef](AssetRef/AssetRef.md)(…) | FR-C20 — a lightweight, decode-free handle to one catalogued asset: its kind, SNO identity, name, and classification tags. Returned by [`Find`](./Catalog/Find.md); pass to [`TryGet`](./Catalog/TryGet.md) (or [`TryGet`](./Catalog/TryGet.md)) to decode it. |
 | [Group](AssetRef/Group.md) { get; set; } | The SNO group the asset lives in (for singletons, the source scene's group). |
 | [Kind](AssetRef/Kind.md) { get; set; } | The asset family. |
-| [Name](AssetRef/Name.md) { get; set; } | The `CoreTOC` name (or a synthetic name for a singleton). |
-| [Sno](AssetRef/Sno.md) { get; set; } | The SNO id (for singletons, the source scene id). |
+| [Name](AssetRef/Name.md) { get; set; } | The `CoreTOC` name (or a synthetic name for a singleton). The most patch-durable identity (see *Sno*). |
+| [Sno](AssetRef/Sno.md) { get; set; } | The SNO id (for singletons, the source scene id). Identity/stability (FR-C20 Q4): the `(Group, Sno)` pair is the canonical key and is stable within a build — ids are re-issued per build, so persisted bakes should diff against the install's `.build.info`. For the most patch-durable key across game updates, prefer [`Name`](./AssetRef/Name.md) (re-resolve to an id via [`TryResolve`](./Catalog/TryResolve.md) on a new build). |
 | [Tags](AssetRef/Tags.md) { get; set; } | Authored-data-derived classification tags (e.g. a selection shape, an atlas family, an item slot) for filtering. Never a guess from geometry or art. |
 
 ## See Also
