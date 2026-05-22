@@ -104,6 +104,15 @@ namespace WiseOwl.Casc.Diablo4;
 /// tiled rather than stretched. <c>-1</c> when undecoded.</param>
 /// <param name="NPadding">The <c>nPadding</c> field (NSlice +0x14) —
 /// inter-piece padding in the composition.</param>
+/// <param name="WindowPieces">FR-C14 R10 / FR-C19 — for the
+/// <c>TiledWindowPieces</c> variant, the <b>9 piece handles</b> of the 9-slice,
+/// at blob <c>+0x60..+0x80</c> in <b>row-major 3×3 order</b>:
+/// <c>[TL, T, TR, L, C, R, BL, B, BR]</c> (index 4 = the centre fill). Each is
+/// a texture frame handle (resolve via the icon-frame index); compose the
+/// 9-slice by drawing the corners at native size (scaled by
+/// <see cref="ImageScale"/>) in the cell corners, the edges stretched between
+/// them, and the centre filling the interior. Empty for non-window-pieces
+/// variants (use <see cref="SourceImageHandle"/> + the NSlice fields).</param>
 public sealed record TiledStyleDefinition(
     int SnoId,
     uint TypeTag,
@@ -115,7 +124,8 @@ public sealed record TiledStyleDefinition(
     int TileHorizontalBorders,
     int TileVerticalBorders,
     uint NPadding,
-    bool HasPartialDecode)
+    bool HasPartialDecode,
+    IReadOnlyList<uint> WindowPieces)
 {
     /// <summary>The magic that prefixes every <c>.uis</c> SNO blob — the
     /// engine's universal "valid serialized object" marker.</summary>
@@ -200,9 +210,23 @@ public sealed record TiledStyleDefinition(
             partial = false;
         }
 
+        // FR-C14 R10 / FR-C19: the TiledWindowPieces variant stores its 9-slice
+        // as 9 piece handles at +0x60..+0x80, row-major 3×3 [TL,T,TR,L,C,R,BL,B,BR]
+        // (index 4 = centre fill — verified: it resolves to the centre square,
+        // the 8 others to the 64² border slices). Those pieces ARE the
+        // composition, so decoding them clears the partial flag for this variant.
+        IReadOnlyList<uint> windowPieces = System.Array.Empty<uint>();
+        if (typeTag == TypeTagTiledWindowPieces && blob.Length >= 0x84)
+        {
+            var pieces = new uint[9];
+            for (var i = 0; i < 9; i++) pieces[i] = Bytes.U32LE(blob, 0x60 + i * 4);
+            windowPieces = pieces;
+            partial = false;
+        }
+
         return new TiledStyleDefinition(
             snoId, typeTag, VariantNameFor(typeTag), imageScale,
-            sourceImage, sliceStyle, tileCenter, tileH, tileV, nPadding, partial);
+            sourceImage, sliceStyle, tileCenter, tileH, tileV, nPadding, partial, windowPieces);
     }
 }
 

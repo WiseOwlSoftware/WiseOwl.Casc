@@ -1735,6 +1735,22 @@ derived from FR-C14 R8's `snoTiledStyle` crack and R10's variant
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
 
+- **CL-62 — `TiledWindowPieces` 9-slice fully decoded (FR-C19 #30 / FR-C14
+  R10).** Owner visual-close: the stretched-source selection highlight rendered
+  only a top-left corner. Root cause: `SelectionRectangleInset` (585031) is the
+  **`TiledWindowPieces`** variant (typeTag `0x02E46583`), not NSlice — so its
+  composition was never decoded (`partial=True`, no usable insets). Finding: the
+  variant stores its **9-slice as 9 explicit piece handles at +0x60..+0x80,
+  row-major 3×3** `[TL,T,TR,L,C,R,BL,B,BR]` — verified: index 4 (`0xD756FD92`)
+  resolves to the 100² centre fill (atlas `2DUI_BackgroundSquares`), the other 8
+  to the 64² corner/edge slices in `2DUITiled_SelectionHighlight` (585030). New
+  `TiledStyleDefinition.WindowPieces` (the 9 handles) surfaces them; decoding
+  them clears `HasPartialDecode` for this variant. The consumer composes a true
+  9-slice (corners at native × `ImageScale`, edges stretched between, centre
+  filling) instead of stretching one frame. Acceptance:
+  `ReadTiledStyle_decodes_TiledWindowPieces_9slice` (9 pieces, [0]=`SourceImageHandle`,
+  [4]=centre, all resolve). 52/52 tests green on `3.0.2.71886`. Devlog 0060.
+
 - **CL-61 — Starter node base disc renders disk-sized, not full-cell (FR-C12
   #22).** Owner visual-close: the Start node's disk + filigree read oversized.
   Root cause (the FR-C18 oversize class, on the Starter template): the Starter
