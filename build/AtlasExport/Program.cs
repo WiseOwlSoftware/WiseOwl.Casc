@@ -108,6 +108,53 @@ switch (cmd)
         using (var canvas = new SKCanvas(surface))
         {
             canvas.Clear(new SKColor(30, 30, 36));
+            // "nine": the CORRECT 9-slice mapping (verified by viewing each piece).
+            // Blob order is corners-CW + centre + edges, NOT row-major:
+            //   [0]=TL [1]=TR [2]=BR [3]=BL corners ; [4]=centre ;
+            //   [5],[7]=vertical edges ; [6],[8]=horizontal edges.
+            // "c4": just the 4 corners (verified [0]=TL [1]=TR [2]=BR [3]=BL),
+            // each filling its quadrant — test whether corners alone surround the
+            // node square (no edge/centre pieces).
+            if (mode == "c4")
+            {
+                SKBitmap? Q(int i) {
+                    if (!d4.Catalog.TryGetFrameImage(ts.WindowPieces[i], out var p)) return null;
+                    var b = new SKBitmap(new SKImageInfo(p.Width, p.Height, SKColorType.Rgba8888, SKAlphaType.Unpremul));
+                    System.Runtime.InteropServices.Marshal.Copy(p.Rgba, 0, b.GetPixels(), p.Rgba.Length);
+                    return b;
+                }
+                void BlitQ(int i, SKRect d) { using var b = Q(i); if (b is not null) canvas.DrawBitmap(b, new SKRect(0,0,b.Width,b.Height), d); }
+                int h = cell / 2;
+                BlitQ(0, new SKRect(0, 0, h, h));            // TL
+                BlitQ(1, new SKRect(h, 0, cell, h));         // TR
+                BlitQ(2, new SKRect(h, h, cell, cell));      // BR
+                BlitQ(3, new SKRect(0, h, h, cell));         // BL
+                goto done;
+            }
+            if (mode == "nine")
+            {
+                SKBitmap? Px(int i) {
+                    if (!d4.Catalog.TryGetFrameImage(ts.WindowPieces[i], out var p)) return null;
+                    var b = new SKBitmap(new SKImageInfo(p.Width, p.Height, SKColorType.Rgba8888, SKAlphaType.Unpremul));
+                    System.Runtime.InteropServices.Marshal.Copy(p.Rgba, 0, b.GetPixels(), p.Rgba.Length);
+                    return b;
+                }
+                void Blit(int i, SKRect d) { using var b = Px(i); if (b is not null) canvas.DrawBitmap(b, new SKRect(0,0,b.Width,b.Height), d); }
+                int cw = 64, ch = 64;   // corner native; scaled below via cs
+                int cs = (int)(cw * scale);   // corner draw size (e.g. 64*0.6=38)
+                int r = cell - cs;            // right/bottom corner origin
+                // NB: piece [4] (centre fill) is NOT drawn — a node selection
+                // highlight is a hollow border (the node shows through).
+                Blit(6, new SKRect(cs, 0, r, cs));                 // top edge   (H)
+                Blit(8, new SKRect(cs, r, r, cell));               // bottom edge (H)
+                Blit(5, new SKRect(0, cs, cs, r));                 // left edge  (V)
+                Blit(7, new SKRect(r, cs, cell, r));               // right edge (V)
+                Blit(0, new SKRect(0, 0, cs, cs));                 // TL
+                Blit(1, new SKRect(r, 0, cell, cs));               // TR
+                Blit(2, new SKRect(r, r, cell, cell));             // BR
+                Blit(3, new SKRect(0, r, cs, cell));               // BL
+                goto done;
+            }
             int[] order = mode == "corners" ? [4, 0, 2, 6, 8] : Enumerable.Range(0, 9).ToArray();
             foreach (int i in order)
             {
@@ -127,6 +174,7 @@ switch (cmd)
                 }
                 canvas.DrawBitmap(pbmp, new SKRect(0, 0, pi.Width, pi.Height), dst);
             }
+            done: ;
         }
         using (var enc = SKImage.FromBitmap(surface).Encode(SKEncodedImageFormat.Png, 95))
         using (var fs = File.OpenWrite(outp)) enc.SaveTo(fs);

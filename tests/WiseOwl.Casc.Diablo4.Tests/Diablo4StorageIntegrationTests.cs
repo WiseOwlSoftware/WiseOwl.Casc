@@ -1426,13 +1426,39 @@ public sealed class Diablo4StorageIntegrationTests
         var s = d4.ReadTiledStyle(585031);
         Assert.Equal(TiledStyleDefinition.TypeTagTiledWindowPieces, s.TypeTag);
         Assert.False(s.HasPartialDecode);                 // pieces decoded ⇒ no longer partial
-        Assert.Equal(9, s.WindowPieces.Count);            // full 3×3 9-slice
-        Assert.Equal(0x95DA4E78u, s.WindowPieces[0]);     // TL corner (== SourceImageHandle)
-        Assert.Equal(0xD756FD92u, s.WindowPieces[4]);     // centre fill (the 100² square)
+        Assert.Equal(9, s.WindowPieces.Count);            // 4 corners + 4 edges + centre
+        Assert.Equal(0x95DA4E78u, s.WindowPieces[0]);     // [0..3] corners CW from TL
+        Assert.Equal(0xD756FD92u, s.WindowPieces[4]);     // [4] centre fill (100² square)
         Assert.Equal(s.SourceImageHandle, s.WindowPieces[0]);
-        // Every piece resolves to a real atlas frame (corners/edges + centre).
         foreach (var h in s.WindowPieces)
             Assert.True(d4.Catalog.TryResolveFrame(h, out _, out _), $"piece 0x{h:X8} unresolved");
+    }
+
+    /// <summary>FR-C19 #30 — the node mouse-over selection highlight is the
+    /// authored <c>ContextualHighlight_Square</c> recipe (4-corner square hover
+    /// highlight) paired with the resolvable corner art from
+    /// <c>SelectionRectangleInset</c> (2DUITiled_SelectionHighlight). The 4
+    /// corners alone compose the hollow border around the node square.</summary>
+    [SkippableFact]
+    public void ReadNodeSelectionHighlight_pairs_recipe_with_corner_art()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+
+        var hl = d4.ReadNodeSelectionHighlight();
+        Assert.Equal("ContextualHighlight_Square", hl.RecipeName);
+        Assert.True(hl.RecipeSno > 0);                     // the authored recipe SNO resolves
+        Assert.False(hl.IsEmpty);
+        // The 4 verified corner handles (CW from top-left), hollow border art.
+        Assert.Equal(0x95DA4E78u, hl.TopLeft);
+        Assert.Equal(0x5192E52Bu, hl.TopRight);
+        Assert.Equal(0xEA71A5ADu, hl.BottomRight);
+        Assert.Equal(0xB1C206BAu, hl.BottomLeft);
+        Assert.Equal(4, hl.Corners.Count);
+        // Every corner resolves to a real atlas frame (it's drawable art).
+        foreach (var c in hl.Corners)
+            Assert.True(d4.Catalog.TryResolveFrame(c, out _, out _), $"corner 0x{c:X8} unresolved");
     }
 
     /// <summary>FR-C17 — the board grid-layout metric. Asserts the

@@ -860,6 +860,35 @@ public sealed class Diablo4Storage : IDisposable
     }
 
     /// <summary>
+    /// FR-C19 #30 — read the paragon <b>node mouse-over selection highlight</b>
+    /// as the engine authors it: the <c>ContextualHighlight_Square</c> recipe
+    /// (the named 4-corner "square contextual highlight" TiledStyle) paired with
+    /// its drawable corner art — the 4 corner frames of the
+    /// <c>2DUITiled_SelectionHighlight</c> atlas (the
+    /// <c>SelectionRectangleInset</c> window-pieces' verified corners). The
+    /// consumer draws the 4 corners as a hollow square border sized to the node
+    /// perimeter — each corner in its quadrant, no edges/centre (see
+    /// <see cref="NodeSelectionHighlight"/>). Empty corners if the art is absent.
+    /// </summary>
+    public NodeSelectionHighlight ReadNodeSelectionHighlight()
+    {
+        CoreToc.TryGetId(SnoGroup.UiStyle, "ContextualHighlight_Square", out var recipeSno);
+
+        uint tl = 0, tr = 0, br = 0, bl = 0;
+        if (CoreToc.TryGetId(SnoGroup.UiStyle, "SelectionRectangleInset", out var artSno) &&
+            TryReadTiledStyle(artSno, out var art) && art.WindowPieces.Count >= 4)
+        {
+            // WindowPieces[0..3] are the corners clockwise from top-left
+            // (verified by decoding + viewing each piece).
+            tl = art.WindowPieces[0];
+            tr = art.WindowPieces[1];
+            br = art.WindowPieces[2];
+            bl = art.WindowPieces[3];
+        }
+        return new NodeSelectionHighlight(recipeSno, "ContextualHighlight_Square", tl, tr, br, bl);
+    }
+
+    /// <summary>
     /// Read and decode a <see cref="TiledStyleDefinition"/> by SNO id
     /// (group <see cref="SnoGroup.UiStyle"/> = 103). The record describes
     /// a UI tile-rendering composition (piece handles + scale +
