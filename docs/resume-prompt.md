@@ -113,13 +113,17 @@ awaiting:casc; 2 fixed, 1 in progress:**
   `SelectionRectangleInset` is the **`TiledWindowPieces`** variant; decoded its
   **9 piece handles** (`TiledStyleDefinition.WindowPieces`, row-major 3×3,
   idx4=centre). Consumer switches stretch→true 9-slice. `awaiting:optimizer`.
-- **#31** atlas browser → **owner: build the GUI now** (deferral lifted). Catalog
-  API + AtlasExport CLI already delivered; the GUI (Avalonia+SkiaSharp over
-  `d4.Catalog`) is the remaining build — IN PROGRESS. Can compile-verify but not
-  run/visually-verify in-sandbox (owner runs it).
-- **#24** rim = mesh/material (not a frame) — `needs:owner` (accept procedural).
+- **#31** atlas browser → **GUI DELIVERED**: `build/AtlasBrowser` (WinForms,
+  `b1c685a`) over `d4.Catalog` (filter/peek/decode/frames). Compile-verified
+  only — `needs:owner` to run + visual-close, then iterate (tree-nav,
+  search-by-handle, frame-extract). WinForms chosen for robust blind build;
+  re-home to Avalonia/consumer-repo on request.
+- **#24** rim = mesh/material (not a frame) — **`fr:consumed`** (owner accepted
+  the procedural rim ✓).
 
-Latest CL = **62**. Next branch off `main`.
+Latest CL = **62** (CL-61 #22 start-node, CL-62 #30 9-slice). AtlasExport +
+AtlasBrowser are build tools (no CL). Queue empty; #30 `awaiting:optimizer`,
+#32/#22/#31 `needs:owner`. Next branch off `main`.
 
 **P2b shipped marked-A (CL-59, `0a868f4`):** `Facet(Key,Value,FacetSource{NameConvention,
 Decoded,SceneField})` + `Catalog.Facets(ref)` + `FindByFacet(kind,key,value)`.
