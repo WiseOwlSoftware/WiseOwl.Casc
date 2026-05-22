@@ -1735,6 +1735,23 @@ derived from FR-C14 R8's `snoTiledStyle` crack and R10's variant
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
 
+- **CL-57 — `Catalog` iteration 2: frame-pixel retrieval (FR-C20 P3) + a
+  TexFrame-from-handle convenience.** The Optimizer consume-verified CL-56
+  cleanly and named P3 its critical path (it unblocks the #30 selection-cursor
+  dogfood AND folds in the #31 atlas browser). Shipped:
+  - **P3 `TryGetFrameImage(uint handle, out DecodedImage)`** — decode the single
+    frame a handle names, cropped from its owning atlas mip0; and
+    **`TryGetAtlasImage(AssetRef, out DecodedImage)`** — the whole atlas mip0
+    (decode-once for the browser; crop frames via `Frames[i].PixelRect`).
+    Exception-safe: unsupported codec (only BC1/BC3 decode), absent payload, or
+    non-atlas ref → `false`.
+  - **`TryResolveFrame(uint handle, out AssetRef atlas, out TexFrame frame)`** —
+    the requested convenience: the handle's `TexFrame` (UV rect) directly,
+    saving the `TryGet(atlas)`+`Frames[i]` step.
+  Completes the **discover → peek → retrieve-pixels** browse loop (FR-T1 #31).
+  Acceptance: `Catalog_discovers_…` extended (frame/atlas decode, RGBA length,
+  TexFrame round-trip). 51/51 tests green on `3.0.2.71886`. Devlog 0056.
+
 - **CL-56 — `Catalog` iteration 1 from consumer feedback: handle reverse-lookup
   + decode-free atlas facets + typed enumerator (FR-C20 P1/P2/P4).** The
   Optimizer consume-tested CL-55 (34,268 assets / 14 kinds) and prioritised

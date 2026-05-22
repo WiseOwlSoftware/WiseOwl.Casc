@@ -1673,6 +1673,19 @@ public sealed class Diablo4StorageIntegrationTests
         Assert.True(cat.TryGet<TextureDefinition>(owner, out var ownerTd));
         Assert.Equal(0xBA7D2638u, ownerTd.Frames[frameIdx].ImageHandle);
         Assert.False(cat.TryResolveHandle(0x00000000u, out _, out _));
+
+        // P3 — frame/atlas pixel retrieval (BC3 selection atlas; RGBA = w*h*4).
+        Assert.True(cat.TryGetFrameImage(0xBA7D2638u, out var frameImg));
+        Assert.True(frameImg.Width > 0 && frameImg.Height > 0);
+        Assert.Equal(frameImg.Width * frameImg.Height * 4, frameImg.Rgba.Length);
+        Assert.True(cat.TryGetAtlasImage(owner, out var atlasImg));
+        Assert.Equal(ownerTd.Width, atlasImg.Width);
+        Assert.False(cat.TryGetFrameImage(0x00000000u, out _));   // sentinel handle
+
+        // P1 convenience — TexFrame directly from a handle.
+        Assert.True(cat.TryResolveFrame(0xBA7D2638u, out var frameOwner, out var texFrame));
+        Assert.Equal(owner.Sno, frameOwner.Sno);
+        Assert.Equal(0xBA7D2638u, texFrame.ImageHandle);
     }
 
     /// <summary>FR-C11 R3 §2 — scene-bound binding on the
