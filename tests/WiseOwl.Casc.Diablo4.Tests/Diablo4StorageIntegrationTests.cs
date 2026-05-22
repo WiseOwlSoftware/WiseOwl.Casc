@@ -1411,6 +1411,30 @@ public sealed class Diablo4StorageIntegrationTests
             Assert.Contains(model.BoardChrome.TiledStyleBindings, b => b.WidgetName == name);
     }
 
+    /// <summary>FR-C19 #30 — the mouse-over square selection highlight
+    /// (<c>SelectionRectangleInset</c>, 585031) is the <c>TiledWindowPieces</c>
+    /// 9-slice variant: 9 piece handles, row-major 3×3, index 4 = centre fill.
+    /// Finishing this decode lets the consumer render a true 9-slice (corners +
+    /// edges + centre) instead of stretching one source frame.</summary>
+    [SkippableFact]
+    public void ReadTiledStyle_decodes_TiledWindowPieces_9slice()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+
+        var s = d4.ReadTiledStyle(585031);
+        Assert.Equal(TiledStyleDefinition.TypeTagTiledWindowPieces, s.TypeTag);
+        Assert.False(s.HasPartialDecode);                 // pieces decoded ⇒ no longer partial
+        Assert.Equal(9, s.WindowPieces.Count);            // full 3×3 9-slice
+        Assert.Equal(0x95DA4E78u, s.WindowPieces[0]);     // TL corner (== SourceImageHandle)
+        Assert.Equal(0xD756FD92u, s.WindowPieces[4]);     // centre fill (the 100² square)
+        Assert.Equal(s.SourceImageHandle, s.WindowPieces[0]);
+        // Every piece resolves to a real atlas frame (corners/edges + centre).
+        foreach (var h in s.WindowPieces)
+            Assert.True(d4.Catalog.TryResolveFrame(h, out _, out _), $"piece 0x{h:X8} unresolved");
+    }
+
     /// <summary>FR-C17 — the board grid-layout metric. Asserts the
     /// engine's authored canvas (1920×1200) + node cell extent (100) +
     /// cell-adjacent pitch are read from game data, replacing the
