@@ -1529,6 +1529,14 @@ public sealed class Diablo4StorageIntegrationTests
         Assert.Equal(-18, starterFiligree.Rect.Top);
         Assert.Equal(140, starterFiligree.Rect.Width);
 
+        // FR-C12 #22 — the Starter base disc (0xF8312CA8, authored all-zero rect)
+        // renders disk-sized (inset 7 / 86²), NOT stretched full-cell, like every
+        // other node's base — the FR-C18 oversize class on the Starter template.
+        var starterBase = ByHandle(0xF8312CA8u);
+        Assert.Equal(7, starterBase.Rect.Top);
+        Assert.Equal(86, starterBase.Rect.Width);
+        Assert.Equal(86, starterBase.Rect.Height);
+
         // #26.4 — gate ornate at inset 3; locator at inset 22.
         Assert.Equal(3, ByHandle(GateOrnateUnsel).Rect.Top);
         Assert.Equal(3, ByHandle(GateOrnateSel).Rect.Top);

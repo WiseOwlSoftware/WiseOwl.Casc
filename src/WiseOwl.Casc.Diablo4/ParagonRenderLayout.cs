@@ -1203,6 +1203,16 @@ internal static class ParagonRenderProjection
         // here so they sort below the symbol (Node_Icon), not at z≈121.
         double baseZ = iconBaseIdx >= 0 ? iconBaseIdx : first;
 
+        // FR-C12 #22: the canonical base-disc inset (Node_IconBase, =7 → 86² in
+        // the 100 cell). A template base child whose rect is unspecified
+        // (all-zero) — e.g. the Starter base 0xF8312CA8 — renders at this disc
+        // size, NOT stretched full-cell (the FR-C18 oversize class generalised
+        // beyond the rarity disc-pair). Explicitly-sized children (e.g. the
+        // Starter filigree's authored 140² overscan, the gate ornate's inset-3)
+        // keep their own rect.
+        int discInset = iconBaseIdx >= 0 ? Val(ws[iconBaseIdx].Fields, FnLeft) : 7;
+        var baseDiscRect = new WidgetRect(discInset, discInset, discInset, discInset, 0, 0);
+
         var eng = NodeActivationSource.EngineBehavior;
         NodeActivation Never() => new(new[] { NodeFact.Never }, eng);
         NodeActivation Kind(NodeFact pf, params NodeFact[] extra) =>
@@ -1265,16 +1275,21 @@ internal static class ParagonRenderProjection
                     uint h = (uint)Val(cf, FhImageFrame);
                     var rect = RectOf(cf);
 
+                    // An unspecified (all-zero) rect inherits the disc size: the
+                    // rarity pair's co-sized inset where present, else the
+                    // canonical base-disc inset (86²) — never full-cell.
+                    if (RectIsEmpty(rect)) rect = !RectIsEmpty(shared) ? shared : baseDiscRect;
+
                     // Activation grounded in the authored layout (the swap pair
                     // child 0/1 → unselected/selected disc; a known gate
                     // ornate/locator role; otherwise always-for-this-kind), then
                     // Finalize against bActive: a default-off layer that would
                     // fire at rest becomes Never.
-                    NodeActivation act;
-                    if (rarity && i == 0) { if (RectIsEmpty(rect)) rect = shared; act = Kind(pf, NodeFact.Unpurchased); }
-                    else if (rarity && i == 1) { if (RectIsEmpty(rect)) rect = shared; act = Kind(pf, NodeFact.Purchased); }
-                    else if (!rarity && GateRoleFact(h) is NodeFact gr) act = Kind(pf, gr);
-                    else act = Kind(pf);
+                    NodeActivation act =
+                        rarity && i == 0 ? Kind(pf, NodeFact.Unpurchased)
+                      : rarity && i == 1 ? Kind(pf, NodeFact.Purchased)
+                      : !rarity && GateRoleFact(h) is NodeFact gr ? Kind(pf, gr)
+                      : Kind(pf);
 
                     Emit(baseZ + 0.001 * (i + 1), $"{name}[{i}]", h, cf, rect, Finalize(act, cf));
                 }
