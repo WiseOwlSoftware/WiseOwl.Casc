@@ -88,23 +88,37 @@ Q2 → Q4 → P5.**
 
 CL-55 (`0f1764f`) base; **CL-56 (`5054df1`)** P1 `TryResolveHandle` +
 P2 atlas `TryPeek`/`AssetFacets` + `codec:` tags + P4 `Find<T>`; **CL-57
-(`11148fb`)** P3 `TryGetFrameImage`/`TryGetAtlasImage` + `TryResolveFrame`. All
-consume-verified by the Optimizer (no blocking friction; 34,268 assets/14
-kinds; classified 4,726 atlases by codec decode-free). **Next: P2b** item/power/
-glyph categorical facets — BLOCKED on finding a *cheap authored source*
-(ItemType group / name convention / balance table); don't claim decode-free
-without it. Then Q2 sort/valid-only, Q4 build-stable `AssetRef` identity, P5
-relationships.
+(`11148fb`)** P3 `TryGetFrameImage`/`TryGetAtlasImage` + `TryResolveFrame`;
+**CL-58 (`e5f5823`)** Q2 `AssetQuery.DecodableOnly`/`OrderByName` + Q4 `AssetRef`
+identity/stability doc. **All consume-verified** by the Optimizer (P3 decode
+pixel-correct; 4,726 atlases codec-classified decode-free). Plus **AtlasExport
+CLI** (`build/AtlasExport`, `0b45c2a`) — list/export atlases over the Catalog
+(FR-T1 interim browser; GUI deferred by owner).
 
-**#31 FR-T1 atlas browser → API delivered by the Catalog** (Find/TryPeek/
-TryResolve*/TryGet*Image); dominant-colour search dropped (FR-C19 solved
-structurally); name-tree = thin helper on request. **Browser GUI app is
-`needs:owner`** (framework + build-now-vs-API+CLI-exporter). **#30 FR-C19**:
-owner-confirmed `SelectionRectangleInset` for mouse-over square; 9-slice insets
-need the TiledStyle variant-suffix decoded (offered) — interim is stretch;
-Optimizer wiring the hover cursor via `ReadSelectionHighlight()`+`ReadTiledStyle`.
+**Remaining FR-C20: P2b** item/power/glyph categorical facets — `ItemDefinition`
+decodes only display/flavor/transmog names (NO rarity/type/class oracle), so the
+cheap source is the **item SNO-name convention** `<Type>_<Rarity>_<Class>_<NNN>`.
+**Pending the Optimizer's A/B call on #32**: (A) name-convention tags now
+(cheap/heuristic/provenance-marked) vs (B) RE the real item rarity/type fields
+first (true oracle, open-ended). Then P5 relationships.
 
-(superseded note) Old "SHIPPED (CL-55) feedback open" — now iterating, see above.
+### Issue states (2026-05-22, all awaiting:casc cleared)
+
+- **#32** FR-C20 — CL-55..58 delivered+consumed; `awaiting:optimizer` for the
+  **P2b A/B** decision.
+- **#30** FR-C19 — cursor wired (`SelectionRectangleInset`, interim full-cell
+  stretch; consumed via `ReadSelectionHighlight()`→Catalog dogfood);
+  **`needs:owner`** live hover visual-close. If stretched 9-slice corners read
+  wrong, CASC finishes the **TiledStyle variant-suffix decode** (9-slice insets
+  + tile flags, FR-C14 R9/R10) — offered, owner-gated.
+- **#31** FR-T1 — API delivered by Catalog + AtlasExport CLI; GUI deferred;
+  `needs:owner` (bookkeeping only).
+- **#24** FR-C14 rim — **FINDING: the board fire-rim is an engine mesh+material+
+  ember-VFX effect** (`UI_ParagonBoard_Background_BurningEdge_Mesh`+`_Mesh_Mat`,
+  groups 27/57), NOT a UI atlas frame — hence the 6 handles don't resolve. The
+  procedural ember rim is the correct 2D representation. `needs:owner` scope
+  call: (a) accept procedural [recommended] / (b) surface mesh+material SNO refs
+  / (c) build mesh+material decode (large).
 
 `d4.Catalog` shipped (commit `0f1764f`): generic discovery/retrieval so the
 consumer finds/enumerates(filtered)/retrieves any RE'd recipe or definition
