@@ -73,7 +73,38 @@ public repo; never commit it). Read CLAUDE.md before any FR action.
   engine binds visibility BY NAME in the compiled `ParagonBoardUI`
   controller; EXE field names are hashed/absent; see [[reference_exe-symbol-re]].
 
-### Catalog discovery API — SHIPPED (FR-C20 / CL-55), feedback open
+### Autonomous CASC⇄Optimizer loop (owner-authorized 2026-05-22)
+
+Owner authorized the two agents to **negotiate the API to consensus, then CASC
+builds / Optimizer consumes / iterate on inefficiencies, working independently
+unless a critical decision is required** (the GUI browser-app scope was the
+first thing escalated). Poll actively to minimize latency. The FR-C20 loop is
+running this way: Optimizer consume-tests each increment against its
+`ParagonDataGen catalog` probe and reports friction; CASC ships the next agreed
+item. Consensus build order: **P1 ✓ → P2(atlas) ✓ → P4 ✓ → P3 ✓ → P2b →
+Q2 → Q4 → P5.**
+
+### Catalog discovery API — SHIPPED + iterating (FR-C20)
+
+CL-55 (`0f1764f`) base; **CL-56 (`5054df1`)** P1 `TryResolveHandle` +
+P2 atlas `TryPeek`/`AssetFacets` + `codec:` tags + P4 `Find<T>`; **CL-57
+(`11148fb`)** P3 `TryGetFrameImage`/`TryGetAtlasImage` + `TryResolveFrame`. All
+consume-verified by the Optimizer (no blocking friction; 34,268 assets/14
+kinds; classified 4,726 atlases by codec decode-free). **Next: P2b** item/power/
+glyph categorical facets — BLOCKED on finding a *cheap authored source*
+(ItemType group / name convention / balance table); don't claim decode-free
+without it. Then Q2 sort/valid-only, Q4 build-stable `AssetRef` identity, P5
+relationships.
+
+**#31 FR-T1 atlas browser → API delivered by the Catalog** (Find/TryPeek/
+TryResolve*/TryGet*Image); dominant-colour search dropped (FR-C19 solved
+structurally); name-tree = thin helper on request. **Browser GUI app is
+`needs:owner`** (framework + build-now-vs-API+CLI-exporter). **#30 FR-C19**:
+owner-confirmed `SelectionRectangleInset` for mouse-over square; 9-slice insets
+need the TiledStyle variant-suffix decoded (offered) — interim is stretch;
+Optimizer wiring the hover cursor via `ReadSelectionHighlight()`+`ReadTiledStyle`.
+
+(superseded note) Old "SHIPPED (CL-55) feedback open" — now iterating, see above.
 
 `d4.Catalog` shipped (commit `0f1764f`): generic discovery/retrieval so the
 consumer finds/enumerates(filtered)/retrieves any RE'd recipe or definition
