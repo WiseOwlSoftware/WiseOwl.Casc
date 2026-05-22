@@ -1,6 +1,6 @@
 # AssetRef.Sno property
 
-The SNO id (for singletons, the source scene id).
+The SNO id (for singletons, the source scene id). Identity/stability (FR-C20 Q4): the `(Group, Sno)` pair is the canonical key and is stable within a build — ids are re-issued per build, so persisted bakes should diff against the install's `.build.info`. For the most patch-durable key across game updates, prefer [`Name`](./Name.md) (re-resolve to an id via [`TryResolve`](../Catalog/TryResolve.md) on a new build).
 
 ```csharp
 public int Sno { get; set; }

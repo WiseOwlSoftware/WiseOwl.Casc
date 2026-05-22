@@ -1686,6 +1686,14 @@ public sealed class Diablo4StorageIntegrationTests
         Assert.True(cat.TryResolveFrame(0xBA7D2638u, out var frameOwner, out var texFrame));
         Assert.Equal(owner.Sno, frameOwner.Sno);
         Assert.Equal(0xBA7D2638u, texFrame.ImageHandle);
+
+        // Q2 — OrderByName sorts; DecodableOnly drops the "Bad Data" board.
+        var boards = cat.Find(new AssetQuery { Kind = AssetKind.ParagonBoard, OrderByName = true }).ToList();
+        Assert.Equal(boards.Select(b => b.Name).OrderBy(n => n, StringComparer.Ordinal).ToList(),
+            boards.Select(b => b.Name).ToList());
+        var decodable = cat.Find(new AssetQuery { Kind = AssetKind.ParagonBoard, DecodableOnly = true }).ToList();
+        Assert.True(decodable.Count < cat.OfKind(AssetKind.ParagonBoard).Count());  // bad-data dropped
+        Assert.All(decodable, r => Assert.True(cat.TryGet(r, out _)));
     }
 
     /// <summary>FR-C11 R3 §2 — scene-bound binding on the

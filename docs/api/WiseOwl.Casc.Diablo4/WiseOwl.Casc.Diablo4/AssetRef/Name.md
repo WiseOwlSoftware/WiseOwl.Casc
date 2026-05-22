@@ -1,6 +1,6 @@
 # AssetRef.Name property
 
-The `CoreTOC` name (or a synthetic name for a singleton).
+The `CoreTOC` name (or a synthetic name for a singleton). The most patch-durable identity (see *Sno*).
 
 ```csharp
 public string Name { get; set; }

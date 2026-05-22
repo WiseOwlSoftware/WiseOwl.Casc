@@ -11,9 +11,11 @@ public record AssetQuery
 | name | description |
 | --- | --- |
 | [AssetQuery](AssetQuery/AssetQuery.md)() | The default constructor. |
+| [DecodableOnly](AssetQuery/DecodableOnly.md) { get; set; } | FR-C20 Q2 — yield only assets that actually decode, dropping malformed/sentinel blobs (e.g. the "Bad Data" board). Cost: a decode per asset — for typed retrieval prefer [`Find`](./Catalog/Find.md), which is decodable-only by construction. |
 | [Kind](AssetQuery/Kind.md) { get; set; } | Restrict to a single kind. |
 | [Kinds](AssetQuery/Kinds.md) { get; set; } | Restrict to any of these kinds. |
 | [NameContains](AssetQuery/NameContains.md) { get; set; } | Case-insensitive substring the name must contain. |
+| [OrderByName](AssetQuery/OrderByName.md) { get; set; } | FR-C20 Q2 — order results by ([`Kind`](./AssetRef/Kind.md), then ordinal [`Name`](./AssetRef/Name.md)). Buffers the results, so it is not lazy. |
 | [RenderRecipesOnly](AssetQuery/RenderRecipesOnly.md) { get; set; } | Restrict to render-recipe kinds (the draw/composition surface). |
 | [Tag](AssetQuery/Tag.md) { get; set; } | A tag the asset must carry. |
 | [TagsAll](AssetQuery/TagsAll.md) { get; set; } | Tags the asset must all carry. |
