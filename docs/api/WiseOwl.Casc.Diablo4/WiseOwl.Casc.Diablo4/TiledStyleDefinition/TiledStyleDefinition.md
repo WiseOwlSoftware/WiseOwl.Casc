@@ -5,7 +5,7 @@ A decoded Diablo IV UI tile-style record (`.uis`, SNO group UiStyle = 103) — t
 ```csharp
 public TiledStyleDefinition(int SnoId, uint TypeTag, string VariantName, float ImageScale, 
     uint SourceImageHandle, uint SliceStyle, int TileCenter, int TileHorizontalBorders, 
-    int TileVerticalBorders, uint NPadding, bool HasPartialDecode)
+    int TileVerticalBorders, uint NPadding, bool HasPartialDecode, IReadOnlyList<uint> WindowPieces)
 ```
 
 | parameter | description |
@@ -21,6 +21,7 @@ public TiledStyleDefinition(int SnoId, uint TypeTag, string VariantName, float I
 | TileHorizontalBorders | The `fTileHorizontalBorders` flag (NSlice +0x44) — non-zero ⇒ the top/bottom border strips are tiled rather than stretched. `-1` when undecoded. |
 | TileVerticalBorders | The `fTileVerticalBorders` flag (NSlice +0x48) — non-zero ⇒ the left/right border strips are tiled rather than stretched. `-1` when undecoded. |
 | NPadding | The `nPadding` field (NSlice +0x14) — inter-piece padding in the composition. |
+| WindowPieces | FR-C14 R10 / FR-C19 — for the `TiledWindowPieces` variant, the 9 piece handles of the 9-slice, at blob `+0x60..+0x80` in row-major 3×3 order: `[TL, T, TR, L, C, R, BL, B, BR]` (index 4 = the centre fill). Each is a texture frame handle (resolve via the icon-frame index); compose the 9-slice by drawing the corners at native size (scaled by [`ImageScale`](./ImageScale.md)) in the cell corners, the edges stretched between them, and the centre filling the interior. Empty for non-window-pieces variants (use [`SourceImageHandle`](./SourceImageHandle.md) + the NSlice fields). |
 
 ## Remarks
 
