@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    FR-T1 (#31) atlas-browser GUI (NOT in WiseOwl.Casc.slnx, NOT packed).
+    A WinForms visual counterpart to build/AtlasExport, browsing the UI texture
+    atlases entirely through d4.Catalog (the FR-C20 discovery/retrieval API):
+    filter by name/codec, view an atlas mip0, list its frames, peek facets.
+    WinForms (Windows-only) chosen for a robust build; the SkiaSharp decode path
+    is shared with build/RecipeRender / AtlasExport. See Program.cs for run args
+    (optional install path).
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="SkiaSharp" Version="2.88.8" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Win32" Version="2.88.8" />
+    <ProjectReference Include="../../src/WiseOwl.Casc.Diablo4/WiseOwl.Casc.Diablo4.csproj" />
+  </ItemGroup>
+
+</Project>
