@@ -4,7 +4,7 @@ One attribute grant on a paragon node (an `AttributeSpecifier`, stride 88). Raw 
 
 ```csharp
 public NodeAttribute(int AttributeId, int NParam, int ParamPlus12, uint FormulaGbid, 
-    string InlineFormula)
+    string InlineFormula, uint AttributeGbid)
 ```
 
 | parameter | description |
@@ -14,6 +14,7 @@ public NodeAttribute(int AttributeId, int NParam, int ParamPlus12, uint FormulaG
 | ParamPlus12 | The distinct value at specifier `+12` (verified: `MaximumDominance` → 11, `EarthquakeDuration` → 1031902). Exposed raw so the consumer never re-parses the specifier. |
 | FormulaGbid | `gbidFormula` at specifier `+48` (DT_GBID). `0xFFFFFFFF` means "no shared formula — use [`InlineFormula`](./InlineFormula.md)"; otherwise it is `GbidHash(formulaName)` resolvable through [`AttributeFormulaTable`](../AttributeFormulaTable.md). |
 | InlineFormula | The node's own formula source text (read at specifier `+24` offset / `+28` size, payload-relative) when [`FormulaGbid`](./FormulaGbid.md) is `0xFFFFFFFF`; otherwise empty. |
+| AttributeGbid | The attribute's GBID from the node's second parallel array (descriptor at payload `+88`; one UInt32 per attribute, in [`Attributes`](../ParagonNodeDefinition/Attributes.md) order). Stable per [`AttributeId`](./AttributeId.md) across nodes (e.g. `AttributeId 9` → `0x1E663884` everywhere it appears), so it is a reliable secondary key for the same `eAttribute`. Its canonical resource name is not yet recovered (it is not a DJB2/GBID hash of any tested attribute label); surfaced raw rather than left undecoded. `0` when the node has no parallel entry for this attribute. |
 
 ## See Also
 

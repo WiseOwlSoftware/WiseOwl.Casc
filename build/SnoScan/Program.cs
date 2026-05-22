@@ -48,6 +48,15 @@ switch (cmd)
             Console.WriteLine($"{(int)e.Group,5}  0x{toc.FormatHashFor(e.Group):X8}  {e.Id,9}  {e.Name}");
         return 0;
     }
+    case "listgroup":
+    {
+        if (argv.Count < 2) { Console.Error.WriteLine("listgroup <gid> [substr]"); return 2; }
+        int lg = int.Parse(argv[1]); string lsub = argv.Count > 2 ? argv[2] : "";
+        foreach (var e in toc.Entries.Where(e => (int)e.Group == lg
+                     && e.Name.Contains(lsub, StringComparison.OrdinalIgnoreCase)).OrderBy(e => e.Name).Take(40))
+            Console.WriteLine($"  {e.Id,9}  {e.Name}");
+        return 0;
+    }
     case "strings":
     {
         // Printable ASCII runs >= minlen, with offsets — widget-name landmarks.
@@ -761,6 +770,127 @@ switch (cmd)
                     Console.WriteLine($"  0x{v:X8} (atlas {sn})");
             }
         }
+        return 0;
+    }
+    case "allfields":
+    {
+        // allfields <sceneSno> <nameSubstr> — print EVERY bound field of each
+        // matching widget (and its children): field name+hash, DT type, raw
+        // value, and float interpretation. RE-all-fields discipline.
+        if (argv.Count < 3) { Console.Error.WriteLine("allfields <sceneSno> <nameSubstr>"); return 2; }
+        int sc = int.Parse(argv[1]); string sub = argv[2];
+        var tnames = new Dictionary<uint,string> {
+            [0xA4C42E02]="DT_INT",[0xE65047AD]="DT_FLOAT",[0x3D4646AB]="DT_BYTE",
+            [0x3D47BD2C]="DT_ENUM",[0xE549F591]="DT_CSTRING",[0x8E266332]="DT_RGBACOLOR",
+            [0xA4C45887]="DT_SNO",[0x2B0285C0]="StringLabelHandleEx",[0x06C7C0E9]="DT_BINDABLEPROPERTY" };
+        string TN(uint t) => tnames.TryGetValue(t, out var n) ? n : $"t:0x{t:X8}";
+        void Dump(string label, IReadOnlyList<UiField> fs)
+        {
+            foreach (var f in fs)
+            {
+                if (!f.HasValue) continue;
+                float fv = BitConverter.Int32BitsToSingle((int)f.RawValue);
+                string ff = (f.TypeHash == 0xE65047AD && f.RawValue != 0) ? $"  f32={fv:0.####}" : "";
+                Console.WriteLine($"    {label}{Diablo4.FormatFieldHash(f.FieldHash),-22} {TN(f.TypeHash),-14} = 0x{f.RawValue:X8} ({(int)f.RawValue}){ff}");
+            }
+        }
+        foreach (var w in d4.ReadUiScene(sc).Widgets)
+        {
+            if (!(w.Name ?? "").Contains(sub, StringComparison.OrdinalIgnoreCase)) continue;
+            Console.WriteLine($"'{w.Name}' class=0x{w.ClassId:X8} fields={w.Fields.Count(f=>f.HasValue)} children={w.Children.Count}");
+            Dump("", w.Fields);
+            for (int c = 0; c < w.Children.Count; c++) { Console.WriteLine($"  child[{c}] class=0x{w.Children[c].ClassId:X8}"); Dump("  ", w.Children[c].Fields); }
+        }
+        return 0;
+    }
+    case "attrmap":
+    {
+        // attrmap — scan ALL ParagonNode (group 106) defs, aggregate
+        // AttributeId -> the node-name stat token(s) (first-party eAttribute
+        // map; Generic_<rarity>_<Stat> names encode the stat). Prints id ->
+        // names sorted by id.
+        var map = new SortedDictionary<int, Dictionary<string,int>>();
+        int scanned = 0;
+        foreach (var e in toc.Entries)
+        {
+            if ((int)e.Group != 106) continue;
+            ParagonNodeDefinition n; try { n = d4.ReadParagonNode(e.Id); } catch { continue; }
+            scanned++;
+            // stat token = last underscore segment of a Generic_* node name
+            string token = e.Name.StartsWith("Generic_", StringComparison.Ordinal)
+                ? e.Name[(e.Name.LastIndexOf('_') + 1)..] : null!;
+            if (token is null) continue;
+            foreach (var a in n.Attributes)
+            {
+                if (!map.TryGetValue(a.AttributeId, out var d)) { d = new(); map[a.AttributeId] = d; }
+                d.TryGetValue(token, out int c); d[token] = c + 1;
+            }
+        }
+        Console.WriteLine($"scanned {scanned} ParagonNode defs; {map.Count} distinct AttributeIds with a Generic_* name token:");
+        foreach (var kv in map)
+        {
+            var names = string.Join(", ", kv.Value.OrderByDescending(p => p.Value).Select(p => $"{p.Key}({p.Value})"));
+            Console.WriteLine($"  attr {kv.Key,4} -> {names}");
+        }
+        return 0;
+    }
+    case "cellof":
+    {
+        // cellof <boardSno> <nodeSno...> — print every (row,col) where each node
+        // appears on the board grid (row 0 = top, col 0 = left, row-major).
+        if (argv.Count < 3) { Console.Error.WriteLine("cellof <boardSno> <nodeSno...>"); return 2; }
+        var bd = d4.ReadParagonBoard(int.Parse(argv[1]));
+        var want = argv.Skip(2).Select(int.Parse).ToHashSet();
+        for (int row = 0; row < bd.Width; row++)
+            for (int col = 0; col < bd.Width; col++)
+                if (bd.CellAt(row, col) is { } sn && want.Contains(sn))
+                    Console.WriteLine($"  node {sn} at (row {row}, col {col})  [row 0=top, col 0=left]");
+        return 0;
+    }
+    case "boardnodes":
+    {
+        // boardnodes <boardSno> [max] — for each distinct cell node of a paragon
+        // board, print its kind flags + HIcon/HIconMask + the HIconMask's native
+        // frame size. Finds the class/start node's emblem + its authored size.
+        if (argv.Count < 2) { Console.Error.WriteLine("boardnodes <boardSno> [max]"); return 2; }
+        int bsno = int.Parse(argv[1]); int max = argv.Count > 2 ? int.Parse(argv[2]) : 60;
+        var board = d4.ReadParagonBoard(bsno);
+        var seen = new HashSet<int>(); int shown = 0;
+        foreach (var cell in board.Cells)
+        {
+            if (cell is not { } nodeSno || !seen.Add(nodeSno)) continue;
+            ParagonNodeDefinition n; try { n = d4.ReadParagonNode(nodeSno); } catch { continue; }
+            int nodeType = d4.TryReadSno(106, nodeSno, SnoFolder.Meta, out var nb) && nb.Length >= 0x24
+                ? BitConverter.ToInt32(nb, 0x20) : -999;   // payload+16 (undecoded field)
+            string mask = "-";
+            if (n.HIconMask != 0 && d4.Catalog.TryResolveFrame(n.HIconMask, out var atlas, out var fr)
+                && d4.Catalog.TryPeek(atlas, out var f) && f.Width is { } aw && f.Height is { } ah)
+            {
+                var (_, _, pw, ph) = fr.PixelRect(aw, ah);
+                mask = $"0x{n.HIconMask:X8} {pw}x{ph} in '{atlas.Name}'";
+            }
+            else if (n.HIconMask != 0) mask = $"0x{n.HIconMask:X8} (unresolved)";
+            string attrs = n.Attributes.Count == 0 ? "(none)" : string.Join("; ", n.Attributes.Select(a =>
+                $"attr={a.AttributeId} nParam={a.NParam} +12={a.ParamPlus12} " +
+                (a.IsInline ? $"inline=\"{a.InlineFormula}\"" : $"gbid=0x{a.FormulaGbid:X8}")));
+            Console.WriteLine($"node {nodeSno,9} type@16={nodeType,-2} gate={n.IsGate} socket={n.HasSocket} rar={n.RarityOverride}");
+            Console.WriteLine($"      attrs: {attrs}");
+            if (++shown >= max) break;
+        }
+        return 0;
+    }
+    case "rawhex":
+    {
+        // rawhex <group> <sno> [off=0] [len=256] — payload-relative hex+u32 dump
+        // (payload base 0x10) to verify undecoded SNO record fields.
+        if (argv.Count < 3) { Console.Error.WriteLine("rawhex <group> <sno> [off] [len]"); return 2; }
+        int g = int.Parse(argv[1]), s = int.Parse(argv[2]);
+        int off = argv.Count > 3 ? int.Parse(argv[3]) : 0;
+        int len = argv.Count > 4 ? int.Parse(argv[4]) : 256;
+        if (!d4.TryReadSno((SnoGroup)g, s, SnoFolder.Meta, out var blob)) { Console.Error.WriteLine("not found"); return 1; }
+        int pbase = 0x10;
+        for (int p = off; p < off + len && pbase + p + 4 <= blob.Length; p += 4)
+            Console.WriteLine($"  payload+{p,-4} (0x{pbase + p:X4})  u32={BitConverter.ToUInt32(blob, pbase + p),12}  i32={BitConverter.ToInt32(blob, pbase + p),12}  f32={BitConverter.ToSingle(blob, pbase + p),14:0.###}  hex={BitConverter.ToUInt32(blob, pbase + p):X8}");
         return 0;
     }
     case "findhandle":

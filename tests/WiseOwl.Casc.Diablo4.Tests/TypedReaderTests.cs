@@ -68,33 +68,51 @@ public sealed class TypedReaderTests
     [Fact]
     public void B2_node_round_trips_with_inline_and_gbid_attrs()
     {
-        var b = new Blob(96 + 2 * 88 + 8);
+        // Layout: fixed fields 0..104 (incl. the @88 descriptor whose
+        // dataOffset/dataSize live at payload 96/100), then the two 88-byte
+        // attribute specifiers at 128, then the inline-formula text, then the
+        // parallel per-attribute GBID array — none overlapping (mirrors the
+        // real record, where array data trails all fixed fields).
+        const int attrBase = 128;
+        const int inlineAt = attrBase + 2 * 88;        // 304
+        const int gbidAt = inlineAt + 4;               // 308 (after "2*x")
+        var b = new Blob(gbidAt + 2 * 4);
         b.PI32(0, 678776);
         b.PU32(8, 0);                                  // hIcon
         b.PU32(12, 0x25DABFC0);                        // hIconMask
+        b.PI32(16, 3);                                 // eNodeType = Magic
         b.PI32(20, 2);                                 // eRarityOverride = Magic
         b.PI32(24, 12345);                             // snoPassivePower
         b.PI32(80, 1);                                 // bHasSocket
         b.PI32(84, 0);                                 // bIsGate
         // ptAttributes @ payload 32: dataOffset@+8, dataSize@+12.
-        b.PI32(40, 96);                                // dataOffset
+        b.PI32(40, attrBase);                          // dataOffset
         b.PI32(44, 2 * 88);                            // dataSize (2 specifiers)
+        // parallel per-attribute GBID array @ payload 88: dataOffset@+8 (=96),
+        // dataSize@+12 (=100).
+        b.PI32(96, gbidAt);                            // dataOffset
+        b.PI32(100, 2 * 4);                            // dataSize (2 u32s)
+        b.PU32(gbidAt + 0, 0xAAAA0001);                // gbid[0]
+        b.PU32(gbidAt + 4, 0xBBBB0002);                // gbid[1]
         // attr[0]: GBID-referenced
-        b.PI32(96 + 0, 10);                            // eAttribute
-        b.PI32(96 + 4, 7);                             // nParam
-        b.PI32(96 + 12, 11);                           // +12
-        b.PU32(96 + 48, 0x42C16A1B);                   // gbidFormula
+        b.PI32(attrBase + 0, 10);                      // eAttribute
+        b.PI32(attrBase + 4, 7);                       // nParam
+        b.PI32(attrBase + 12, 11);                     // +12
+        b.PU32(attrBase + 48, 0x42C16A1B);             // gbidFormula
         // attr[1]: inline formula "2*x"
-        b.PI32(96 + 88 + 0, 252);
-        b.PI32(96 + 88 + 4, 0);
-        b.PI32(96 + 88 + 12, 1031902);
-        b.PU32(96 + 88 + 48, 0xFFFFFFFF);              // no gbid → inline
-        b.PI32(96 + 88 + 24, 96 + 2 * 88);             // inline offset (payload-rel)
-        b.PI32(96 + 88 + 28, 3);                       // inline size
-        b.PAscii(96 + 2 * 88, "2*x");
+        b.PI32(attrBase + 88 + 0, 252);
+        b.PI32(attrBase + 88 + 4, 0);
+        b.PI32(attrBase + 88 + 12, 1031902);
+        b.PU32(attrBase + 88 + 48, 0xFFFFFFFF);        // no gbid → inline
+        b.PI32(attrBase + 88 + 24, inlineAt);          // inline offset (payload-rel)
+        b.PI32(attrBase + 88 + 28, 3);                 // inline size
+        b.PAscii(inlineAt, "2*x");
 
         var n = ParagonNodeDefinition.Parse(b.Bytes);
         Assert.Equal(678776, n.SnoId);
+        Assert.Equal(3, n.NodeTypeRaw);
+        Assert.Equal(ParagonNodeType.Magic, n.NodeType);
+        Assert.False(n.IsStart);
         Assert.Equal(2, n.RarityOverride);
         Assert.Equal(ParagonRarity.Magic, n.Rarity);
         Assert.True(n.HasSocket);
@@ -110,12 +128,14 @@ public sealed class TypedReaderTests
         Assert.Equal(0x42C16A1Bu, a0.FormulaGbid);
         Assert.False(a0.IsInline);
         Assert.Equal("", a0.InlineFormula);
+        Assert.Equal(0xAAAA0001u, a0.AttributeGbid);
 
         var a1 = n.Attributes[1];
         Assert.Equal(252, a1.AttributeId);
         Assert.Equal(1031902, a1.ParamPlus12);
         Assert.True(a1.IsInline);
         Assert.Equal("2*x", a1.InlineFormula);
+        Assert.Equal(0xBBBB0002u, a1.AttributeGbid);
     }
 
     [Fact]

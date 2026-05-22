@@ -91,6 +91,117 @@ switch (cmd)
         Console.WriteLine($"-- exported {atlases} atlas PNG(s), {framePngs} frame PNG(s), {skipped} skipped -> {outDir} --");
         return 0;
     }
+    case "iconfill":
+    {
+        // iconfill <handle> [handle...] — for each icon frame, measure the
+        // alpha bounding box (the actual drawn shape) within its native frame,
+        // and report fill% = shape extent / frame extent. Answers whether a
+        // class emblem fills its 135² frame more than a stat icon does.
+        if (argv.Count < 2) { Console.Error.WriteLine("iconfill <handle> [handle...]"); return 2; }
+        for (int a = 1; a < argv.Count; a++)
+        {
+            uint h = Convert.ToUInt32(argv[a].Replace("0x", "", StringComparison.OrdinalIgnoreCase), 16);
+            if (!cat.TryGetFrameImage(h, out var fi)) { Console.WriteLine($"0x{h:X8} not decodable"); continue; }
+            int minX = fi.Width, minY = fi.Height, maxX = -1, maxY = -1;
+            for (int y = 0; y < fi.Height; y++)
+                for (int x = 0; x < fi.Width; x++)
+                {
+                    byte alpha = fi.Rgba[(y * fi.Width + x) * 4 + 3];
+                    if (alpha <= 16) continue;
+                    if (x < minX) minX = x; if (x > maxX) maxX = x;
+                    if (y < minY) minY = y; if (y > maxY) maxY = y;
+                }
+            if (maxX < 0) { Console.WriteLine($"0x{h:X8} {fi.Width}x{fi.Height}: empty alpha"); continue; }
+            int bw = maxX - minX + 1, bh = maxY - minY + 1;
+            Console.WriteLine($"0x{h:X8} frame {fi.Width}x{fi.Height}  shape {bw}x{bh} @ ({minX},{minY})  fill={100.0 * bw / fi.Width:0}%x{100.0 * bh / fi.Height:0}%");
+        }
+        return 0;
+    }
+    case "startnode":
+    {
+        // startnode <cellPx> <out.png> — composite the Warlock start node from
+        // its recipe pieces (starter base 0xF8312CA8 @ inset-7/86², filigree
+        // 0xA0F996FE @ -18/140²) with the class emblem (0x35B6E536) drawn at its
+        // AUTHORED native size (135 ref units = 1.35× the 100 cell), centered.
+        if (argv.Count < 3) { Console.Error.WriteLine("startnode <cellPx> <out.png>"); return 2; }
+        int cellPx = int.Parse(argv[1]); double s = cellPx / 100.0;
+        int canvas = cellPx * 2, off = cellPx / 2;   // 100-unit cell centred in a 200-unit canvas
+        using var surf = new SKBitmap(new SKImageInfo(canvas, canvas, SKColorType.Rgba8888, SKAlphaType.Unpremul));
+        using (var cv = new SKCanvas(surf))
+        {
+            cv.Clear(new SKColor(28, 28, 34));
+            void Draw(uint handle, double insetUnits, double sizeUnits)
+            {
+                if (!cat.TryGetFrameImage(handle, out var im)) { Console.WriteLine($"  0x{handle:X8} undecodable"); return; }
+                using var b = new SKBitmap(new SKImageInfo(im.Width, im.Height, SKColorType.Rgba8888, SKAlphaType.Unpremul));
+                System.Runtime.InteropServices.Marshal.Copy(im.Rgba, 0, b.GetPixels(), im.Rgba.Length);
+                float x = (float)(off + insetUnits * s), w = (float)(sizeUnits * s);
+                cv.DrawBitmap(b, new SKRect(0, 0, im.Width, im.Height), new SKRect(x, x, x + w, x + w));
+            }
+            Draw(0xF8312CA8u, 7, 86);                 // starter base disc (inset-7, 86²)
+            Draw(0xA0F996FEu, -18, 140);              // starter filigree (overscan, 140²)
+            Draw(0x35B6E536u, (100 - 135) / 2.0, 135);// Warlock emblem at NATIVE 135² (1.35× cell), centred
+        }
+        using (var enc = SKImage.FromBitmap(surf).Encode(SKEncodedImageFormat.Png, 95))
+        using (var fs = File.OpenWrite(argv[2])) enc.SaveTo(fs);
+        Console.WriteLine($"start node (emblem @ native 135²) -> {argv[2]}");
+        return 0;
+    }
+    case "frame":
+    {
+        // frame <handle> <out.png> — extract a single texture frame by handle
+        // (Catalog.TryGetFrameImage) for inspection/measurement.
+        if (argv.Count < 3) { Console.Error.WriteLine("frame <handle> <out.png>"); return 2; }
+        uint h = Convert.ToUInt32(argv[1].Replace("0x", "", StringComparison.OrdinalIgnoreCase), 16);
+        if (!cat.TryGetFrameImage(h, out var fi)) { Console.WriteLine($"0x{h:X8} not decodable"); return 1; }
+        // Composite on a dark background so white-on-transparent masks are visible.
+        using (var fb = new SKBitmap(new SKImageInfo(fi.Width, fi.Height, SKColorType.Rgba8888, SKAlphaType.Unpremul)))
+        using (var fcanvas = new SKCanvas(fb))
+        {
+            System.Runtime.InteropServices.Marshal.Copy(fi.Rgba, 0, fb.GetPixels(), fi.Rgba.Length);
+            using var bg = new SKBitmap(new SKImageInfo(fi.Width, fi.Height, SKColorType.Rgba8888, SKAlphaType.Unpremul));
+            using (var bgc = new SKCanvas(bg)) { bgc.Clear(new SKColor(40, 40, 48)); bgc.DrawBitmap(fb, 0, 0); }
+            using var enc = SKImage.FromBitmap(bg).Encode(SKEncodedImageFormat.Png, 95);
+            using var fs = File.OpenWrite(argv[2]); enc.SaveTo(fs);
+        }
+        Console.WriteLine($"0x{h:X8} -> {fi.Width}x{fi.Height} -> {argv[2]}");
+        return 0;
+    }
+    case "measure":
+    {
+        // measure <png> [whiteThresh] — column-profile a screenshot: find runs
+        // of columns containing bright (symbol) pixels and runs with any node
+        // content, so symbol/node widths can be compared by RATIO across
+        // differently-zoomed captures. FR-C12 #22 start-icon sizing.
+        if (argv.Count < 2) { Console.Error.WriteLine("measure <png> [whiteThresh]"); return 2; }
+        byte wt = (byte)(argv.Count > 2 ? int.Parse(argv[2]) : 200);
+        using var img = SKBitmap.Decode(argv[1]);
+        Console.WriteLine($"image {img.Width}x{img.Height}, whiteThresh={wt}");
+        // per-column counts of bright pixels and of "content" (non-near-black) pixels
+        var bright = new int[img.Width]; var content = new int[img.Width];
+        for (int x = 0; x < img.Width; x++)
+            for (int y = 0; y < img.Height; y++)
+            {
+                var p = img.GetPixel(x, y);
+                if (p.Red >= wt && p.Green >= wt && p.Blue >= wt) bright[x]++;
+                if (p.Red > 70 || p.Green > 70 || p.Blue > 70) content[x]++;
+            }
+        void Runs(string label, int[] col, int minCount, int gap)
+        {
+            Console.WriteLine($"-- {label} runs (col has >= {minCount} px) --");
+            int start = -1, lastOn = -1;
+            for (int x = 0; x <= img.Width; x++)
+            {
+                bool on = x < img.Width && col[x] >= minCount;
+                if (on) { if (start < 0) start = x; lastOn = x; }
+                else if (start >= 0 && (x - lastOn > gap || x == img.Width))
+                { Console.WriteLine($"   x[{start}..{lastOn}] width={lastOn - start + 1}"); start = -1; }
+            }
+        }
+        Runs("bright/symbol", bright, Math.Max(2, img.Height / 12), 6);
+        Runs("content/node", content, img.Height / 3, 10);
+        return 0;
+    }
     case "compose":
     {
         // compose <tiledStyleSno> <cellPx> <out.png> — composite a

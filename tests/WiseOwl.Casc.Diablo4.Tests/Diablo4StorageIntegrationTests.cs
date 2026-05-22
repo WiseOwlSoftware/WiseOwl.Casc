@@ -443,6 +443,47 @@ public sealed class Diablo4StorageIntegrationTests
         Assert.Contains(0xF8312CA8u, starter.ExtraLayerValues);
     }
 
+    /// <summary>The decoded <c>eNodeType@16</c> (start=5, magic=3,
+    /// normal/gate=0) and the parallel per-attribute GBID array (@88) — the
+    /// previously-undecoded ParagonNode fields. The GBID is stable per
+    /// <c>AttributeId</c>: id 9 → <c>0x1E663884</c> on both the standalone
+    /// Strength node and the four-primary gate node.</summary>
+    [SkippableFact]
+    public void ParagonNode_node_type_and_per_attribute_gbid_decode()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+
+        using var d4 = Diablo4Storage.Open(install!);
+
+        // Start node (Warlock emblem): eNodeType = 5, no attribute grants.
+        var start = d4.ReadParagonNode(2458702);
+        Assert.Equal(ParagonNodeType.Start, start.NodeType);
+        Assert.True(start.IsStart);
+        Assert.Empty(start.Attributes);
+
+        // Magic node carries eNodeType = 3.
+        Assert.Equal(ParagonNodeType.Magic, d4.ReadParagonNode(678627).NodeType);
+
+        // Standalone Strength node (AttributeId 9) → GBID 0x1E663884.
+        var str = d4.ReadParagonNode(678769);
+        Assert.Equal(9, str.Attributes[0].AttributeId);
+        Assert.Equal(0x1E663884u, str.Attributes[0].AttributeGbid);
+
+        // Gate node: eNodeType = 0 (a distinct axis from rarity), IsGate, and
+        // the four primaries in order with their stable GBIDs — the first
+        // (id 9) matches the standalone Strength node above.
+        var gate = d4.ReadParagonNode(994337);
+        Assert.Equal(ParagonNodeType.Normal, gate.NodeType);
+        Assert.False(gate.IsStart);
+        Assert.True(gate.IsGate);
+        Assert.Equal([9, 10, 11, 12], gate.Attributes.Select(a => a.AttributeId));
+        Assert.Equal(0x1E663884u, gate.Attributes[0].AttributeGbid);
+        Assert.Equal(
+            [0x1E663884u, 0x6D5C0968u, 0xD8EA381Au, 0x3044FD97u],
+            gate.Attributes.Select(a => a.AttributeGbid));
+    }
+
     private static readonly uint[] ExpectedCardinalArrows =
         { 0xD51CAB25u, 0x6D3CB8DEu, 0x8EEAC178u, 0xB6D8C741u };
     private static readonly uint[] ConnectorHandles =
