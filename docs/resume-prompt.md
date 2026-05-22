@@ -102,10 +102,24 @@ glyph→`affix`+`class`; each Target chains. Node↔glyph is runtime (not a link
 affix→power doesn't exist (use node→power). Deferred (no consumer need):
 power→class facet (skill-kit RE), item NameConvention facets, codec tail, atlas
 GUI. **#32 Optimizer proxy SIGN-OFF (2026-05-22): whole backlog consume-verified,
-honesty notes accepted — `needs:owner` to bless `fr:consumed`.** Autonomous
-CASC⇄Optimizer loop COMPLETE; build queue empty. All 4 open issues
-(#32/#30/#24/#31) are `needs:owner`. No active poll running — re-engage on a new
-FR or owner action.
+honesty notes accepted — `needs:owner` to bless `fr:consumed`.**
+
+**POST-SIGN-OFF owner visual-close round (2026-05-22) — owner pushed 3 back to
+awaiting:casc; 2 fixed, 1 in progress:**
+- **#22** Start node oversized → **FIXED CL-61 (`01ddeca`)**: Starter base
+  `0xF8312CA8` all-zero rect was full-cell; now inherits base-disc inset (86²).
+  `needs:owner` visual-close. (Filigree authored 140² unchanged — flag if still off.)
+- **#30** cursor stretch wrong (corner-only) → **FIXED CL-62 (`faf3879`)**:
+  `SelectionRectangleInset` is the **`TiledWindowPieces`** variant; decoded its
+  **9 piece handles** (`TiledStyleDefinition.WindowPieces`, row-major 3×3,
+  idx4=centre). Consumer switches stretch→true 9-slice. `awaiting:optimizer`.
+- **#31** atlas browser → **owner: build the GUI now** (deferral lifted). Catalog
+  API + AtlasExport CLI already delivered; the GUI (Avalonia+SkiaSharp over
+  `d4.Catalog`) is the remaining build — IN PROGRESS. Can compile-verify but not
+  run/visually-verify in-sandbox (owner runs it).
+- **#24** rim = mesh/material (not a frame) — `needs:owner` (accept procedural).
+
+Latest CL = **62**. Next branch off `main`.
 
 **P2b shipped marked-A (CL-59, `0a868f4`):** `Facet(Key,Value,FacetSource{NameConvention,
 Decoded,SceneField})` + `Catalog.Facets(ref)` + `FindByFacet(kind,key,value)`.
