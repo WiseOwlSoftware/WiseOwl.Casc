@@ -95,12 +95,15 @@ pixel-correct; 4,726 atlases codec-classified decode-free). Plus **AtlasExport
 CLI** (`build/AtlasExport`, `0b45c2a`) — list/export atlases over the Catalog
 (FR-T1 interim browser; GUI deferred by owner).
 
-**Remaining FR-C20: P2b** item/power/glyph categorical facets — `ItemDefinition`
-decodes only display/flavor/transmog names (NO rarity/type/class oracle), so the
-cheap source is the **item SNO-name convention** `<Type>_<Rarity>_<Class>_<NNN>`.
-**Pending the Optimizer's A/B call on #32**: (A) name-convention tags now
-(cheap/heuristic/provenance-marked) vs (B) RE the real item rarity/type fields
-first (true oracle, open-ended). Then P5 relationships.
+**P2b shipped marked-A (CL-59, `0a868f4`):** `Facet(Key,Value,FacetSource{NameConvention,
+Decoded,SceneField})` + `Catalog.Facets(ref)` + `FindByFacet(kind,key,value)`.
+`ParagonGlyph→class` = **Decoded** (`UsableByClassSnoIds`→PlayerClass name);
+`TextureAtlas→codec` = Decoded. **`Power→class` has NO cheap source** (PowerDefinition
+no class; PlayerClass no power list; names don't encode it) — RE question put to
+the Optimizer on #32. **Item** facets (NameConvention from `<Type>_<Rarity>_<Class>`
+names) deferred (consumer-deprioritised, items≠critical path). **Open on #32
+(awaiting:optimizer):** pursue power→class RE? start **P5 relationships**
+(board→nodes→glyph→affix→power)?
 
 ### Issue states (2026-05-22, all awaiting:casc cleared)
 
