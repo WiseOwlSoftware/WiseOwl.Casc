@@ -105,14 +105,19 @@ namespace WiseOwl.Casc.Diablo4;
 /// <param name="NPadding">The <c>nPadding</c> field (NSlice +0x14) —
 /// inter-piece padding in the composition.</param>
 /// <param name="WindowPieces">FR-C14 R10 / FR-C19 — for the
-/// <c>TiledWindowPieces</c> variant, the <b>9 piece handles</b> of the 9-slice,
-/// at blob <c>+0x60..+0x80</c> in <b>row-major 3×3 order</b>:
-/// <c>[TL, T, TR, L, C, R, BL, B, BR]</c> (index 4 = the centre fill). Each is
-/// a texture frame handle (resolve via the icon-frame index); compose the
-/// 9-slice by drawing the corners at native size (scaled by
-/// <see cref="ImageScale"/>) in the cell corners, the edges stretched between
-/// them, and the centre filling the interior. Empty for non-window-pieces
-/// variants (use <see cref="SourceImageHandle"/> + the NSlice fields).</param>
+/// <c>TiledWindowPieces</c> variant, the <b>9 authored piece handles</b> at blob
+/// <c>+0x60..+0x80</c>, in the record's array order (index 4 resolves to the
+/// centre fill; the other 8 to the border pieces — observed as
+/// <b>quadrant/edge brackets</b>, not pre-cut 3×3 thirds). Each is a texture
+/// frame handle (resolve via the icon-frame index). <b>The record carries the
+/// piece handles + <see cref="ImageScale"/> + the tile flags only — NOT the
+/// per-piece crop/placement geometry.</b> The exact composition (how the engine
+/// crops/anchors/blends these 9 pieces into the border) lives in the engine UI
+/// code and is not recoverable from this record; a naïve corner/edge/centre 3×3
+/// placement overlaps the brackets. Treat this as the authored asset set; the
+/// composition must be calibrated against the live render (see FR-C19 #30).
+/// Empty for non-window-pieces variants (use <see cref="SourceImageHandle"/> +
+/// the NSlice fields).</param>
 public sealed record TiledStyleDefinition(
     int SnoId,
     uint TypeTag,

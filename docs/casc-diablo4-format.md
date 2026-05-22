@@ -1735,6 +1735,24 @@ derived from FR-C14 R8's `snoTiledStyle` crack and R10's variant
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
 
+- **CL-63 — RETRACT the CL-62 `TiledWindowPieces` 3×3 placement recipe; the
+  composition is engine-side, not in the record (FR-C19 #30).** The consumer
+  composed CL-62's 9 pieces per the stated "corners at native, edges stretched,
+  centre fill" recipe and got **9 overlapping brackets, not one border** — the
+  pieces are **quadrant/edge brackets** (e.g. `0x95DA4E78` is a full top+left
+  quadrant), not pre-cut 3×3 thirds. Verified by extracting + compositing the
+  pieces three ways (zone-anchored / full-cell-overlay / corners-only) — all
+  produce a mess. And the record **ends at ~`0x98`**: after the 9 handles it
+  carries only `ImageScale` (0.6), `nPadding`, and 3 tile flags `(0,1,1)` at
+  `+0x88/+0x8C/+0x90` — **no per-piece crop/placement geometry.** So the exact
+  composition (crop/anchor/blend) is engine UI code, not recoverable from the
+  data — same class as the CL-53/#24 fire-rim (a mesh/material/VFX effect, not a
+  data-authored frame). `WindowPieces` stays correct (the authored handle set);
+  its doc no longer asserts a placement recipe. **Resolution is owner-gated**
+  (#30, `needs:owner`): calibrate the composition against the live render, or
+  accept a procedural selection border (the #24 precedent). The
+  `build/AtlasExport compose` mode is the calibration harness.
+
 - **CL-62 — `TiledWindowPieces` 9-slice fully decoded (FR-C19 #30 / FR-C14
   R10).** Owner visual-close: the stretched-source selection highlight rendered
   only a top-left corner. Root cause: `SelectionRectangleInset` (585031) is the
