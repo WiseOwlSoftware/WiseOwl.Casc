@@ -109,14 +109,20 @@ awaiting:casc; 2 fixed, 1 in progress:**
 - **#22** Start node oversized → **FIXED CL-61 (`01ddeca`)**: Starter base
   `0xF8312CA8` all-zero rect was full-cell; now inherits base-disc inset (86²).
   `needs:owner` visual-close. (Filigree authored 140² unchanged — flag if still off.)
-- **#30** cursor → decoded `WindowPieces` (CL-62) but the 3×3 placement recipe
-  was WRONG (consumer got overlapping brackets) → **RETRACTED CL-63 (`f622598`)**.
-  Pieces are quadrant/edge brackets; tested 4 composites (zone/full/corners/quad)
-  — all messy; blob ends ~`0x98` (handles + ImageScale + 3 flags, NO per-piece
-  crop geometry). **Composition is engine-side, not in data** (≈ #24 mesh rim).
-  `WindowPieces` field stays (authored handle set); doc no longer asserts a
-  recipe. **`needs:owner`**: (a) calibrate vs live oracle (`AtlasExport compose`
-  harness ready) or (b) procedural border (#24 precedent, my lean).
+- **#30** node hover selection — **RESOLVED, CL-64 (`9ec540e`)**, `awaiting:optimizer`.
+  Saga: CL-62 wrong row-major placement → CL-63 wrongly declared "unrecoverable"
+  → owner corrected ("find the existing recipe, don't invent"). **The authored
+  recipe is `ContextualHighlight_Square` (TiledStyle 2434982)** — 4-piece
+  TiledWindowPieces (4 corners, no edges/centre, ImageScale 0.5) = the square
+  hover highlight. Its own handles are engine-internal (unresolvable; scanned
+  all 140k textures). Owner-approved pairing: surface it + the drawable corner
+  art from `SelectionRectangleInset` window-pieces (585030 corners: TL `0x95DA4E78`,
+  TR `0x5192E52B`, BR `0xEA71A5AD`, BL `0xB1C206BA`, roles verified by viewing).
+  **`ReadNodeSelectionHighlight()`** → `NodeSelectionHighlight(RecipeSno,
+  RecipeName, TL,TR,BR,BL)`. Draw recipe: hollow square border, 4 corners only,
+  each in its quadrant, no fill, sized to node perimeter (owner-validated via
+  `AtlasExport compose c4`). LESSON: search for the named authored recipe before
+  reconstructing/declaring unrecoverable. New recon: `SnoScan findhandle`.
 - **#31** atlas browser → **GUI DELIVERED**: `build/AtlasBrowser` (WinForms,
   `b1c685a`) over `d4.Catalog` (filter/peek/decode/frames). Compile-verified
   only — `needs:owner` to run + visual-close, then iterate (tree-nav,
@@ -125,7 +131,7 @@ awaiting:casc; 2 fixed, 1 in progress:**
 - **#24** rim = mesh/material (not a frame) — **`fr:consumed`** (owner accepted
   the procedural rim ✓).
 
-Latest CL = **63** (CL-61 #22 start-node, CL-62 #30 9-slice). AtlasExport +
+Latest CL = **64** (CL-61 #22 start-node, CL-62 #30 9-slice). AtlasExport +
 AtlasBrowser are build tools (no CL). Queue empty; #30 `awaiting:optimizer`,
 #32/#22/#31 `needs:owner`. Next branch off `main`.
 
