@@ -1735,6 +1735,22 @@ derived from FR-C14 R8's `snoTiledStyle` crack and R10's variant
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
 
+- **CL-61 — Starter node base disc renders disk-sized, not full-cell (FR-C12
+  #22).** Owner visual-close: the Start node's disk + filigree read oversized.
+  Root cause (the FR-C18 oversize class, on the Starter template): the Starter
+  base `0xF8312CA8` has an **all-zero authored rect**, which `ResolvePlacement`
+  stretched to **full-cell 100²**, vs every other node's base disc at the
+  canonical **inset-7 86²** (`Node_IconBase`). Fix (general, not a patch): a
+  template base child whose rect is unspecified (all-zero) inherits the
+  **base-disc inset** (the rarity pair's co-sized inset where present, else
+  `Node_IconBase`'s inset → 86²) — never full-cell. Explicitly-sized children
+  keep their own rect (the Starter filigree's authored 140² overscan, the gate
+  ornate's inset-3), so the OK-looking gate/socket don't regress (their handle
+  children are all non-empty). Native-size check confirmed rendered size comes
+  from the authored rect, not the frame's native resolution. Acceptance:
+  `ReadParagonNodeRecipe_…` asserts the Starter base at inset-7/86². 51/51 tests
+  green on `3.0.2.71886`. Devlog 0059.
+
 - **CL-60 — `Catalog` authored relationship traversal (FR-C20 P5).** The last
   consensus item: `Catalog.Related(AssetRef)` → `IReadOnlyList<AssetLink>` where
   `AssetLink(Role, AssetRef Target)` makes **board → node → power** and **glyph

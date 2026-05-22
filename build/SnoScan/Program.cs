@@ -763,6 +763,25 @@ switch (cmd)
         }
         return 0;
     }
+    case "framesize":
+    {
+        // framesize <hex> [hex...] — resolve each texture handle to its owning
+        // atlas + native pixel size (via d4.Catalog), to ground node-rect
+        // "oversized" questions (does an all-zero rect mean native size?).
+        if (argv.Count < 2) { Console.Error.WriteLine("framesize <hex> [hex...]"); return 2; }
+        for (int a = 1; a < argv.Count; a++)
+        {
+            uint h = Convert.ToUInt32(argv[a].Replace("0x", "", StringComparison.OrdinalIgnoreCase), 16);
+            if (d4.Catalog.TryResolveFrame(h, out var atlas, out var fr) &&
+                d4.Catalog.TryPeek(atlas, out var f) && f.Width is { } aw && f.Height is { } ah)
+            {
+                var (x, y, pw, ph) = fr.PixelRect(aw, ah);
+                Console.WriteLine($"0x{h:X8} -> atlas {atlas.Sno} '{atlas.Name}' {f.Codec} {aw}x{ah}; frame native {pw}x{ph} @ ({x},{y})");
+            }
+            else Console.WriteLine($"0x{h:X8} -> unresolved (not an atlas frame)");
+        }
+        return 0;
+    }
     case "widgetdump":
     {
         // widgetdump <sceneSno> <nameSubstr> — via the PARSED UiScene, print
