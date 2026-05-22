@@ -42,17 +42,24 @@ public repo; never commit it). Read CLAUDE.md before any FR action.
   R11/R12 typed `NodeActivation` surface + EXE-RE of the binding mechanism,
   squash `2614e9b`), and **CL-52** (PR #38, FR-C16 R14 flat
   `ParagonNodeRecipe.Components` + `bActive`-driven activation, squash
-  `d97ff8b`), and **CL-54** (PR #40, FR-C16 #26.4 socket disc remapped to the
-  base-disc band + side-panel pip dropped, squash `4d3efaa`) MERGED to `main`,
-  **unreleased** (no package). **OPEN PR: #39** (`fr-c19-selection-highlight-api`,
-  CL-53, `ReadSelectionHighlight()` → authored TiledStyle recipes, commit
-  `b09cf03`) — **CI green, held unmerged** pending owner call (may be folded
-  into the broader Catalog discovery API). New code work starts a fresh branch
-  off `main`; docs-only commit straight to `main` (pref §7).
+  `d97ff8b`), **CL-54** (PR #40, FR-C16 #26.4 socket disc remapped to the
+  base-disc band, squash `4d3efaa`), and **CL-55** (PR #41, FR-C20 `d4.Catalog`
+  asset discovery/retrieval API + folds in CL-53 selection highlight, squash
+  `0f1764f`) MERGED to `main`, **unreleased** (no package). **PR #39 closed —
+  superseded** by #41 (selection highlight folded into the Catalog). No open
+  PRs. New code work starts a fresh branch off `main`; docs-only commit straight
+  to `main` (pref §7).
 - **Published on nuget.org (immutable): `0.1.0-alpha`, `0.2.0-alpha`,
-  `0.3.0-alpha`.** **CL-50/51/52/54 are unreleased** — on `main`, in no
-  package (CL-53 on PR #39). Release is owner-driven & batched (never cut for
-  one fix without explicit "release now").
+  `0.3.0-alpha`.** **CL-50/51/52/54/55 are unreleased** — on `main`, in no
+  package (CL-53 folded into CL-55). Release is owner-driven & batched (never
+  cut for one fix without explicit "release now").
+- **`d4.Catalog` (FR-C20/CL-55) is the discovery surface:** `Find(AssetQuery)`/
+  `OfKind`/`TryResolve` → `AssetRef(Kind,Group,Sno,Name,Tags)`; `TryGet`/
+  `TryGet<T>` → the real decoded type (exception-safe). New family = one
+  `IAssetProvider` + one `AssetKind`, zero facade edits. **FR-C20 #32 is OPEN,
+  `awaiting:optimizer`** — soliciting consumer feedback on missing kinds/tags/
+  filters/ergonomics (owner: Optimizer is the proxy for other customers). The
+  existing typed `ReadX()` accessors remain as shortcuts.
 - 50/50 Diablo4 + 8/8 transport tests green on live build `3.0.2.71886`.
 - **FR-C16 node recipe is the flat `Components` model (CL-52, R14).** Draw
   every `ParagonNodeComponent` whose `Activation.Evaluate(facts)` holds, in
@@ -66,26 +73,24 @@ public repo; never commit it). Read CLAUDE.md before any FR action.
   engine binds visibility BY NAME in the compiled `ParagonBoardUI`
   controller; EXE field names are hashed/absent; see [[reference_exe-symbol-re]].
 
-### Pending owner-directed design (not an FR) — Catalog discovery API
+### Catalog discovery API — SHIPPED (FR-C20 / CL-55), feedback open
 
-Owner directed (2026-05-21) a redesign so the Optimizer can **discover**
-recipes/assets dynamically (find / enumerate-with-filter / retrieve) instead
-of hardcoding SNOs+names — and to **future-proof** it to broader retrieval
-(items, weapons, armor, …). Locked decisions: **scope = render recipes +
-paragon domain** (extensible to items later); **retrieval = generic open
-model** (`TryGet(ref, out object)` / `TryGet<T>` over the existing decoded
-types — NOT a closed wrapper union, so new families = one provider, zero core
-edits) **+ keep typed shortcuts**. Planned shape: `d4.Catalog` →
-`Find(AssetQuery)` / `OfKind` / `TryResolve` / `TryGet`, `AssetRef(Kind, Group,
-Sno, Name, Tags)`, internal `IAssetProvider` registry (one per `AssetKind`).
-Phased: (1) backbone + render providers, (2) paragon-domain providers, (3)
-broader-domain seed (Item w/ weapon/armor tags) + ship. **Plan presented,
-not yet started** — was interrupted to fix the #26 socket blocker. Open
-question for delivery: new `casc-fr` FR-C20 to track, or fold into existing
-issues. **PR #39 (selection highlight) may be folded into this** rather than
-merged standalone.
+`d4.Catalog` shipped (commit `0f1764f`): generic discovery/retrieval so the
+consumer finds/enumerates(filtered)/retrieves any RE'd recipe or definition
+dynamically. Open generic-retrieval model (`TryGet`→real decoded type, no
+wrapper union); providers (`IAssetProvider`) one per `AssetKind`; exception-safe.
+Next increments (await consumer feedback on **FR-C20 #32**): richer `Item` tags
+(slot/type/class), more kinds (chrome, item-types, game-balance, string tables),
+typed enumerators / relationships / build-stable refs — **don't pre-build these;
+the owner wants the Optimizer (proxy for other customers) to drive what's
+needed.** When asked to add a kind: write one provider in
+`src/WiseOwl.Casc.Diablo4/Catalog/AssetProviders.cs` + one `AssetKind` value.
 
 ### Open casc-fr issues (2026-05-21 snapshot — re-poll, this drifts)
+
+- **#32** FR-C20 Catalog discovery/retrieval API — **DELIVERED** (CL-55,
+  `0f1764f`, unreleased). `awaiting:optimizer` — explicitly soliciting consumer
+  feedback on missing kinds/tags/filters/ergonomics/ref-stability/relationships.
 
 - **#26** FR-C16 node render recipe — flat `Components` model. **CL-52**
   (`d97ff8b`) base; **CL-54** (`4d3efaa`) socket-disc fix (#26.4): `Usage_Slot_*`
@@ -95,13 +100,13 @@ merged standalone.
   observation passed back: `Usage_Slot_2[0]` (grey, centred) vs `[1]` (untinted,
   absolute) are the same handle `0xF6443089`, both `bActive=1` → both draw.
 - **#30** FR-C19 selection-highlight resource — **DELIVERED** (`fr:delivered`,
-  `awaiting:optimizer`). Located: atlas `2DUI_SelectionHighlight` (Texture SNO
-  **337357**, BC3, 13 frames). Square node selection = 9-slice from 8 corner/edge
-  handles (`0x9558B90E`,`0xC57DE6C1`,`0xC673B1FB`,`0x7432E23C`,`0xD4F66D69`,
-  `0xC84712B0`,`0x34C458DF`,`0xFE4C5F5D`); shape variants: circle `0xBA7D2638`,
-  diamonds `0x0BD8A829`/`0xD2B9D393`/`0xB2531CFB`, teardrop `0x0558DE82`. Drawn
-  topmost on the moused-over node (orthogonal to the node recipe). Offered a
-  typed `ReadSelectionHighlight()` accessor if the consumer wants it typed.
+  `awaiting:optimizer`). Authored as named TiledStyle 9-slice recipes (group 103)
+  over `2DUI_SelectionHighlight` (337357)/`2DUITiled_SelectionHighlight` (585030):
+  `SelectionRectangleInset` + `ControllerSelection{Rectangle,Circle,Diamond,
+  TearDrop,APS}`. Shape from the authored name (corrected eyeballed labels:
+  `0xBA7D2638`=TearDrop not "circle"; `0x0BD8A829`=Circle not "diamond").
+  Surfaced via `ReadSelectionHighlight()` AND `Catalog.OfKind(SelectionHighlight)`
+  (CL-53 folded into CL-55).
 - **#31** FR-T1 UI texture-atlas catalog API + browser app — `awaiting:casc`
   (scoping done: 4,726 atlases, BC1/BC3=99%; hierarchical-tree API design).
 - **#29** FR-C18 rarity-template WidgetRect all-zero — `fr:delivered`; CL-50
