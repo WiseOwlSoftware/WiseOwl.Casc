@@ -1694,6 +1694,16 @@ public sealed class Diablo4StorageIntegrationTests
         var decodable = cat.Find(new AssetQuery { Kind = AssetKind.ParagonBoard, DecodableOnly = true }).ToList();
         Assert.True(decodable.Count < cat.OfKind(AssetKind.ParagonBoard).Count());  // bad-data dropped
         Assert.All(decodable, r => Assert.True(cat.TryGet(r, out _)));
+
+        // P2b — provenance-marked facets: glyph→class is Decoded; FindByFacet filters.
+        var glyphClassFacets = cat.OfKind(AssetKind.ParagonGlyph)
+            .Select(cat.Facets).FirstOrDefault(fs => fs.Any(f => f.Key == "class"));
+        Assert.NotNull(glyphClassFacets);
+        Assert.All(glyphClassFacets!.Where(f => f.Key == "class"),
+            f => Assert.Equal(FacetSource.Decoded, f.Source));
+        var className = glyphClassFacets!.First(f => f.Key == "class").Value;
+        Assert.Contains(cat.FindByFacet(AssetKind.ParagonGlyph, "class", className),
+            r => r.Kind == AssetKind.ParagonGlyph);
     }
 
     /// <summary>FR-C11 R3 §2 — scene-bound binding on the

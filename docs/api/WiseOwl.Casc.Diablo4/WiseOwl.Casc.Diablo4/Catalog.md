@@ -10,8 +10,10 @@ public sealed class Catalog
 
 | name | description |
 | --- | --- |
+| [Facets](Catalog/Facets.md)(…) | FR-C20 P2b — the asset's categorical [`Facet`](./Facet.md)s with provenance, for discovery/filtering. Populated today: |
 | [Find](Catalog/Find.md)(…) | Discover assets matching *query* (lazy, unless [`OrderByName`](./AssetQuery/OrderByName.md) buffers to sort). A `null` query yields every catalogued asset. |
 | [Find&lt;T&gt;](Catalog/Find.md)(…) | FR-C20 P4 — discover and decode in one lazy pass: enumerate *query* and yield each asset already decoded to *T*, silently skipping non-matching kinds and undecodable blobs. The ergonomic "give me every [`TiledStyleDefinition`](./TiledStyleDefinition.md)" shortcut. |
+| [FindByFacet](Catalog/FindByFacet.md)(…) | FR-C20 P2b — discover assets of a kind carrying a categorical facet (e.g. every ParagonGlyph with `class=Barbarian`). Computes [`Facets`](./Catalog/Facets.md) per asset (decodes where the facet requires it), so scope with *kind*. |
 | [OfKind](Catalog/OfKind.md)(…) | Every asset of a kind (lazy). |
 | [TryGet](Catalog/TryGet.md)(…) | Decode an asset into its strongly-typed definition (the real type — e.g. [`TiledStyleDefinition`](./TiledStyleDefinition.md), [`ItemDefinition`](./ItemDefinition.md)). Returns `false` (no throw) on a malformed/absent blob or an unknown kind. (2 methods) |
 | [TryGet&lt;T&gt;](Catalog/TryGet.md)(…) | Decode an asset, narrowing to the expected type *T* (the decoded definition type). |
