@@ -42,13 +42,17 @@ public repo; never commit it). Read CLAUDE.md before any FR action.
   R11/R12 typed `NodeActivation` surface + EXE-RE of the binding mechanism,
   squash `2614e9b`), and **CL-52** (PR #38, FR-C16 R14 flat
   `ParagonNodeRecipe.Components` + `bActive`-driven activation, squash
-  `d97ff8b`) MERGED to `main`, **unreleased** (no package). No open PRs. New
-  code work starts a fresh branch off `main`; docs-only commit straight to
-  `main` (pref §7).
+  `d97ff8b`), and **CL-54** (PR #40, FR-C16 #26.4 socket disc remapped to the
+  base-disc band + side-panel pip dropped, squash `4d3efaa`) MERGED to `main`,
+  **unreleased** (no package). **OPEN PR: #39** (`fr-c19-selection-highlight-api`,
+  CL-53, `ReadSelectionHighlight()` → authored TiledStyle recipes, commit
+  `b09cf03`) — **CI green, held unmerged** pending owner call (may be folded
+  into the broader Catalog discovery API). New code work starts a fresh branch
+  off `main`; docs-only commit straight to `main` (pref §7).
 - **Published on nuget.org (immutable): `0.1.0-alpha`, `0.2.0-alpha`,
-  `0.3.0-alpha`.** **CL-50/51/52 are unreleased** — on `main`, in no
-  package. Release is owner-driven & batched (never cut for one fix without
-  explicit "release now").
+  `0.3.0-alpha`.** **CL-50/51/52/54 are unreleased** — on `main`, in no
+  package (CL-53 on PR #39). Release is owner-driven & batched (never cut for
+  one fix without explicit "release now").
 - 50/50 Diablo4 + 8/8 transport tests green on live build `3.0.2.71886`.
 - **FR-C16 node recipe is the flat `Components` model (CL-52, R14).** Draw
   every `ParagonNodeComponent` whose `Activation.Evaluate(facts)` holds, in
@@ -62,11 +66,34 @@ public repo; never commit it). Read CLAUDE.md before any FR action.
   engine binds visibility BY NAME in the compiled `ParagonBoardUI`
   controller; EXE field names are hashed/absent; see [[reference_exe-symbol-re]].
 
+### Pending owner-directed design (not an FR) — Catalog discovery API
+
+Owner directed (2026-05-21) a redesign so the Optimizer can **discover**
+recipes/assets dynamically (find / enumerate-with-filter / retrieve) instead
+of hardcoding SNOs+names — and to **future-proof** it to broader retrieval
+(items, weapons, armor, …). Locked decisions: **scope = render recipes +
+paragon domain** (extensible to items later); **retrieval = generic open
+model** (`TryGet(ref, out object)` / `TryGet<T>` over the existing decoded
+types — NOT a closed wrapper union, so new families = one provider, zero core
+edits) **+ keep typed shortcuts**. Planned shape: `d4.Catalog` →
+`Find(AssetQuery)` / `OfKind` / `TryResolve` / `TryGet`, `AssetRef(Kind, Group,
+Sno, Name, Tags)`, internal `IAssetProvider` registry (one per `AssetKind`).
+Phased: (1) backbone + render providers, (2) paragon-domain providers, (3)
+broader-domain seed (Item w/ weapon/armor tags) + ship. **Plan presented,
+not yet started** — was interrupted to fix the #26 socket blocker. Open
+question for delivery: new `casc-fr` FR-C20 to track, or fold into existing
+issues. **PR #39 (selection highlight) may be folded into this** rather than
+merged standalone.
+
 ### Open casc-fr issues (2026-05-21 snapshot — re-poll, this drifts)
 
-- **#26** FR-C16 node render recipe — **CL-52 (flat `Components` + `bActive`
-  model, R14) delivered**, `WiseOwl.Casc@d97ff8b`. Comprehensive R14 closeout
-  spec posted (consumer draws facts→components, no dispatch). `awaiting:optimizer`.
+- **#26** FR-C16 node render recipe — flat `Components` model. **CL-52**
+  (`d97ff8b`) base; **CL-54** (`4d3efaa`) socket-disc fix (#26.4): `Usage_Slot_*`
+  is the `KindSocket` type-disc carrier → its disc children remapped into the
+  base-disc band (below symbol/arrows/connectors), 12² side-panel pip dropped.
+  Owner visually validated ("socket looks good"). `awaiting:optimizer`. Open
+  observation passed back: `Usage_Slot_2[0]` (grey, centred) vs `[1]` (untinted,
+  absolute) are the same handle `0xF6443089`, both `bActive=1` → both draw.
 - **#30** FR-C19 selection-highlight resource — **DELIVERED** (`fr:delivered`,
   `awaiting:optimizer`). Located: atlas `2DUI_SelectionHighlight` (Texture SNO
   **337357**, BC3, 13 frames). Square node selection = 9-slice from 8 corner/edge
