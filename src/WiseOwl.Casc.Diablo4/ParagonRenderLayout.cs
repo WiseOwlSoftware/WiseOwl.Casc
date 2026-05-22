@@ -450,8 +450,9 @@ internal static class ParagonRenderProjection
             // Glyph-socket node composition (base disc, beads, glow) — drawn
             // for the socket KIND (the socket node always shows its base),
             // not merely when a glyph is currently socketed.
-            "Node_Glyph" or "Node_Glyph_Usage_Stack"
-              or "Usage_Slot_1" or "Usage_Slot_2" => A(Eng, NodeFact.KindSocket),
+            // (Usage_Slot_* is handled in NodeRecipe as the socket type-disc
+            // carrier — remapped into the base-disc band — not here.)
+            "Node_Glyph" or "Node_Glyph_Usage_Stack" => A(Eng, NodeFact.KindSocket),
             // Purchased-node add-on: arrows point to PURCHASABLE neighbours,
             // connectors bridge to already-PURCHASED neighbours; both only on a
             // purchased node (owner oracle 2026-05-21).
@@ -1278,13 +1279,34 @@ internal static class ParagonRenderProjection
                     Emit(baseZ + 0.001 * (i + 1), $"{name}[{i}]", h, cf, rect, Finalize(act, cf));
                 }
             }
+            else if (name.StartsWith("Usage_Slot", StringComparison.Ordinal))
+            {
+                // The SOCKET node's on-board type-disc has no Template_Node_*
+                // widget — Template_Node_Socketable is empty. The engine draws
+                // it from the Usage_Slot_* (equipped-glyph side-panel) widgets,
+                // reusing their disc frames on-board (FR-C12 / CL-34). So treat
+                // Usage_Slot_* as the KindSocket type-disc carrier, exactly like
+                // a rarity Template_Node_* widget: emit only its handle-bearing
+                // DISC children, remapped into the base-disc band (below the
+                // symbol/arrows/connectors) so they compose like any base disc.
+                // The widget's OWN hImageFrame (0x3084D186, 12² ) is the
+                // side-panel usage-pip bead — NOT part of the on-board node —
+                // so it is not emitted.
+                for (int j = 0; j < handleChildren.Count; j++)
+                {
+                    var cf = handleChildren[j].Fields;
+                    uint h = (uint)Val(cf, FhImageFrame);
+                    Emit(baseZ + 0.001 * (j + 1), $"{name}[{j}]", h, cf, RectOf(cf),
+                        Finalize(Kind(NodeFact.KindSocket), cf));
+                }
+            }
             else
             {
                 // Non-template widget: emit its own hImageFrame layer (the name
                 // encodes its state — Node_Purchased→selected, Arrow_*→neighbour,
-                // …) plus any handle-bearing child layers (e.g. the glyph-socket
-                // base/overlay nested in Usage_Slot_2). A default-off (bActive=0)
-                // child with no named state is Never (engine-toggled, undecoded).
+                // …) plus any handle-bearing child layers. A default-off
+                // (bActive=0) child with no named state is Never (engine-toggled,
+                // undecoded).
                 uint own = (uint)Val(wd.Fields, FhImageFrame);
                 Emit(k, name, own, wd.Fields, RectOf(wd.Fields), Finalize(BaseActivation(name), wd.Fields));
 
