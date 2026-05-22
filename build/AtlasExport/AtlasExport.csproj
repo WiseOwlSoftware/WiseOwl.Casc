@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    FR-T1 (#31) atlas-export CLI (NOT in WiseOwl.Casc.slnx, NOT packed).
+    A thin browser/exporter over d4.Catalog: list atlases with decode-free
+    facets, or export atlas / per-frame PNGs. Dogfoods the FR-C20 Catalog
+    discovery+retrieval API (Find / TryPeek / TryGet<TextureDefinition> /
+    TryGetAtlasImage). The shipped GUI app is deferred (owner 2026-05-22);
+    this CLI is the interim browse path.
+    Run (see Program.cs header for the full arg grammar): list / export modes
+    over a name substring, optionally per-frame.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="SkiaSharp" Version="2.88.8" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Win32" Version="2.88.8" />
+    <ProjectReference Include="../../src/WiseOwl.Casc.Diablo4/WiseOwl.Casc.Diablo4.csproj" />
+  </ItemGroup>
+
+</Project>
