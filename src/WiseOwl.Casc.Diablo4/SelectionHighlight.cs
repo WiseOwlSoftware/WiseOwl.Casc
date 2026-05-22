@@ -77,6 +77,47 @@ public readonly record struct SelectionHighlightStyle(
     uint SourceImageHandle,
     int AtlasSno);
 
+/// <summary>
+/// FR-C19 — the paragon <b>node mouse-over (hover) selection highlight</b>, as the
+/// engine authors it: the <c>ContextualHighlight_Square</c> recipe (a 4-piece
+/// <c>TiledWindowPieces</c> TiledStyle — the named "square contextual highlight")
+/// paired with its drawable corner art (the 4 corner frames of the
+/// <c>2DUITiled_SelectionHighlight</c> atlas, surfaced via
+/// <c>SelectionRectangleInset</c>'s window-pieces).
+/// <br/><br/>
+/// <b>Drawing recipe (authored, owner-validated):</b> a hollow square border
+/// sized to the node's bounding square. Draw <b>only the 4 corners</b> — each
+/// piece is a full quadrant (corner + both half-edges), so the four meet to
+/// surround the node; place <see cref="TopLeft"/> in the top-left quadrant,
+/// <see cref="TopRight"/> top-right, etc. <b>No edge or centre pieces, no fill</b>
+/// (the node shows through). Resolve each corner handle via the texture path
+/// (<see cref="Diablo4Storage.TryGetIconFrame"/> → decode) for the orange-glow +
+/// white-edge art.
+/// </summary>
+/// <param name="RecipeSno">The <c>ContextualHighlight_Square</c> TiledStyle SNO id
+/// (group <see cref="SnoGroup.UiStyle"/>) — the authored recipe this represents.
+/// <c>0</c> if absent.</param>
+/// <param name="RecipeName">The authored recipe name (<c>ContextualHighlight_Square</c>).</param>
+/// <param name="TopLeft">Top-left corner frame handle.</param>
+/// <param name="TopRight">Top-right corner frame handle.</param>
+/// <param name="BottomRight">Bottom-right corner frame handle.</param>
+/// <param name="BottomLeft">Bottom-left corner frame handle.</param>
+public readonly record struct NodeSelectionHighlight(
+    int RecipeSno,
+    string RecipeName,
+    uint TopLeft,
+    uint TopRight,
+    uint BottomRight,
+    uint BottomLeft)
+{
+    /// <summary>The 4 corner handles (TL, TR, BR, BL) — the complete hollow
+    /// border; draw each in the matching quadrant of the node square.</summary>
+    public IReadOnlyList<uint> Corners => [TopLeft, TopRight, BottomRight, BottomLeft];
+
+    /// <summary>True when the corner art could not be resolved.</summary>
+    public bool IsEmpty => TopLeft == 0 && TopRight == 0 && BottomRight == 0 && BottomLeft == 0;
+}
+
 /// <summary>FR-C19 — node silhouette a <see cref="SelectionHighlightStyle"/>
 /// frames, classified from the authored TiledStyle name.</summary>
 public enum SelectionShape

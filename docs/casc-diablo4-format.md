@@ -1735,6 +1735,28 @@ derived from FR-C14 R8's `snoTiledStyle` crack and R10's variant
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
 
+- **CL-64 — `ReadNodeSelectionHighlight()`: the AUTHORED node hover recipe
+  (`ContextualHighlight_Square`) + its corner art (FR-C19 #30).** Resolution of
+  the CL-62/63 saga, owner-directed ("find the existing recipe, don't invent").
+  The named authored recipe **is** `ContextualHighlight_Square` (TiledStyle
+  2434982) — a `TiledWindowPieces` with **exactly 4 piece handles** (then zeros),
+  `ImageScale` 0.5: the engine's "square contextual (hover) highlight." Its own 4
+  handles are engine-internal (resolve to no texture frame — scanned all 140,197
+  group-44 textures), like the #24 rim. Owner-approved pairing (a): surface
+  `ContextualHighlight_Square` as the recipe with the **drawable corner art** from
+  `SelectionRectangleInset`'s window-pieces (the 4 corners of
+  `2DUITiled_SelectionHighlight` 585030, verified by decoding + viewing each:
+  TL `0x95DA4E78`, TR `0x5192E52B`, BR `0xEA71A5AD`, BL `0xB1C206BA`).
+  `ReadNodeSelectionHighlight()` → `NodeSelectionHighlight(RecipeSno, RecipeName,
+  TL, TR, BR, BL)`. **Drawing recipe (owner-validated):** a hollow square border
+  sized to the node perimeter — draw the **4 corners only**, each in its quadrant
+  (each piece is a full quadrant, so the four meet); **no edges, no centre fill**
+  (the node shows through). The earlier failures were a wrong piece→position
+  mapping (row-major vs corners-CW) + drawing edges/centre. Acceptance:
+  `ReadNodeSelectionHighlight_pairs_recipe_with_corner_art`. New `SnoScan
+  findhandle` + `AtlasExport compose` recon. 53/53 tests green on `3.0.2.71886`.
+  Devlog 0061.
+
 - **CL-63 — RETRACT the CL-62 `TiledWindowPieces` 3×3 placement recipe; the
   composition is engine-side, not in the record (FR-C19 #30).** The consumer
   composed CL-62's 9 pieces per the stated "corners at native, edges stretched,

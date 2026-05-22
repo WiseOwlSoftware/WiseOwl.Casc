@@ -763,6 +763,32 @@ switch (cmd)
         }
         return 0;
     }
+    case "findhandle":
+    {
+        // findhandle <hex> [hex...] — scan EVERY group-44 texture's frames for
+        // the handle (broader than the icon-frame index), to locate art the
+        // icon catalog doesn't index (e.g. ContextualHighlight_Square pieces).
+        if (argv.Count < 2) { Console.Error.WriteLine("findhandle <hex> [hex...]"); return 2; }
+        var targets = new HashSet<uint>();
+        for (int a = 1; a < argv.Count; a++)
+            targets.Add(Convert.ToUInt32(argv[a].Replace("0x", "", StringComparison.OrdinalIgnoreCase), 16));
+        int scanned = 0; var found = new HashSet<uint>();
+        foreach (var e in toc.Entries)
+        {
+            if ((int)e.Group != 44) continue;
+            if (!d4.TextureMeta.TryGet(e.Id, out var td)) continue;
+            scanned++;
+            for (int i = 0; i < td.Frames.Count; i++)
+                if (targets.Contains(td.Frames[i].ImageHandle))
+                {
+                    var (x, y, w, h) = td.Frames[i].PixelRect(td.Width, td.Height);
+                    Console.WriteLine($"0x{td.Frames[i].ImageHandle:X8} -> atlas {e.Id} '{e.Name}' {td.Codec} frame[{i}] {w}x{h} @ ({x},{y})");
+                    found.Add(td.Frames[i].ImageHandle);
+                }
+        }
+        foreach (var t in targets) if (!found.Contains(t)) Console.WriteLine($"0x{t:X8} -> NOT FOUND in {scanned} group-44 textures");
+        return 0;
+    }
     case "framesize":
     {
         // framesize <hex> [hex...] — resolve each texture handle to its owning
