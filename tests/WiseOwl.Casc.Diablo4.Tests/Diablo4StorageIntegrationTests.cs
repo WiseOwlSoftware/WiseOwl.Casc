@@ -1704,6 +1704,22 @@ public sealed class Diablo4StorageIntegrationTests
         var className = glyphClassFacets!.First(f => f.Key == "class").Value;
         Assert.Contains(cat.FindByFacet(AssetKind.ParagonGlyph, "class", className),
             r => r.Kind == AssetKind.ParagonGlyph);
+
+        // P5 — authored relationship traversal: board → node → power, glyph → affix/class.
+        var someBoard = cat.OfKind(AssetKind.ParagonBoard).First(r => cat.TryGet(r, out _));
+        var nodeLinks = cat.Related(someBoard);
+        Assert.NotEmpty(nodeLinks);
+        Assert.All(nodeLinks, l => Assert.Equal(AssetKind.ParagonNode, l.Target.Kind));
+        // node → power: a legendary node links to its passive power.
+        var powerLink = cat.OfKind(AssetKind.ParagonNode).SelectMany(cat.Related)
+            .First(l => l.Role == "power");
+        Assert.Equal(AssetKind.Power, powerLink.Target.Kind);
+        Assert.True(powerLink.Target.Sno > 0);
+        // A glyph links to its affixes + usable classes.
+        var glyphRel = cat.OfKind(AssetKind.ParagonGlyph).Select(cat.Related)
+            .First(ls => ls.Any(l => l.Role == "affix"));
+        Assert.Contains(glyphRel, l => l.Role == "affix" && l.Target.Kind == AssetKind.ParagonGlyphAffix);
+        Assert.Contains(glyphRel, l => l.Role == "class" && l.Target.Kind == AssetKind.PlayerClass);
     }
 
     /// <summary>FR-C11 R3 §2 — scene-bound binding on the
