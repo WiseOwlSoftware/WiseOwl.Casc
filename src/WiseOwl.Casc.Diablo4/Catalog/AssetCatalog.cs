@@ -215,6 +215,24 @@ public sealed class Catalog
         return false;
     }
 
+    /// <summary>FR-C20 P1 — like <see cref="TryResolveHandle"/> but also yields
+    /// the handle's <see cref="TexFrame"/> (UV rect) directly, saving the
+    /// follow-up <c>TryGet(atlas)</c> + <c>Frames[i]</c> step. Use
+    /// <c>frame.PixelRect(facets.Width, facets.Height)</c> (facets via
+    /// <see cref="TryPeek"/>) for the pixel rect.</summary>
+    public bool TryResolveFrame(uint handle, out AssetRef atlas, out TexFrame frame)
+    {
+        if (handle is not 0u and not 0xFFFFFFFFu &&
+            _d4.TryGetIconFrame(handle, out var atlasSno, out frame))
+        {
+            atlas = AssetProviders.AtlasRef(_d4, atlasSno);
+            return true;
+        }
+        atlas = default;
+        frame = default;
+        return false;
+    }
+
     /// <summary>FR-C20 P2 — decode-free metadata peek: cheap facets for filtering
     /// big kinds without a full <see cref="TryGet(AssetRef, out object)"/>.
     /// Populated for <see cref="AssetKind.TextureAtlas"/> (dimensions, frame
@@ -229,6 +247,63 @@ public sealed class Catalog
             return true;
         }
         facets = default;
+        return false;
+    }
+
+    /// <summary>FR-C20 P3 — decode a whole <see cref="AssetKind.TextureAtlas"/>
+    /// mip0 to RGBA pixels (the atlas-browser path: discover → peek → retrieve).
+    /// Returns <see langword="false"/> (no throw) for a non-atlas ref, an
+    /// unsupported codec (only BC1/BC3 decode today — check
+    /// <see cref="AssetFacets.Codec"/> via <see cref="TryPeek"/>), or an absent
+    /// payload.</summary>
+    public bool TryGetAtlasImage(AssetRef atlas, out DecodedImage image)
+    {
+        if (atlas.Kind == AssetKind.TextureAtlas)
+            return TryDecodeAtlas(atlas.Sno, out image, out _);
+        image = default;
+        return false;
+    }
+
+    /// <summary>FR-C20 P3 — decode the single frame a texture <paramref name="handle"/>
+    /// names, cropped from its owning atlas mip0. Pairs with
+    /// <see cref="TryResolveHandle"/> for "what does this handle look like?".
+    /// Returns <see langword="false"/> for an unresolved/sentinel handle, an
+    /// unsupported codec, or an absent payload. (Decodes the owning atlas per
+    /// call — to slice many frames of one atlas, call
+    /// <see cref="TryGetAtlasImage"/> once and crop with
+    /// <c>TextureDefinition.Frames[i].PixelRect</c>.)</summary>
+    public bool TryGetFrameImage(uint handle, out DecodedImage image)
+    {
+        if (TryResolveHandle(handle, out var atlas, out var frameIndex) && frameIndex >= 0 &&
+            TryDecodeAtlas(atlas.Sno, out var full, out var td))
+        {
+            var (x, y, w, h) = td!.Frames[frameIndex].PixelRect(td.Width, td.Height);
+            image = new DecodedImage(w, h, full.Crop(x, y, w, h));
+            return true;
+        }
+        image = default;
+        return false;
+    }
+
+    private bool TryDecodeAtlas(int sno, out DecodedImage image, out TextureDefinition? td)
+    {
+        td = null;
+        try
+        {
+            if (_d4.TextureMeta.TryGet(sno, out var meta) &&
+                _d4.TryReadSno(SnoGroup.Texture, sno, SnoFolder.Payload, out var payload))
+            {
+                td = meta;
+                image = meta.DecodeMip0(payload);
+                return true;
+            }
+        }
+        catch (Exception ex) when (ex is NotSupportedException or CascException or FormatException
+            or ArgumentException or System.IO.IOException or IndexOutOfRangeException or OverflowException)
+        {
+            // unsupported codec / malformed / absent payload → not decodable.
+        }
+        image = default;
         return false;
     }
 
