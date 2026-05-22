@@ -153,6 +153,17 @@ public enum FacetSource
 /// <param name="Source">Where the value came from.</param>
 public readonly record struct Facet(string Key, string Value, FacetSource Source);
 
+/// <summary>FR-C20 P5 — one authored relationship edge from an asset to another
+/// (e.g. a board to one of its nodes, a node to its passive power, a glyph to an
+/// affix it grants). The <see cref="Target"/> is a full <see cref="AssetRef"/>,
+/// so traversal chains: <see cref="Catalog.Related"/> the target again. Only
+/// <b>authored</b> FK edges are surfaced — runtime relationships (e.g. which
+/// glyph a player has socketed into a node) are <i>not</i> links.</summary>
+/// <param name="Role">The edge label (e.g. <c>node</c>, <c>power</c>,
+/// <c>affix</c>, <c>class</c>).</param>
+/// <param name="Target">The related asset.</param>
+public readonly record struct AssetLink(string Role, AssetRef Target);
+
 /// <summary>
 /// FR-C20 — a provider for one <see cref="AssetKind"/>: it enumerates the kind's
 /// <see cref="AssetRef"/>s from <c>CoreTOC</c> and decodes one into its
@@ -339,6 +350,48 @@ public sealed class Catalog
         OfKind(kind).Where(r => Facets(r).Any(f =>
             f.Key.Equals(key, StringComparison.OrdinalIgnoreCase) &&
             f.Value.Equals(value, StringComparison.OrdinalIgnoreCase)));
+
+    /// <summary>FR-C20 P5 — the asset's authored relationship edges, so
+    /// <b>board → node → power</b> and <b>glyph → affix / class</b> traversal is
+    /// first-class instead of hand-assembled. Each <see cref="AssetLink.Target"/>
+    /// is a full <see cref="AssetRef"/> — call <see cref="Related"/> on it to
+    /// chain. Authored FK edges only:
+    /// <list type="bullet">
+    /// <item><see cref="AssetKind.ParagonBoard"/> → <c>node</c> (distinct
+    /// non-empty cells).</item>
+    /// <item><see cref="AssetKind.ParagonNode"/> → <c>power</c> (its
+    /// <c>SnoPassivePower</c>, when set — the legendary-node passive).</item>
+    /// <item><see cref="AssetKind.ParagonGlyph"/> → <c>affix</c> (granted) +
+    /// <c>class</c> (usable-by).</item>
+    /// </list>
+    /// A socket node ↔ glyph is a <b>runtime</b> slotting, not an authored FK, so
+    /// it is deliberately not a link; find candidate glyphs for a class via
+    /// <see cref="FindByFacet"/>.</summary>
+    public IReadOnlyList<AssetLink> Related(AssetRef asset)
+    {
+        var links = new List<AssetLink>();
+        switch (asset.Kind)
+        {
+            case AssetKind.ParagonBoard when TryGet<ParagonBoardDefinition>(asset, out var b):
+                foreach (var nodeSno in b.Cells.Where(c => c is > 0).Select(c => c!.Value).Distinct())
+                    links.Add(new AssetLink("node", Ref(AssetKind.ParagonNode, SnoGroup.ParagonNode, nodeSno)));
+                break;
+            case AssetKind.ParagonNode when TryGet<ParagonNodeDefinition>(asset, out var n):
+                if (n.SnoPassivePower > 0)   // negative/zero = no passive power (sentinel)
+                    links.Add(new AssetLink("power", Ref(AssetKind.Power, SnoGroup.Power, n.SnoPassivePower)));
+                break;
+            case AssetKind.ParagonGlyph when TryGet<ParagonGlyphDefinition>(asset, out var g):
+                foreach (var affix in g.AffixSnoIds.Where(a => a > 0))
+                    links.Add(new AssetLink("affix", Ref(AssetKind.ParagonGlyphAffix, SnoGroup.ParagonGlyphAffix, affix)));
+                foreach (var cls in g.UsableByClassSnoIds.Where(c => c > 0))
+                    links.Add(new AssetLink("class", Ref(AssetKind.PlayerClass, SnoGroup.PlayerClass, cls)));
+                break;
+        }
+        return links;
+    }
+
+    private AssetRef Ref(AssetKind kind, SnoGroup group, int sno) =>
+        new(kind, group, sno, _d4.CoreToc.GetName(group, sno) ?? string.Empty, Array.Empty<string>());
 
     /// <summary>FR-C20 P3 — decode a whole <see cref="AssetKind.TextureAtlas"/>
     /// mip0 to RGBA pixels (the atlas-browser path: discover → peek → retrieve).

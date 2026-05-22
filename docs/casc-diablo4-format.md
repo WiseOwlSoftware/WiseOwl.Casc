@@ -1735,6 +1735,23 @@ derived from FR-C14 R8's `snoTiledStyle` crack and R10's variant
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
 
+- **CL-60 — `Catalog` authored relationship traversal (FR-C20 P5).** The last
+  consensus item: `Catalog.Related(AssetRef)` → `IReadOnlyList<AssetLink>` where
+  `AssetLink(Role, AssetRef Target)` makes **board → node → power** and **glyph
+  → affix / class** first-class instead of hand-assembled (each `Target` is a
+  full `AssetRef`, so traversal chains). Authored FK edges only, from the
+  decoded definitions:
+  - `ParagonBoard` → `node` (distinct `Cells`).
+  - `ParagonNode` → `power` (`SnoPassivePower`, when **> 0** — the legendary-node
+    passive; negative/zero is the no-power sentinel).
+  - `ParagonGlyph` → `affix` (`AffixSnoIds`) + `class` (`UsableByClassSnoIds`).
+  A socket node ↔ glyph is **runtime** slotting, not an authored FK, so it is
+  deliberately not a link — find candidate glyphs for a class via `FindByFacet`.
+  All target SNO ids filtered `> 0` (drops sentinels). Acceptance:
+  `Catalog_discovers_…` extended (board→node→power chain; glyph→affix/class).
+  51/51 tests green on `3.0.2.71886`. Devlog 0058. **Closes the FR-C20 consensus
+  backlog** (power→class deferred — no consumer need).
+
 - **CL-59 — `Catalog` provenance-marked categorical facets (FR-C20 P2b, marked-A).**
   Per the consumer's "A now + B upgrade" decision: `Catalog.Facets(AssetRef)` →
   `IReadOnlyList<Facet>` where `Facet(Key, Value, FacetSource)` carries
