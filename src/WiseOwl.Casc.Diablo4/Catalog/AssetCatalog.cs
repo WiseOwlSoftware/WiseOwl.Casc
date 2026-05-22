@@ -100,6 +100,20 @@ public sealed record AssetQuery
 }
 
 /// <summary>
+/// FR-C20 P2 — cheap, decode-free facets of an asset, for filtering large kinds
+/// without fully decoding each. Fields are nullable: only those a kind can
+/// supply without a full decode are populated (today: texture-atlas dimensions /
+/// frame count / codec). Item/power/glyph categorical facets ride on
+/// <see cref="AssetRef.Tags"/> as they are derived.
+/// </summary>
+/// <param name="Width">Atlas pixel width, if applicable.</param>
+/// <param name="Height">Atlas pixel height, if applicable.</param>
+/// <param name="FrameCount">Number of atlas frames, if applicable.</param>
+/// <param name="Codec">Texture codec, if applicable.</param>
+public readonly record struct AssetFacets(
+    int? Width, int? Height, int? FrameCount, TextureCodec? Codec);
+
+/// <summary>
 /// FR-C20 — a provider for one <see cref="AssetKind"/>: it enumerates the kind's
 /// <see cref="AssetRef"/>s from <c>CoreTOC</c> and decodes one into its
 /// strongly-typed definition. Internal — the extension point for new families.
@@ -130,10 +144,14 @@ internal interface IAssetProvider
 /// </summary>
 public sealed class Catalog
 {
+    private readonly Diablo4Storage _d4;
     private readonly IReadOnlyList<IAssetProvider> _providers;
 
-    internal Catalog(Diablo4Storage d4) =>
+    internal Catalog(Diablo4Storage d4)
+    {
+        _d4 = d4;
         _providers = AssetProviders.For(d4);
+    }
 
     /// <summary>Discover assets matching <paramref name="query"/> (lazy). A
     /// <see langword="null"/> query yields every catalogued asset.</summary>
@@ -161,6 +179,58 @@ public sealed class Catalog
     /// <summary>Every asset of a kind (lazy).</summary>
     public IEnumerable<AssetRef> OfKind(AssetKind kind) =>
         Find(new AssetQuery { Kind = kind });
+
+    /// <summary>FR-C20 P4 — discover <b>and decode</b> in one lazy pass:
+    /// enumerate <paramref name="query"/> and yield each asset already decoded
+    /// to <typeparamref name="T"/>, silently skipping non-matching kinds and
+    /// undecodable blobs. The ergonomic "give me every <see cref="TiledStyleDefinition"/>"
+    /// shortcut.</summary>
+    public IEnumerable<T> Find<T>(AssetQuery? query = null)
+    {
+        foreach (var r in Find(query))
+            if (TryGet<T>(r, out var v))
+                yield return v;
+    }
+
+    /// <summary>FR-C20 P1 — reverse-lookup: resolve a raw texture
+    /// <paramref name="handle"/> to the <see cref="AssetKind.TextureAtlas"/> that
+    /// contains it and the handle's <paramref name="frameIndex"/> within that
+    /// atlas (use <c>TextureDefinition.Frames[frameIndex]</c> for its UVs/rect).
+    /// Returns <see langword="false"/> for a handle that resolves to no atlas
+    /// frame (e.g. an engine-internal/non-texture handle).</summary>
+    public bool TryResolveHandle(uint handle, out AssetRef atlas, out int frameIndex)
+    {
+        if (handle is not 0u and not 0xFFFFFFFFu &&
+            _d4.TryGetIconFrame(handle, out var atlasSno, out _) &&
+            _d4.TextureMeta.TryGet(atlasSno, out var td))
+        {
+            frameIndex = -1;
+            for (int i = 0; i < td.Frames.Count; i++)
+                if (td.Frames[i].ImageHandle == handle) { frameIndex = i; break; }
+            atlas = AssetProviders.AtlasRef(_d4, atlasSno);
+            return true;
+        }
+        atlas = default;
+        frameIndex = -1;
+        return false;
+    }
+
+    /// <summary>FR-C20 P2 — decode-free metadata peek: cheap facets for filtering
+    /// big kinds without a full <see cref="TryGet(AssetRef, out object)"/>.
+    /// Populated for <see cref="AssetKind.TextureAtlas"/> (dimensions, frame
+    /// count, codec) from the preloaded combined-meta. Returns
+    /// <see langword="false"/> when no cheap facet is available for the kind.</summary>
+    public bool TryPeek(AssetRef asset, out AssetFacets facets)
+    {
+        if (asset.Kind == AssetKind.TextureAtlas &&
+            _d4.TextureMeta.TryGet(asset.Sno, out var td))
+        {
+            facets = new AssetFacets(td.Width, td.Height, td.Frames.Count, td.Codec);
+            return true;
+        }
+        facets = default;
+        return false;
+    }
 
     /// <summary>Resolve a kind's asset by its <c>CoreTOC</c> name
     /// (case-insensitive).</summary>

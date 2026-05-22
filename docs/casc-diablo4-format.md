@@ -1735,6 +1735,24 @@ derived from FR-C14 R8's `snoTiledStyle` crack and R10's variant
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
 
+- **CL-56 — `Catalog` iteration 1 from consumer feedback: handle reverse-lookup
+  + decode-free atlas facets + typed enumerator (FR-C20 P1/P2/P4).** The
+  Optimizer consume-tested CL-55 (34,268 assets / 14 kinds) and prioritised
+  gaps. Shipped:
+  - **P1 `TryResolveHandle(handle, out AssetRef atlas, out int frameIndex)`** —
+    reverse a raw texture handle to its owning `TextureAtlas` asset + frame
+    index (over `TryGetIconFrame`). Sentinel `0`/`0xFFFFFFFF` → `false`. Retires
+    the recurring "what is this handle?" round-trip.
+  - **P2 `TryPeek(ref, out AssetFacets)`** — decode-free atlas facets
+    (`Width/Height/FrameCount/Codec`) from the preloaded combined-meta, plus a
+    filterable `codec:<codec>` tag on every `TextureAtlas` ref — filter the 4.7k
+    atlases without decoding pixels. (Item/power/glyph categorical facets are
+    deferred to P2b pending a cheap authored source.)
+  - **P4 `Find<T>(query)`** — typed lazy enumerator yielding decoded `T`,
+    skipping non-matching kinds and undecodable blobs.
+  Acceptance: `Catalog_discovers_and_retrieves_assets_by_kind_filter` extended.
+  51/51 tests green on `3.0.2.71886`. Devlog 0055.
+
 - **CL-55 — `Catalog` asset discovery/retrieval API (`d4.Catalog`, FR-C20).**
   A facade so the consumer can **find / enumerate (filtered) / retrieve** any
   catalogued recipe or definition without hardcoding SNO ids/names or knowing

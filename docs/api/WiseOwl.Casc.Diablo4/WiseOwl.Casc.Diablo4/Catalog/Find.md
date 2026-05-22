@@ -1,4 +1,4 @@
-# Catalog.Find method
+# Catalog.Find method (1 of 2)
 
 Discover assets matching *query* (lazy). A `null` query yields every catalogued asset.
 
@@ -9,6 +9,22 @@ public IEnumerable<AssetRef> Find(AssetQuery? query = null)
 ## See Also
 
 * struct [AssetRef](../AssetRef.md)
+* record [AssetQuery](../AssetQuery.md)
+* class [Catalog](../Catalog.md)
+* namespace [WiseOwl.Casc.Diablo4](../../WiseOwl.Casc.Diablo4.md)
+
+---
+
+# Catalog.Find&lt;T&gt; method (2 of 2)
+
+FR-C20 P4 — discover and decode in one lazy pass: enumerate *query* and yield each asset already decoded to *T*, silently skipping non-matching kinds and undecodable blobs. The ergonomic "give me every [`TiledStyleDefinition`](../TiledStyleDefinition.md)" shortcut.
+
+```csharp
+public IEnumerable<T> Find<T>(AssetQuery? query = null)
+```
+
+## See Also
+
 * record [AssetQuery](../AssetQuery.md)
 * class [Catalog](../Catalog.md)
 * namespace [WiseOwl.Casc.Diablo4](../../WiseOwl.Casc.Diablo4.md)

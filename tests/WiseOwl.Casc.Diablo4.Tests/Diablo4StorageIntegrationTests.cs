@@ -1650,6 +1650,29 @@ public sealed class Diablo4StorageIntegrationTests
 
         // The typed shortcut still works and agrees with the provider.
         Assert.False(d4.ReadSelectionHighlight().IsEmpty);
+
+        // P4 — typed lazy enumerator yields decoded values directly.
+        Assert.NotNull(cat.Find<TiledStyleDefinition>(
+            new AssetQuery { Kind = AssetKind.TiledStyle }).First());
+
+        // P2 — decode-free atlas facets + filterable codec tag.
+        var selAtlas = cat.Find(new AssetQuery
+        {
+            Kind = AssetKind.TextureAtlas, NameContains = "2DUI_SelectionHighlight",
+        }).First();
+        Assert.True(cat.TryPeek(selAtlas, out var facets));
+        Assert.True(facets.Width > 0 && facets.FrameCount > 0);
+        Assert.Contains(selAtlas.Tags, t => t.StartsWith("codec:", StringComparison.Ordinal));
+        Assert.Equal(TextureCodec.Bc3, facets.Codec);
+
+        // P1 — handle reverse-lookup: a known selection handle resolves to its
+        // owning atlas + frame index; a null handle does not.
+        Assert.True(cat.TryResolveHandle(0xBA7D2638u, out var owner, out var frameIdx));
+        Assert.Equal(AssetKind.TextureAtlas, owner.Kind);
+        Assert.True(frameIdx >= 0);
+        Assert.True(cat.TryGet<TextureDefinition>(owner, out var ownerTd));
+        Assert.Equal(0xBA7D2638u, ownerTd.Frames[frameIdx].ImageHandle);
+        Assert.False(cat.TryResolveHandle(0x00000000u, out _, out _));
     }
 
     /// <summary>FR-C11 R3 §2 — scene-bound binding on the
