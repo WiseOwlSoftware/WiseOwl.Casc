@@ -1735,6 +1735,25 @@ derived from FR-C14 R8's `snoTiledStyle` crack and R10's variant
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
 
+- **CL-59 — `Catalog` provenance-marked categorical facets (FR-C20 P2b, marked-A).**
+  Per the consumer's "A now + B upgrade" decision: `Catalog.Facets(AssetRef)` →
+  `IReadOnlyList<Facet>` where `Facet(Key, Value, FacetSource)` carries
+  provenance (`NameConvention` / `Decoded` / `SceneField`, mirroring
+  `NodeActivationSource`); `Catalog.FindByFacet(kind, key, value)` filters by it.
+  Shipped facets:
+  - **`ParagonGlyph` → `class`** (one per usable class), `Decoded` from
+    `ParagonGlyphDefinition.UsableByClassSnoIds` → `PlayerClass` name (the
+    consumer's prioritised facet; glyphs filter by class).
+  - **`TextureAtlas` → `codec`**, `Decoded` (decode-free meta).
+  - **`Power` → `class`: no cheap source** — `PowerDefinition` carries no class,
+    `PlayerClass` carries no power list, and power names don't encode class
+    (most of the 9,781 are engine/AI powers). Not faked; needs a skill/balance
+    table RE (raised on #32). **Item** type/rarity/class (`NameConvention` from
+    `<Type>_<Rarity>_<Class>` SNO names) deferred — consumer-deprioritised
+    (items ≠ paragon critical path).
+  Acceptance: `Catalog_discovers_…` extended (glyph class = `Decoded`;
+  `FindByFacet`). 51/51 tests green on `3.0.2.71886`. Devlog 0057.
+
 - **CL-58 — `Catalog` query ergonomics: `DecodableOnly` + `OrderByName` (FR-C20
   Q2); `AssetRef` identity/stability documented (Q4).** `AssetQuery.DecodableOnly`
   yields only assets that decode (drops the "Bad Data" board; cost = a decode

@@ -128,6 +128,31 @@ public sealed record AssetQuery
 public readonly record struct AssetFacets(
     int? Width, int? Height, int? FrameCount, TextureCodec? Codec);
 
+/// <summary>FR-C20 P2b — where a categorical <see cref="Facet"/>'s value came
+/// from, so the consumer knows how much to trust it (mirrors
+/// <c>NodeActivationSource</c>). Discovery/filtering may use any source;
+/// authored rendering must not lean on <see cref="NameConvention"/>.</summary>
+public enum FacetSource
+{
+    /// <summary>Parsed from the SNO's authored name convention (a convenience;
+    /// not blob-verified).</summary>
+    NameConvention,
+    /// <summary>Read from the decoded definition (blob-verified).</summary>
+    Decoded,
+    /// <summary>Read from an authored scene/binding field.</summary>
+    SceneField,
+}
+
+/// <summary>FR-C20 P2b — one categorical facet of an asset (e.g.
+/// <c>class=Barbarian</c>), with its <see cref="Source"/> provenance. Use for
+/// discovery/filtering (see <see cref="Catalog.Facets"/> /
+/// <see cref="Catalog.FindByFacet"/>); an asset may carry several of the same
+/// <see cref="Key"/> (e.g. a glyph usable by multiple classes).</summary>
+/// <param name="Key">The facet name (e.g. <c>class</c>, <c>rarity</c>, <c>type</c>, <c>codec</c>).</param>
+/// <param name="Value">The facet value (e.g. <c>Barbarian</c>).</param>
+/// <param name="Source">Where the value came from.</param>
+public readonly record struct Facet(string Key, string Value, FacetSource Source);
+
 /// <summary>
 /// FR-C20 — a provider for one <see cref="AssetKind"/>: it enumerates the kind's
 /// <see cref="AssetRef"/>s from <c>CoreTOC</c> and decodes one into its
@@ -275,6 +300,45 @@ public sealed class Catalog
         facets = default;
         return false;
     }
+
+    /// <summary>FR-C20 P2b — the asset's categorical <see cref="Facet"/>s with
+    /// provenance, for discovery/filtering. Populated today:
+    /// <list type="bullet">
+    /// <item><see cref="AssetKind.ParagonGlyph"/> → <c>class</c> (one per usable
+    /// class), <see cref="FacetSource.Decoded"/> from
+    /// <c>ParagonGlyphDefinition.UsableByClassSnoIds</c>.</item>
+    /// <item><see cref="AssetKind.TextureAtlas"/> → <c>codec</c>,
+    /// <see cref="FacetSource.Decoded"/> (decode-free meta).</item>
+    /// </list>
+    /// Item type/rarity/class (<see cref="FacetSource.NameConvention"/>) and
+    /// power class are not yet surfaced — no cheap authored source for power
+    /// class (neither <c>PowerDefinition</c> nor <c>PlayerClass</c> carries the
+    /// linkage). Glyph facets decode the glyph (cheap; 562 in the group).</summary>
+    public IReadOnlyList<Facet> Facets(AssetRef asset)
+    {
+        var list = new List<Facet>();
+        switch (asset.Kind)
+        {
+            case AssetKind.ParagonGlyph when TryGet<ParagonGlyphDefinition>(asset, out var g):
+                foreach (var classSno in g.UsableByClassSnoIds)
+                    if (_d4.CoreToc.GetName(SnoGroup.PlayerClass, classSno) is { Length: > 0 } cn)
+                        list.Add(new Facet("class", cn, FacetSource.Decoded));
+                break;
+            case AssetKind.TextureAtlas when TryPeek(asset, out var f) && f.Codec is { } codec:
+                list.Add(new Facet("codec", codec.ToString().ToLowerInvariant(), FacetSource.Decoded));
+                break;
+        }
+        return list;
+    }
+
+    /// <summary>FR-C20 P2b — discover assets of a kind carrying a categorical
+    /// facet (e.g. every <see cref="AssetKind.ParagonGlyph"/> with
+    /// <c>class=Barbarian</c>). Computes <see cref="Facets"/> per asset (decodes
+    /// where the facet requires it), so scope with <paramref name="kind"/>.</summary>
+    public IEnumerable<AssetRef> FindByFacet(AssetKind kind, string key, string value) =>
+        OfKind(kind).Where(r => Facets(r).Any(f =>
+            f.Key.Equals(key, StringComparison.OrdinalIgnoreCase) &&
+            f.Value.Equals(value, StringComparison.OrdinalIgnoreCase)));
 
     /// <summary>FR-C20 P3 — decode a whole <see cref="AssetKind.TextureAtlas"/>
     /// mip0 to RGBA pixels (the atlas-browser path: discover → peek → retrieve).
