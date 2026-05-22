@@ -11,10 +11,13 @@ public sealed class Catalog
 | name | description |
 | --- | --- |
 | [Find](Catalog/Find.md)(…) | Discover assets matching *query* (lazy). A `null` query yields every catalogued asset. |
+| [Find&lt;T&gt;](Catalog/Find.md)(…) | FR-C20 P4 — discover and decode in one lazy pass: enumerate *query* and yield each asset already decoded to *T*, silently skipping non-matching kinds and undecodable blobs. The ergonomic "give me every [`TiledStyleDefinition`](./TiledStyleDefinition.md)" shortcut. |
 | [OfKind](Catalog/OfKind.md)(…) | Every asset of a kind (lazy). |
 | [TryGet](Catalog/TryGet.md)(…) | Decode an asset into its strongly-typed definition (the real type — e.g. [`TiledStyleDefinition`](./TiledStyleDefinition.md), [`ItemDefinition`](./ItemDefinition.md)). Returns `false` (no throw) on a malformed/absent blob or an unknown kind. (2 methods) |
 | [TryGet&lt;T&gt;](Catalog/TryGet.md)(…) | Decode an asset, narrowing to the expected type *T* (the decoded definition type). |
+| [TryPeek](Catalog/TryPeek.md)(…) | FR-C20 P2 — decode-free metadata peek: cheap facets for filtering big kinds without a full [`TryGet`](./Catalog/TryGet.md). Populated for TextureAtlas (dimensions, frame count, codec) from the preloaded combined-meta. Returns `false` when no cheap facet is available for the kind. |
 | [TryResolve](Catalog/TryResolve.md)(…) | Resolve a kind's asset by its `CoreTOC` name (case-insensitive). |
+| [TryResolveHandle](Catalog/TryResolveHandle.md)(…) | FR-C20 P1 — reverse-lookup: resolve a raw texture *handle* to the TextureAtlas that contains it and the handle's *frameIndex* within that atlas (use `TextureDefinition.Frames[frameIndex]` for its UVs/rect). Returns `false` for a handle that resolves to no atlas frame (e.g. an engine-internal/non-texture handle). |
 
 ## See Also
 

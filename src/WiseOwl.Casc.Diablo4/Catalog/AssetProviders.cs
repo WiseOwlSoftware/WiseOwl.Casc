@@ -35,7 +35,7 @@ internal static class AssetProviders
                 decode: id => d4.TryReadTiledStyle(id, out var ts) ? ts : null),
             new SnoProvider(AssetKind.TextureAtlas, true, SnoGroup.Texture, toc,
                 filter: e => e.Name.StartsWith("2DUI", StringComparison.OrdinalIgnoreCase),
-                tagger: _ => ["2dui"],
+                tagger: e => AtlasTags(d4, e.Id),
                 decode: id => d4.TextureMeta.TryGet(id, out var td) ? td : (object?)null),
             new SelectionHighlightProvider(d4),
 
@@ -63,6 +63,21 @@ internal static class AssetProviders
                 null, null, id => d4.ReadAffix(id, loc)),
         ];
     }
+
+    /// <summary>Cheap, filterable atlas tags from the preloaded combined-meta:
+    /// <c>2dui</c> + <c>codec:&lt;codec&gt;</c> (so a query can filter by codec
+    /// without decoding pixels). Missing meta ⇒ just <c>2dui</c>.</summary>
+    internal static IReadOnlyList<string> AtlasTags(Diablo4Storage d4, int sno) =>
+        d4.TextureMeta.TryGet(sno, out var td)
+            ? ["2dui", $"codec:{td.Codec.ToString().ToLowerInvariant()}"]
+            : ["2dui"];
+
+    /// <summary>Build the <see cref="AssetKind.TextureAtlas"/> ref for a SNO
+    /// (used by handle reverse-lookup), with the same name + tags an enumerate
+    /// would produce.</summary>
+    internal static AssetRef AtlasRef(Diablo4Storage d4, int sno) =>
+        new(AssetKind.TextureAtlas, SnoGroup.Texture, sno,
+            d4.CoreToc.GetName(SnoGroup.Texture, sno) ?? string.Empty, AtlasTags(d4, sno));
 }
 
 /// <summary>FR-C20 — a per-SNO provider: enumerates a <see cref="SnoGroup"/>
