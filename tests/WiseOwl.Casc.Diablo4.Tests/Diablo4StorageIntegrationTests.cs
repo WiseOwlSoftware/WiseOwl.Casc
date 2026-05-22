@@ -1605,6 +1605,53 @@ public sealed class Diablo4StorageIntegrationTests
         Assert.False(ByHandle(MagicUnselDisc).Activation.Evaluate(commonUnpurch));  // magic disc off on a common node
     }
 
+    [SkippableFact]
+    public void Catalog_discovers_and_retrieves_assets_by_kind_filter()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+        var cat = d4.Catalog;
+
+        // Singleton render recipe: discover + retrieve the real decoded type.
+        var nodeRef = Assert.Single(cat.OfKind(AssetKind.ParagonNodeRender).ToList());
+        Assert.True(cat.TryGet<ParagonNodeRecipe>(nodeRef, out var recipe));
+        Assert.NotEmpty(recipe.Components);
+
+        // Selection highlight: authored TiledStyle recipes, shape-tagged from
+        // the engine's own names (folded into the Catalog as one provider).
+        var circle = cat.Find(new AssetQuery
+        {
+            Kind = AssetKind.SelectionHighlight, NameContains = "ControllerSelectionCircle",
+        }).Single();
+        Assert.Contains("circle", circle.Tags);
+        Assert.True(cat.TryGet<TiledStyleDefinition>(circle, out _));
+
+        // Name resolution + a TextureAtlas filtered by name.
+        Assert.True(cat.TryResolve(AssetKind.TiledStyle, "SelectionRectangleInset", out _));
+        var atlas = cat.Find(new AssetQuery
+        {
+            Kind = AssetKind.TextureAtlas, NameContains = "2DUI_SelectionHighlight",
+        }).First();
+        Assert.Contains("2dui", atlas.Tags);
+        Assert.True(cat.TryGet<TextureDefinition>(atlas, out _));
+
+        // A paragon-domain kind is discoverable + retrievable too. (TryGet is
+        // exception-safe: the group's leading "Bad Data" placeholder doesn't
+        // decode — find the first that does.)
+        var board = cat.OfKind(AssetKind.ParagonBoard)
+            .Select(r => cat.TryGet(r, out var v) ? v : null)
+            .First(v => v is not null);
+        Assert.IsType<ParagonBoardDefinition>(board);
+
+        // RenderRecipesOnly excludes the domain kinds.
+        Assert.DoesNotContain(cat.Find(new AssetQuery { RenderRecipesOnly = true }),
+            r => r.Kind is AssetKind.ParagonBoard or AssetKind.Item or AssetKind.Power);
+
+        // The typed shortcut still works and agrees with the provider.
+        Assert.False(d4.ReadSelectionHighlight().IsEmpty);
+    }
+
     /// <summary>FR-C11 R3 §2 — scene-bound binding on the
     /// <c>Common_Node_Revealed</c> widget. <c>0xC1473C21</c> via the
     /// standard <c>0x6B1C5D9C</c> texture-handle field; authored rect

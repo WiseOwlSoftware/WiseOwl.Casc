@@ -52,6 +52,7 @@ public sealed class Diablo4Storage : IDisposable
     private readonly Dictionary<string, IReadOnlyList<CharacterClass>> _classes = new(StringComparer.OrdinalIgnoreCase);
     private (int SnoId, string SnoName)[]? _classRoster;
     private (int SnoId, int Rank)[]? _classRanks;
+    private Catalog? _catalog;
     private readonly object _gate = new();
 
     /// <summary>The default locale (the one most installs ship enabled).</summary>
@@ -66,6 +67,12 @@ public sealed class Diablo4Storage : IDisposable
 
     /// <summary>The master SNO directory, parsed from <c>Base\CoreTOC.dat</c>.</summary>
     public CoreToc CoreToc { get; }
+
+    /// <summary>FR-C20 — the asset discovery/retrieval facade: find / enumerate
+    /// (filtered) / retrieve any catalogued recipe or definition without
+    /// hardcoding SNO ids/names. The typed accessors below are ergonomic
+    /// shortcuts over the same providers.</summary>
+    public Catalog Catalog => _catalog ??= new Catalog(this);
 
     /// <summary>The underlying game-agnostic CASC storage.</summary>
     public CascStorage Casc => _casc;
@@ -821,6 +828,36 @@ public sealed class Diablo4Storage : IDisposable
     /// </summary>
     public ParagonBoardGrid ReadParagonBoardGrid() =>
         ParagonRenderProjection.BoardGrid(ReadUiScene(657304));
+
+    /// <summary>
+    /// FR-C19 — read the mouse-over / cursor <see cref="SelectionHighlight"/>:
+    /// the authored selection-highlight <see cref="TiledStyleDefinition">TiledStyle</see>
+    /// recipes, as a typed shortcut over <see cref="Catalog"/>
+    /// (<c>Find(AssetKind.SelectionHighlight)</c>). The consumer draws the
+    /// matching style <b>topmost</b> over a selected node and applies it via
+    /// <see cref="ReadTiledStyle"/>. Empty (<see cref="SelectionHighlight.IsEmpty"/>)
+    /// if the selection atlases are absent.
+    /// </summary>
+    public SelectionHighlight ReadSelectionHighlight()
+    {
+        var styles = new List<SelectionHighlightStyle>();
+        foreach (var r in Catalog.OfKind(AssetKind.SelectionHighlight))
+            if (Catalog.TryGet<TiledStyleDefinition>(r, out var ts))
+                styles.Add(new SelectionHighlightStyle(
+                    r.Sno, r.Name, SelectionHighlight.ShapeOf(r.Name),
+                    ts.SourceImageHandle, AtlasOf(r)));
+        styles.Sort(static (a, b) => string.CompareOrdinal(a.Name, b.Name));
+        return new SelectionHighlight(styles);
+
+        // The atlas the style composes is carried as an "atlas:<sno>" tag.
+        static int AtlasOf(in AssetRef r)
+        {
+            foreach (var t in r.Tags)
+                if (t.StartsWith("atlas:", StringComparison.Ordinal) &&
+                    int.TryParse(t.AsSpan(6), out var sno)) return sno;
+            return 0;
+        }
+    }
 
     /// <summary>
     /// Read and decode a <see cref="TiledStyleDefinition"/> by SNO id
