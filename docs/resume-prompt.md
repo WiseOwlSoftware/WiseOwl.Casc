@@ -101,7 +101,11 @@ Target)` — authored FK traversal: board→`node`, node→`power` (`SnoPassiveP
 glyph→`affix`+`class`; each Target chains. Node↔glyph is runtime (not a link);
 affix→power doesn't exist (use node→power). Deferred (no consumer need):
 power→class facet (skill-kit RE), item NameConvention facets, codec tail, atlas
-GUI. #32 `awaiting:optimizer` (P5 consume).
+GUI. **#32 Optimizer proxy SIGN-OFF (2026-05-22): whole backlog consume-verified,
+honesty notes accepted — `needs:owner` to bless `fr:consumed`.** Autonomous
+CASC⇄Optimizer loop COMPLETE; build queue empty. All 4 open issues
+(#32/#30/#24/#31) are `needs:owner`. No active poll running — re-engage on a new
+FR or owner action.
 
 **P2b shipped marked-A (CL-59, `0a868f4`):** `Facet(Key,Value,FacetSource{NameConvention,
 Decoded,SceneField})` + `Catalog.Facets(ref)` + `FindByFacet(kind,key,value)`.
