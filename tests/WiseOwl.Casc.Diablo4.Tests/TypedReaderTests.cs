@@ -789,5 +789,50 @@ public sealed class TypedReaderTests
         Assert.NotEmpty(druidItems);
         Assert.All(druidItems, r =>
             Assert.Contains("_Druid", r.Name, StringComparison.Ordinal));
+
+        // CL-77 / FR-C23 Option A — tooltip chrome inventory.
+        // Per-rarity 9-slice TiledStyle panels for paragon nodes +
+        // future-proofing handle on item-side rarities.
+        var chrome = d4.Catalog.GetParagonTooltipChrome();
+        Assert.NotNull(chrome);
+
+        // All four paragon rarities populated on the live build,
+        // each pointing at TooltipBackgroundRarity_<Rarity>.
+        Assert.Equal(4, chrome.PanelByRarity.Count);
+        var paragonExpected = new (ParagonRarity Rarity, int Sno, string Name)[]
+        {
+            (ParagonRarity.Common,    602975, "TooltipBackgroundRarity_Common"),
+            (ParagonRarity.Magic,     602972, "TooltipBackgroundRarity_Magic"),
+            (ParagonRarity.Rare,      602274, "TooltipBackgroundRarity_Rare"),
+            (ParagonRarity.Legendary, 602942, "TooltipBackgroundRarity_Legendary"),
+        };
+        foreach (var (rarity, sno, name) in paragonExpected)
+        {
+            Assert.True(chrome.PanelByRarity.TryGetValue(rarity, out var assetRef));
+            Assert.Equal(AssetKind.TiledStyle, assetRef.Kind);
+            Assert.Equal(SnoGroup.UiStyle, assetRef.Group);
+            Assert.Equal(sno, assetRef.Sno);
+            Assert.Equal(name, assetRef.Name);
+            // Round-trip decode through the existing TiledStyle reader.
+            Assert.True(d4.Catalog.TryGet<TiledStyleDefinition>(assetRef, out var td));
+            Assert.NotNull(td);
+        }
+
+        // Item-side rarities — future-proofing handle, all 4 present.
+        Assert.Equal(4, chrome.ItemSidePanelByRarityName.Count);
+        Assert.Contains("Unique", chrome.ItemSidePanelByRarityName.Keys);
+        Assert.Contains("Set", chrome.ItemSidePanelByRarityName.Keys);
+        Assert.Contains("Mythic", chrome.ItemSidePanelByRarityName.Keys);
+        Assert.Contains("Season", chrome.ItemSidePanelByRarityName.Keys);
+        Assert.All(chrome.ItemSidePanelByRarityName.Values, r =>
+        {
+            Assert.Equal(AssetKind.TiledStyle, r.Kind);
+            Assert.Equal(SnoGroup.UiStyle, r.Group);
+            Assert.StartsWith("TooltipBackgroundRarity_", r.Name, StringComparison.Ordinal);
+        });
+
+        // Cache identity — repeat call returns the same reference (the
+        // Optimizer hot path).
+        Assert.Same(chrome, d4.Catalog.GetParagonTooltipChrome());
     }
 }

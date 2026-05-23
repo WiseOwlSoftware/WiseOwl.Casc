@@ -1999,6 +1999,33 @@ derived from FR-C14 R8's `snoTiledStyle` crack and R10's variant
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
 
+- **CL-77 — `Catalog.GetParagonTooltipChrome()` (FR-C23 Option A,
+  chrome inventory).** Optimizer-confirmed scope after the #35
+  recon (Option A — chrome-only — chosen; full layout RE split off
+  as FR-C26 / `casc-fr#38` per protocol §3). The engine authors
+  eight `TooltipBackgroundRarity_*` 9-slice TiledStyles
+  (`TiledWindowPieces` variant, FR-C14 R10 / CL-62 shape) — four
+  paragon-relevant rarities (Common / Magic / Rare / Legendary,
+  SNOs 602975 / 602972 / 602274 / 602942) plus four item-side
+  (Unique / Set / Mythic / Season, SNOs 602974 / 602973 / 2004596 /
+  2417490). Surface: `ParagonTooltipChrome(PanelByRarity,
+  ItemSidePanelByRarityName)`. `PanelByRarity` is the paragon
+  consumer's primary map keyed by `ParagonRarity`; the item-side
+  dictionary is future-proofing keyed by the engine string token
+  (paragon nodes don't carry Unique / Set / Mythic / Season
+  rarities, so they can't share the same key type). Resolved via
+  `CoreToc.TryGetId(SnoGroup.UiStyle, "TooltipBackgroundRarity_*")`
+  — **decode-free**; the consumer renders the 9-slice via the
+  existing `ReadTiledStyle` / `Catalog.TryGet<TiledStyleDefinition>`
+  path. Catalog-cached for the storage lifetime (identity round-
+  trip verified — repeat call returns the same reference). Bullet
+  glyph / divider line / icon bezel + slot rects + typography +
+  per-state binding all live on FR-C26 (the controller-RE thread).
+  Acceptance: live matrix asserts all 8 panels resolve to the right
+  TiledStyle SNOs by name + decode round-trips through
+  `TryGet<TiledStyleDefinition>` + cache identity holds. 104/104
+  tests green on `3.0.2.71886`. Devlog 0072.
+
 - **CL-76 — `ParagonNodeStat.StatName` prefers the canonical
   AttributeId map over the node-name token (FR-C21 multi-row
   defect fix).** Optimizer CL-74 consume-verify caught a defect:
