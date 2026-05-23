@@ -212,6 +212,10 @@ public sealed class Catalog
         _boardNodesCache = new();
     private AttributeFormulaTable? _attributeFormulas;
     private readonly object _formulasLock = new();
+    // Player-class SnoName roster, cached on first use — drives the
+    // Power → class facet's name-convention dispatch.
+    private string[]? _playerClassSnoNames;
+    private readonly object _playerClassesLock = new();
 
     internal Catalog(Diablo4Storage d4)
     {
@@ -335,11 +339,20 @@ public sealed class Catalog
     /// <c>ParagonGlyphDefinition.UsableByClassSnoIds</c>.</item>
     /// <item><see cref="AssetKind.TextureAtlas"/> → <c>codec</c>,
     /// <see cref="FacetSource.Decoded"/> (decode-free meta).</item>
+    /// <item><see cref="AssetKind.Power"/> → <c>class</c>,
+    /// <see cref="FacetSource.NameConvention"/> from the
+    /// <c>&lt;ClassSnoName&gt;_&lt;SkillName&gt;</c> first-party convention
+    /// the engine uses for class-skill powers (CL-72). Honest partial
+    /// surface: ~<c>1 700</c> of the ~<c>2 500</c> group-29 SNOs match
+    /// the prefix (every active class-skill power on the live build);
+    /// the rest (monster powers, generic <c>1HAxe_Unique_*</c> /
+    /// <c>1HFocus_Unique_*</c> item-affix powers, unnamed
+    /// debug stubs) carry no class facet and are surfaced unfaceted.</item>
     /// </list>
-    /// Item type/rarity/class (<see cref="FacetSource.NameConvention"/>) and
-    /// power class are not yet surfaced — no cheap authored source for power
-    /// class (neither <c>PowerDefinition</c> nor <c>PlayerClass</c> carries the
-    /// linkage). Glyph facets decode the glyph (cheap; 562 in the group).</summary>
+    /// Item type/rarity/class (<see cref="FacetSource.NameConvention"/>)
+    /// are not yet surfaced. Glyph facets decode the glyph (cheap; 562
+    /// in the group); Power facets are <b>decode-free</b> (the CoreTOC
+    /// name is enough).</summary>
     public IReadOnlyList<Facet> Facets(AssetRef asset)
     {
         var list = new List<Facet>();
@@ -353,8 +366,48 @@ public sealed class Catalog
             case AssetKind.TextureAtlas when TryPeek(asset, out var f) && f.Codec is { } codec:
                 list.Add(new Facet("codec", codec.ToString().ToLowerInvariant(), FacetSource.Decoded));
                 break;
+            case AssetKind.Power when TryGetPowerClassFromName(asset.Name) is { } className:
+                list.Add(new Facet("class", className, FacetSource.NameConvention));
+                break;
         }
         return list;
+    }
+
+    /// <summary>Match a power's CoreTOC name against the §6.5 PlayerClass
+    /// roster: a class-skill power is named
+    /// <c>&lt;ClassSnoName&gt;_&lt;SkillName&gt;</c> by the engine's
+    /// first-party convention (e.g. <c>Barbarian_Bash</c>,
+    /// <c>Sorcerer_Fireball</c>, <c>Necromancer_BloodLance</c>). Returns
+    /// the matched <c>ClassSnoName</c>, or <see langword="null"/> for
+    /// non-matching names (monster powers like
+    /// <c>MorluCaster_Fireball</c>, generic item-affix powers like
+    /// <c>1HAxe_Unique_Druid_100</c>, debug stubs).</summary>
+    internal string? TryGetPowerClassFromName(string powerName)
+    {
+        if (string.IsNullOrEmpty(powerName)) return null;
+        var underscore = powerName.IndexOf('_');
+        if (underscore <= 0) return null;
+        var prefix = powerName.AsSpan(0, underscore);
+        foreach (var cn in PlayerClassSnoNames())
+            if (prefix.SequenceEqual(cn)) return cn;
+        return null;
+    }
+
+    /// <summary>Lazy access to the §6.5 PlayerClass SnoName roster
+    /// (cached for the catalog's lifetime — the eight class names
+    /// drive every Power class-facet match).</summary>
+    private string[] PlayerClassSnoNames()
+    {
+        if (_playerClassSnoNames is not null) return _playerClassSnoNames;
+        lock (_playerClassesLock)
+        {
+            if (_playerClassSnoNames is not null) return _playerClassSnoNames;
+            var names = new List<string>();
+            foreach (var e in _d4.CoreToc.EntriesInGroup(SnoGroup.PlayerClass))
+                if (!string.IsNullOrEmpty(e.Name) && e.Name != "Axe Bad Data")
+                    names.Add(e.Name);
+            return _playerClassSnoNames = names.ToArray();
+        }
     }
 
     /// <summary>FR-C20 P2b — discover assets of a kind carrying a categorical
