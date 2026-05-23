@@ -337,6 +337,37 @@ public sealed class TypedReaderTests
     }
 
     [Theory]
+    // CL-76 — the canonical AttributeId map wins over the node-name
+    // token. Critical for multi-attribute nodes like Gate where every
+    // row would otherwise inherit the "Gate" structural token.
+    [InlineData("Gate", 9, "Strength")]
+    [InlineData("Gate", 10, "Intelligence")]
+    [InlineData("Gate", 11, "Willpower")]
+    [InlineData("Gate", 12, "Dexterity")]
+    // Single-row Generic_Normal_* nodes already produced the right
+    // name via the token humanizer — the AttributeId map gives the
+    // same answer, so behaviour stays stable.
+    [InlineData("Str", 9, "Strength")]
+    [InlineData("Int", 10, "Intelligence")]
+    [InlineData("Will", 11, "Willpower")]
+    [InlineData("Dex", 12, "Dexterity")]
+    // Class-specific rares carry no Generic_ token AND the rare-attr
+    // ids aren't in the canonical map — honest "Attribute <id>" fallback.
+    [InlineData(null, 259, "Attribute 259")]
+    [InlineData(null, 288, "Attribute 288")]
+    // Budget-category id (481) — multiple stats share the id; the
+    // node-name token disambiguates. The canonical map returns null
+    // for 481, so the humanized token wins.
+    [InlineData("Armor", 481, "Armor")]
+    [InlineData("DamageReductionFromVulnerable", 481,
+        "Damage Reduction from Vulnerable")]
+    public void B9_stat_name_prefers_attribute_id_over_node_token(
+        string? token, int attributeId, string expected)
+    {
+        Assert.Equal(expected, ParagonNodeInfoBuilder.ResolveStatName(token, attributeId));
+    }
+
+    [Theory]
     // Token-driven dispatch — pure-stat tokens + Resistance* + HPFlat
     // are Flat; budget-multiplied magnitudes are Percent. Bare-constant
     // formulas (Normal-rarity) are Flat too.
@@ -568,10 +599,11 @@ public sealed class TypedReaderTests
         Assert.True(gateInfo.IsGate);
         Assert.Equal(4, gateInfo.Stats.Count);
         var byAttr = gateInfo.Stats.ToDictionary(s => s.AttributeId);
-        Assert.Contains(9, byAttr.Keys);   // Strength
-        Assert.Contains(10, byAttr.Keys);  // Intelligence
-        Assert.Contains(11, byAttr.Keys);  // Willpower
-        Assert.Contains(12, byAttr.Keys);  // Dexterity
+        // CL-76 — per-row StatName via the canonical AttributeId map.
+        Assert.Equal("Strength",     byAttr[9].StatName);
+        Assert.Equal("Intelligence", byAttr[10].StatName);
+        Assert.Equal("Willpower",    byAttr[11].StatName);
+        Assert.Equal("Dexterity",    byAttr[12].StatName);
         Assert.All(gateInfo.Stats, s =>
         {
             Assert.Equal(5.0, s.FlatValue);
