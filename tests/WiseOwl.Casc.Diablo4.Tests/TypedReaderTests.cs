@@ -337,6 +337,61 @@ public sealed class TypedReaderTests
     }
 
     [Theory]
+    // CL-78 — AttributeNames template-strip helper. Pulls the bare
+    // display name out of the AttributeDescriptions template.
+    [InlineData("[{VALUE}|~|] Strength", "Strength")]
+    [InlineData("[{VALUE}|~|] Maximum Life", "Maximum Life")]
+    [InlineData("+[{VALUE}] Armor", "Armor")]
+    [InlineData("+[{VALUE}*100|1%|] Damage to Elites", "Damage to Elites")]
+    [InlineData("+[{VALUE2}*100|%|] {VALUE1} Damage", "Damage")]
+    [InlineData("+[{VALUE2}] {VALUE1} Resistance", "Resistance")]
+    [InlineData("+[{VALUE}*100|%|] Movement Speed", "Movement Speed")]
+    [InlineData("{c_label}Lucky Hit:{/c} Up to a +[{VALUE}*100|1%|] Chance to Knockback",
+        "Lucky Hit: Up to a Chance to Knockback")]
+    public void B10_attribute_names_strip_template_pulls_display_name(
+        string template, string expected)
+    {
+        Assert.Equal(expected, AttributeNames.StripTemplate(template));
+    }
+
+    [Theory]
+    // CL-78 — Diablo4Storage.GetAttributeName end-to-end (live data,
+    // sno 4080 template lookup + strip). Anchor cases from the
+    // Optimizer's FR-C25 acceptance.
+    [InlineData(9,   "Strength")]
+    [InlineData(10,  "Intelligence")]
+    [InlineData(11,  "Willpower")]
+    [InlineData(12,  "Dexterity")]
+    [InlineData(133, "Maximum Life")]
+    [InlineData(481, "Armor")]
+    [InlineData(950, "Damage to Elites")]
+    [InlineData(275, "Critical Strike Chance")]
+    [InlineData(288, "Critical Strike Damage")]
+    [InlineData(208, "Movement Speed")]
+    [InlineData(221, "Attack Speed")]
+    [InlineData(237, "Cooldown Reduction")]
+    [InlineData(373, "Thorns")]
+    public void B10_get_attribute_name_resolves_via_attribute_descriptions(
+        int attributeId, string expected)
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+        Assert.Equal(expected, d4.GetAttributeName(attributeId));
+    }
+
+    [Fact]
+    public void B10_get_attribute_name_returns_null_for_unmapped_id()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+        // 99999 isn't in the curated map → honest null (consumer
+        // composes from the existing fallback chain).
+        Assert.Null(d4.GetAttributeName(99999));
+    }
+
+    [Theory]
     // CL-76 — the canonical AttributeId map wins over the node-name
     // token. Critical for multi-attribute nodes like Gate where every
     // row would otherwise inherit the "Gate" structural token.

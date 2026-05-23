@@ -64,7 +64,7 @@ internal static class ParagonNodeInfoBuilder
         // CL-69 over-drop. `IsGate` still carries the structural meaning.
         var stats = kind is ParagonNodeKind.Start or ParagonNodeKind.Socket
             ? Array.Empty<ParagonNodeStat>()
-            : BuildStats(catalog, node, name, formulas);
+            : BuildStats(d4, catalog, node, name, formulas);
 
         return new ParagonNodeInfo(
             Sno: node.SnoId,
@@ -130,6 +130,7 @@ internal static class ParagonNodeInfoBuilder
     }
 
     private static ParagonNodeStat[] BuildStats(
+        Diablo4Storage d4,
         Catalog catalog,
         ParagonNodeDefinition node,
         string name,
@@ -140,11 +141,12 @@ internal static class ParagonNodeInfoBuilder
         if (attrs.Count == 0) return Array.Empty<ParagonNodeStat>();
         var result = new ParagonNodeStat[attrs.Count];
         for (var i = 0; i < attrs.Count; i++)
-            result[i] = BuildStat(catalog, attrs[i], nameToken, formulas);
+            result[i] = BuildStat(d4, catalog, attrs[i], nameToken, formulas);
         return result;
     }
 
     private static ParagonNodeStat BuildStat(
+        Diablo4Storage d4,
         Catalog catalog,
         NodeAttribute a,
         string? nameToken,
@@ -180,7 +182,7 @@ internal static class ParagonNodeInfoBuilder
             if (!double.IsNaN(v)) flatValue = v;
         }
 
-        var statName = ResolveStatName(nameToken, a.AttributeId);
+        var statName = ResolveStatName(d4, nameToken, a.AttributeId);
         var unit = InferUnit(nameToken, a.AttributeId, formulaText);
 
         return new ParagonNodeStat(
@@ -233,28 +235,61 @@ internal static class ParagonNodeInfoBuilder
     /// attribute id; today the map covers only the basic-four
     /// (sufficient for Gate + Generic_Normal_{Str,Int,Will,Dex} —
     /// every other multi-row case the Optimizer has flagged so far).</summary>
+    /// <summary>Resolve the per-row stat name for one node attribute
+    /// (test-overload — no storage). Routes through the existing
+    /// token + honest-fallback path; the live path
+    /// (<see cref="ResolveStatName(Diablo4Storage, string?, int)"/>)
+    /// also consults
+    /// <see cref="Diablo4Storage.GetAttributeName"/> for the
+    /// CL-78 AttributeDescriptions lookup.</summary>
     internal static string ResolveStatName(string? token, int attributeId)
     {
-        // (1) Canonical AttributeId → name. Wins when set — the id is
-        // a stable stat identity for these attrs.
-        if (TryCanonicalNameByAttributeId(attributeId) is { } byId) return byId;
-
-        // (2) Node-name token (covers the budget-category attrs where
-        // the node name disambiguates the stat).
+        // CL-76 retained: the hardcoded basic-four still anchor the
+        // synthetic-test path. The live path's AttributeNames-driven
+        // lookup is exercised through the storage overload.
+        if (TryHardcodedBasicFour(attributeId) is { } byId) return byId;
         if (token is not null) return HumanizeStatToken(token);
-
-        // (3) Honest fallback for class-specific names whose stat
-        // identity isn't yet resolvable from either source.
         return $"Attribute {attributeId}";
     }
 
-    /// <summary>The canonical stat name for an attribute id, when the
-    /// id IS the stat identity (not a budget-category collision). The
-    /// basic-four player attributes (Strength / Intelligence /
-    /// Willpower / Dexterity) are the verified canonical anchors;
-    /// future ids (133 HPFlat, 208 MoveSpeed, etc.) can be added as
-    /// owner game-oracle confirms them.</summary>
-    private static string? TryCanonicalNameByAttributeId(int attributeId) =>
+    /// <summary>Resolve the per-row stat name via the FR-C25 pipeline
+    /// (CL-78): first try
+    /// <see cref="Diablo4Storage.GetAttributeName"/> (the
+    /// AttributeDescriptions-driven localized name); fall back to the
+    /// hardcoded basic-four (consistent with CL-76 if the locale
+    /// bundle is missing); fall back to the node-name token (covers
+    /// budget-category attrs like 481 where the stat identity lives
+    /// in the name); honest <c>"Attribute &lt;id&gt;"</c> as the last
+    /// resort.</summary>
+    internal static string ResolveStatName(
+        Diablo4Storage d4, string? token, int attributeId)
+    {
+        // (1) AttributeDescriptions lookup via the curated map +
+        // sno-4080 template strip (FR-C25 / CL-78).
+        var localized = d4.GetAttributeName(attributeId);
+        if (!string.IsNullOrEmpty(localized)) return localized;
+
+        // (2) Hardcoded basic-four as a defensive fallback when the
+        // locale bundle is missing or the curated map gets pruned.
+        if (TryHardcodedBasicFour(attributeId) is { } byId) return byId;
+
+        // (3) Node-name token (covers the budget-category attrs where
+        // the node name disambiguates the stat — e.g. 481 covers
+        // Armor / ArmorPercent / DamageReductionFromElite).
+        if (token is not null) return HumanizeStatToken(token);
+
+        // (4) Honest fallback for class-specific names whose stat
+        // identity isn't resolvable from any source.
+        return $"Attribute {attributeId}";
+    }
+
+    /// <summary>The hardcoded basic-four (Strength / Intelligence /
+    /// Willpower / Dexterity) — kept as a defensive offline fallback
+    /// for the synthetic-test path and for the live path when the
+    /// requested locale bundle is missing. The live-data answer for
+    /// these ids matches what
+    /// <see cref="Diablo4Storage.GetAttributeName"/> returns.</summary>
+    private static string? TryHardcodedBasicFour(int attributeId) =>
         attributeId switch
         {
             9 => "Strength",

@@ -594,6 +594,48 @@ public sealed class Diablo4Storage : IDisposable
     private const string ParagonNodeStringTablePrefix = "ParagonNode_";
 
     /// <summary>
+    /// FR-C25 — resolve an <c>AttributeId</c> (the raw
+    /// <c>eAttribute</c> int on a <see cref="NodeAttribute"/> /
+    /// <see cref="ParagonGlyphAffixDefinition.AffectedRarity"/>'s
+    /// attribute references) to its in-game localized display name
+    /// via the <c>AttributeDescriptions</c> StringList (sno
+    /// <c>4080</c>). The same source the tooltip renderer uses.
+    /// Returns <see langword="null"/> when the id isn't in the
+    /// curated label map (<see cref="AttributeNames.LabelByAttributeId"/>),
+    /// when the AttributeDescriptions bundle is missing for the
+    /// requested locale, or when the label isn't present in the
+    /// table (honest sentinel — consumer falls back to
+    /// <c>"Attribute &lt;id&gt;"</c>).
+    /// </summary>
+    /// <param name="attributeId">The raw <c>eAttribute</c> int.</param>
+    /// <param name="locale">Locale (default
+    /// <see cref="DefaultLocale"/>); routes through the per-locale
+    /// StringList bundle via <see cref="GetStrings"/>.</param>
+    /// <returns>The stripped display name (templates / placeholders
+    /// / color tags removed) — e.g. <c>"Strength"</c> for id 9,
+    /// <c>"Maximum Life"</c> for 133, <c>"Armor"</c> for 481,
+    /// <c>"Damage to Elites"</c> for 950. <see langword="null"/> on
+    /// any of the unresolved cases above.</returns>
+    public string? GetAttributeName(int attributeId, string locale = DefaultLocale)
+    {
+        if (!AttributeNames.LabelByAttributeId.TryGetValue(attributeId, out var label))
+            return null;
+        StringListCatalog stringList;
+        try { stringList = GetStrings(locale); }
+        catch (CascException) { return null; }
+        if (!stringList.TryGet(AttributeDescriptionsSno, label, out var template))
+            return null;
+        var stripped = AttributeNames.StripTemplate(template);
+        return string.IsNullOrEmpty(stripped) ? null : stripped;
+    }
+
+    /// <summary>The canonical SNO id of the
+    /// <c>AttributeDescriptions</c> StringList in
+    /// <see cref="SnoGroup.StringList"/> — the per-attribute display-
+    /// name templates the engine renders tooltips from.</summary>
+    public const int AttributeDescriptionsSno = 4080;
+
+    /// <summary>
     /// The current build's playable character-class roster + localized
     /// display names (FR-D2), first-party from D4's own class data —
     /// independent of paragon (the roster is correct even if paragon is out
