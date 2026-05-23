@@ -105,8 +105,9 @@ The `Side*` vs `Main*` suffix corresponds to threshold tier
   reliable Flat vs Percent indicator — unit is intrinsic to the eAttribute /
   formula structure, not the name suffix).
 
-**Active branch:** `fr-c21-bonus-mechanic-stat-tag` (PR pending) → **CL-67**
-extends CL-66 by closing the rare bonus-mechanic field debt: `@48` is the
+**Active branch:** `fr-c21-bonus-mechanic-stat-tag` MERGED via PR #56 →
+**CL-67 (`e6e226e`)** on `main`, unreleased. Extends CL-66 by closing the
+rare bonus-mechanic field debt: `@48` is the
 bonus-passive-power slot (`DT_VARIABLEARRAY[DT_SNO]`; size-1 on rares, always
 value `0` so far; descriptor empty on every other observed kind), and `@64`
 is the bonus stat-threshold tag array (`DT_VARIABLEARRAY[DT_SNO]` referencing
@@ -248,10 +249,10 @@ awaiting:casc; 2 fixed, 1 in progress:**
 - **#24** rim = mesh/material (not a frame) — **`fr:consumed`** (owner accepted
   the procedural rim ✓).
 
-Latest CL = **67** (PR pending, branch `fr-c21-bonus-mechanic-stat-tag` —
-rare bonus mechanic `@48`/`@64` + group-124 `StatTagDefinition`, FR-C21
-deferred RE). CL-66 (`0945892`, PR #54) merged 2026-05-22 — ParagonNode
-`eNodeType@16` + per-attribute GBID array `@88`, FR-C21 foundation.
+Latest CL = **67** (`e6e226e`, PR #56 merged 2026-05-22 — rare bonus
+mechanic `@48`/`@64` + group-124 `StatTagDefinition`, FR-C21 deferred RE).
+CL-66 (`0945892`, PR #54) merged 2026-05-22 — ParagonNode `eNodeType@16` +
+per-attribute GBID array `@88`, FR-C21 foundation.
 AtlasExport + AtlasBrowser are build tools (no CL). #33 (FR-C21)
 `awaiting:optimizer`; #30 `awaiting:optimizer`; #32/#22/#31 `needs:owner`.
 Next branch off `main` is for FR-C21 build once the Optimizer signs off on
