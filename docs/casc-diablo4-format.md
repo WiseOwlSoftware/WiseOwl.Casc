@@ -1998,6 +1998,32 @@ derived from FR-C14 R8's `snoTiledStyle` crack and R10's variant
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
 
+- **CL-71 — `TexFrame` inner UV decode (FR-C20 #32 codec-tail
+  investigation).** Owner-directed RE of the texture combined-meta
+  decode tail (one of the three deferred extras called out on
+  `casc-fr#32`). Each on-disk frame is 36 bytes; CL-55 surfaced the
+  first 20 (handle + outer UV rect at `+4..+19`). The trailing 16
+  bytes at `+20..+35` are a **second UV rect** — the inner /
+  9-slice-middle rect. Validated across the live build's 140,197
+  texture definitions via the new `SnoScan framescan`/`framediv`
+  recon: ~83 % of frames author the inner rect equal to the outer
+  rect (no trim — outer is the content), ~17 % (24,082 atlases)
+  author a genuinely inset inner rect (sprite trim for tighter UV
+  sampling, or a 9-slice middle for stretchable UI tiles), and a
+  small remainder author a degenerate point at the outer rect's TL
+  (the "no inner rect" sentinel). Surface:
+  `TexFrame.InnerU0/InnerV0/InnerU1/InnerV1`,
+  `TexFrame.InnerPixelRect(width, height)`,
+  `TexFrame.HasDistinctInner`. The existing `U0`/`V0`/`U1`/`V1` +
+  `PixelRect` stays the outer rect (the unchanged public semantic).
+  Acceptance: live matrix scans the combined-meta and asserts at
+  least one frame exposes `HasDistinctInner == true`; every frame's
+  `InnerPixelRect` stays non-empty (the degenerate cases floor
+  width/height at 1). 92/92 tests green on `3.0.2.71886`. Devlog
+  0066. **#32 codec-tail extra resolved**; the other two extras
+  (power → class facet, item NameConvention facets) tracked
+  separately.
+
 - **CL-70 — `Catalog.GetBoardNodes` hot path + `EnumerateNodes`
   (FR-C21, third build slice).** The consumer-facing batch API the
   Optimizer's multi-board B&B search hits in its inner loop, and the

@@ -1,6 +1,6 @@
 # TexFrame structure
 
-One atlas sub-rect (`TexFrame`, 36 bytes) from a [`TextureDefinition`](./TextureDefinition.md)'s `ptFrame` array.
+One atlas sub-rect (`TexFrame`, 36 bytes) from a [`TextureDefinition`](./TextureDefinition.md)'s `ptFrame` array — carries both the outer UV rect (the full sprite slot, including any authored padding) and an inner UV rect (the trimmed-content / 9-slice-middle rect) decoded from the trailing 16 bytes of the on-disk frame (CL-71, FR-C20 #32 codec-tail investigation).
 
 ```csharp
 public struct TexFrame : IEquatable<TexFrame>
@@ -9,22 +9,41 @@ public struct TexFrame : IEquatable<TexFrame>
 | parameter | description |
 | --- | --- |
 | ImageHandle | The image handle. This matches a `ParagonNode.hIconMask` / `hIcon` — the node↔icon link is first-party, no heuristic correlation needed. |
-| U0 | Left edge, normalized over the decoded mip0 width. |
-| V0 | Top edge, normalized over the decoded mip0 height. |
-| U1 | Right edge (normalized). |
-| V1 | Bottom edge (normalized). |
+| U0 | Outer-rect left edge (normalized over mip0 width). |
+| V0 | Outer-rect top edge (normalized over mip0 height). |
+| U1 | Outer-rect right edge (normalized). |
+| V1 | Outer-rect bottom edge (normalized). |
+| InnerU0 | Inner-rect left edge (normalized) — the trimmed-content / 9-slice-middle left. |
+| InnerV0 | Inner-rect top edge (normalized). |
+| InnerU1 | Inner-rect right edge (normalized). |
+| InnerV1 | Inner-rect bottom edge (normalized). |
 
 ## Public Members
 
 | name | description |
 | --- | --- |
-| [TexFrame](TexFrame/TexFrame.md)(…) | One atlas sub-rect (`TexFrame`, 36 bytes) from a [`TextureDefinition`](./TextureDefinition.md)'s `ptFrame` array. |
+| [TexFrame](TexFrame/TexFrame.md)(…) | One atlas sub-rect (`TexFrame`, 36 bytes) from a [`TextureDefinition`](./TextureDefinition.md)'s `ptFrame` array — carries both the outer UV rect (the full sprite slot, including any authored padding) and an inner UV rect (the trimmed-content / 9-slice-middle rect) decoded from the trailing 16 bytes of the on-disk frame (CL-71, FR-C20 #32 codec-tail investigation). |
+| [HasDistinctInner](TexFrame/HasDistinctInner.md) { get; } | True when the inner rect is structurally different from the outer rect — i.e. the engine authored a real trim / 9-slice-middle. False on the ~`83%` of frames where the two are identical, and on the degenerate-point cases where the engine did not author an inner region. |
 | [ImageHandle](TexFrame/ImageHandle.md) { get; set; } | The image handle. This matches a `ParagonNode.hIconMask` / `hIcon` — the node↔icon link is first-party, no heuristic correlation needed. |
-| [U0](TexFrame/U0.md) { get; set; } | Left edge, normalized over the decoded mip0 width. |
-| [U1](TexFrame/U1.md) { get; set; } | Right edge (normalized). |
-| [V0](TexFrame/V0.md) { get; set; } | Top edge, normalized over the decoded mip0 height. |
-| [V1](TexFrame/V1.md) { get; set; } | Bottom edge (normalized). |
-| [PixelRect](TexFrame/PixelRect.md)(…) | Integer pixel rectangle for this frame over a *width*×*height* decoded atlas: `x0=floor(U0·W) … x1=ceil(U1·W)`. |
+| [InnerU0](TexFrame/InnerU0.md) { get; set; } | Inner-rect left edge (normalized) — the trimmed-content / 9-slice-middle left. |
+| [InnerU1](TexFrame/InnerU1.md) { get; set; } | Inner-rect right edge (normalized). |
+| [InnerV0](TexFrame/InnerV0.md) { get; set; } | Inner-rect top edge (normalized). |
+| [InnerV1](TexFrame/InnerV1.md) { get; set; } | Inner-rect bottom edge (normalized). |
+| [U0](TexFrame/U0.md) { get; set; } | Outer-rect left edge (normalized over mip0 width). |
+| [U1](TexFrame/U1.md) { get; set; } | Outer-rect right edge (normalized). |
+| [V0](TexFrame/V0.md) { get; set; } | Outer-rect top edge (normalized over mip0 height). |
+| [V1](TexFrame/V1.md) { get; set; } | Outer-rect bottom edge (normalized). |
+| [InnerPixelRect](TexFrame/InnerPixelRect.md)(…) | Integer pixel rectangle for this frame's inner rect over the same decoded atlas. When the inner rect equals the outer rect (the common case), this returns the same pixel rectangle as [`PixelRect`](./TexFrame/PixelRect.md). When the inner rect is degenerate (`InnerU0 == InnerU1`, `InnerV0 == InnerV1`), the returned width/height are floored at `1` to keep the rect non-empty (consumers can detect the no-inner-authored case via [`HasDistinctInner`](./TexFrame/HasDistinctInner.md)). |
+| [PixelRect](TexFrame/PixelRect.md)(…) | Integer pixel rectangle for this frame's outer rect over a *width*×*height* decoded atlas: `x0=floor(U0·W) … x1=ceil(U1·W)`. |
+
+## Remarks
+
+Across the live build's `140 197` texture definitions, ~`83%` of frames carry an inner rect equal to the outer rect (no trim; outer is the content). Of the rest:
+
+* ~`17%` carry a non-equal inner rect inset from the outer — typically a few pixels of padding for filtering / mipmap safety, or a 9-slice middle for stretchable UI tiles.
+* A handful carry a degenerate inner rect collapsed to a single point at the outer rect's top-left (`InnerU0 == InnerU1`, `InnerV0 == InnerV1`); read as "no authored inner rect" rather than as a zero-area sample.
+
+Both rects are normalised over the decoded mip0 dimensions. For rendering a frame's content untrimmed, sample [`PixelRect`](./TexFrame/PixelRect.md); for the inset / 9-slice middle, sample [`InnerPixelRect`](./TexFrame/InnerPixelRect.md).
 
 ## See Also
 

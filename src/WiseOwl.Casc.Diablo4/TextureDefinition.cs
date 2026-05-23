@@ -12,25 +12,84 @@ namespace WiseOwl.Casc.Diablo4;
 public readonly record struct SerialDataInfo(uint Offset, uint SizeAndFlags);
 
 /// <summary>One atlas sub-rect (<c>TexFrame</c>, 36 bytes) from a
-/// <see cref="TextureDefinition"/>'s <c>ptFrame</c> array.</summary>
+/// <see cref="TextureDefinition"/>'s <c>ptFrame</c> array — carries both
+/// the outer UV rect (the full sprite slot, including any authored
+/// padding) and an inner UV rect (the trimmed-content / 9-slice-middle
+/// rect) decoded from the trailing 16 bytes of the on-disk frame
+/// (CL-71, FR-C20 #32 codec-tail investigation).</summary>
+/// <remarks>
+/// <para>
+/// Across the live build's <c>140 197</c> texture definitions, ~<c>83%</c>
+/// of frames carry an inner rect equal to the outer rect (no trim;
+/// outer is the content). Of the rest:
+/// </para>
+/// <list type="bullet">
+///   <item>~<c>17%</c> carry a non-equal inner rect inset from the
+///     outer — typically a few pixels of padding for filtering /
+///     mipmap safety, or a 9-slice middle for stretchable UI tiles.</item>
+///   <item>A handful carry a <i>degenerate</i> inner rect collapsed to a
+///     single point at the outer rect's top-left
+///     (<c>InnerU0 == InnerU1</c>, <c>InnerV0 == InnerV1</c>); read as
+///     "no authored inner rect" rather than as a zero-area sample.</item>
+/// </list>
+/// <para>
+/// Both rects are normalised over the decoded mip0 dimensions. For
+/// rendering a frame's content untrimmed, sample
+/// <see cref="PixelRect"/>; for the inset / 9-slice middle, sample
+/// <see cref="InnerPixelRect"/>.
+/// </para>
+/// </remarks>
 /// <param name="ImageHandle">The image handle. This matches a
 /// <c>ParagonNode.hIconMask</c> / <c>hIcon</c> — the node↔icon link is
 /// first-party, no heuristic correlation needed.</param>
-/// <param name="U0">Left edge, normalized over the decoded mip0 width.</param>
-/// <param name="V0">Top edge, normalized over the decoded mip0 height.</param>
-/// <param name="U1">Right edge (normalized).</param>
-/// <param name="V1">Bottom edge (normalized).</param>
-public readonly record struct TexFrame(uint ImageHandle, float U0, float V0, float U1, float V1)
+/// <param name="U0">Outer-rect left edge (normalized over mip0 width).</param>
+/// <param name="V0">Outer-rect top edge (normalized over mip0 height).</param>
+/// <param name="U1">Outer-rect right edge (normalized).</param>
+/// <param name="V1">Outer-rect bottom edge (normalized).</param>
+/// <param name="InnerU0">Inner-rect left edge (normalized) — the
+/// trimmed-content / 9-slice-middle left.</param>
+/// <param name="InnerV0">Inner-rect top edge (normalized).</param>
+/// <param name="InnerU1">Inner-rect right edge (normalized).</param>
+/// <param name="InnerV1">Inner-rect bottom edge (normalized).</param>
+public readonly record struct TexFrame(
+    uint ImageHandle,
+    float U0, float V0, float U1, float V1,
+    float InnerU0, float InnerV0, float InnerU1, float InnerV1)
 {
-    /// <summary>Integer pixel rectangle for this frame over a
-    /// <paramref name="width"/>×<paramref name="height"/> decoded atlas:
-    /// <c>x0=floor(U0·W) … x1=ceil(U1·W)</c>.</summary>
-    public (int X, int Y, int Width, int Height) PixelRect(int width, int height)
+    /// <summary>Integer pixel rectangle for this frame's outer rect
+    /// over a <paramref name="width"/>×<paramref name="height"/>
+    /// decoded atlas: <c>x0=floor(U0·W) … x1=ceil(U1·W)</c>.</summary>
+    public (int X, int Y, int Width, int Height) PixelRect(int width, int height) =>
+        ToPixelRect(U0, V0, U1, V1, width, height);
+
+    /// <summary>Integer pixel rectangle for this frame's inner rect
+    /// over the same decoded atlas. When the inner rect equals the
+    /// outer rect (the common case), this returns the same pixel
+    /// rectangle as <see cref="PixelRect"/>. When the inner rect is
+    /// degenerate (<c>InnerU0 == InnerU1</c>,
+    /// <c>InnerV0 == InnerV1</c>), the returned width/height are
+    /// floored at <c>1</c> to keep the rect non-empty (consumers can
+    /// detect the no-inner-authored case via
+    /// <see cref="HasDistinctInner"/>).</summary>
+    public (int X, int Y, int Width, int Height) InnerPixelRect(int width, int height) =>
+        ToPixelRect(InnerU0, InnerV0, InnerU1, InnerV1, width, height);
+
+    /// <summary>True when the inner rect is structurally different from
+    /// the outer rect — i.e. the engine authored a real trim /
+    /// 9-slice-middle. False on the ~<c>83%</c> of frames where the
+    /// two are identical, and on the degenerate-point cases where the
+    /// engine did not author an inner region.</summary>
+    public bool HasDistinctInner =>
+        (U0 != InnerU0 || V0 != InnerV0 || U1 != InnerU1 || V1 != InnerV1)
+        && !(InnerU0 == InnerU1 && InnerV0 == InnerV1);
+
+    private static (int X, int Y, int Width, int Height) ToPixelRect(
+        float u0, float v0, float u1, float v1, int width, int height)
     {
-        var x0 = Math.Max(0, (int)Math.Floor(U0 * width));
-        var y0 = Math.Max(0, (int)Math.Floor(V0 * height));
-        var x1 = Math.Min(width, (int)Math.Ceiling(U1 * width));
-        var y1 = Math.Min(height, (int)Math.Ceiling(V1 * height));
+        var x0 = Math.Max(0, (int)Math.Floor(u0 * width));
+        var y0 = Math.Max(0, (int)Math.Floor(v0 * height));
+        var x1 = Math.Min(width, (int)Math.Ceiling(u1 * width));
+        var y1 = Math.Min(height, (int)Math.Ceiling(v1 * height));
         return (x0, y0, Math.Max(1, x1 - x0), Math.Max(1, y1 - y0));
     }
 }
@@ -150,10 +209,15 @@ public sealed record TextureDefinition(
             var b = frStart + i * 36;
             frames[i] = new TexFrame(
                 Bytes.U32LE(bundle, b),
-                BitsToSingle(Bytes.U32LE(bundle, b + 4)),
-                BitsToSingle(Bytes.U32LE(bundle, b + 8)),
-                BitsToSingle(Bytes.U32LE(bundle, b + 12)),
-                BitsToSingle(Bytes.U32LE(bundle, b + 16)));
+                BitsToSingle(Bytes.U32LE(bundle, b + 4)),    // outer u0
+                BitsToSingle(Bytes.U32LE(bundle, b + 8)),    // outer v0
+                BitsToSingle(Bytes.U32LE(bundle, b + 12)),   // outer u1
+                BitsToSingle(Bytes.U32LE(bundle, b + 16)),   // outer v1
+                BitsToSingle(Bytes.U32LE(bundle, b + 20)),   // inner u0 (CL-71)
+                BitsToSingle(Bytes.U32LE(bundle, b + 24)),   // inner v0
+                BitsToSingle(Bytes.U32LE(bundle, b + 28)),   // inner u1
+                BitsToSingle(Bytes.U32LE(bundle, b + 32))    // inner v1
+            );
         }
 
         return new TextureDefinition(format, width, height, mipMin, mipMax, ser, frames);
