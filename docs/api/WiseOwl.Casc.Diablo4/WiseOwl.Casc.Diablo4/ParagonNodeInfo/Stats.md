@@ -1,6 +1,6 @@
 # ParagonNodeInfo.Stats property
 
-The node's stat grants — display-ready magnitudes, units, and names (see [`ParagonNodeStat`](../ParagonNodeStat.md)). Empty for Start, Socket, and Gate.
+The node's stat grants — display-ready magnitudes, units, and names (see [`ParagonNodeStat`](../ParagonNodeStat.md)). Empty for Start and Socket (the engine authors zero attribute rows for both — Start is the class emblem; Socket's grant comes from the seated glyph). Gate — the engine's "Board Attachment Gate" — does carry stats (each Gate sampled grants `+5` to each basic stat [`AttributeId`](../NodeAttribute/AttributeId.md)`9`/`10`/`11`/`12` Strength/Intelligence/Willpower/Dexterity); the [`IsGate`](./IsGate.md) flag still carries the structural meaning.
 
 ```csharp
 public IReadOnlyList<ParagonNodeStat> Stats { get; set; }

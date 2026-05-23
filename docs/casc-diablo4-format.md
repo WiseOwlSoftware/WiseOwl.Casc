@@ -688,7 +688,8 @@ ParagonNodeInfo {
   AssetRef? Icon, IconMask;   // TextureAtlas refs (null when handle absent/unresolved)
   AssetRef? PassivePower;     // Power SNO ref (null when none)
   string?   PassivePowerName; // sibling-StringList localized name (null when missing)
-  ParagonNodeStat[] Stats;    // empty for Start / Socket / Gate
+  ParagonNodeStat[] Stats;    // empty for Start / Socket; Gate carries +5 to
+                              // each basic stat (Str/Int/Will/Dex) — CL-74
   bool HasSocket, IsGate;     // raw flags retained for parity
 }
 
@@ -1998,6 +1999,32 @@ derived from FR-C14 R8's `snoTiledStyle` crack and R10's variant
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
 
+- **CL-74 — Gate (`Board Attachment Gate`) node stats projection
+  fix (FR-C21 game-oracle correction).** Owner in-game observation
+  (relayed via the Optimizer 2026-05-23): the node-kind I'd been
+  calling "gate" — engine string `Board Attachment Gate` — grants
+  **+5 to each of the four basic stats** (Strength / Intelligence /
+  Willpower / Dexterity = `AttributeId` 9 / 10 / 11 / 12,
+  `FlatValue 5`, `Unit Flat`). CL-69's bucketing dropped these — I
+  conflated Gate with Start / Socket as "structural-only" when the
+  ptAttributes array is in fact populated (sampled
+  `Generic_Gate` 994337 carries `dataSize == 352 == 4 * 88` on
+  `ptAttributes@32`, four full attribute specifiers). Fix:
+  `ParagonNodeInfoBuilder` drops Stats only for
+  `ParagonNodeKind.Start`/`Socket`; `Gate` now flows through
+  `BuildStats` like any other kind. `IsGate` still carries the
+  structural meaning (per the Optimizer's note,
+  *"the `IsGate` flag stays — it's a true structural marker"*).
+  Cross-link: the user-facing string in
+  <c>AttributeDescriptions</c> / scene strings is
+  *"Board Attachment Gate"*; the library's internal vocabulary
+  (`IsGate`, `ParagonNodeKind.Gate`) is unchanged for
+  back-compat, but the XML docs now cite the engine term.
+  Acceptance: live `GetNodeInfo(994337)` returns `Kind = Gate`,
+  `IsGate = true`, `Stats.Count == 4` keyed to `AttributeIds`
+  `{9, 10, 11, 12}`, each `(FlatValue 5.0, Unit Flat)`.
+  92/92 tests green on `3.0.2.71886`. Devlog 0069.
+
 - **CL-73 — Item type/rarity/class facets from the engine's
   first-party item-naming convention (FR-C20 #32 deferred extra 3 —
   the last of three).** The Optimizer flagged that
@@ -2135,7 +2162,8 @@ true value (the sections above already state the corrected truth).
   shape carries the visual archetype as `Kind`
   (`ParagonNodeKind`: `Normal | Magic | Rare | Legendary | Start |
   Socket | Gate`) — a distinct axis from `Rarity` (the raw
-  `eRarityOverride`); `Stats` is empty for `Start`/`Socket`/`Gate`.
+  `eRarityOverride`); `Stats` is empty for `Start`/`Socket` (revised
+  in CL-74 — `Gate` does carry stats; see Appendix A CL-74).
   Catalog refs for the icon atlases (`Icon`, `IconMask`) and the
   granted passive power (`PassivePower`, with the sibling-StringList
   localized name on `PassivePowerName`) are pre-resolved.

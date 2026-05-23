@@ -50,8 +50,12 @@ public enum ParagonNodeKind
     /// through the seated glyph and the surrounding magic nodes; carries no
     /// direct stat grants.</summary>
     Socket,
-    /// <summary>A gate / attachment-marker node (<c>bIsGate</c>) — structural,
-    /// not a stat node; carries no stat grants.</summary>
+    /// <summary>A board-attachment gate node (<c>bIsGate</c>) — the engine's
+    /// user-facing name is "Board Attachment Gate". Structurally marks the
+    /// connector slot a paragon board attaches through; the four-stat grant
+    /// (<c>+5</c> Strength / Intelligence / Willpower / Dexterity, sampled on
+    /// every Gate node) is regular stat content surfaced via
+    /// <see cref="ParagonNodeInfo.Stats"/>.</summary>
     Gate,
 }
 
@@ -200,9 +204,15 @@ public sealed record ParagonNodeStat(
 /// passive power, or when the sibling string list is missing.</param>
 /// <param name="Stats">The node's stat grants — display-ready
 /// magnitudes, units, and names (see <see cref="ParagonNodeStat"/>).
-/// Empty for <see cref="ParagonNodeKind.Start"/>,
-/// <see cref="ParagonNodeKind.Socket"/>, and
-/// <see cref="ParagonNodeKind.Gate"/>.</param>
+/// Empty for <see cref="ParagonNodeKind.Start"/> and
+/// <see cref="ParagonNodeKind.Socket"/> (the engine authors zero
+/// attribute rows for both — Start is the class emblem; Socket's
+/// grant comes from the seated glyph). <see cref="ParagonNodeKind.Gate"/>
+/// — the engine's "Board Attachment Gate" — <b>does</b> carry stats
+/// (each Gate sampled grants <c>+5</c> to each basic stat
+/// <see cref="NodeAttribute.AttributeId"/> <c>9</c>/<c>10</c>/<c>11</c>/<c>12</c>
+/// Strength/Intelligence/Willpower/Dexterity); the <see cref="IsGate"/>
+/// flag still carries the structural meaning.</param>
 /// <param name="HasSocket">Raw
 /// <see cref="ParagonNodeDefinition.HasSocket"/> for back-compat;
 /// equivalent to <see cref="Kind"/>=<see cref="ParagonNodeKind.Socket"/>.</param>
