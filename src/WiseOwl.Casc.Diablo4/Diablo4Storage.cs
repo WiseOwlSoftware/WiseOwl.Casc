@@ -558,6 +558,41 @@ public sealed class Diablo4Storage : IDisposable
     /// StringList table.</summary>
     private const string ParagonBoardNameLabel = "Name";
 
+    /// <summary>Resolve a <c>ParagonNode</c>'s engine user-facing
+    /// tooltip-title via the §6.7 sibling-StringList convention:
+    /// <c>ParagonNode_&lt;NodeSnoName&gt;</c> in group
+    /// <see cref="SnoGroup.StringList"/>, label <c>Name</c>. The
+    /// engine authors a sibling for every node that has its own
+    /// tooltip header — structural nodes (<c>StartNodeBarb</c> /
+    /// <c>StartNodeWarl</c>/etc. → <c>"Paragon Starting Node"</c>,
+    /// <c>Generic_Gate</c> → <c>"Board Attachment Gate"</c>),
+    /// class-specific rare nodes (<c>Warlock_Rare_006</c> →
+    /// <c>"Binding"</c>, etc.), and named legendary nodes. Only the
+    /// generic <c>Generic_&lt;Rarity&gt;_&lt;Token&gt;</c> stat-node
+    /// family (the stat-shop of magic / rare-minor / rare-major /
+    /// legendary affixes shared across classes —
+    /// <c>Generic_Magic_DamageToElite</c>,
+    /// <c>Generic_Magic_Armor</c>, etc.) has no sibling — the
+    /// tooltip on those is composed by the engine from the
+    /// stat-token + the rarity, not from an authored display name.
+    /// Returns <see langword="false"/> + <see cref="string.Empty"/>
+    /// for the no-sibling case (honest sentinel; consumer composes
+    /// from <see cref="ParagonNodeInfo.Stats"/> /
+    /// <see cref="ParagonNodeInfo.Kind"/>).</summary>
+    /// <param name="nodeSnoId">The <c>ParagonNode</c> SNO id (group
+    /// <see cref="SnoGroup.ParagonNode"/>).</param>
+    /// <param name="name">The localized tooltip title, or
+    /// <see cref="string.Empty"/>.</param>
+    /// <param name="locale">Locale (default <see cref="DefaultLocale"/>).</param>
+    public bool TryReadParagonNodeTitle(
+        int nodeSnoId, out string name, string locale = DefaultLocale) =>
+        TryReadSiblingString(
+            SnoGroup.ParagonNode, nodeSnoId,
+            ParagonNodeStringTablePrefix, ParagonBoardNameLabel,
+            locale, out name);
+
+    private const string ParagonNodeStringTablePrefix = "ParagonNode_";
+
     /// <summary>
     /// The current build's playable character-class roster + localized
     /// display names (FR-D2), first-party from D4's own class data —

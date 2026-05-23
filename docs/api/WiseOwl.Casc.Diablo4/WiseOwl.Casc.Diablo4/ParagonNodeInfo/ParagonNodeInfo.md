@@ -3,15 +3,16 @@
 FR-C21 — the display-ready projection of one paragon node. The library evaluates magnitudes + infers units + resolves names so the consumer can render the in-game tooltip without re-walking the raw byte fields or owning the formula evaluator (per the Appendix C carve-out for this surface).
 
 ```csharp
-public ParagonNodeInfo(int Sno, string Name, ParagonNodeKind Kind, ParagonRarity Rarity, 
-    AssetRef? Icon, AssetRef? IconMask, AssetRef? PassivePower, string? PassivePowerName, 
-    IReadOnlyList<ParagonNodeStat> Stats, bool HasSocket, bool IsGate)
+public ParagonNodeInfo(int Sno, string Name, string LocalizedTitle, ParagonNodeKind Kind, 
+    ParagonRarity Rarity, AssetRef? Icon, AssetRef? IconMask, AssetRef? PassivePower, 
+    string? PassivePowerName, IReadOnlyList<ParagonNodeStat> Stats, bool HasSocket, bool IsGate)
 ```
 
 | parameter | description |
 | --- | --- |
 | Sno | The node's SNO id (group ParagonNode) — the canonical stat-identity key. |
 | Name | The node's CoreTOC name (e.g. `Generic_Magic_Armor`, `Warlock_Rare_006`). The most patch-durable identity across builds. |
+| LocalizedTitle | The engine's user-facing tooltip header (FR-C22, CL-75) — `"Paragon Starting Node"` for every class start node, `"Board Attachment Gate"` for every Gate, authored display names on class-specific rare nodes (`Warlock_Rare_006` → `"Binding"`), and authored titles for named legendary nodes. Resolved via the §6.7 sibling- StringList convention (`ParagonNode_<SnoName>`, label `Name`). The generic `Generic_<Rarity>_<Token>` stat-node family (`Generic_Magic_DamageToElite` etc.) has no sibling StringList and surfaces as Empty here — the consumer composes their UI label from [`Stats`](./Stats.md) / [`Kind`](./Kind.md) / [`Rarity`](./Rarity.md). Always non-null; Empty means "no engine-authored title for this node". |
 | Kind | The visual archetype — see [`ParagonNodeKind`](../ParagonNodeKind.md). |
 | Rarity | The raw [`ParagonRarity`](../ParagonRarity.md) (`eRarityOverride`). Distinct from [`Kind`](./Kind.md): a rare node has [`Kind`](./Kind.md)=Rare AND [`Rarity`](./Rarity.md)=Rare; a Start node has [`Kind`](./Kind.md)=Start but [`Rarity`](./Rarity.md)=Common. |
 | Icon | The atlas (TextureAtlas) containing the [`HIcon`](../ParagonNodeDefinition/HIcon.md) frame, when the node authors one (most nodes leave `HIcon = 0` and rely on [`IconMask`](./IconMask.md)). Resolve the per-frame UVs via [`TryResolveFrame`](../Catalog/TryResolveFrame.md) against the raw handle. |

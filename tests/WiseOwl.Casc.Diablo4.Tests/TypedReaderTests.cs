@@ -578,6 +578,38 @@ public sealed class TypedReaderTests
             Assert.Equal(StatUnit.Flat, s.Unit);
         });
 
+        // CL-75 / FR-C22 — LocalizedTitle from the §6.7 sibling
+        // StringList convention. Two anchors validated by owner
+        // game-oracle (in-game tooltip headers, 2026-05-23):
+        //   Gate          -> "Board Attachment Gate"
+        //   Start (Barb)  -> "Paragon Starting Node"
+        // Stat nodes (Generic_Magic_DamageToElite, Warlock_Rare_006)
+        // have no sibling StringList — LocalizedTitle is empty (honest
+        // sentinel; consumer composes from Stats/Kind).
+        Assert.Equal("Board Attachment Gate", gateInfo.LocalizedTitle);
+
+        var startBarbInfo = d4.Catalog.GetNodeInfo(830650)!;  // StartNodeBarb
+        Assert.Equal(ParagonNodeKind.Start, startBarbInfo.Kind);
+        Assert.Equal("Paragon Starting Node", startBarbInfo.LocalizedTitle);
+        Assert.Empty(startBarbInfo.Stats);  // CL-66 confirmed: Start has 0 attrs
+
+        // Generic stat nodes (Generic_<Rarity>_<Token>) have no sibling —
+        // LocalizedTitle is empty (consumer composes from Stats/Kind).
+        Assert.Equal(string.Empty, armorInfo.LocalizedTitle);
+
+        // Named rare nodes DO have a sibling — the engine's authored
+        // rare-node title sits there ("Binding", "Fathomless", "Pyrosis", …).
+        // Warlock_Rare_006 → "Binding" (the in-game-displayed title for that
+        // class-specific rare).
+        Assert.Equal("Binding", rareInfo.LocalizedTitle);
+
+        // TryReadParagonNodeTitle low-level surface stays symmetric:
+        // present for structural nodes, absent for stat nodes.
+        Assert.True(d4.TryReadParagonNodeTitle(994337, out var gateTitle));
+        Assert.Equal("Board Attachment Gate", gateTitle);
+        Assert.False(d4.TryReadParagonNodeTitle(671247, out var armorTitle));
+        Assert.Equal(string.Empty, armorTitle);
+
         // Cache check — repeat lookup returns the same instance (reference
         // equality is the Optimizer's perf guarantee).
         var armorInfo2 = d4.Catalog.GetNodeInfo(671247)!;
