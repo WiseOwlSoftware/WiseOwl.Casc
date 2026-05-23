@@ -7,7 +7,7 @@
 > layer) — each with its own correction log; `docs/devlog/` (the
 > narrative), `docs/ARTICLE-SOURCE.md` (wiseowl.com article source).
 
-## CURRENT STATE (2026-05-21) — read this first
+## CURRENT STATE (2026-05-22) — read this first
 
 The sections below this one ("Status (end of session 1)", the numbered
 "Next steps") are **historical** — accurate for their era but superseded
@@ -33,6 +33,108 @@ public repo; never commit it). Read CLAUDE.md before any FR action.
   work, schedule a fallback wake. **`needs:owner` is the only hard stop.**
   After >1 idle poll with nothing queued, do available work (cumulative
   hash-decode, deferred RE) — owner-approved standing directive.
+
+### Active work — FR-C21 full node-info API (the live thread)
+
+**FR-C21 (`casc-fr#33`)** is the live FR. Goal: efficient API that returns
+**fully-resolved** info (value+unit+name) for every paragon node, of every
+type/rarity, with per-board `GetBoardNodes(boardSno)` as the hot path. Optimizer
+gave consensus-level requirements (2026-05-22, #33 first comment); **CASC posted
+the node-SNO-as-canonical-key correction** (`AttributeId` is a power-budget
+*category*, not the stat — three distinct stats share id `481`); `#33` is now
+**`awaiting:optimizer`** for sign-off on that key + the full-resolution scope.
+
+**Owner direction (2026-05-22, durable):** CASC delivers **full resolution**
+(value+unit+name) for FR-C21. This **reverses** the documented "evaluation +
+the 6 calibrated intrinsics are the consumer's" boundary (`§8.x`/Appendix C)
+for the node-info surface. Update that boundary when shipping the FR.
+See memory [[project_fr-c21-node-info]].
+
+**Calibration table is COMPLETE** — six budget-multiplier intrinsics empirically
+pinned via owner in-game oracle (all cross-validated against decoded formulas):
+```
+MagicDef   = 10     RareMajorDef = 4     RareMinorDef = 4
+MagicOff   = 2.5    RareMajorOff = 5     RareMinorOff = 5
+```
+Magnitude model: `displayed = formula-constant × budget-multiplier`. Verified
+on Armor (`0.75×10=7.5%`), DamageToElite (`3×2.5=7.5%`), AllRes
+(`0.75×4=3.0%`), Max Life (`1×4=4.0%`), Damage (`2×5=10%`), DemonologyDamage
+(`3.5×5=17.5%`), Critical Damage (`3×5=15%`). The multipliers are intrinsic
+formula-DSL functions (`ParagonPowerBudgetMultiplierNode<Rarity><Off/Def>()`)
+absent from any GameBalance table (`AttributeFormulas`/`PowerFormulaTables`/
+`find Budget`=0); they're baked as a clean-room calibration table from the
+owner's in-game readings (saved in [[project_fr-c21-node-info]]).
+
+**Bonus-mechanic decoded (this session):** rare nodes' "third effect"
+(`Bonus: another +X% [stat] when xxx/T [Stat] met`) lives in **two additional
+`DT_VARIABLEARRAY` descriptors on the node record** at `@48` (size-4, single
+`DT_SNO`) and `@64` (size-N `DT_SNO` array). The `@64` entries reference
+**group-124 stat-threshold tag SNOs** (named `StrengthSide2`, `IntelligenceSide1`,
+`WillpowerMain2`, …). Each tag's payload carries a **formula text** at payload
+`+96` that yields the threshold value, scaling by board position:
+```
+StrengthSide2     = "210 + (75 * ParagonBoardEquipIndex)"
+IntelligenceSide1 = "190 + (75 * ParagonBoardEquipIndex)"
+WillpowerMain2    = "760 + (455 * ParagonBoardEquipIndex)"
+```
+Cross-validated: Binding (Fathomless, Warlock_01, `EquipIndex=?`) shows `2125
+Willpower` = `760 + 455 × 3` → equip-index = 3 for Fathomless. Multi-tag
+pattern: generic-class rares list 2–3 tags (class-keyed alternatives, e.g.
+679732 has `[Barb_Strength+Dexterity, DexteritySide2, StrengthSide2]`),
+class-specific rares list one (`Warlock_Rare_006` has only `WillpowerMain2`).
+The `Side*` vs `Main*` suffix corresponds to threshold tier
+(Side=lower/Main=higher scale).
+
+**Other RE findings (this session):**
+- **`AttributeId` is a power-budget category, not the stat.** Three nodes
+  (`Generic_Magic_Armor`, `Generic_Magic_ArmorPercent`,
+  `Generic_Magic_DamageReductionFromElite`) all decode to identical fields:
+  `AttributeId 481`, `NParam 0`, same `@88` GBID, same formula
+  `0.75 × MagicDef`. All three placed on real boards. Stat identity = **node
+  SNO/name** (from `Generic_<rarity>_<StatToken>` convention). Canonical
+  aggregation key for FR-C21 = **node SNO**, NOT `(AttributeId, NParam)`.
+- **`ParamPlus12` is the skill-tag GBID for tag-conditional attrs** (e.g.
+  `attr 259` = DamageBonusTag): `+12` holds the same GBID as the `@88` array
+  entry (e.g. Demonology = `0x32ABA6FB`, **NOT** `GbidHash("Demonology")` =
+  `0x8A6E75BD` — uncracked label). For non-tag attrs `+12 = -1`.
+- Magic `_Damage` and `_DamageToElite` magic nodes display `+7.5%`; magic
+  `_Armor` displays `+7.5% Total Armor` (the node-name "Armor" is **NOT** a
+  reliable Flat vs Percent indicator — unit is intrinsic to the eAttribute /
+  formula structure, not the name suffix).
+
+**Active branch:** `fr-c21-node-fields-re` MERGED via PR #54 → **CL-66
+(`0945892`)** on `main`. ParagonNode now decodes `eNodeType` (`+16`, 5=Start
+verified all 7 class start boards, 3=Magic, 0=normal/gate/rare — distinct axis
+from rarity) + per-attribute GBID array `@88` (one `DT_UINT` per
+`ptAttributes` element, parallel; stable per `eAttribute`; canonical name
+uncracked, surfaced raw on `NodeAttribute.AttributeGbid`). 54/54 tests green.
+
+**Still NOT decoded on `ParagonNodeDefinition`** (debt to close on the next CL):
+- `@48` descriptor (size-4, single `DT_SNO` — always observed value `0`; possibly
+  a "bonus passive power" SNO, null on the rares examined).
+- `@64` descriptor (size-N `DT_SNO[]` — the bonus stat-threshold tag SNOs,
+  group 124; needs typed accessor on `ParagonNodeDefinition` + group-124 record
+  reader to surface the threshold formula).
+- `ParagonBoard.payload+32` (128 Warlock / 64 Paladin / 0 older — equip-index or
+  per-class flag; the threshold formula consumes `ParagonBoardEquipIndex`, so
+  this is likely **that index** and the next puzzle piece).
+- The 4 per-specifier sub-descriptors at `+24/+40/+64/+80` (sizes 1, 0, 2, 12) —
+  the size-12 region is byte-identical across nodes with different thresholds,
+  so it's structural padding, not bonus data.
+
+**Recon tooling added this session** (build/SnoScan, uncommitted on `main`,
+will commit alongside the next CL): `nodeinfo` (dogfooded full per-node dump
+with resolved formula text), `nodesbyformula`, `formula`, `formulafind`,
+`boardname` (dogfoods `TryReadParagonBoardName`), `cellof`, `rawhex`,
+`listgroup`, `snoid`, `attrmap` (`AttributeId → stat-name` map via
+`Generic_*` node-name convention). The CL-66 commit included `attrmap`,
+`rawhex`, `listgroup`, `cellof`, `boardnodes` already.
+
+**Owner oracle help still open (when convenient):** the `@48` slot's meaning
+(always 0 on the 3 rares examined — verify across more rare/non-rare nodes);
+identifying what `ParagonBoardEquipIndex` is (likely `ParagonBoard.payload+32`
+already decoded raw); cracking the GBID label for `0x32ABA6FB` (Demonology
+tag) — none blocking.
 
 ### Active branch / PR / release state
 
@@ -131,9 +233,12 @@ awaiting:casc; 2 fixed, 1 in progress:**
 - **#24** rim = mesh/material (not a frame) — **`fr:consumed`** (owner accepted
   the procedural rim ✓).
 
-Latest CL = **64** (CL-61 #22 start-node, CL-62 #30 9-slice). AtlasExport +
-AtlasBrowser are build tools (no CL). Queue empty; #30 `awaiting:optimizer`,
-#32/#22/#31 `needs:owner`. Next branch off `main`.
+Latest CL = **66** (`0945892`, PR #54 merged 2026-05-22 — ParagonNode
+`eNodeType@16` + per-attribute GBID array `@88`, FR-C21 foundation).
+AtlasExport + AtlasBrowser are build tools (no CL). #33 (FR-C21)
+`awaiting:optimizer`; #30 `awaiting:optimizer`; #32/#22/#31 `needs:owner`.
+Next branch off `main` is for FR-C21 build once the Optimizer signs off on
+the node-SNO key.
 
 **P2b shipped marked-A (CL-59, `0a868f4`):** `Facet(Key,Value,FacetSource{NameConvention,
 Decoded,SceneField})` + `Catalog.Facets(ref)` + `FindByFacet(kind,key,value)`.
@@ -174,11 +279,15 @@ the owner wants the Optimizer (proxy for other customers) to drive what's
 needed.** When asked to add a kind: write one provider in
 `src/WiseOwl.Casc.Diablo4/Catalog/AssetProviders.cs` + one `AssetKind` value.
 
-### Open casc-fr issues (2026-05-21 snapshot — re-poll, this drifts)
+### Open casc-fr issues (2026-05-22 snapshot — re-poll, this drifts)
 
-- **#32** FR-C20 Catalog discovery/retrieval API — **DELIVERED** (CL-55,
-  `0f1764f`, unreleased). `awaiting:optimizer` — explicitly soliciting consumer
-  feedback on missing kinds/tags/filters/ergonomics/ref-stability/relationships.
+- **#33** FR-C21 full node-info API — **PROPOSED, awaiting:optimizer**. Foundation
+  (CL-66, `0945892`) merged. Public projection (`ParagonNodeInfo`/
+  `ParagonNodeStat`/`GetBoardNodes`) is being negotiated; CASC posted the
+  node-SNO-key correction + full-resolution scope expansion; needs Optimizer
+  sign-off before build. See "Active work — FR-C21" above.
+- **#32** FR-C20 Catalog discovery/retrieval API — **DELIVERED + consumed**
+  (CL-55..60). `needs:owner` to bless `fr:consumed`.
 
 - **#26** FR-C16 node render recipe — flat `Components` model. **CL-52**
   (`d97ff8b`) base; **CL-54** (`4d3efaa`) socket-disc fix (#26.4): `Usage_Slot_*`
