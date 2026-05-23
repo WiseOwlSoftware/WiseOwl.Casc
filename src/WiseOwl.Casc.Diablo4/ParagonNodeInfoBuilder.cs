@@ -46,9 +46,16 @@ internal static class ParagonNodeInfoBuilder
         var iconMask = ResolveAtlasRef(catalog, node.HIconMask);
         var (power, powerName) = ResolvePower(d4, node.SnoPassivePower);
 
-        var stats = kind is ParagonNodeKind.Start
-            or ParagonNodeKind.Socket
-            or ParagonNodeKind.Gate
+        // Stats are dropped only for the two kinds the engine authors
+        // with zero NodeAttribute rows: Start (the class emblem; verified
+        // empirically across all 7 class start boards) and Socket (the
+        // glyph-socket marker; the stat grant comes from the seated glyph,
+        // not the socket node). Gate nodes — the engine's "Board Attachment
+        // Gate" — DO carry attribute grants (verified: every Gate node
+        // sampled grants +5 to each of the 4 basic stats Str/Int/Will/Dex,
+        // owner game-oracle 2026-05-23); CL-74 reversed the earlier
+        // CL-69 over-drop. `IsGate` still carries the structural meaning.
+        var stats = kind is ParagonNodeKind.Start or ParagonNodeKind.Socket
             ? Array.Empty<ParagonNodeStat>()
             : BuildStats(catalog, node, name, formulas);
 

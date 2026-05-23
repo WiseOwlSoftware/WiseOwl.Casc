@@ -18,7 +18,7 @@ public ParagonNodeInfo(int Sno, string Name, ParagonNodeKind Kind, ParagonRarity
 | IconMask | The atlas containing the [`HIconMask`](../ParagonNodeDefinition/HIconMask.md) frame — the symbol icon shown on the node's disc. |
 | PassivePower | The Power SNO the node grants (when [`SnoPassivePower`](../ParagonNodeDefinition/SnoPassivePower.md) is set), pre-resolved as an asset reference; `null` when the node grants no passive power. |
 | PassivePowerName | The localized name of *PassivePower* from the sibling `Power_<Name>` StringList (`§6.7`); `null` when there is no passive power, or when the sibling string list is missing. |
-| Stats | The node's stat grants — display-ready magnitudes, units, and names (see [`ParagonNodeStat`](../ParagonNodeStat.md)). Empty for Start, Socket, and Gate. |
+| Stats | The node's stat grants — display-ready magnitudes, units, and names (see [`ParagonNodeStat`](../ParagonNodeStat.md)). Empty for Start and Socket (the engine authors zero attribute rows for both — Start is the class emblem; Socket's grant comes from the seated glyph). Gate — the engine's "Board Attachment Gate" — does carry stats (each Gate sampled grants `+5` to each basic stat [`AttributeId`](../NodeAttribute/AttributeId.md)`9`/`10`/`11`/`12` Strength/Intelligence/Willpower/Dexterity); the [`IsGate`](./IsGate.md) flag still carries the structural meaning. |
 | HasSocket | Raw [`HasSocket`](../ParagonNodeDefinition/HasSocket.md) for back-compat; equivalent to [`Kind`](./Kind.md)=Socket. |
 | IsGate | Raw [`IsGate`](../ParagonNodeDefinition/IsGate.md) for back-compat; equivalent to [`Kind`](./Kind.md)=Gate. |
 

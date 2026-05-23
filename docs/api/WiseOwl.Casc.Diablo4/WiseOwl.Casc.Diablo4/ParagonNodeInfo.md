@@ -21,7 +21,7 @@ public record ParagonNodeInfo
 | [PassivePowerName](ParagonNodeInfo/PassivePowerName.md) { get; set; } | The localized name of *PassivePower* from the sibling `Power_<Name>` StringList (`§6.7`); `null` when there is no passive power, or when the sibling string list is missing. |
 | [Rarity](ParagonNodeInfo/Rarity.md) { get; set; } | The raw [`ParagonRarity`](./ParagonRarity.md) (`eRarityOverride`). Distinct from [`Kind`](./ParagonNodeInfo/Kind.md): a rare node has [`Kind`](./ParagonNodeInfo/Kind.md)=Rare AND [`Rarity`](./ParagonNodeInfo/Rarity.md)=Rare; a Start node has [`Kind`](./ParagonNodeInfo/Kind.md)=Start but [`Rarity`](./ParagonNodeInfo/Rarity.md)=Common. |
 | [Sno](ParagonNodeInfo/Sno.md) { get; set; } | The node's SNO id (group ParagonNode) — the canonical stat-identity key. |
-| [Stats](ParagonNodeInfo/Stats.md) { get; set; } | The node's stat grants — display-ready magnitudes, units, and names (see [`ParagonNodeStat`](./ParagonNodeStat.md)). Empty for Start, Socket, and Gate. |
+| [Stats](ParagonNodeInfo/Stats.md) { get; set; } | The node's stat grants — display-ready magnitudes, units, and names (see [`ParagonNodeStat`](./ParagonNodeStat.md)). Empty for Start and Socket (the engine authors zero attribute rows for both — Start is the class emblem; Socket's grant comes from the seated glyph). Gate — the engine's "Board Attachment Gate" — does carry stats (each Gate sampled grants `+5` to each basic stat [`AttributeId`](./NodeAttribute/AttributeId.md)`9`/`10`/`11`/`12` Strength/Intelligence/Willpower/Dexterity); the [`IsGate`](./ParagonNodeInfo/IsGate.md) flag still carries the structural meaning. |
 
 ## Remarks
 

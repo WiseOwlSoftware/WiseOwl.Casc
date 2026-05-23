@@ -556,6 +556,28 @@ public sealed class TypedReaderTests
         Assert.Equal(ParagonNodeKind.Socket, socketInfo.Kind);
         Assert.Empty(socketInfo.Stats);
 
+        // CL-74 — Gate ("Board Attachment Gate") nodes DO carry stats
+        // (owner game-oracle 2026-05-23 reverting CL-69's over-drop):
+        // each Gate grants +5 to each of the four basic stats
+        // (Strength / Intelligence / Willpower / Dexterity = AttributeIds
+        // 9 / 10 / 11 / 12), at Flat unit, from a bare-constant "5"
+        // formula. IsGate stays true (the structural marker is content-
+        // independent).
+        var gateInfo = d4.Catalog.GetNodeInfo(994337)!;  // Generic_Gate
+        Assert.Equal(ParagonNodeKind.Gate, gateInfo.Kind);
+        Assert.True(gateInfo.IsGate);
+        Assert.Equal(4, gateInfo.Stats.Count);
+        var byAttr = gateInfo.Stats.ToDictionary(s => s.AttributeId);
+        Assert.Contains(9, byAttr.Keys);   // Strength
+        Assert.Contains(10, byAttr.Keys);  // Intelligence
+        Assert.Contains(11, byAttr.Keys);  // Willpower
+        Assert.Contains(12, byAttr.Keys);  // Dexterity
+        Assert.All(gateInfo.Stats, s =>
+        {
+            Assert.Equal(5.0, s.FlatValue);
+            Assert.Equal(StatUnit.Flat, s.Unit);
+        });
+
         // Cache check — repeat lookup returns the same instance (reference
         // equality is the Optimizer's perf guarantee).
         var armorInfo2 = d4.Catalog.GetNodeInfo(671247)!;

@@ -16,7 +16,7 @@ public enum ParagonNodeKind
 | Legendary | `3` | A legendary-rarity node. |
 | Start | `4` | The board's start node (`eNodeType == 5`) — the class emblem that anchors the board chain; carries no stat grants. |
 | Socket | `5` | A glyph-socket node (`bHasSocket`) — grants its stat indirectly through the seated glyph and the surrounding magic nodes; carries no direct stat grants. |
-| Gate | `6` | A gate / attachment-marker node (`bIsGate`) — structural, not a stat node; carries no stat grants. |
+| Gate | `6` | A board-attachment gate node (`bIsGate`) — the engine's user-facing name is "Board Attachment Gate". Structurally marks the connector slot a paragon board attaches through; the four-stat grant (`+5` Strength / Intelligence / Willpower / Dexterity, sampled on every Gate node) is regular stat content surfaced via [`Stats`](./ParagonNodeInfo/Stats.md). |
 
 ## Remarks
 
