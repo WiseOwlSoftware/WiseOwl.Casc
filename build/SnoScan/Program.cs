@@ -65,10 +65,11 @@ switch (cmd)
     }
     case "listgroup":
     {
-        if (argv.Count < 2) { Console.Error.WriteLine("listgroup <gid> [substr]"); return 2; }
+        if (argv.Count < 2) { Console.Error.WriteLine("listgroup <gid> [substr] [max=40]"); return 2; }
         int lg = int.Parse(argv[1]); string lsub = argv.Count > 2 ? argv[2] : "";
+        int lmax = argv.Count > 3 ? int.Parse(argv[3]) : 40;
         foreach (var e in toc.Entries.Where(e => (int)e.Group == lg
-                     && e.Name.Contains(lsub, StringComparison.OrdinalIgnoreCase)).OrderBy(e => e.Name).Take(40))
+                     && e.Name.Contains(lsub, StringComparison.OrdinalIgnoreCase)).OrderBy(e => e.Name).Take(lmax))
             Console.WriteLine($"  {e.Id,9}  {e.Name}");
         return 0;
     }
