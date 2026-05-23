@@ -348,11 +348,19 @@ public sealed class Catalog
     /// the rest (monster powers, generic <c>1HAxe_Unique_*</c> /
     /// <c>1HFocus_Unique_*</c> item-affix powers, unnamed
     /// debug stubs) carry no class facet and are surfaced unfaceted.</item>
+    /// <item><see cref="AssetKind.Item"/> →
+    /// <c>type</c>/<c>rarity</c>/<c>class</c>,
+    /// <see cref="FacetSource.NameConvention"/> from the engine's
+    /// first-party item-naming convention (CL-73). Three patterns:
+    /// weapons/armor (<c>&lt;Type&gt;_&lt;Rarity&gt;_&lt;Class&gt;_&lt;NN&gt;</c>),
+    /// cosmetics (<c>Cosmetic_&lt;Class&gt;_…</c>), and classless
+    /// (<c>…_&lt;Rarity&gt;_Generic_…</c>). Class tokens normalized to
+    /// the full PlayerClass SnoName so abbreviated and full-form
+    /// authored names produce the same facet value.</item>
     /// </list>
-    /// Item type/rarity/class (<see cref="FacetSource.NameConvention"/>)
-    /// are not yet surfaced. Glyph facets decode the glyph (cheap; 562
-    /// in the group); Power facets are <b>decode-free</b> (the CoreTOC
-    /// name is enough).</summary>
+    /// Glyph facets decode the glyph (cheap; 562 in the group);
+    /// Power + Item facets are <b>decode-free</b> (the CoreTOC name is
+    /// enough).</summary>
     public IReadOnlyList<Facet> Facets(AssetRef asset)
     {
         var list = new List<Facet>();
@@ -369,6 +377,17 @@ public sealed class Catalog
             case AssetKind.Power when TryGetPowerClassFromName(asset.Name) is { } className:
                 list.Add(new Facet("class", className, FacetSource.NameConvention));
                 break;
+            case AssetKind.Item:
+            {
+                var conv = ParseItemConvention(asset.Name);
+                if (conv.Type is not null)
+                    list.Add(new Facet("type", conv.Type, FacetSource.NameConvention));
+                if (conv.Rarity is not null)
+                    list.Add(new Facet("rarity", conv.Rarity, FacetSource.NameConvention));
+                if (conv.Class is not null)
+                    list.Add(new Facet("class", conv.Class, FacetSource.NameConvention));
+                break;
+            }
         }
         return list;
     }
@@ -392,6 +411,80 @@ public sealed class Catalog
             if (prefix.SequenceEqual(cn)) return cn;
         return null;
     }
+
+    /// <summary>Parse the item's CoreTOC name into its
+    /// <c>(Type, Rarity, Class)</c> facet triple via the engine's
+    /// first-party item-naming convention (CL-73). Three patterns are
+    /// recognized:
+    /// <list type="bullet">
+    /// <item><b>Weapons &amp; armor</b> —
+    /// <c>&lt;Type&gt;_&lt;Rarity&gt;_&lt;Class&gt;_&lt;NN&gt;[_&lt;Variant&gt;]</c>
+    /// (<c>1HAxe_Unique_Druid_100</c>, <c>Helm_Rare_Barb_Crafted_47</c>).</item>
+    /// <item><b>Cosmetics</b> —
+    /// <c>Cosmetic_&lt;Class&gt;_&lt;Name&gt;</c>
+    /// (<c>Cosmetic_Barbarian_*</c>).</item>
+    /// <item><b>Classless or generic</b> —
+    /// <c>&lt;Type&gt;_&lt;Rarity&gt;_Generic_&lt;NN&gt;</c>
+    /// (<c>1HAxe_Magic_Generic_001</c>) emits no class facet
+    /// (<c>Generic</c> is the engine's "no class" sentinel).</item>
+    /// </list>
+    /// Item names that don't fit any pattern still get a <c>type</c>
+    /// facet from the first token (honest partial). Class tokens are
+    /// normalized to their full PlayerClass SnoName
+    /// (<c>Barb</c> → <c>Barbarian</c>, <c>Sorc</c> → <c>Sorcerer</c>,
+    /// <c>Necro</c> → <c>Necromancer</c>) so a single facet value
+    /// matches both abbreviated and full-form authored names.</summary>
+    internal static (string? Type, string? Rarity, string? Class) ParseItemConvention(string itemName)
+    {
+        if (string.IsNullOrEmpty(itemName)) return default;
+        var tokens = itemName.Split('_');
+        if (tokens.Length < 1 || string.IsNullOrEmpty(tokens[0])) return default;
+        var type = tokens[0];
+
+        // Pattern: <Type>_<Rarity>_<Class>_<...>
+        if (tokens.Length >= 3 && IsKnownItemRarity(tokens[1]))
+        {
+            var rarity = tokens[1];
+            var cls = MapItemClassToken(tokens[2]);
+            return (type, rarity, cls);
+        }
+
+        // Pattern: <Type>_<Class>_<...> (cosmetics + a few others)
+        if (tokens.Length >= 2 && MapItemClassToken(tokens[1]) is { } cls2)
+            return (type, null, cls2);
+
+        // Fallback — only the type token survives.
+        return (type, null, null);
+    }
+
+    /// <summary>The closed set of rarity tokens the item convention
+    /// uses in the second slot. <c>Cosmetic</c>, <c>Charm</c>,
+    /// <c>Journey</c>, <c>Template</c>, <c>MSWK</c>, etc. occupy that
+    /// slot in non-weapon/armor items but they're <i>types</i>, not
+    /// rarities — they're already surfaced by the type facet. Keeping
+    /// this set tight (the canonical 6) prevents a type leaking into
+    /// the rarity facet.</summary>
+    private static bool IsKnownItemRarity(string token) =>
+        token is "Normal" or "Magic" or "Rare" or "Legendary" or "Unique" or "Any";
+
+    /// <summary>Map an item-name class token to the canonical
+    /// PlayerClass SnoName, or <see langword="null"/> when the token
+    /// isn't a class. Both the short (<c>Barb</c>, <c>Sorc</c>,
+    /// <c>Necro</c>) and full (<c>Barbarian</c>, <c>Sorcerer</c>,
+    /// <c>Necromancer</c>) forms are recognized — the engine uses both
+    /// (cosmetics tend to use full form; weapon/armor uses short).
+    /// <c>Generic</c> is the engine's "no class" sentinel; the
+    /// function returns <see langword="null"/> for it on purpose so
+    /// the consumer doesn't accidentally treat generic items as
+    /// class-restricted.</summary>
+    private static string? MapItemClassToken(string token) => token switch
+    {
+        "Barb" or "Barbarian" => "Barbarian",
+        "Sorc" or "Sorcerer" => "Sorcerer",
+        "Necro" or "Necromancer" => "Necromancer",
+        "Druid" or "Rogue" or "Paladin" or "Warlock" or "Spiritborn" => token,
+        _ => null,
+    };
 
     /// <summary>Lazy access to the §6.5 PlayerClass SnoName roster
     /// (cached for the catalog's lifetime — the eight class names
