@@ -216,6 +216,10 @@ public sealed class Catalog
     // Power → class facet's name-convention dispatch.
     private string[]? _playerClassSnoNames;
     private readonly object _playerClassesLock = new();
+    // FR-C23 — the engine-authored tooltip-chrome inventory, cached
+    // for the catalog's lifetime (CoreToc lookups only — no decode).
+    private ParagonTooltipChrome? _paragonTooltipChrome;
+    private readonly object _paragonTooltipChromeLock = new();
 
     internal Catalog(Diablo4Storage d4)
     {
@@ -485,6 +489,77 @@ public sealed class Catalog
         "Druid" or "Rogue" or "Paladin" or "Warlock" or "Spiritborn" => token,
         _ => null,
     };
+
+    /// <summary>FR-C23 (Option A, CL-77) — the engine's authored
+    /// paragon-node tooltip chrome (per-rarity 9-slice
+    /// <see cref="AssetKind.TiledStyle"/> panels). The consumer
+    /// renders each via the existing
+    /// <see cref="Diablo4Storage.ReadTiledStyle"/> /
+    /// <see cref="TryGet{T}(AssetRef, out T)"/> path. See
+    /// <see cref="ParagonTooltipChrome"/> for the surfaced fields.
+    /// The wider layout / per-state recipe (slot rects, typography,
+    /// state binding) is tracked on <c>casc-fr#38</c> (FR-C26) — the
+    /// FR-C7-shaped multi-CL RE thread.</summary>
+    /// <remarks>
+    /// The eight <c>TooltipBackgroundRarity_*</c> SNOs are resolved
+    /// once via <see cref="CoreToc.TryGetId"/> + the canonical
+    /// CoreTOC name; missing SNOs are dropped (an honest partial —
+    /// every paragon-relevant rarity is populated on the live
+    /// install, but a future build dropping one wouldn't crash the
+    /// surface, just shrink the dictionary).
+    /// </remarks>
+    public ParagonTooltipChrome GetParagonTooltipChrome()
+    {
+        if (_paragonTooltipChrome is not null) return _paragonTooltipChrome;
+        lock (_paragonTooltipChromeLock)
+        {
+            return _paragonTooltipChrome ??= BuildParagonTooltipChrome();
+        }
+    }
+
+    private ParagonTooltipChrome BuildParagonTooltipChrome()
+    {
+        // Paragon rarities map to the four TooltipBackgroundRarity_*
+        // SNOs by name — Optimizer-confirmed coverage on the live
+        // build (`casc-fr#35` consumer probe, 2026-05-23).
+        var paragon = new SortedDictionary<ParagonRarity, AssetRef>();
+        foreach (var (rarity, suffix) in ParagonRarityChromeSuffixes())
+            if (TryGetTiledStyleRef($"TooltipBackgroundRarity_{suffix}", out var assetRef))
+                paragon[rarity] = assetRef;
+
+        // Item-side rarities — future-proofing handle. Keyed by the
+        // engine's string rarity token (the suffix from the SNO
+        // name), not by ParagonRarity (which has no Unique / Set /
+        // Mythic / Season members).
+        var item = new SortedDictionary<string, AssetRef>(StringComparer.Ordinal);
+        foreach (var suffix in (string[])["Unique", "Set", "Mythic", "Season"])
+            if (TryGetTiledStyleRef($"TooltipBackgroundRarity_{suffix}", out var assetRef))
+                item[suffix] = assetRef;
+
+        return new ParagonTooltipChrome(paragon, item);
+    }
+
+    private static IEnumerable<(ParagonRarity Rarity, string Suffix)>
+        ParagonRarityChromeSuffixes() =>
+        [
+            (ParagonRarity.Common, "Common"),
+            (ParagonRarity.Magic, "Magic"),
+            (ParagonRarity.Rare, "Rare"),
+            (ParagonRarity.Legendary, "Legendary"),
+        ];
+
+    private bool TryGetTiledStyleRef(string name, out AssetRef assetRef)
+    {
+        if (_d4.CoreToc.TryGetId(SnoGroup.UiStyle, name, out var id))
+        {
+            assetRef = new AssetRef(
+                AssetKind.TiledStyle, SnoGroup.UiStyle, id, name,
+                Array.Empty<string>());
+            return true;
+        }
+        assetRef = default;
+        return false;
+    }
 
     /// <summary>Lazy access to the §6.5 PlayerClass SnoName roster
     /// (cached for the catalog's lifetime — the eight class names
