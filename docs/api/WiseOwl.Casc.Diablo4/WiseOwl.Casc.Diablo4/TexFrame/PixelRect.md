@@ -1,6 +1,6 @@
 # TexFrame.PixelRect method
 
-Integer pixel rectangle for this frame over a *width*×*height* decoded atlas: `x0=floor(U0·W) … x1=ceil(U1·W)`.
+Integer pixel rectangle for this frame's outer rect over a *width*×*height* decoded atlas: `x0=floor(U0·W) … x1=ceil(U1·W)`.
 
 ```csharp
 public (int X, int Y, int Width, int Height) PixelRect(int width, int height)

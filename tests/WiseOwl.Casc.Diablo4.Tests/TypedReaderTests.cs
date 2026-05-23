@@ -564,6 +564,25 @@ public sealed class TypedReaderTests
         // Missing SNO ⇒ null (and the cache memoizes that miss).
         Assert.Null(d4.Catalog.GetNodeInfo(999_999_999));
 
+        // CL-71 inner UV decode (FR-C20 #32 codec tail) — the per-frame
+        // 16-byte trailer is an inner / 9-slice-middle UV rect that
+        // most frames mirror to the outer rect but some atlases inset.
+        // Find at least one frame with a non-trivial inner rect.
+        bool sawDistinct = false;
+        foreach (var (atlasSno, td) in d4.TextureMeta.BySno)
+        {
+            foreach (var fr in td.Frames)
+            {
+                // The inner pixel rect always resolves (engineered to
+                // stay non-empty even on degenerate-point cases).
+                var (_, _, iw, ih) = fr.InnerPixelRect(td.Width, td.Height);
+                Assert.True(iw >= 1 && ih >= 1);
+                if (fr.HasDistinctInner) { sawDistinct = true; break; }
+            }
+            if (sawDistinct) break;
+        }
+        Assert.True(sawDistinct, "at least one frame should expose a real inner-rect inset across the install");
+
         // CL-70 hot path — GetBoardNodes on Paragon_Warlock_00 (2458674).
         // The board's 441-cell grid contains ~60+ placed nodes (sparse
         // grid), each pair carries (row, col) and the resolved info.

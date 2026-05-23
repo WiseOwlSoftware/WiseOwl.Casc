@@ -1107,6 +1107,226 @@ switch (cmd)
             Console.WriteLine($"{kv.Key,-14} {kv.Value.atlases,8} {kv.Value.frames,10}");
         return 0;
     }
+    case "texdump":
+    {
+        // texdump <sno> [offset=0] [len=...] — locate the texture's
+        // combined-meta entry and hex-dump its raw bytes (relative to the
+        // entry's descStart, with the parsed fields annotated). For the
+        // FR-C20 #32 codec-tail investigation.
+        if (argv.Count < 2) { Console.Error.WriteLine("texdump <sno> [offset] [len]"); return 2; }
+        int sno = int.Parse(argv[1]);
+        int dumpOff = argv.Count > 2 ? int.Parse(argv[2]) : 0;
+        int dumpLen = argv.Count > 3 ? int.Parse(argv[3]) : 256;
+
+        // Re-walk the bundle to locate this SNO's entry — same shape as
+        // CombinedTextureMeta.Parse uses internally.
+        var bundle = d4.Casc.ReadPath(@"Base\Texture-Base-Global.dat");
+        var count = (int)BitConverter.ToUInt32(bundle, 4);
+        var indices = new (int Sno, int Size)[count];
+        for (int i = 0; i < count; i++)
+        {
+            indices[i].Sno = BitConverter.ToInt32(bundle, 8 + i * 8);
+            indices[i].Size = (int)BitConverter.ToUInt32(bundle, 12 + i * 8);
+        }
+        int cursor = 8 + count * 8;
+        int hitDesc = -1, hitSize = 0;
+        foreach (var (s, size) in indices)
+        {
+            int aligned = (cursor + 7) & ~7;
+            int descStart = aligned + 8;
+            if (descStart + size > bundle.Length) break;
+            int entrySno = BitConverter.ToInt32(bundle, descStart);
+            if (entrySno == sno) { hitDesc = descStart; hitSize = size; break; }
+            cursor = descStart + size;
+        }
+        if (hitDesc < 0) { Console.Error.WriteLine($"sno {sno} not in bundle"); return 1; }
+
+        int payloadBase = hitDesc + 4;
+        int payloadEnd = hitDesc + hitSize;
+        Console.WriteLine($"sno {sno}  descStart 0x{hitDesc:X8}  size {hitSize}  payloadBase 0x{payloadBase:X8}  payloadEnd 0x{payloadEnd:X8}");
+        for (int p = dumpOff; p < dumpOff + dumpLen && payloadBase + p + 4 <= payloadEnd; p += 4)
+        {
+            uint u = BitConverter.ToUInt32(bundle, payloadBase + p);
+            int sI = unchecked((int)u);
+            float f = BitConverter.UInt32BitsToSingle(u);
+            // annotate known fields
+            string note = p switch
+            {
+                0  => "  <- snoId (descStart+0 also)",
+                8  => "  <- eTexFormat",
+                16 => "  <- nWidth (u16 lo) | nHeight (u16 hi)",
+                24 => "  <- nMipMin/Max packed",
+                64 => "  <- serTex DT_VARIABLEARRAY",
+                80 => "  <- ptFrame DT_VARIABLEARRAY",
+                _  => ""
+            };
+            Console.WriteLine($"  payload+{p,-4} (0x{payloadBase + p:X4})  u32={u,12}  i32={sI,12}  f32={f,14:0.###}  hex={u:X8}{note}");
+        }
+        return 0;
+    }
+    case "framescan":
+    {
+        // framescan — scan every TextureDefinition in the combined-meta and
+        // check whether the per-frame 16-byte tail (+20..+35) equals the
+        // primary UV rect (+4..+19). Reports any frame where they differ
+        // (the FR-C20 #32 codec-tail question: is the tail a duplicate?).
+        var bundle = d4.Casc.ReadPath(@"Base\Texture-Base-Global.dat");
+        var count = (int)BitConverter.ToUInt32(bundle, 4);
+        var idx = new (int Sno, int Size)[count];
+        for (int i = 0; i < count; i++)
+        {
+            idx[i].Sno = BitConverter.ToInt32(bundle, 8 + i * 8);
+            idx[i].Size = (int)BitConverter.ToUInt32(bundle, 12 + i * 8);
+        }
+        int cursor = 8 + count * 8;
+        int scanned = 0, divergent = 0, divergentFrames = 0;
+        foreach (var (s, size) in idx)
+        {
+            int aligned = (cursor + 7) & ~7;
+            int descStart = aligned + 8;
+            cursor = descStart + size;
+            if (descStart + size > bundle.Length) break;
+            int payloadBase = descStart + 4;
+            int frDescOff = payloadBase + 80;
+            int frDataOff = BitConverter.ToInt32(bundle, frDescOff + 4);
+            int frDataSize = BitConverter.ToInt32(bundle, frDescOff + 8);
+            if (frDataSize <= 0) continue;
+            int frStart = descStart + frDataOff;
+            int frCount = frDataSize / 36;
+            if (frStart + frCount * 36 > bundle.Length) continue;
+            scanned++;
+            int snoDiv = 0;
+            for (int i = 0; i < frCount; i++)
+            {
+                int b = frStart + i * 36;
+                bool eq = true;
+                for (int k = 0; k < 16; k++)
+                    if (bundle[b + 4 + k] != bundle[b + 20 + k]) { eq = false; break; }
+                if (!eq) { snoDiv++; divergentFrames++; }
+            }
+            if (snoDiv > 0) divergent++;
+        }
+        Console.WriteLine($"scanned {scanned} TextureDefinitions with frames; {divergent} atlases with tail != primary UV ({divergentFrames} divergent frames)");
+        return 0;
+    }
+    case "framediv":
+    {
+        // framediv [max=5] — list a sample of divergent atlases + show the
+        // first divergent frame's primary UV vs tail UV side by side.
+        int max = argv.Count > 1 ? int.Parse(argv[1]) : 5;
+        var bundle = d4.Casc.ReadPath(@"Base\Texture-Base-Global.dat");
+        var count = (int)BitConverter.ToUInt32(bundle, 4);
+        var idx = new (int Sno, int Size)[count];
+        for (int i = 0; i < count; i++)
+        {
+            idx[i].Sno = BitConverter.ToInt32(bundle, 8 + i * 8);
+            idx[i].Size = (int)BitConverter.ToUInt32(bundle, 12 + i * 8);
+        }
+        int cursor = 8 + count * 8;
+        int shown = 0;
+        foreach (var (s, size) in idx)
+        {
+            if (shown >= max) break;
+            int aligned = (cursor + 7) & ~7;
+            int descStart = aligned + 8;
+            cursor = descStart + size;
+            if (descStart + size > bundle.Length) break;
+            int payloadBase = descStart + 4;
+            int frDescOff = payloadBase + 80;
+            int frDataOff = BitConverter.ToInt32(bundle, frDescOff + 4);
+            int frDataSize = BitConverter.ToInt32(bundle, frDescOff + 8);
+            if (frDataSize <= 0) continue;
+            int frStart = descStart + frDataOff;
+            int frCount = frDataSize / 36;
+            if (frStart + frCount * 36 > bundle.Length) continue;
+            for (int i = 0; i < frCount; i++)
+            {
+                int b = frStart + i * 36;
+                bool eq = true;
+                for (int k = 0; k < 16; k++)
+                    if (bundle[b + 4 + k] != bundle[b + 20 + k]) { eq = false; break; }
+                if (eq) continue;
+                var name = toc.Entries.Where(e => (int)e.Group == 44 && e.Id == s).Select(e => e.Name).FirstOrDefault() ?? "?";
+                int format = (int)BitConverter.ToUInt32(bundle, payloadBase + 8);
+                int w = BitConverter.ToUInt16(bundle, payloadBase + 16);
+                int h = BitConverter.ToUInt16(bundle, payloadBase + 18);
+                Console.WriteLine($"sno {s,8} fmt={format} {w}x{h} frame[{i}]/{frCount} '{name}'");
+                Console.Write($"  primary:  uv=");
+                for (int k = 4; k < 20; k += 4) Console.Write($" {BitConverter.UInt32BitsToSingle(BitConverter.ToUInt32(bundle, b + k)):0.####}");
+                Console.WriteLine();
+                Console.Write($"  tail:     uv=");
+                for (int k = 20; k < 36; k += 4) Console.Write($" {BitConverter.UInt32BitsToSingle(BitConverter.ToUInt32(bundle, b + k)):0.####}");
+                Console.WriteLine();
+                Console.Write($"  tail hex:    ");
+                for (int k = 20; k < 36; k += 4) Console.Write($"  +{k}=0x{BitConverter.ToUInt32(bundle, b + k):X8}");
+                Console.WriteLine();
+                shown++;
+                break;
+            }
+        }
+        return 0;
+    }
+    case "frametail":
+    {
+        // frametail <sno> — list each TexFrame's raw 36-byte slice for one atlas,
+        // surfacing the 16 trailing bytes after (u,v0,u,v1) so the codec-tail
+        // investigation can see whether they carry layer/flag/anim data.
+        if (argv.Count < 2) { Console.Error.WriteLine("frametail <sno> [maxFrames]"); return 2; }
+        int sno = int.Parse(argv[1]);
+        int max = argv.Count > 2 ? int.Parse(argv[2]) : 4;
+
+        var bundle = d4.Casc.ReadPath(@"Base\Texture-Base-Global.dat");
+        var count = (int)BitConverter.ToUInt32(bundle, 4);
+        var indices = new (int Sno, int Size)[count];
+        for (int i = 0; i < count; i++)
+        {
+            indices[i].Sno = BitConverter.ToInt32(bundle, 8 + i * 8);
+            indices[i].Size = (int)BitConverter.ToUInt32(bundle, 12 + i * 8);
+        }
+        int cursor = 8 + count * 8;
+        int hitDesc = -1, hitSize = 0;
+        foreach (var (s, size) in indices)
+        {
+            int aligned = (cursor + 7) & ~7;
+            int descStart = aligned + 8;
+            if (descStart + size > bundle.Length) break;
+            int entrySno = BitConverter.ToInt32(bundle, descStart);
+            if (entrySno == sno) { hitDesc = descStart; hitSize = size; break; }
+            cursor = descStart + size;
+        }
+        if (hitDesc < 0) { Console.Error.WriteLine($"sno {sno} not in bundle"); return 1; }
+
+        int payloadBase = hitDesc + 4;
+        int frDescOff = payloadBase + 80;
+        int frDataOff = BitConverter.ToInt32(bundle, frDescOff + 4);
+        int frDataSize = BitConverter.ToInt32(bundle, frDescOff + 8);
+        int frStart = hitDesc + frDataOff;
+        int frCount = frDataSize / 36;
+        Console.WriteLine($"sno {sno}  frames={frCount}  (size={frDataSize})");
+        for (int i = 0; i < Math.Min(frCount, max); i++)
+        {
+            int b = frStart + i * 36;
+            uint hdl = BitConverter.ToUInt32(bundle, b);
+            float u0 = BitConverter.UInt32BitsToSingle(BitConverter.ToUInt32(bundle, b + 4));
+            float v0 = BitConverter.UInt32BitsToSingle(BitConverter.ToUInt32(bundle, b + 8));
+            float u1 = BitConverter.UInt32BitsToSingle(BitConverter.ToUInt32(bundle, b + 12));
+            float v1 = BitConverter.UInt32BitsToSingle(BitConverter.ToUInt32(bundle, b + 16));
+            Console.WriteLine($"  frame[{i}] handle=0x{hdl:X8} uv=({u0:0.####},{v0:0.####})-({u1:0.####},{v1:0.####})");
+            Console.Write($"    tail bytes @+20..+35:");
+            for (int k = 20; k < 36; k += 4)
+                Console.Write($"  +{k}=0x{BitConverter.ToUInt32(bundle, b + k):X8}");
+            Console.WriteLine();
+            // also display as floats for the tail to spot any UV/scale values
+            Console.Write("                    as float:");
+            for (int k = 20; k < 36; k += 4)
+            {
+                float v = BitConverter.UInt32BitsToSingle(BitConverter.ToUInt32(bundle, b + k));
+                Console.Write($"  +{k}={v,10:0.####}");
+            }
+            Console.WriteLine();
+        }
+        return 0;
+    }
     default:
         Console.Error.WriteLine($"unknown command '{cmd}'");
         return 2;

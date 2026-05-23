@@ -1,18 +1,32 @@
 # TexFrame constructor
 
-One atlas sub-rect (`TexFrame`, 36 bytes) from a [`TextureDefinition`](../TextureDefinition.md)'s `ptFrame` array.
+One atlas sub-rect (`TexFrame`, 36 bytes) from a [`TextureDefinition`](../TextureDefinition.md)'s `ptFrame` array — carries both the outer UV rect (the full sprite slot, including any authored padding) and an inner UV rect (the trimmed-content / 9-slice-middle rect) decoded from the trailing 16 bytes of the on-disk frame (CL-71, FR-C20 #32 codec-tail investigation).
 
 ```csharp
-public TexFrame(uint ImageHandle, float U0, float V0, float U1, float V1)
+public TexFrame(uint ImageHandle, float U0, float V0, float U1, float V1, float InnerU0, 
+    float InnerV0, float InnerU1, float InnerV1)
 ```
 
 | parameter | description |
 | --- | --- |
 | ImageHandle | The image handle. This matches a `ParagonNode.hIconMask` / `hIcon` — the node↔icon link is first-party, no heuristic correlation needed. |
-| U0 | Left edge, normalized over the decoded mip0 width. |
-| V0 | Top edge, normalized over the decoded mip0 height. |
-| U1 | Right edge (normalized). |
-| V1 | Bottom edge (normalized). |
+| U0 | Outer-rect left edge (normalized over mip0 width). |
+| V0 | Outer-rect top edge (normalized over mip0 height). |
+| U1 | Outer-rect right edge (normalized). |
+| V1 | Outer-rect bottom edge (normalized). |
+| InnerU0 | Inner-rect left edge (normalized) — the trimmed-content / 9-slice-middle left. |
+| InnerV0 | Inner-rect top edge (normalized). |
+| InnerU1 | Inner-rect right edge (normalized). |
+| InnerV1 | Inner-rect bottom edge (normalized). |
+
+## Remarks
+
+Across the live build's `140 197` texture definitions, ~`83%` of frames carry an inner rect equal to the outer rect (no trim; outer is the content). Of the rest:
+
+* ~`17%` carry a non-equal inner rect inset from the outer — typically a few pixels of padding for filtering / mipmap safety, or a 9-slice middle for stretchable UI tiles.
+* A handful carry a degenerate inner rect collapsed to a single point at the outer rect's top-left (`InnerU0 == InnerU1`, `InnerV0 == InnerV1`); read as "no authored inner rect" rather than as a zero-area sample.
+
+Both rects are normalised over the decoded mip0 dimensions. For rendering a frame's content untrimmed, sample [`PixelRect`](./PixelRect.md); for the inset / 9-slice middle, sample [`InnerPixelRect`](./InnerPixelRect.md).
 
 ## See Also
 

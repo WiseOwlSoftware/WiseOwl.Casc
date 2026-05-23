@@ -1,9 +1,9 @@
-# TexFrame.V0 property
+# TexFrame.InnerV1 property
 
-Outer-rect top edge (normalized over mip0 height).
+Inner-rect bottom edge (normalized).
 
 ```csharp
-public float V0 { get; set; }
+public float InnerV1 { get; set; }
 ```
 
 ## See Also

@@ -1,9 +1,9 @@
-# TexFrame.V0 property
+# TexFrame.InnerU0 property
 
-Outer-rect top edge (normalized over mip0 height).
+Inner-rect left edge (normalized) — the trimmed-content / 9-slice-middle left.
 
 ```csharp
-public float V0 { get; set; }
+public float InnerU0 { get; set; }
 ```
 
 ## See Also
