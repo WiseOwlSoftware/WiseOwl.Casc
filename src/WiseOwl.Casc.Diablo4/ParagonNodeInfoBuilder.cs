@@ -45,6 +45,13 @@ internal static class ParagonNodeInfoBuilder
         var icon = ResolveAtlasRef(catalog, node.HIcon);
         var iconMask = ResolveAtlasRef(catalog, node.HIconMask);
         var (power, powerName) = ResolvePower(d4, node.SnoPassivePower);
+        // FR-C22 / CL-75 — sibling-StringList lookup for the engine's
+        // user-facing tooltip header. Missing/absent ⇒ string.Empty
+        // (consumer fallback territory; the projection records honest
+        // "no engine title for this node").
+        var localizedTitle = d4.TryReadParagonNodeTitle(node.SnoId, out var lt)
+            ? lt
+            : string.Empty;
 
         // Stats are dropped only for the two kinds the engine authors
         // with zero NodeAttribute rows: Start (the class emblem; verified
@@ -62,6 +69,7 @@ internal static class ParagonNodeInfoBuilder
         return new ParagonNodeInfo(
             Sno: node.SnoId,
             Name: name,
+            LocalizedTitle: localizedTitle,
             Kind: kind,
             Rarity: node.Rarity,
             Icon: icon,

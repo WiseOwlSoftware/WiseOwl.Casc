@@ -1999,6 +1999,37 @@ derived from FR-C14 R8's `snoTiledStyle` crack and R10's variant
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
 
+- **CL-75 — `ParagonNodeInfo.LocalizedTitle` from the
+  `ParagonNode_<SnoName>` sibling StringList (FR-C22).** Engine
+  authors a per-node title StringList for every node that has its
+  own tooltip header — Start nodes (`StartNodeBarb` etc.) →
+  "Paragon Starting Node", Gate (`Generic_Gate`) →
+  "Board Attachment Gate", class-specific rares
+  (`Warlock_Rare_006` → "Binding"), named legendary nodes. The
+  generic `Generic_<Rarity>_<Token>` stat-node family
+  (`Generic_Magic_DamageToElite` etc.) has no sibling and surfaces
+  as `string.Empty` — the consumer composes their label from
+  `Stats`/`Kind`/`Rarity`. Resolution via the §6.7 sibling-
+  StringList convention (the same pattern used for board
+  names / power names / affix descs, CL-15 / CL-20 / CL-22).
+  Surface: new `Diablo4Storage.TryReadParagonNodeTitle(int sno, out
+  string name, locale)` (low-level, mirrors
+  `TryReadParagonBoardName`); `ParagonNodeInfo.LocalizedTitle`
+  populated by `ParagonNodeInfoBuilder`. Per the Optimizer's
+  precedent note on the FR-C22 thread, this is the same
+  (data-mine token, localized projection) pair already shipped on
+  `ParagonBoard.Name` (CL-15) and `ParagonNodeInfo.PassivePowerName`
+  (CL-69) — natural completion of the localized-display pair on
+  the projection. Acceptance: live `GetNodeInfo` returns the
+  engine-displayed title for Gate (994337 → "Board Attachment
+  Gate"), Start (`StartNodeBarb` 830650 → "Paragon Starting Node"),
+  and a class-specific rare (`Warlock_Rare_006` 2451111 →
+  "Binding"); empty for `Generic_Magic_Armor` (671247) — the
+  honest sentinel. `TryReadParagonNodeTitle` low-level surface
+  exposed symmetrically (returns false + `string.Empty` on the
+  no-sibling case). 92/92 tests green on `3.0.2.71886`. Devlog
+  0070.
+
 - **CL-74 — Gate (`Board Attachment Gate`) node stats projection
   fix (FR-C21 game-oracle correction).** Owner in-game observation
   (relayed via the Optimizer 2026-05-23): the node-kind I'd been

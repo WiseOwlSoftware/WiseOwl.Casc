@@ -178,6 +178,20 @@ public sealed record ParagonNodeStat(
 /// <param name="Name">The node's CoreTOC name (e.g.
 /// <c>Generic_Magic_Armor</c>, <c>Warlock_Rare_006</c>). The most
 /// patch-durable identity across builds.</param>
+/// <param name="LocalizedTitle">The engine's user-facing tooltip
+/// header (FR-C22, CL-75) — <c>"Paragon Starting Node"</c> for every
+/// class start node, <c>"Board Attachment Gate"</c> for every Gate,
+/// authored display names on class-specific rare nodes
+/// (<c>Warlock_Rare_006</c> → <c>"Binding"</c>), and authored
+/// titles for named legendary nodes. Resolved via the §6.7 sibling-
+/// StringList convention (<c>ParagonNode_&lt;SnoName&gt;</c>, label
+/// <c>Name</c>). The generic <c>Generic_&lt;Rarity&gt;_&lt;Token&gt;</c>
+/// stat-node family (<c>Generic_Magic_DamageToElite</c> etc.) has
+/// no sibling StringList and surfaces as <see cref="string.Empty"/>
+/// here — the consumer composes their UI label from
+/// <see cref="Stats"/> / <see cref="Kind"/> / <see cref="Rarity"/>.
+/// Always non-null; <see cref="string.Empty"/> means "no
+/// engine-authored title for this node".</param>
 /// <param name="Kind">The visual archetype — see
 /// <see cref="ParagonNodeKind"/>.</param>
 /// <param name="Rarity">The raw <see cref="ParagonRarity"/>
@@ -222,6 +236,7 @@ public sealed record ParagonNodeStat(
 public sealed record ParagonNodeInfo(
     int Sno,
     string Name,
+    string LocalizedTitle,
     ParagonNodeKind Kind,
     ParagonRarity Rarity,
     AssetRef? Icon,
