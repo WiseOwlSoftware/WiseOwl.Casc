@@ -354,10 +354,11 @@ public sealed class TypedReaderTests
         Assert.Equal(expected, AttributeNames.StripTemplate(template));
     }
 
-    [Theory]
+    [SkippableTheory]
     // CL-78 — Diablo4Storage.GetAttributeName end-to-end (live data,
     // sno 4080 template lookup + strip). Anchor cases from the
-    // Optimizer's FR-C25 acceptance.
+    // Optimizer's FR-C25 acceptance. SkippableTheory so the rows
+    // self-skip when no install is present (CI).
     [InlineData(9,   "Strength")]
     [InlineData(10,  "Intelligence")]
     [InlineData(11,  "Willpower")]
@@ -380,7 +381,7 @@ public sealed class TypedReaderTests
         Assert.Equal(expected, d4.GetAttributeName(attributeId));
     }
 
-    [Fact]
+    [SkippableFact]
     public void B10_get_attribute_name_returns_null_for_unmapped_id()
     {
         var install = Install();
