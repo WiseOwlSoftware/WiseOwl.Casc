@@ -67,4 +67,15 @@ public enum SnoGroup
     /// 603760 "BagBackground", 1309282 "Frame_AbilityPoints",
     /// 872641 "Tutorial_Highlight", 1841254 "Expansion_Frame_Ultimate".</summary>
     UiStyle = 103,
+
+    /// <summary>Stat-threshold tag definitions — referenced from a rare
+    /// paragon node's bonus stat-threshold tag array
+    /// (<see cref="ParagonNodeDefinition.BonusStatTagSnoIds"/>) and from
+    /// glyph activation gates. Each record carries a formula text that
+    /// resolves to the required stat threshold (e.g. <c>WillpowerMain2</c>
+    /// → <c>"760 + (455 * ParagonBoardEquipIndex)"</c>). The naming
+    /// convention is <c>&lt;Stat&gt;{Main|Side}{Tier}</c> with class- /
+    /// glyph-specific composite variants (<c>Barb_Strength+Dexterity</c>,
+    /// <c>Glyph_Willpower_Main</c>). See <see cref="StatTagDefinition"/>.</summary>
+    StatTag = 124,
 }

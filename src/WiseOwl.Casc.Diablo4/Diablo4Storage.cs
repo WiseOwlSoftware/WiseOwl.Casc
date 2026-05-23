@@ -738,6 +738,30 @@ public sealed class Diablo4Storage : IDisposable
     public ParagonGlyphAffixDefinition ReadParagonGlyphAffix(int id) =>
         ParagonGlyphAffixDefinition.Parse(ReadSno(SnoGroup.ParagonGlyphAffix, id));
 
+    /// <summary>Read + decode a <see cref="StatTagDefinition"/> by SNO id
+    /// (group <see cref="SnoGroup.StatTag"/>=124) — the stat-threshold tag
+    /// referenced from a rare paragon node's
+    /// <see cref="ParagonNodeDefinition.BonusStatTagSnoIds"/>. Returns the
+    /// raw formula text only (evaluation is the consumer's, per Appendix
+    /// C).</summary>
+    public StatTagDefinition ReadStatTag(int id) =>
+        StatTagDefinition.Parse(ReadSno(SnoGroup.StatTag, id));
+
+    /// <summary>Non-throwing variant of <see cref="ReadStatTag"/> — returns
+    /// <see langword="false"/> when the SNO is missing or unreadable;
+    /// equivalent to the typed-reader convention used elsewhere on this
+    /// facade.</summary>
+    public bool TryReadStatTag(int id, out StatTagDefinition tag)
+    {
+        if (TryReadSno(SnoGroup.StatTag, id, SnoFolder.Meta, out var blob))
+        {
+            tag = StatTagDefinition.Parse(blob);
+            return true;
+        }
+        tag = null!;
+        return false;
+    }
+
     /// <summary>Read + decode the GameBalance <see cref="AttributeFormulaTable"/>
     /// (default SNO <c>201912</c>, the paragon formula table). Returns
     /// formula <i>text</i> + name/GBID indices only — evaluation and the

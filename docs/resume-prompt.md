@@ -65,13 +65,16 @@ absent from any GameBalance table (`AttributeFormulas`/`PowerFormulaTables`/
 `find Budget`=0); they're baked as a clean-room calibration table from the
 owner's in-game readings (saved in [[project_fr-c21-node-info]]).
 
-**Bonus-mechanic decoded (this session):** rare nodes' "third effect"
-(`Bonus: another +X% [stat] when xxx/T [Stat] met`) lives in **two additional
-`DT_VARIABLEARRAY` descriptors on the node record** at `@48` (size-4, single
-`DT_SNO`) and `@64` (size-N `DT_SNO` array). The `@64` entries reference
-**group-124 stat-threshold tag SNOs** (named `StrengthSide2`, `IntelligenceSide1`,
-`WillpowerMain2`, …). Each tag's payload carries a **formula text** at payload
-`+96` that yields the threshold value, scaling by board position:
+**Bonus-mechanic decoded + shipped (CL-67, devlog 0062):** rare nodes' "third
+effect" (`Bonus: another +X% [stat] when xxx/T [Stat] met`) lives in **two
+additional `DT_VARIABLEARRAY` descriptors on the node record** at `@48`
+(size-4, single `DT_SNO` — surface `BonusPassivePowerSno`) and `@64` (size-N
+`DT_SNO[]` — surface `BonusStatTagSnoIds`). The `@64` entries reference
+**group-124 stat-threshold tag SNOs** (named `StrengthSide2`,
+`IntelligenceSide1`, `WillpowerMain2`, …) — read via the new
+`Diablo4Storage.ReadStatTag(int)` → `StatTagDefinition`. Each tag's payload
+carries a **formula text** at the `@64` descriptor's payload offset that
+yields the threshold value, scaling by board position:
 ```
 StrengthSide2     = "210 + (75 * ParagonBoardEquipIndex)"
 IntelligenceSide1 = "190 + (75 * ParagonBoardEquipIndex)"
@@ -102,33 +105,45 @@ The `Side*` vs `Main*` suffix corresponds to threshold tier
   reliable Flat vs Percent indicator — unit is intrinsic to the eAttribute /
   formula structure, not the name suffix).
 
-**Active branch:** `fr-c21-node-fields-re` MERGED via PR #54 → **CL-66
-(`0945892`)** on `main`. ParagonNode now decodes `eNodeType` (`+16`, 5=Start
-verified all 7 class start boards, 3=Magic, 0=normal/gate/rare — distinct axis
-from rarity) + per-attribute GBID array `@88` (one `DT_UINT` per
-`ptAttributes` element, parallel; stable per `eAttribute`; canonical name
-uncracked, surfaced raw on `NodeAttribute.AttributeGbid`). 54/54 tests green.
+**Active branch:** `fr-c21-bonus-mechanic-stat-tag` (PR pending) → **CL-67**
+extends CL-66 by closing the rare bonus-mechanic field debt: `@48` is the
+bonus-passive-power slot (`DT_VARIABLEARRAY[DT_SNO]`; size-1 on rares, always
+value `0` so far; descriptor empty on every other observed kind), and `@64`
+is the bonus stat-threshold tag array (`DT_VARIABLEARRAY[DT_SNO]` referencing
+group 124 `StatTag`). Surfaces: `ParagonNodeDefinition.BonusPassivePowerSno`
+(`-1` = no descriptor, `0` = rare with empty slot, otherwise SNO id),
+`ParagonNodeDefinition.BonusStatTagSnoIds`, new `StatTagDefinition`
+(`ThresholdFormulaText`), `Diablo4Storage.ReadStatTag` / `TryReadStatTag`,
+`SnoGroup.StatTag = 124`. Live-verified: `Warlock_Rare_006` ⇒
+`[WillpowerMain2]` ⇒ `"760 + (455 * ParagonBoardEquipIndex)"`;
+`Generic_Rare_001` ⇒ the three class-keyed alternatives. **58/58 tests green
+on 3.0.2.71886.** Devlog 0062. The earlier active branch was
+`fr-c21-node-fields-re` (CL-66, `0945892`, PR #54 MERGED).
 
-**Still NOT decoded on `ParagonNodeDefinition`** (debt to close on the next CL):
-- `@48` descriptor (size-4, single `DT_SNO` — always observed value `0`; possibly
-  a "bonus passive power" SNO, null on the rares examined).
-- `@64` descriptor (size-N `DT_SNO[]` — the bonus stat-threshold tag SNOs,
-  group 124; needs typed accessor on `ParagonNodeDefinition` + group-124 record
-  reader to surface the threshold formula).
-- `ParagonBoard.payload+32` (128 Warlock / 64 Paladin / 0 older — equip-index or
-  per-class flag; the threshold formula consumes `ParagonBoardEquipIndex`, so
-  this is likely **that index** and the next puzzle piece).
-- The 4 per-specifier sub-descriptors at `+24/+40/+64/+80` (sizes 1, 0, 2, 12) —
-  the size-12 region is byte-identical across nodes with different thresholds,
-  so it's structural padding, not bonus data.
+**Still NOT decoded on `ParagonNodeDefinition`** (debt remaining after CL-67):
+- The **bonus stat itself** (the "+Z% [stat]" magnitude + which `eAttribute`
+  it modifies). Strongest candidate: the per-attribute GBID array `@88` is
+  one entry larger than `ptAttributes.Count` on every rare sampled (2 attrs
+  ⇒ 3 entries; the extra is node-specific — Warlock_Rare_006 → `0xAC62A180`,
+  Generic_Rare_001 → `0x6D91307D`). Verifying the linkage + identifying
+  magnitude needs owner oracle (which displayed bonus values pair with
+  which rare). Open follow-up.
+- `ParagonBoard.payload+32` (128 Warlock / 64 Paladin / 0 older — equip-index
+  or per-class flag; the threshold formula consumes `ParagonBoardEquipIndex`,
+  so this is likely **that index** and the next puzzle piece).
+- Composite-tag sub-records on group-124 (`Barb_Strength+Dexterity` etc.) —
+  the primary formula text decodes; the per-alternative records do not.
+- The 4 per-specifier sub-descriptors at `+24/+40/+64/+80` (sizes 1, 0, 2, 12)
+  inside each AttributeSpecifier — the size-12 region is byte-identical across
+  nodes with different thresholds, so it's structural padding, not bonus data.
 
-**Recon tooling added this session** (build/SnoScan, uncommitted on `main`,
-will commit alongside the next CL): `nodeinfo` (dogfooded full per-node dump
-with resolved formula text), `nodesbyformula`, `formula`, `formulafind`,
-`boardname` (dogfoods `TryReadParagonBoardName`), `cellof`, `rawhex`,
-`listgroup`, `snoid`, `attrmap` (`AttributeId → stat-name` map via
-`Generic_*` node-name convention). The CL-66 commit included `attrmap`,
-`rawhex`, `listgroup`, `cellof`, `boardnodes` already.
+**Recon tooling on `build/SnoScan` is committed on `main`** (PR #55, `8cdcea1`):
+`nodeinfo` (dogfooded full per-node dump with resolved formula text),
+`nodesbyformula`, `formula`, `formulafind`, `boardname` (dogfoods
+`TryReadParagonBoardName`), `cellof`, `rawhex`, `listgroup`, `snoid`,
+`attrmap` (`AttributeId → stat-name` map via `Generic_*` node-name
+convention). The CL-66 PR (#54) included `attrmap`, `rawhex`, `listgroup`,
+`cellof`, `boardnodes` already.
 
 **Owner oracle help still open (when convenient):** the `@48` slot's meaning
 (always 0 on the 3 rares examined — verify across more rare/non-rare nodes);
@@ -233,12 +248,15 @@ awaiting:casc; 2 fixed, 1 in progress:**
 - **#24** rim = mesh/material (not a frame) — **`fr:consumed`** (owner accepted
   the procedural rim ✓).
 
-Latest CL = **66** (`0945892`, PR #54 merged 2026-05-22 — ParagonNode
-`eNodeType@16` + per-attribute GBID array `@88`, FR-C21 foundation).
+Latest CL = **67** (PR pending, branch `fr-c21-bonus-mechanic-stat-tag` —
+rare bonus mechanic `@48`/`@64` + group-124 `StatTagDefinition`, FR-C21
+deferred RE). CL-66 (`0945892`, PR #54) merged 2026-05-22 — ParagonNode
+`eNodeType@16` + per-attribute GBID array `@88`, FR-C21 foundation.
 AtlasExport + AtlasBrowser are build tools (no CL). #33 (FR-C21)
 `awaiting:optimizer`; #30 `awaiting:optimizer`; #32/#22/#31 `needs:owner`.
 Next branch off `main` is for FR-C21 build once the Optimizer signs off on
-the node-SNO key.
+the node-SNO key (or for further deferred RE — `ParagonBoard.payload+32`
+EquipIndex verification or the bonus-stat-magnitude linkage on `@88`+1).
 
 **P2b shipped marked-A (CL-59, `0a868f4`):** `Facet(Key,Value,FacetSource{NameConvention,
 Decoded,SceneField})` + `Catalog.Facets(ref)` + `FindByFacet(kind,key,value)`.

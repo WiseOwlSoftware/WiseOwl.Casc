@@ -139,6 +139,106 @@ public sealed class TypedReaderTests
     }
 
     [Fact]
+    public void B2_node_decodes_bonus_passive_and_stat_tag_arrays()
+    {
+        // Rare-shaped layout: ptAttributes @32 (2 specifiers) + the two
+        // bonus-mechanic descriptors (@48 size-1 DT_SNO; @64 size-N DT_SNO[])
+        // + @88 GBID array. None overlapping; mirrors a real rare node where
+        // the trailing array data is packed after all fixed fields.
+        const int attrBase = 128;
+        const int inlineAt = attrBase + 2 * 88;       // 304
+        const int gbidAt = inlineAt + 4;               // 308
+        const int bonusPowerAt = gbidAt + 2 * 4;       // 316
+        const int bonusTagsAt = bonusPowerAt + 4;     // 320 — 3 tag SNOs
+        var b = new Blob(bonusTagsAt + 3 * 4);
+        b.PI32(0, 2451111);                            // Warlock_Rare_006-style
+        b.PI32(16, 0);                                 // eNodeType = Normal
+        b.PI32(20, 3);                                 // eRarityOverride = Rare
+        b.PI32(24, -1);                                // snoPassivePower
+        // ptAttributes @ payload 32.
+        b.PI32(40, attrBase);
+        b.PI32(44, 2 * 88);
+        // bonus-passive-power slot @ 48 — size-1 DT_SNO, value 0.
+        b.PI32(56, bonusPowerAt);                      // dataOffset
+        b.PI32(60, 4);                                  // dataSize
+        b.PU32(bonusPowerAt, 0);                       // empty slot (the
+                                                       // observed-on-every-rare value)
+        // bonus stat-threshold tag array @ 64 — 3 DT_SNOs.
+        b.PI32(72, bonusTagsAt);
+        b.PI32(76, 3 * 4);
+        b.PU32(bonusTagsAt + 0, 1022854);              // Barb_Strength+Dexterity
+        b.PU32(bonusTagsAt + 4, 1015360);              // DexteritySide2
+        b.PU32(bonusTagsAt + 8, 1015342);              // StrengthSide2
+        // @88 GBID array.
+        b.PI32(96, gbidAt);
+        b.PI32(100, 2 * 4);
+        b.PU32(gbidAt + 0, 0xAAAA0001);
+        b.PU32(gbidAt + 4, 0xBBBB0002);
+        // 2 attribute specifiers (minimal — just an id each).
+        b.PI32(attrBase + 0, 79);
+        b.PU32(attrBase + 48, 0x42C16A1B);             // shared formula
+        b.PI32(attrBase + 88 + 0, 142);
+        b.PU32(attrBase + 88 + 48, 0x42C16A1C);
+
+        var n = ParagonNodeDefinition.Parse(b.Bytes);
+        Assert.Equal(0, n.BonusPassivePowerSno);       // rare-shape, no power
+        Assert.Equal([1022854, 1015360, 1015342], n.BonusStatTagSnoIds);
+    }
+
+    [Fact]
+    public void B2_node_without_bonus_descriptors_returns_empty_tags_and_minus_one_power()
+    {
+        // Non-rare layout — both bonus descriptors are unpopulated (all zeros),
+        // mirroring observed Common/Magic/Start/Gate/Socket nodes.
+        const int attrBase = 128;
+        const int gbidAt = attrBase + 88;
+        var b = new Blob(gbidAt + 4);
+        b.PI32(0, 671247);                             // Generic_Magic_Armor
+        b.PI32(16, 3);                                 // eNodeType = Magic
+        b.PI32(20, 2);                                 // eRarityOverride = Magic
+        b.PI32(40, attrBase);
+        b.PI32(44, 1 * 88);
+        // descriptors @ 48 and @ 64 left zero — empty arrays.
+        b.PI32(96, gbidAt);
+        b.PI32(100, 4);
+        b.PU32(gbidAt, 0xCCCCC001);
+        b.PI32(attrBase + 0, 481);                     // base attr id
+        b.PU32(attrBase + 48, 0x42C16A1B);
+
+        var n = ParagonNodeDefinition.Parse(b.Bytes);
+        Assert.Equal(-1, n.BonusPassivePowerSno);      // descriptor missing
+        Assert.Empty(n.BonusStatTagSnoIds);
+    }
+
+    [Fact]
+    public void B7_stat_tag_decodes_formula_text()
+    {
+        // Group-124 StatTag layout: snoId@0; descriptor @64 → ASCII text;
+        // optional NUL terminator counted by dataSize (engine emits one).
+        const int textAt = 96;
+        const string formula = "760 + (455 * ParagonBoardEquipIndex)";
+        var b = new Blob(textAt + formula.Length + 1);
+        b.PI32(0, 1068426);                            // WillpowerMain2
+        b.PI32(72, textAt);                            // dataOffset
+        b.PI32(76, formula.Length + 1);                // dataSize incl NUL
+        b.PAscii(textAt, formula);
+
+        var t = StatTagDefinition.Parse(b.Bytes);
+        Assert.Equal(1068426, t.SnoId);
+        Assert.Equal(formula, t.ThresholdFormulaText);
+    }
+
+    [Fact]
+    public void B7_stat_tag_missing_descriptor_yields_empty_formula()
+    {
+        var b = new Blob(80);
+        b.PI32(0, 9999);
+        var t = StatTagDefinition.Parse(b.Bytes);
+        Assert.Equal(9999, t.SnoId);
+        Assert.Equal("", t.ThresholdFormulaText);
+    }
+
+    [Fact]
     public void B3_glyph_collects_up_to_three_affixes()
     {
         var b = new Blob(120);
@@ -281,5 +381,27 @@ public sealed class TypedReaderTests
             var ga = d4.ReadParagonGlyphAffix(aff);
             Assert.Equal(aff, ga.SnoId);
         }
+
+        // Bonus mechanic (@48/@64) + StatTag (group 124):
+        //  - Warlock_Rare_006 (2451111) has exactly one bonus tag = 1068426
+        //    WillpowerMain2 whose threshold formula scales by EquipIndex.
+        //  - Generic_Rare_001 (679732) has the 3 class-keyed alternatives.
+        //  - A magic node (Generic_Magic_Armor 671247) has no bonus arrays.
+        var rare = d4.ReadParagonNode(2451111);
+        Assert.Equal(ParagonRarity.Rare, rare.Rarity);
+        Assert.Equal(0, rare.BonusPassivePowerSno);     // rare-shape, empty slot
+        Assert.Equal([1068426], rare.BonusStatTagSnoIds);
+        var willpower = d4.ReadStatTag(1068426);
+        Assert.Equal(1068426, willpower.SnoId);
+        Assert.Equal(
+            "760 + (455 * ParagonBoardEquipIndex)",
+            willpower.ThresholdFormulaText);
+
+        var multi = d4.ReadParagonNode(679732);
+        Assert.Equal([1022854, 1015360, 1015342], multi.BonusStatTagSnoIds);
+
+        var magic = d4.ReadParagonNode(671247);
+        Assert.Equal(-1, magic.BonusPassivePowerSno);
+        Assert.Empty(magic.BonusStatTagSnoIds);
     }
 }
