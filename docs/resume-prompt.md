@@ -107,15 +107,19 @@ The `Side*` vs `Main*` suffix corresponds to threshold tier
   reliable Flat vs Percent indicator — unit is intrinsic to the eAttribute /
   formula structure, not the name suffix).
 
-**Active branch:** `fr-c21-node-info-projection` (PR pending) → **CL-69**
-— second build slice of FR-C21: `ParagonNodeInfo` / `ParagonNodeStat` /
+**Active branch:** `fr-c21-board-nodes-hot-path` (PR pending) → **CL-70**
+— third (and consensus-backlog-final) build slice of FR-C21:
+`Catalog.GetBoardNodes(int boardSno)` hot path returning
+`(ParagonGridCell, ParagonNodeInfo)` pairs (row-major, empty cells
+skipped, three-layer cache, repeat-query reference identity) +
+`Catalog.EnumerateNodes(AssetQuery?)` lazy global enumerator +
+`ParagonGridCell(Row, Col)` value type. **FR-C21 consumer-signed-off
+backlog now complete** (CL-68/69/70) — ready for Optimizer
+verification + `fr:consumed` sign-off. 92/92 tests green. Devlog 0065.
+Previous: **`fr-c21-node-info-projection`** merged via PR #58 →
+**CL-69** (`342205c`) — `ParagonNodeInfo` / `ParagonNodeStat` /
 `ParagonNodeKind` / `StatUnit` public projection types +
-`Catalog.GetNodeInfo(int sno)` + SNO-keyed decode cache
-(`ConcurrentDictionary`) + AttributeFormulaTable lazy-singleton.
-StatName from the `Generic_<Rarity>_<Token>` node-name convention
-(CamelCase split + small abbreviation table; class-specific names
-fall back to `"Attribute <id>"`). 92/92 tests green. Devlog 0064.
-Previous: **`fr-c21-formula-eval-budget-multipliers`** merged via PR #57
+`Catalog.GetNodeInfo(int sno)` + SNO-keyed decode cache. **`fr-c21-formula-eval-budget-multipliers`** merged via PR #57
 → **CL-68** (`a7a22aa`) — first build slice of FR-C21: `ParagonPowerBudget` (the 6
 empirically-pinned budget multipliers) + `ParagonMagnitudeFormula.Evaluate`
 (numeric / zero-arg-intrinsic-call / binary / parens; built on the existing
@@ -271,9 +275,11 @@ awaiting:casc; 2 fixed, 1 in progress:**
 - **#24** rim = mesh/material (not a frame) — **`fr:consumed`** (owner accepted
   the procedural rim ✓).
 
-Latest CL = **69** (PR pending, branch `fr-c21-node-info-projection` —
+Latest CL = **70** (PR pending, branch `fr-c21-board-nodes-hot-path` —
+FR-C21 `GetBoardNodes` hot path + `EnumerateNodes`; consumer-signed-off
+backlog complete). CL-69 (`342205c`, PR #58) merged 2026-05-23 —
 FR-C21 `ParagonNodeInfo` projection + `Catalog.GetNodeInfo` + decode
-cache). CL-68 (`a7a22aa`, PR #57) merged 2026-05-23 — FR-C21 magnitude
+cache. CL-68 (`a7a22aa`, PR #57) merged 2026-05-23 — FR-C21 magnitude
 evaluator + budget multipliers. CL-67 (`e6e226e`, PR #56) merged
 2026-05-22 — rare bonus mechanic `@48`/`@64` + group-124
 `StatTagDefinition`, FR-C21 deferred RE.

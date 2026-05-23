@@ -563,5 +563,50 @@ public sealed class TypedReaderTests
 
         // Missing SNO ⇒ null (and the cache memoizes that miss).
         Assert.Null(d4.Catalog.GetNodeInfo(999_999_999));
+
+        // CL-70 hot path — GetBoardNodes on Paragon_Warlock_00 (2458674).
+        // The board's 441-cell grid contains ~60+ placed nodes (sparse
+        // grid), each pair carries (row, col) and the resolved info.
+        var boardNodes = d4.Catalog.GetBoardNodes(2458674);
+        Assert.True(boardNodes.Count is > 60 and < 441);
+        // Each pair has in-range coordinates and a non-null node info.
+        foreach (var (cell, info) in boardNodes)
+        {
+            Assert.InRange(cell.Row, 0, board.Width - 1);
+            Assert.InRange(cell.Col, 0, board.Width - 1);
+            Assert.True(info.Sno > 0);
+        }
+        // Cache identity — repeat lookup returns the same list reference
+        // (the optimizer's perf guarantee).
+        Assert.Same(boardNodes, d4.Catalog.GetBoardNodes(2458674));
+        // Distinct definitions count matches the optimizer's expectation
+        // (~17–21 distinct on Warlock_00; assert in a generous band).
+        var distinctDefs = new System.Collections.Generic.HashSet<int>();
+        foreach (var (_, info) in boardNodes) distinctDefs.Add(info.Sno);
+        Assert.InRange(distinctDefs.Count, 10, 30);
+
+        // Missing/undecodable board ⇒ empty list (memoized).
+        var noBoard = d4.Catalog.GetBoardNodes(999_999_999);
+        Assert.Empty(noBoard);
+
+        // CL-70 EnumerateNodes — lazy, returns every paragon node in the
+        // install. Sample a few via Take(); the global count is many
+        // hundred but we only need the contract.
+        var sample = d4.Catalog.EnumerateNodes().Take(5).ToList();
+        Assert.Equal(5, sample.Count);
+        foreach (var info in sample)
+        {
+            Assert.True(info.Sno > 0);
+            Assert.NotNull(info.Name);
+        }
+
+        // EnumerateNodes honours AssetQuery.NameContains (Kind override is
+        // transparent — pass NameContains, get only paragon-node hits).
+        var armorNodes = d4.Catalog
+            .EnumerateNodes(new AssetQuery { NameContains = "Generic_Magic_Armor" })
+            .ToList();
+        Assert.NotEmpty(armorNodes);
+        Assert.All(armorNodes, n =>
+            Assert.Contains("Armor", n.Name, StringComparison.OrdinalIgnoreCase));
     }
 }

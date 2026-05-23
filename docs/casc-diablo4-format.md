@@ -751,8 +751,42 @@ hot path re-queries the same boards repeatedly, each carrying
 first call and held. Missing/undecodable SNOs memoize as `null`
 so a malformed repeat-query is just as cheap as a hit.
 
-The hot-path projection (`Catalog.GetBoardNodes(int boardSno)` with
-grid cell coordinates) lands in CL-70.
+### 7.8 `Catalog.GetBoardNodes` + `EnumerateNodes` — the FR-C21 hot path (CL-70)
+
+The consumer hot path for the Optimizer's multi-board B&B search and
+the display UI:
+
+```csharp
+public IReadOnlyList<(ParagonGridCell Cell, ParagonNodeInfo Info)>
+    GetBoardNodes(int boardSno);
+
+public IEnumerable<ParagonNodeInfo>
+    EnumerateNodes(AssetQuery? query = null);
+```
+
+`GetBoardNodes` walks the board's authored 21×21 grid row-major
+(`row 0 = top`, `col 0 = left`), skipping empty cells, and pairs each
+placed node SNO with its grid cell and the resolved
+`ParagonNodeInfo` (§7.7). The board itself is cached
+(`ConcurrentDictionary<int, ParagonBoardDefinition?>`), the per-cell
+infos are cached by node SNO (the §7.7 cache), and the projected
+`(cell, info)` list is cached **per board SNO** so a repeat query
+returns the same list instance with O(1) cost — the optimizer's
+re-query-the-same-board hot path. Missing / undecodable board SNOs
+memoize as an empty list (the search-tree pruning often probes
+malformed ids).
+
+`ParagonGridCell` is a `readonly record struct (int Row, int Col)`.
+The pair tuple matches the Optimizer's proposed shape (#33 reply
+2026-05-22).
+
+`EnumerateNodes` streams every paragon node in the install through
+the §7.7 projection — lazy, sharing the SNO-keyed decode cache with
+`GetNodeInfo` / `GetBoardNodes`. The query's `Kind` / `Kinds` are
+overridden to `ParagonNode`; other facets (`NameContains`, `Where`,
+`OrderByName`, …) apply as usual. Malformed nodes are silently
+skipped (their CoreTOC name is missing or `ParagonNodeDefinition`
+fails to parse).
 
 ## 8. GameBalance `AttributeFormulas` (group 20, SNO 201912)
 
@@ -1963,6 +1997,36 @@ derived from FR-C14 R8's `snoTiledStyle` crack and R10's variant
 
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
+
+- **CL-70 — `Catalog.GetBoardNodes` hot path + `EnumerateNodes`
+  (FR-C21, third build slice).** The consumer-facing batch API the
+  Optimizer's multi-board B&B search hits in its inner loop, and the
+  global enumerator for catalog scans. `GetBoardNodes(int boardSno)`
+  walks the authored 21×21 grid row-major (row 0 = top, col 0 = left;
+  empty cells skipped) and pairs each placed node SNO with its
+  `ParagonGridCell(Row, Col)` and the resolved
+  `ParagonNodeInfo` (§7.7). Three caches converge on the hot path:
+  the board def (`ConcurrentDictionary<int, ParagonBoardDefinition?>`),
+  the per-cell infos (the §7.7 SNO-keyed cache), and the projected
+  `(cell, info)` list **per board SNO** — repeat queries return the
+  same list reference (verified by `Assert.Same` on the live matrix;
+  the optimizer's perf contract). Missing/undecodable boards memoize
+  as an empty list. `EnumerateNodes(AssetQuery?)` streams every
+  paragon node through the same SNO-keyed cache (lazy); the query's
+  `Kind`/`Kinds` are overridden to `ParagonNode`, other facets
+  (`NameContains`, `Where`, `OrderByName`, …) apply as usual.
+  Surface: `Catalog.GetBoardNodes`, `Catalog.EnumerateNodes`,
+  `ParagonGridCell`. Acceptance lives on the existing live matrix:
+  `GetBoardNodes(2458674)` returns `>60 and <441` placements (the
+  Warlock_00 oracle), every pair carries in-range coordinates +
+  a non-null info, cache-identity holds, distinct-def count lands in
+  the Optimizer's `~17–21` band; `EnumerateNodes()` streams non-empty
+  samples; `EnumerateNodes(new AssetQuery { NameContains = "..." })`
+  honours the filter. 92/92 tests green on `3.0.2.71886`. Spec §7.8,
+  devlog 0065. **FR-C21 consumer-signed-off backlog now complete**
+  (CL-68/69/70) — the Optimizer can consume `GetBoardNodes` /
+  `GetNodeInfo` / `EnumerateNodes` end-to-end; awaits their
+  verification before sign-off.
 
 - **CL-69 — `ParagonNodeInfo` projection + `Catalog.GetNodeInfo` +
   SNO-keyed decode cache (FR-C21, second build slice).** The public
