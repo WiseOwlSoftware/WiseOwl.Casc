@@ -238,6 +238,68 @@ public sealed class TypedReaderTests
         Assert.Equal("", t.ThresholdFormulaText);
     }
 
+    [Theory]
+    // The seven empirical (constant × budget-multiplier) verifications from
+    // ParagonPowerBudget's worked-validation list. Each pair is the formula
+    // text shipped in the game and the displayed magnitude the owner read
+    // in-game, cross-validated on build 3.0.2.71886.
+    [InlineData("5", 5.0)]                                             // Normal core stat — plain constant
+    [InlineData("0.75 * ParagonPowerBudgetMultiplierNodeMagicDefensive()", 7.5)]
+    [InlineData("3 * ParagonPowerBudgetMultiplierNodeMagicOffensive()", 7.5)]
+    [InlineData("0.75 * ParagonPowerBudgetMultiplierNodeRareMajorDefensive()", 3.0)]
+    [InlineData("1 * ParagonPowerBudgetMultiplierNodeRareMajorDefensive()", 4.0)]
+    [InlineData("2 * ParagonPowerBudgetMultiplierNodeRareMajorOffensive()", 10.0)]
+    [InlineData("3.5 * ParagonPowerBudgetMultiplierNodeRareMajorOffensive()", 17.5)]
+    [InlineData("3 * ParagonPowerBudgetMultiplierNodeRareMinorOffensive()", 15.0)]
+    // Division precedence: 1.5/2 must bind tighter than the outer *.
+    [InlineData("1.5/2 * ParagonPowerBudgetMultiplierNodeRareMajorDefensive()", 3.0)]
+    public void B8_magnitude_formula_evaluates_to_expected_displayed_value(
+        string formula, double expected)
+    {
+        var v = ParagonMagnitudeFormula.Evaluate(formula);
+        Assert.Equal(expected, v, precision: 10);
+    }
+
+    [Fact]
+    public void B8_magnitude_formula_unknown_intrinsic_yields_NaN()
+    {
+        // A future build adds a new multiplier the calibration table hasn't
+        // picked up yet — short-circuit to NaN, don't fabricate.
+        var v = ParagonMagnitudeFormula.Evaluate(
+            "1 * ParagonPowerBudgetMultiplierNodeNotARealOne()");
+        Assert.True(double.IsNaN(v));
+    }
+
+    [Fact]
+    public void B8_power_budget_tryget_round_trips_all_six()
+    {
+        Assert.True(ParagonPowerBudget.TryGetMultiplier(
+            "ParagonPowerBudgetMultiplierNodeMagicDefensive", out var md));
+        Assert.Equal(ParagonPowerBudget.MagicDefensive, md);
+
+        Assert.True(ParagonPowerBudget.TryGetMultiplier(
+            "ParagonPowerBudgetMultiplierNodeMagicOffensive", out var mo));
+        Assert.Equal(ParagonPowerBudget.MagicOffensive, mo);
+
+        Assert.True(ParagonPowerBudget.TryGetMultiplier(
+            "ParagonPowerBudgetMultiplierNodeRareMajorDefensive", out var rmaD));
+        Assert.Equal(ParagonPowerBudget.RareMajorDefensive, rmaD);
+
+        Assert.True(ParagonPowerBudget.TryGetMultiplier(
+            "ParagonPowerBudgetMultiplierNodeRareMinorDefensive", out var rmiD));
+        Assert.Equal(ParagonPowerBudget.RareMinorDefensive, rmiD);
+
+        Assert.True(ParagonPowerBudget.TryGetMultiplier(
+            "ParagonPowerBudgetMultiplierNodeRareMajorOffensive", out var rmaO));
+        Assert.Equal(ParagonPowerBudget.RareMajorOffensive, rmaO);
+
+        Assert.True(ParagonPowerBudget.TryGetMultiplier(
+            "ParagonPowerBudgetMultiplierNodeRareMinorOffensive", out var rmiO));
+        Assert.Equal(ParagonPowerBudget.RareMinorOffensive, rmiO);
+
+        Assert.False(ParagonPowerBudget.TryGetMultiplier("Nope", out _));
+    }
+
     [Fact]
     public void B3_glyph_collects_up_to_three_affixes()
     {
@@ -403,5 +465,13 @@ public sealed class TypedReaderTests
         var magic = d4.ReadParagonNode(671247);
         Assert.Equal(-1, magic.BonusPassivePowerSno);
         Assert.Empty(magic.BonusStatTagSnoIds);
+
+        // FR-C21 magnitude evaluation: Generic_Magic_Armor (671247)'s formula
+        // text from the shipped AttributeFormulas table (sno 201912) reduces
+        // to the owner-verified +7.5% displayed magnitude.
+        var armorAttr = magic.Attributes[0];   // single attr on a Magic node
+        Assert.True(gb.TryGetNameByGbid(armorAttr.FormulaGbid, out var armorFn));
+        Assert.True(gb.TryGetFormulaText(armorFn, out var armorTxt));
+        Assert.Equal(7.5, ParagonMagnitudeFormula.Evaluate(armorTxt), precision: 6);
     }
 }

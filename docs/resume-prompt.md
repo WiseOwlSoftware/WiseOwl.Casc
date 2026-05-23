@@ -7,7 +7,7 @@
 > layer) — each with its own correction log; `docs/devlog/` (the
 > narrative), `docs/ARTICLE-SOURCE.md` (wiseowl.com article source).
 
-## CURRENT STATE (2026-05-22) — read this first
+## CURRENT STATE (2026-05-23) — read this first
 
 The sections below this one ("Status (end of session 1)", the numbered
 "Next steps") are **historical** — accurate for their era but superseded
@@ -39,10 +39,12 @@ public repo; never commit it). Read CLAUDE.md before any FR action.
 **FR-C21 (`casc-fr#33`)** is the live FR. Goal: efficient API that returns
 **fully-resolved** info (value+unit+name) for every paragon node, of every
 type/rarity, with per-board `GetBoardNodes(boardSno)` as the hot path. Optimizer
-gave consensus-level requirements (2026-05-22, #33 first comment); **CASC posted
-the node-SNO-as-canonical-key correction** (`AttributeId` is a power-budget
-*category*, not the stat — three distinct stats share id `481`); `#33` is now
-**`awaiting:optimizer`** for sign-off on that key + the full-resolution scope.
+gave consensus-level requirements (2026-05-22); CASC posted the
+**node-SNO-as-canonical-key correction** + full-resolution scope expansion
+(2026-05-23); **Optimizer signed off on both** (2026-05-23): "Build to it." The
+multi-CL build began with **CL-68** (this branch — magnitude evaluator + budget
+multipliers; landed); next is **CL-69** (the public projection types +
+`Catalog.GetNodeInfo` + decode cache).
 
 **Owner direction (2026-05-22, durable):** CASC delivers **full resolution**
 (value+unit+name) for FR-C21. This **reverses** the documented "evaluation +
@@ -105,9 +107,21 @@ The `Side*` vs `Main*` suffix corresponds to threshold tier
   reliable Flat vs Percent indicator — unit is intrinsic to the eAttribute /
   formula structure, not the name suffix).
 
-**Active branch:** `fr-c21-bonus-mechanic-stat-tag` MERGED via PR #56 →
-**CL-67 (`e6e226e`)** on `main`, unreleased. Extends CL-66 by closing the
-rare bonus-mechanic field debt: `@48` is the
+**Active branch:** `fr-c21-formula-eval-budget-multipliers` (PR pending) →
+**CL-68** — first build slice of FR-C21: `ParagonPowerBudget` (the 6
+empirically-pinned budget multipliers) + `ParagonMagnitudeFormula.Evaluate`
+(numeric / zero-arg-intrinsic-call / binary / parens; built on the existing
+internal `PowerScriptFormulaEvaluator`). Eight worked validations round-trip
+to the in-game oracle; live matrix assertion proves the
+`AttributeFormulaTable` → evaluator path against `Generic_Magic_Armor`'s
+shipped formula (`0.75 * MagicDefensive() = 7.5`). 69/69 tests green.
+Devlog 0063. **Appendix C boundary amended** — the magnitude evaluator +
+calibration table are now in-scope for the FR-C21 node-info surface; other
+formula domains (power-script output, glyph rank/radius, item/affix,
+general AttributeFormulaTable evaluation) stay the consumer's. Previous:
+**`fr-c21-bonus-mechanic-stat-tag` MERGED via PR #56 → CL-67 (`e6e226e`)**
+on `main`, unreleased — extends CL-66 by closing the rare bonus-mechanic
+field debt: `@48` is the
 bonus-passive-power slot (`DT_VARIABLEARRAY[DT_SNO]`; size-1 on rares, always
 value `0` so far; descriptor empty on every other observed kind), and `@64`
 is the bonus stat-threshold tag array (`DT_VARIABLEARRAY[DT_SNO]` referencing
@@ -249,8 +263,10 @@ awaiting:casc; 2 fixed, 1 in progress:**
 - **#24** rim = mesh/material (not a frame) — **`fr:consumed`** (owner accepted
   the procedural rim ✓).
 
-Latest CL = **67** (`e6e226e`, PR #56 merged 2026-05-22 — rare bonus
-mechanic `@48`/`@64` + group-124 `StatTagDefinition`, FR-C21 deferred RE).
+Latest CL = **68** (PR pending, branch `fr-c21-formula-eval-budget-multipliers`
+— FR-C21 magnitude evaluator + budget multipliers). CL-67 (`e6e226e`, PR #56)
+merged 2026-05-22 — rare bonus mechanic `@48`/`@64` + group-124
+`StatTagDefinition`, FR-C21 deferred RE.
 CL-66 (`0945892`, PR #54) merged 2026-05-22 — ParagonNode `eNodeType@16` +
 per-attribute GBID array `@88`, FR-C21 foundation.
 AtlasExport + AtlasBrowser are build tools (no CL). #33 (FR-C21)

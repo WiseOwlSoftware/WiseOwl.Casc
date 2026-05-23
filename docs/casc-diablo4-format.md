@@ -612,6 +612,67 @@ consumer (Appendix C; mirrors the `AttributeFormulaTable` boundary). The
 typed reader is `Diablo4Storage.ReadStatTag(int)` /
 `TryReadStatTag(int, out StatTagDefinition)`.
 
+### 7.6 Paragon magnitude resolution — budget multipliers + formula evaluator (CL-68, FR-C21)
+
+The displayed magnitude of a paragon **stat node** (the `+X%` /
+`+X` value the in-game tooltip shows) is the engine's formula
+output for that node's attribute, evaluated with the rarity-specific
+budget multiplier substituted in:
+
+```
+displayed = formula-constant × ParagonPowerBudgetMultiplierNode<R>{Major|Minor}<Off|Def>()
+```
+
+Worked validations (owner in-game readings on build `3.0.2.71886`):
+
+| Node                                       | Formula text                                                              | × multiplier | = magnitude |
+|---                                         |---                                                                        |---           |---          |
+| `Generic_Magic_Armor`                      | `0.75 * ParagonPowerBudgetMultiplierNodeMagicDefensive()`                 | × 10         | `7.5`       |
+| `Generic_Magic_DamageToElite`              | `3 * ParagonPowerBudgetMultiplierNodeMagicOffensive()`                    | × 2.5        | `7.5`       |
+| `Generic_Rare_AllResistance`               | `0.75 * ParagonPowerBudgetMultiplierNodeRareMajorDefensive()`             | × 4          | `3.0`       |
+| `Generic_Rare_MaxLife`                     | `1 * ParagonPowerBudgetMultiplierNodeRareMajorDefensive()`                | × 4          | `4.0`       |
+| `Generic_Rare_Damage`                      | `2 * ParagonPowerBudgetMultiplierNodeRareMajorOffensive()`                | × 5          | `10`        |
+| `Warlock_Rare_006` (Demonology tag)        | `3.5 * ParagonPowerBudgetMultiplierNodeRareMajorOffensive()`              | × 5          | `17.5`      |
+| `Generic_Rare_CriticalDamage`              | `3 * ParagonPowerBudgetMultiplierNodeRareMinorOffensive()`                | × 5          | `15`        |
+| `ParagonNodeCoreStat_Normal` (start node)  | `5`                                                                        | (no factor)  | `5`         |
+
+The six budget multipliers (`ParagonPowerBudget`) are
+**clean-room-pinned** from the in-game readings: the engine
+implements them as formula-DSL intrinsic functions absent from every
+shipped GameBalance data table (no SNO has "Budget" in its name,
+they're not in the 1038-entry `AttributeFormulas`, not in
+`PowerFormulaTables`). The pinned values are:
+
+```
+MagicDefensive          = 10        MagicOffensive        = 2.5
+RareMajorDefensive      = 4         RareMajorOffensive    = 5
+RareMinorDefensive      = 4         RareMinorOffensive    = 5
+```
+
+**Re-verification trigger:** if a future build's displayed magnitudes
+disagree, either (a) the per-node formula constant changed (re-read
+`NodeAttribute` + `AttributeFormulaTable` for the named formula), or
+(b) the engine retuned a multiplier (re-pin from owner readings and
+update the table here). The library has no way to read the
+multipliers from data — they only exist in the engine code.
+
+**Evaluator surface (`ParagonMagnitudeFormula.Evaluate(string)`).** A
+strict subset of the engine's formula DSL: a numeric literal, zero-arg
+intrinsic calls, binary `+ - * /`, and parens. Built on the existing
+internal `PowerScriptFormulaEvaluator` with a function resolver that
+delegates to `ParagonPowerBudget.TryGetMultiplier`; returns NaN when
+the expression references an unknown intrinsic (future-build trip
+wire). Threshold formulas with a runtime variable
+(`ParagonBoardEquipIndex` — `StatTagDefinition.ThresholdFormulaText`,
+§7.5) are NOT evaluated here; the consumer supplies that binding to
+the bonus-threshold resolution path (a separate FR-C21 surface).
+
+**Boundary:** this is the FR-C21 carve-out from Appendix C — the
+library now ships the magnitude evaluator + the calibration table for
+the paragon node-info surface. Power-script formulas, glyph
+rank/radius scaling, item/affix value resolution, and general
+`AttributeFormulaTable` evaluation remain the consumer's.
+
 ## 8. GameBalance `AttributeFormulas` (group 20, SNO 201912)
 
 Only `eGameBalanceType == 22` (AttributeFormulas) is in scope; other
@@ -1821,6 +1882,43 @@ derived from FR-C14 R8's `snoTiledStyle` crack and R10's variant
 
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
+
+- **CL-68 — Paragon magnitude resolution: budget-multiplier intrinsics
+  + formula evaluator (FR-C21, first build slice).** The Optimizer
+  signed off on the node-SNO-as-canonical-key correction +
+  full-resolution scope expansion (#33, 2026-05-23), so the FR-C21 build
+  begins with the part that has no upstream dependencies: the math
+  that turns a node's stored formula text into the displayed
+  magnitude. The six **budget multipliers** the engine intrinsics
+  resolve to (`MagicDefensive=10`, `MagicOffensive=2.5`,
+  `RareMajorDefensive=RareMinorDefensive=4`,
+  `RareMajorOffensive=RareMinorOffensive=5`) are absent from every
+  shipped GameBalance data table — they're formula-DSL intrinsics in
+  engine code. Pinned empirically and baked as a clean-room
+  calibration table (`ParagonPowerBudget`). The **magnitude evaluator**
+  (`ParagonMagnitudeFormula.Evaluate`) is a strict subset of the
+  engine's formula DSL — numeric literal, zero-arg intrinsic call,
+  binary `+ - * /`, parens — built on the existing internal
+  `PowerScriptFormulaEvaluator` (the FR-C13 power-script evaluator)
+  with a function resolver that delegates to
+  `ParagonPowerBudget.TryGetMultiplier`. Eight worked validations
+  round-trip exactly to the in-game oracle (Armor `0.75 × 10 = 7.5`,
+  DamageToElite `3 × 2.5 = 7.5`, AllRes `0.75 × 4 = 3.0`,
+  MaxLife `1 × 4 = 4`, Damage `2 × 5 = 10`, Demonology bonus
+  `3.5 × 5 = 17.5`, CritDamage `3 × 5 = 15`, Normal-rarity bare
+  constant `"5" = 5`). Future-build trip wire: unknown intrinsic ⇒
+  `NaN`, never a fabricated value. Library boundary update: the
+  FR-C21 carve-out is now documented in Appendix C — the magnitude
+  evaluator + calibration table are now in-scope for the node-info
+  surface (other formula domains stay the consumer's). Acceptance:
+  `B8_magnitude_formula_evaluates_to_expected_displayed_value` (8
+  Theory cases), `B8_magnitude_formula_unknown_intrinsic_yields_NaN`,
+  `B8_power_budget_tryget_round_trips_all_six`, and a live matrix
+  assertion that decodes `Generic_Magic_Armor` (671247)'s shipped
+  formula text and evaluates it back to `7.5`. 69/69 tests green on
+  `3.0.2.71886`. Spec §7.6 + Appendix C boundary amendment, devlog
+  0063. Next CL-69 — `ParagonNodeInfo` / `ParagonNodeStat` projection
+  + `Catalog.GetNodeInfo` + decode cache.
 
 - **CL-67 — `ParagonNodeDefinition` rare bonus mechanic (`@48`/`@64`) +
   `StatTagDefinition` (group 124) typed surface (FR-C21 deferred RE).**
@@ -3120,10 +3218,22 @@ plus the **C6 non-paragon readers** (§11: PlayerClass/Power/Affix/Item
 — identity + sibling-localized text) — **raw fields only**.
 
 It does **not** own (consumer policy, authoritative in `e:\Paragon`):
-formula evaluation/recursion, the 6 calibrated engine intrinsics, the
-scoring/objective model, the relight/disc+symbol composite calibration,
-or the app's bundled-JSON schema. The library ships **no formula
-evaluator at all**, by decision.
+the scoring/objective model, the relight/disc+symbol composite
+calibration, or the app's bundled-JSON schema.
+
+**FR-C21 carve-out (2026-05-22, owner-directed) — the boundary moves
+for the paragon node-info surface only.** The library now also owns:
+the six paragon-node budget-multiplier intrinsics
+(<see cref="ParagonPowerBudget"/>, baked as a clean-room calibration
+table from owner-validated in-game readings on build `3.0.2.71886`;
+they're formula-DSL intrinsics absent from every shipped GameBalance
+data table); and **formula evaluation for paragon-node magnitudes**
+(`constant × multiplier`; `ParagonMagnitudeFormula.Evaluate`). The
+displayed magnitude is what the FR-C21 surface returns, ready to render
+— consumers no longer evaluate the formula text themselves for this
+surface. The narrower boundary (§8) still holds elsewhere: power-script
+formulas, glyph rank/radius scaling, item/affix value resolution, and
+general `AttributeFormulaTable` evaluation remain the consumer's.
 
 **FR-16 / C6 (scope-freeze lifted 2026-05-17, owner).** The earlier
 "B1–B6 + existing, FROZEN" line is superseded: C6 typed readers ship
