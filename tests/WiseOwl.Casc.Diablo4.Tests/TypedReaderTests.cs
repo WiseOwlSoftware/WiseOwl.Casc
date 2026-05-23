@@ -583,6 +583,37 @@ public sealed class TypedReaderTests
         }
         Assert.True(sawDistinct, "at least one frame should expose a real inner-rect inset across the install");
 
+        // CL-72 Power → class facet (FR-C20 #32). The engine names
+        // class-skill powers as <ClassSnoName>_<SkillName>; the facet
+        // decodes that NameConvention without touching PowerDefinition.
+        // Spot-check a handful of well-known class-skill powers.
+        var bashName = d4.CoreToc.GetName(SnoGroup.Power, 200765)!;  // Barbarian_Bash
+        Assert.Equal("Barbarian", d4.Catalog.TryGetPowerClassFromName(bashName));
+        var whirlwindName = d4.CoreToc.GetName(SnoGroup.Power, 206435)!;  // Barbarian_Whirlwind
+        Assert.Equal("Barbarian", d4.Catalog.TryGetPowerClassFromName(whirlwindName));
+        Assert.Equal("Necromancer",
+            d4.Catalog.TryGetPowerClassFromName("Necromancer_BloodLance"));
+        Assert.Equal("Sorcerer",
+            d4.Catalog.TryGetPowerClassFromName("Sorcerer_Fireball"));
+
+        // Non-class names produce no facet — monsters / item-affix powers /
+        // mid-word class tokens stay unfaceted (honesty).
+        Assert.Null(d4.Catalog.TryGetPowerClassFromName("MorluCaster_Fireball"));
+        Assert.Null(d4.Catalog.TryGetPowerClassFromName("1HAxe_Unique_Druid_100"));
+        Assert.Null(d4.Catalog.TryGetPowerClassFromName(""));
+        Assert.Null(d4.Catalog.TryGetPowerClassFromName("noUnderscore"));
+
+        // FindByFacet hot-path: every Power tagged class=Sorcerer must
+        // actually start with "Sorcerer_" (the round-trip integrity check
+        // — bounded to a Take(50) so the live test stays under a second).
+        var sorcerers = d4.Catalog
+            .FindByFacet(AssetKind.Power, "class", "Sorcerer")
+            .Take(50)
+            .ToList();
+        Assert.NotEmpty(sorcerers);
+        Assert.All(sorcerers, r =>
+            Assert.StartsWith("Sorcerer_", r.Name, StringComparison.Ordinal));
+
         // CL-70 hot path — GetBoardNodes on Paragon_Warlock_00 (2458674).
         // The board's 441-cell grid contains ~60+ placed nodes (sparse
         // grid), each pair carries (row, col) and the resolved info.

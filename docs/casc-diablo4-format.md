@@ -1998,6 +1998,37 @@ derived from FR-C14 R8's `snoTiledStyle` crack and R10's variant
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
 
+- **CL-72 — Power → class facet from the
+  `<ClassSnoName>_<SkillName>` name convention (FR-C20 #32 deferred
+  extra 2).** Owner directed CASC to investigate the
+  power-class linkage; the earlier "no cheap source" note (CL-59)
+  was a blanket claim that overlooked the engine's first-party
+  naming convention. Across the live build's ~2,500 group-29
+  power SNOs, ~1,700 active class-skill powers carry the prefix
+  (`Barbarian_*` 128, `Sorcerer_*` 153, `Druid_*` 295,
+  `Rogue_*` 262, `Necromancer_*` 153, `Paladin_*` 240,
+  `Warlock_*` 200, `Spiritborn_*` 274) — the same eight SnoNames
+  that anchor §6.5's PlayerClass roster. The dispatch matches the
+  power name's first-underscore prefix against the cached
+  CoreTOC-resolved SnoName roster (`PlayerClass` group), so it is
+  **decode-free** (no `PowerDefinition` parse needed) and honest
+  about partial coverage: monster powers (`MorluCaster_Fireball`),
+  item-affix powers (`1HAxe_Unique_Druid_100`), unnamed debug
+  stubs, and any power whose first token isn't a class SnoName stay
+  unfaceted. Surface: `Catalog.Facets(power)` now returns
+  `class:<SnoName>` with `FacetSource.NameConvention`;
+  `Catalog.FindByFacet(AssetKind.Power, "class", "Sorcerer")` yields
+  every matching skill power. New internal helper
+  `Catalog.TryGetPowerClassFromName(string)` for unit-testing the
+  dispatch. Acceptance: a handful of well-known class-skill powers
+  (`Barbarian_Bash`, `Barbarian_Whirlwind`,
+  `Necromancer_BloodLance`, `Sorcerer_Fireball`) resolve correctly,
+  non-class names resolve to `null`, and `FindByFacet` round-trips
+  the inverse — every Power tagged `class=Sorcerer` starts with
+  `"Sorcerer_"`. 92/92 tests green on `3.0.2.71886`. Devlog 0067.
+  **#32 extra 2 of 3 resolved**; one extra remaining (item
+  `NameConvention` facets).
+
 - **CL-71 — `TexFrame` inner UV decode (FR-C20 #32 codec-tail
   investigation).** Owner-directed RE of the texture combined-meta
   decode tail (one of the three deferred extras called out on
