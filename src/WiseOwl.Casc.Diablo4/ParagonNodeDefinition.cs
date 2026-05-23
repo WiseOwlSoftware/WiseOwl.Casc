@@ -116,25 +116,41 @@ public readonly record struct NodeAttribute(
 /// <c>snoPassivePower@24</c> (DT_SNO, group 29 Power); <c>ptAttributes</c>
 /// <c>DT_VARIABLEARRAY[AttributeSpecifier]</c> descriptor <c>@32</c>
 /// (<c>dataOffset</c> payload-relative <c>@+8</c>, <c>dataSize@+12</c>;
-/// element stride 88); <c>bHasSocket@80</c>; <c>bIsGate@84</c>; a second
-/// <c>DT_VARIABLEARRAY[DT_UINT]</c> descriptor <c>@88</c> — one per-attribute
-/// GBID, parallel to <c>ptAttributes</c> (see
-/// <see cref="NodeAttribute.AttributeGbid"/>).
+/// element stride 88); a <c>DT_VARIABLEARRAY[DT_SNO]</c> descriptor
+/// <c>@48</c> — the bonus-passive-power slot (size-1 on rares; empty
+/// otherwise; see <see cref="BonusPassivePowerSno"/>); a
+/// <c>DT_VARIABLEARRAY[DT_SNO]</c> descriptor <c>@64</c> — the bonus
+/// stat-threshold tag array, populated only on rare nodes (see
+/// <see cref="BonusStatTagSnoIds"/>); <c>bHasSocket@80</c>;
+/// <c>bIsGate@84</c>; a <c>DT_VARIABLEARRAY[DT_UINT]</c> descriptor
+/// <c>@88</c> — one per-attribute GBID, parallel to <c>ptAttributes</c>
+/// (see <see cref="NodeAttribute.AttributeGbid"/>).
 /// </remarks>
 public sealed class ParagonNodeDefinition
 {
     private const int AttrStride = 88;
+
+    /// <summary>Payload offset of the bonus-passive-power slot's
+    /// <c>DT_VARIABLEARRAY[DT_SNO]</c> descriptor (size-1 on rare nodes;
+    /// empty on all other observed node kinds).</summary>
+    private const int BonusPowerArrayDescriptor = 48;
+
+    /// <summary>Payload offset of the bonus stat-threshold tag array's
+    /// <c>DT_VARIABLEARRAY[DT_SNO]</c> descriptor (group-124 SNO ids;
+    /// non-empty only on rare nodes).</summary>
+    private const int BonusStatTagArrayDescriptor = 64;
 
     /// <summary>Payload offset of the parallel per-attribute GBID array's
     /// <c>DT_VARIABLEARRAY</c> descriptor.</summary>
     private const int AttrGbidArrayDescriptor = 88;
 
     private readonly NodeAttribute[] _attributes;
+    private readonly int[] _bonusStatTagSnoIds;
 
     private ParagonNodeDefinition(
         int snoId, int nodeType, int rarityOverride, bool hasSocket, bool isGate,
-        uint hIcon, uint hIconMask, int snoPassivePower,
-        NodeAttribute[] attributes)
+        uint hIcon, uint hIconMask, int snoPassivePower, int bonusPassivePowerSno,
+        NodeAttribute[] attributes, int[] bonusStatTagSnoIds)
     {
         SnoId = snoId;
         NodeTypeRaw = nodeType;
@@ -144,7 +160,9 @@ public sealed class ParagonNodeDefinition
         HIcon = hIcon;
         HIconMask = hIconMask;
         SnoPassivePower = snoPassivePower;
+        BonusPassivePowerSno = bonusPassivePowerSno;
         _attributes = attributes;
+        _bonusStatTagSnoIds = bonusStatTagSnoIds;
     }
 
     /// <summary>The node's own SNO id.</summary>
@@ -197,9 +215,36 @@ public sealed class ParagonNodeDefinition
     /// none). Exposed raw for future node→power character modeling.</summary>
     public int SnoPassivePower { get; }
 
+    /// <summary>The single SNO slot decoded from the
+    /// <c>DT_VARIABLEARRAY[DT_SNO]</c> descriptor at payload <c>+48</c>.
+    /// Rare nodes carry the descriptor with one slot; all other observed
+    /// kinds (Common/Magic/Start/Gate/Socket) leave the descriptor empty.
+    /// Across every rare node sampled so far the slot itself holds <c>0</c>
+    /// (no bonus passive power authored), so the population case is
+    /// unobserved — the value is surfaced raw rather than left undecoded:
+    /// <c>0</c> means "rare-shape descriptor with no power", and
+    /// <c>-1</c> means "no descriptor / not a rare node". The canonical
+    /// engine field name has not yet been recovered.</summary>
+    public int BonusPassivePowerSno { get; }
+
     /// <summary>The node's attribute grants (raw <see cref="NodeAttribute"/>
     /// specifiers).</summary>
     public IReadOnlyList<NodeAttribute> Attributes => _attributes;
+
+    /// <summary>The bonus stat-threshold tag SNO ids from the
+    /// <c>DT_VARIABLEARRAY[DT_SNO]</c> descriptor at payload <c>+64</c>
+    /// (group <see cref="SnoGroup.StatTag"/>=124). Populated only on
+    /// <see cref="ParagonRarity.Rare"/> nodes — every other observed node
+    /// kind (Common/Magic/Start/Gate/Socket) returns an empty list. Each
+    /// tag references a <see cref="StatTagDefinition"/> whose formula text
+    /// evaluates to the stat threshold the player must meet for the node's
+    /// "bonus when threshold met" effect to activate. Class-generic rares
+    /// list 2–3 tags (alternative stats keyed to the player's class —
+    /// e.g. <c>[Barb_Strength+Dexterity, DexteritySide2, StrengthSide2]</c>);
+    /// class-specific rares list one (<c>Warlock_Rare_006</c> →
+    /// <c>WillpowerMain2</c>). The canonical engine field name has not yet
+    /// been recovered.</summary>
+    public IReadOnlyList<int> BonusStatTagSnoIds => _bonusStatTagSnoIds;
 
     /// <summary>Decode a ParagonNode from its raw SNO blob.</summary>
     public static ParagonNodeDefinition Parse(ReadOnlySpan<byte> blob)
@@ -220,8 +265,26 @@ public sealed class ParagonNodeDefinition
         var dataSize = (int)r.U32(32 + 12);
         var count = dataSize > 0 ? dataSize / AttrStride : 0;
 
-        // Parallel per-attribute GBID array — a second DT_VARIABLEARRAY whose
-        // descriptor is at payload +88 (one DT_UINT per attribute, same order).
+        // Bonus-passive-power slot @ +48 (DT_VARIABLEARRAY[DT_SNO], size 0 or 4).
+        // -1 ("no descriptor") when the array is empty; otherwise the raw SNO id
+        // (observed 0 across every rare node sampled — no rare populates it yet).
+        var bonusPowerBytes = r.VariableArray(BonusPowerArrayDescriptor);
+        var bonusPassivePowerSno = bonusPowerBytes.Length >= 4
+            ? (int)Bytes.U32LE(bonusPowerBytes, 0)
+            : -1;
+
+        // Bonus stat-threshold tag array @ +64 (DT_VARIABLEARRAY[DT_SNO]) —
+        // group-124 StatTag SNO ids; populated only on rare nodes.
+        var bonusTagBytes = r.VariableArray(BonusStatTagArrayDescriptor);
+        var bonusTagCount = bonusTagBytes.Length / 4;
+        var bonusTags = bonusTagCount == 0 ? Array.Empty<int>() : new int[bonusTagCount];
+        for (var i = 0; i < bonusTagCount; i++)
+            bonusTags[i] = (int)Bytes.U32LE(bonusTagBytes, i * 4);
+
+        // Parallel per-attribute GBID array — a DT_VARIABLEARRAY whose
+        // descriptor is at payload +88 (one DT_UINT per attribute, same order;
+        // see NodeAttribute.AttributeGbid for the documented size discrepancy
+        // observed on rare nodes).
         var gbidBytes = r.VariableArray(AttrGbidArrayDescriptor);
         var gbidCount = gbidBytes.Length / 4;
 
@@ -246,6 +309,6 @@ public sealed class ParagonNodeDefinition
 
         return new ParagonNodeDefinition(
             snoId, nodeType, rarity, hasSocket, isGate, hIcon, hIconMask,
-            snoPassivePower, attrs);
+            snoPassivePower, bonusPassivePowerSno, attrs, bonusTags);
     }
 }

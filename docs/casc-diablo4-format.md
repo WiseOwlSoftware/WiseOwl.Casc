@@ -456,6 +456,8 @@ Cells = `dataSize / 4` LE `u32` SNO ids, row-major
 | 20 | DT_ENUM | `eRarityOverride` (0=Common, 2=Magic, 3=Rare, 4=Legendary) |
 | 24 | DT_SNO (group 29) | `snoPassivePower` |
 | 32 | DT_VARIABLEARRAY[AttributeSpecifier] | `ptAttributes` (`dataOffset@+8`, `dataSize@+12`) |
+| 48 | DT_VARIABLEARRAY[DT_SNO] | bonus-passive-power slot (`dataOffset@+8`, `dataSize@+12`); size-1 on rares, empty on all other observed kinds — see "Rare bonus mechanic" below |
+| 64 | DT_VARIABLEARRAY[DT_SNO] | bonus stat-threshold tag array (`dataOffset@+8`, `dataSize@+12`); references group 124 `StatTag` records — populated only on rares |
 | 80 | DT_INT | `bHasSocket` |
 | 84 | DT_INT | `bIsGate` |
 | 88 | DT_VARIABLEARRAY[DT_UINT] | per-attribute GBID array (`dataOffset@+8`, `dataSize@+12`); one u32 per `ptAttributes` element, same order |
@@ -470,6 +472,35 @@ element-for-element. Each u32 is a stable key for that attribute's
 `eAttribute` — e.g. `eAttribute 9` (Strength) → `0x1E663884` everywhere it
 appears — but its canonical resource name is not yet recovered (it is not a
 DJB2/GBID hash of any tested attribute label); it is surfaced raw.
+
+**Rare bonus mechanic (CL-67).** A rare node's in-game text reads
+`+X% [StatA], +Y% [StatB]` followed by `Bonus: another +Z% [StatA] when
+N [StatT] met`. The conditional half is wired through two node-level
+descriptors that are present only on rares:
+
+- **Offset 48** — `DT_VARIABLEARRAY[DT_SNO]` carrying a single slot
+  (`dataSize == 4`). Across every rare sampled the slot value is `0` —
+  the canonical purpose is unconfirmed, and the field name has not been
+  recovered; the surface
+  (`ParagonNodeDefinition.BonusPassivePowerSno`) exposes the raw int
+  with `-1` reserved for "descriptor missing" (the non-rare case) so a
+  consumer can distinguish "no slot authored" from "slot empty".
+- **Offset 64** — `DT_VARIABLEARRAY[DT_SNO]` referencing **group 124
+  `StatTag`** records (§7.5). Class-specific rares list **one** tag
+  (e.g. `Warlock_Rare_006` → `WillpowerMain2`); class-generic rares
+  list **two or three** tags as class-keyed alternatives
+  (`Generic_Rare_001` → `[Barb_Strength+Dexterity, DexteritySide2,
+  StrengthSide2]`). Surfaced as
+  `ParagonNodeDefinition.BonusStatTagSnoIds`. Each tag's
+  `ThresholdFormulaText` is the runtime expression the player's stat
+  must meet for the bonus to apply.
+
+The bonus's stat-identity and magnitude (the `+Z%` and which stat
+receives it) are not modelled in this CL — open follow-up; the rare
+`@88` GBID array is also one entry larger than `ptAttributes.Count` on
+every rare sampled (2 attrs ⇒ 3 entries), which is the most likely
+location for the bonus stat's GBID, but the linkage is not yet
+verified.
 
 `AttributeSpecifier` — stride **88**:
 
@@ -537,6 +568,49 @@ formatHash `353797140`.
 | 48 | DT_ENUM | `eBonusOperation` (1/2/4/5) |
 | 76 | DT_FLOAT | `flStartingBonusScalar` (== Maxroll `base`) |
 | 80 | DT_FLOAT | `flAddedBonusScalarPerLevel` (== Maxroll `perLevel`) |
+
+### 7.5 `StatTagDefinition` (group 124, stat-threshold tag) (CL-67)
+
+Group 124 records are referenced from rare-node bonus arrays (§7.2) and
+from glyph activation gates. They name a stat-threshold gate
+(`<Stat>{Main|Side}{Tier}` for the simple form,
+`<Class>_<StatA>+<StatB>` for class-keyed alternatives, and
+`Glyph_<Stat>_{Main|Side}` for glyph-keyed) and carry a **formula text**
+whose evaluation yields the stat threshold the player must meet.
+
+| Offset | Type | Field |
+|---|---|---|
+| 0 | DT_INT | `snoId` |
+| 64 | DT_VARIABLEARRAY[DT_CHAR] | formula-text descriptor (`dataOffset@+8` payload-relative; `dataSize@+12` includes the trailing NUL) |
+| 80 | DT_VARIABLEARRAY | parallel pre-parsed token stream — not modelled (the text is authoritative; the token stream is the engine's compiled equivalent) |
+
+Worked example — `WillpowerMain2` (SNO `1068426`):
+
+```
+@64 descriptor → dataOffset=96, dataSize=37
+@96..@131 ASCII     "760 + (455 * ParagonBoardEquipIndex)" + NUL
+```
+
+The `ParagonBoardEquipIndex` binding is the slot index of the player's
+equipped paragon-board chain (resolved by the consumer at evaluation
+time; the live `Fathomless` binding shows EquipIndex = 3 ⇒ threshold
+`760 + 455*3 = 2125`, consistent with the displayed
+"+X% when 2125 Willpower met").
+
+**Composite-tag variants** (`Barb_Strength+Dexterity` etc.) carry the
+primary formula at the descriptor's `dataOffset` plus additional
+sub-records for the per-alternative stats. The primary text is what
+`StatTagDefinition.ThresholdFormulaText` surfaces today; the additional
+structure is open follow-up.
+
+**Glyph-keyed variants** (`Glyph_Willpower_Main` etc.) carry a numeric
+constant rather than a formula (`"40"`). The text decode is identical;
+the consumer interprets it as a literal.
+
+The library surface stops at the text — evaluation belongs to the
+consumer (Appendix C; mirrors the `AttributeFormulaTable` boundary). The
+typed reader is `Diablo4Storage.ReadStatTag(int)` /
+`TryReadStatTag(int, out StatTagDefinition)`.
 
 ## 8. GameBalance `AttributeFormulas` (group 20, SNO 201912)
 
@@ -1747,6 +1821,43 @@ derived from FR-C14 R8's `snoTiledStyle` crack and R10's variant
 
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
+
+- **CL-67 — `ParagonNodeDefinition` rare bonus mechanic (`@48`/`@64`) +
+  `StatTagDefinition` (group 124) typed surface (FR-C21 deferred RE).**
+  Closing the remaining `ParagonNode` field debt called out by CL-66.
+  Two node-level descriptors that are populated **only on rares** were
+  previously unmodelled: **`@48`** is a `DT_VARIABLEARRAY[DT_SNO]` with a
+  single slot whose engine field name is unrecovered — across every rare
+  sampled the value is `0`, so the surface
+  (`ParagonNodeDefinition.BonusPassivePowerSno`) exposes the raw int
+  with `-1` reserved for "descriptor missing" (non-rare nodes); **`@64`**
+  is a `DT_VARIABLEARRAY[DT_SNO]` referencing **group 124 `StatTag`**
+  records (`ParagonNodeDefinition.BonusStatTagSnoIds`) — class-specific
+  rares list one tag, class-generic rares list two or three class-keyed
+  alternatives. The referenced records (`StatTagDefinition`, §7.5) carry
+  a formula-text descriptor at payload `@64` whose evaluation yields the
+  stat threshold the bonus requires (`WillpowerMain2` →
+  `"760 + (455 * ParagonBoardEquipIndex)"`, cross-validated by the
+  Fathomless / `EquipIndex == 3` ⇒ `2125` Willpower in-game oracle).
+  Composite-tag variants (`Barb_Strength+Dexterity`) and glyph-keyed
+  variants (`Glyph_Willpower_Main`, threshold `"40"`) decode through the
+  same shape. Library boundary holds — text only; evaluation belongs to
+  the consumer (Appendix C). Open follow-ups: the bonus stat's identity
+  + magnitude (the `+Z%` half of "Bonus: another +Z% [stat] when N
+  [stat] met") — the @88 GBID array is one entry larger than
+  `ptAttributes.Count` on every rare sampled, the strongest candidate
+  but not yet verified; composite-tag sub-records; `ParagonBoard.payload
+  +32` as the likely `ParagonBoardEquipIndex` source. Surface:
+  `ParagonNodeDefinition.BonusPassivePowerSno` /
+  `.BonusStatTagSnoIds`; `StatTagDefinition.ThresholdFormulaText`;
+  `Diablo4Storage.ReadStatTag` / `TryReadStatTag`;
+  `SnoGroup.StatTag = 124`. Acceptance:
+  `B2_node_decodes_bonus_passive_and_stat_tag_arrays`,
+  `B2_node_without_bonus_descriptors_returns_empty_tags_and_minus_one_power`,
+  `B7_stat_tag_decodes_formula_text`,
+  `B7_stat_tag_missing_descriptor_yields_empty_formula`, and the live
+  matrix's `Warlock_Rare_006` / `Generic_Rare_001` / `Generic_Magic_Armor`
+  assertions. 58/58 tests green on `3.0.2.71886`. Devlog 0046.
 
 - **CL-66 — `ParagonNodeDefinition`: the two undecoded fields decoded —
   `eNodeType@16` and the per-attribute GBID array @88 (FR-C21 foundation).**
