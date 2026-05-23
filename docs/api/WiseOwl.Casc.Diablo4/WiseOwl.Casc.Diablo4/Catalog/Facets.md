@@ -5,8 +5,9 @@ FR-C20 P2b — the asset's categorical [`Facet`](../Facet.md)s with provenance, 
 * ParagonGlyph → `class` (one per usable class), Decoded from `ParagonGlyphDefinition.UsableByClassSnoIds`.
 * TextureAtlas → `codec`, Decoded (decode-free meta).
 * Power → `class`, NameConvention from the `<ClassSnoName>_<SkillName>` first-party convention the engine uses for class-skill powers (CL-72). Honest partial surface: ~`1 700` of the ~`2 500` group-29 SNOs match the prefix (every active class-skill power on the live build); the rest (monster powers, generic `1HAxe_Unique_*` / `1HFocus_Unique_*` item-affix powers, unnamed debug stubs) carry no class facet and are surfaced unfaceted.
+* Item → `type`/`rarity`/`class`, NameConvention from the engine's first-party item-naming convention (CL-73). Three patterns: weapons/armor (`<Type>_<Rarity>_<Class>_<NN>`), cosmetics (`Cosmetic_<Class>_…`), and classless (`…_<Rarity>_Generic_…`). Class tokens normalized to the full PlayerClass SnoName so abbreviated and full-form authored names produce the same facet value.
 
-Item type/rarity/class (NameConvention) are not yet surfaced. Glyph facets decode the glyph (cheap; 562 in the group); Power facets are decode-free (the CoreTOC name is enough).
+Glyph facets decode the glyph (cheap; 562 in the group); Power + Item facets are decode-free (the CoreTOC name is enough).
 
 ```csharp
 public IReadOnlyList<Facet> Facets(AssetRef asset)

@@ -1998,6 +1998,43 @@ derived from FR-C14 R8's `snoTiledStyle` crack and R10's variant
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
 
+- **CL-73 — Item type/rarity/class facets from the engine's
+  first-party item-naming convention (FR-C20 #32 deferred extra 3 —
+  the last of three).** The Optimizer flagged that
+  `Catalog.Find(Item)` didn't carry the localized-name composition
+  data. Three patterns observed across the live build's group-73
+  items: weapons + armor
+  (`<Type>_<Rarity>_<Class>_<NN>[_<Variant>]` —
+  `1HAxe_Unique_Druid_100`, `Helm_Rare_Barb_Crafted_47`); cosmetics
+  (`Cosmetic_<Class>_<Name>` — `Cosmetic_Barbarian_*`, dominant by
+  count); classless (`<Type>_<Rarity>_Generic_<NN>` —
+  `1HAxe_Magic_Generic_001`). The first underscore-bounded token
+  always serves as the type; rarity emits only when the second
+  token is in the closed set (`Normal | Magic | Rare | Legendary |
+  Unique | Any`) — that gate keeps non-rarity tokens like
+  `Cosmetic`/`Charm`/`Journey`/`MSWK` (which occupy the same slot
+  in non-weapon/armor patterns) from leaking into the rarity facet
+  (they already surface as type). Class tokens are normalized to
+  the canonical PlayerClass SnoName so both the abbreviated authored
+  forms (`Barb`, `Sorc`, `Necro`) and the full forms (`Barbarian`,
+  `Sorcerer`, `Necromancer`) collapse to a single facet value;
+  `Generic` is the engine's "no class" sentinel and produces no
+  class facet on purpose. Surface: `Catalog.Facets(itemRef)` now
+  emits up to three facets (`type:<T>`, `rarity:<R>`,
+  `class:<SnoName>`) with `FacetSource.NameConvention`;
+  `Catalog.FindByFacet(Item, "class", "Druid")`
+  / `FindByFacet(Item, "rarity", "Unique")` /
+  `FindByFacet(Item, "type", "1HAxe")` all light up. Internal helper
+  `Catalog.ParseItemConvention(string)` (static, alias-aware) for
+  unit-testing the dispatch. Acceptance: 9 known item-name cases
+  cover all three patterns + the `Generic` sentinel + the cosmetic
+  case + fallbacks (empty, no-underscore, unrecognized leading
+  token), plus a live `FindByFacet(Item, "class", "Druid")`
+  round-trip that confirms each result name contains `_Druid`.
+  92/92 tests green on `3.0.2.71886`. Devlog 0068. **#32 backlog
+  complete** — three deferred extras (codec tail, power → class,
+  item NameConvention) all resolved.
+
 - **CL-72 — Power → class facet from the
   `<ClassSnoName>_<SkillName>` name convention (FR-C20 #32 deferred
   extra 2).** Owner directed CASC to investigate the

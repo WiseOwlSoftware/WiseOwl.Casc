@@ -658,5 +658,50 @@ public sealed class TypedReaderTests
         Assert.NotEmpty(armorNodes);
         Assert.All(armorNodes, n =>
             Assert.Contains("Armor", n.Name, StringComparison.OrdinalIgnoreCase));
+
+        // CL-73 item NameConvention facets (FR-C20 #32) — three patterns
+        // resolved by Catalog.ParseItemConvention (the dispatch behind
+        // the Item case in Catalog.Facets).
+        Assert.Equal(
+            ("1HAxe", "Unique", "Druid"),
+            Catalog.ParseItemConvention("1HAxe_Unique_Druid_100"));
+        Assert.Equal(
+            ("1HFocus", "Unique", "Necromancer"),
+            Catalog.ParseItemConvention("1HFocus_Unique_Necro_100"));  // Necro alias
+        Assert.Equal(
+            ("Helm", "Rare", "Barbarian"),
+            Catalog.ParseItemConvention("Helm_Rare_Barb_Crafted_47"));
+        // Generic = engine's "no class" sentinel — type + rarity emit; class null.
+        Assert.Equal(
+            ("1HAxe", "Magic", (string?)null),
+            Catalog.ParseItemConvention("1HAxe_Magic_Generic_001"));
+        // Cosmetics: <Type>_<Class>_<Name>, no rarity slot.
+        Assert.Equal(
+            ("Cosmetic", (string?)null, "Barbarian"),
+            Catalog.ParseItemConvention("Cosmetic_Barbarian_FooBar"));
+        Assert.Equal(
+            ("Cosmetic", (string?)null, "Necromancer"),
+            Catalog.ParseItemConvention("Cosmetic_Necro_FooBar"));     // alias
+        // Fallback — unmatched conventions yield only the type token.
+        Assert.Equal(
+            ("QST", (string?)null, (string?)null),
+            Catalog.ParseItemConvention("QST_Frac_Underworld_04"));
+        Assert.Equal(default,
+            Catalog.ParseItemConvention(""));
+        Assert.Equal(
+            ("noUnderscore", (string?)null, (string?)null),
+            Catalog.ParseItemConvention("noUnderscore"));
+
+        // FindByFacet round-trip — every Item tagged class=Druid carries
+        // _Druid_ somewhere in its name (the alias map keeps Necro/
+        // Necromancer collapsed to the same SnoName facet, so this Druid
+        // spot-check is unambiguous).
+        var druidItems = d4.Catalog
+            .FindByFacet(AssetKind.Item, "class", "Druid")
+            .Take(50)
+            .ToList();
+        Assert.NotEmpty(druidItems);
+        Assert.All(druidItems, r =>
+            Assert.Contains("_Druid", r.Name, StringComparison.Ordinal));
     }
 }
