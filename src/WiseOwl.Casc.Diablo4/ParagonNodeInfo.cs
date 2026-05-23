@@ -4,6 +4,19 @@ using System.Collections.Generic;
 namespace WiseOwl.Casc.Diablo4;
 
 /// <summary>
+/// A grid coordinate on a paragon board's authored layout — row-major
+/// from the top-left (row <c>0</c> = top, col <c>0</c> = left). Paired
+/// with a <see cref="ParagonNodeInfo"/> by
+/// <c>Catalog.GetBoardNodes(int)</c> to describe placement on the
+/// board.
+/// </summary>
+/// <param name="Row">Row index (<c>0</c> = top); always in
+/// <c>[0, board.Width)</c>.</param>
+/// <param name="Col">Column index (<c>0</c> = left); always in
+/// <c>[0, board.Width)</c>.</param>
+public readonly record struct ParagonGridCell(int Row, int Col);
+
+/// <summary>
 /// The display-axis classification of a paragon node — what the in-game
 /// tooltip headline shows (the visual archetype, distinct from
 /// <see cref="ParagonRarity"/>). Derived from

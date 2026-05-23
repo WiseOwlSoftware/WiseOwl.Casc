@@ -206,6 +206,10 @@ public sealed class Catalog
         _nodeDefCache = new();
     private readonly System.Collections.Concurrent.ConcurrentDictionary<int, ParagonNodeInfo?>
         _nodeInfoCache = new();
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<int, ParagonBoardDefinition?>
+        _boardDefCache = new();
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<int, IReadOnlyList<(ParagonGridCell, ParagonNodeInfo)>?>
+        _boardNodesCache = new();
     private AttributeFormulaTable? _attributeFormulas;
     private readonly object _formulasLock = new();
 
@@ -557,6 +561,104 @@ public sealed class Catalog
         lock (_formulasLock)
         {
             return _attributeFormulas ??= _d4.ReadAttributeFormulas();
+        }
+    }
+
+    /// <summary>FR-C21 — the consumer hot path: enumerate every placed
+    /// node on a paragon board paired with its grid cell coordinate
+    /// (row, col), each <see cref="ParagonNodeInfo"/> fully resolved
+    /// (magnitude / unit / stat name). Returns an empty list when the
+    /// board SNO is missing or fails to decode.</summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Performance contract.</b> The board itself is cached (one
+    /// decoded <see cref="ParagonBoardDefinition"/> per SNO), the per-
+    /// cell <see cref="ParagonNodeInfo"/>s are cached per node SNO
+    /// (~17–21 distinct per board, ~441 cells), and the projected
+    /// <c>(cell, info)</c> list is cached per board SNO so repeat
+    /// queries return the same instance with O(1) cost. Missing /
+    /// undecodable board SNOs memoize as an empty list (the optimizer's
+    /// search-tree pruning often probes malformed ids; the cache makes
+    /// re-probes free).
+    /// </para>
+    /// <para>
+    /// <b>Ordering.</b> Row-major (<c>row 0 = top</c>,
+    /// <c>col 0 = left</c>), skipping empty cells.
+    /// </para>
+    /// </remarks>
+    /// <param name="boardSno">The <see cref="SnoGroup.ParagonBoard"/> id.</param>
+    public IReadOnlyList<(ParagonGridCell Cell, ParagonNodeInfo Info)>
+        GetBoardNodes(int boardSno) =>
+        _boardNodesCache.GetOrAdd(boardSno, ComputeBoardNodes)
+            ?? Array.Empty<(ParagonGridCell, ParagonNodeInfo)>();
+
+    private IReadOnlyList<(ParagonGridCell, ParagonNodeInfo)>? ComputeBoardNodes(int boardSno)
+    {
+        var board = GetBoardDef(boardSno);
+        if (board is null)
+            return Array.Empty<(ParagonGridCell, ParagonNodeInfo)>();
+
+        var width = board.Width;
+        var seenAny = false;
+        var result = new List<(ParagonGridCell, ParagonNodeInfo)>(board.NodeCount);
+        for (var row = 0; row < width; row++)
+        {
+            for (var col = 0; col < width; col++)
+            {
+                var sno = board.CellAt(row, col);
+                if (sno is null) continue;
+                var info = GetNodeInfo(sno.Value);
+                if (info is null) continue;
+                result.Add((new ParagonGridCell(row, col), info));
+                seenAny = true;
+            }
+        }
+        // Honest "empty" carries through even when the board itself
+        // decoded — e.g. an authored-but-vacated test board.
+        _ = seenAny;
+        return result;
+    }
+
+    /// <summary>Return the cached decoded
+    /// <see cref="ParagonBoardDefinition"/> for an SNO (decodes on
+    /// first miss). The cache key is the SNO id;
+    /// missing/undecodable SNOs memoize as <see langword="null"/> so
+    /// repeat lookups stay O(1).</summary>
+    internal ParagonBoardDefinition? GetBoardDef(int sno) =>
+        _boardDefCache.GetOrAdd(sno, ComputeBoardDef);
+
+    private ParagonBoardDefinition? ComputeBoardDef(int sno)
+    {
+        try { return _d4.ReadParagonBoard(sno); }
+        catch (CascException) { return null; }
+    }
+
+    /// <summary>FR-C21 — every paragon node in the install (or the
+    /// subset matching <paramref name="query"/>) projected as a
+    /// fully-resolved <see cref="ParagonNodeInfo"/>. Lazy: enumeration
+    /// streams one node at a time and shares the SNO-keyed decode
+    /// cache with <see cref="GetNodeInfo"/> /
+    /// <see cref="GetBoardNodes"/>. Malformed nodes (those whose
+    /// <see cref="ParagonNodeDefinition.Parse"/> throws or whose
+    /// <see cref="CoreToc"/> name is missing) are silently
+    /// skipped.</summary>
+    /// <remarks>
+    /// <para>
+    /// The query's <see cref="AssetQuery.Kind"/> /
+    /// <see cref="AssetQuery.Kinds"/> are overridden to
+    /// <see cref="AssetKind.ParagonNode"/> — the other facets
+    /// (<see cref="AssetQuery.NameContains"/>,
+    /// <see cref="AssetQuery.Where"/>,
+    /// <see cref="AssetQuery.OrderByName"/>, …) apply as usual.
+    /// </para>
+    /// </remarks>
+    public IEnumerable<ParagonNodeInfo> EnumerateNodes(AssetQuery? query = null)
+    {
+        var effective = (query ?? new AssetQuery()) with { Kind = AssetKind.ParagonNode };
+        foreach (var r in Find(effective))
+        {
+            var info = GetNodeInfo(r.Sno);
+            if (info is not null) yield return info;
         }
     }
 }
