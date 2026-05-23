@@ -48,6 +48,21 @@ switch (cmd)
             Console.WriteLine($"{(int)e.Group,5}  0x{toc.FormatHashFor(e.Group):X8}  {e.Id,9}  {e.Name}");
         return 0;
     }
+    case "snoinfo":
+    {
+        // snoinfo <id...> — look up any SNO id across all groups in the TOC and
+        // print its (group, name). Used to identify the SNO references in
+        // ParagonNode tail payloads (bonus mechanic linkages).
+        if (argv.Count < 2) { Console.Error.WriteLine("snoinfo <id...>"); return 2; }
+        foreach (var s in argv.Skip(1))
+        {
+            int id = int.Parse(s);
+            var hits = toc.Entries.Where(e => e.Id == id).ToList();
+            if (hits.Count == 0) Console.WriteLine($"  {id} -> (not in TOC)");
+            else foreach (var e in hits) Console.WriteLine($"  {id} -> group {(int)e.Group} \"{e.Name}\"");
+        }
+        return 0;
+    }
     case "listgroup":
     {
         if (argv.Count < 2) { Console.Error.WriteLine("listgroup <gid> [substr]"); return 2; }
@@ -834,6 +849,94 @@ switch (cmd)
         }
         return 0;
     }
+    case "boardname":
+    {
+        if (argv.Count < 2) { Console.Error.WriteLine("boardname <boardSno...>"); return 2; }
+        foreach (var s in argv.Skip(1))
+        {
+            int id = int.Parse(s);
+            string nm = toc.Entries.Where(e => (int)e.Group == 108 && e.Id == id).Select(e => e.Name).FirstOrDefault() ?? "?";
+            Console.WriteLine($"  {id,9}  {nm}  =  \"{(d4.TryReadParagonBoardName(id, out var dn) ? dn : "(no localized name)")}\"");
+        }
+        return 0;
+    }
+    case "nodesbyformula":
+    {
+        // nodesbyformula <formulaName> [warlock|all] — find all ParagonNodes
+        // whose FormulaGbid == GbidHash(formulaName), then locate each on
+        // Warlock paragon boards (or all boards). Used to build a precise read
+        // list for empirical calibration of the budget-multiplier intrinsics.
+        if (argv.Count < 2) { Console.Error.WriteLine("nodesbyformula <name> [warlock|all]"); return 2; }
+        string scope = argv.Count > 2 ? argv[2] : "warlock";
+        uint targetGbid = D4.GbidH(argv[1]);
+        var nodes = new List<int>();
+        foreach (var e in toc.Entries.Where(e => (int)e.Group == 106))
+        {
+            ParagonNodeDefinition pn; try { pn = d4.ReadParagonNode(e.Id); } catch { continue; }
+            if (pn.Attributes.Any(a => a.FormulaGbid == targetGbid)) nodes.Add(e.Id);
+        }
+        Console.WriteLine($"formula \"{argv[1]}\" (gbid 0x{targetGbid:X8}) used by {nodes.Count} node defs.");
+        var boards = toc.Entries.Where(e => (int)e.Group == 108
+            && (scope == "all" || e.Name.Contains("Warlock", StringComparison.Ordinal))).ToList();
+        foreach (var bsno in boards)
+        {
+            var bd = d4.ReadParagonBoard(bsno.Id);
+            for (int row = 0; row < bd.Width; row++)
+                for (int col = 0; col < bd.Width; col++)
+                    if (bd.CellAt(row, col) is { } sn && nodes.Contains(sn))
+                    {
+                        var nm = toc.Entries.Where(t => (int)t.Group == 106 && t.Id == sn).Select(t => t.Name).FirstOrDefault() ?? "?";
+                        Console.WriteLine($"  board {bsno.Name} ({bsno.Id}) row{row,2} col{col,2}  -> node {sn} \"{nm}\"");
+                    }
+        }
+        return 0;
+    }
+    case "formulafind":
+    {
+        // formulafind <substr> — list AttributeFormulas entries whose name
+        // contains substr (find the budget-multiplier intrinsics, if present).
+        if (argv.Count < 2) { Console.Error.WriteLine("formulafind <substr>"); return 2; }
+        var gbl = d4.ReadAttributeFormulas();
+        int hit = 0;
+        foreach (var e in gbl.Entries)
+            if (e.Name.Contains(argv[1], StringComparison.OrdinalIgnoreCase))
+            { Console.WriteLine($"  {e.Name} = \"{e.PrimaryText}\""); hit++; }
+        Console.WriteLine($"-- {hit} of {gbl.Entries.Count} entries --");
+        return 0;
+    }
+    case "formula":
+    {
+        // formula <name...> — resolve a formula's text from AttributeFormulas
+        // (e.g. the ParagonPowerBudgetMultiplier* budget intrinsics).
+        if (argv.Count < 2) { Console.Error.WriteLine("formula <name...>"); return 2; }
+        var gbf = d4.ReadAttributeFormulas();
+        foreach (var s in argv.Skip(1))
+            Console.WriteLine(gbf.TryGetFormulaText(s, out var t) ? $"  {s} = \"{t}\"" : $"  {s} = (not in table)");
+        return 0;
+    }
+    case "nodeinfo":
+    {
+        // nodeinfo <nodeSno...> — full decoded ParagonNode dump (dogfoods the
+        // CL-66 fields): NodeType, rarity, flags, and per-attribute id/NParam/
+        // formula(text)/AttributeGbid.
+        if (argv.Count < 2) { Console.Error.WriteLine("nodeinfo <nodeSno...>"); return 2; }
+        var gb = d4.ReadAttributeFormulas();
+        foreach (var s in argv.Skip(1))
+        {
+            int sno = int.Parse(s);
+            var nm = toc.Entries.Where(e => (int)e.Group == 106 && e.Id == sno).Select(e => e.Name).FirstOrDefault() ?? "?";
+            var n = d4.ReadParagonNode(sno);
+            Console.WriteLine($"node {sno} \"{nm}\"  NodeType={n.NodeType}({n.NodeTypeRaw}) Rarity={n.Rarity} gate={n.IsGate} socket={n.HasSocket} power={n.SnoPassivePower}");
+            foreach (var a in n.Attributes)
+            {
+                string ftxt = a.IsInline ? $"inline\"{a.InlineFormula}\""
+                    : (gb.TryGetNameByGbid(a.FormulaGbid, out var fn) && gb.TryGetFormulaText(fn, out var ft)
+                        ? $"{fn}=\"{ft}\"" : $"gbid0x{a.FormulaGbid:X8}");
+                Console.WriteLine($"    attr={a.AttributeId,5} nParam={a.NParam} +12={a.ParamPlus12} gbidArr=0x{a.AttributeGbid:X8} formula={ftxt}");
+            }
+        }
+        return 0;
+    }
     case "cellof":
     {
         // cellof <boardSno> <nodeSno...> — print every (row,col) where each node
@@ -877,6 +980,15 @@ switch (cmd)
             Console.WriteLine($"      attrs: {attrs}");
             if (++shown >= max) break;
         }
+        return 0;
+    }
+    case "snoid":
+    {
+        // snoid <id...> — find any CoreTOC entry by exact id (across all groups).
+        if (argv.Count < 2) { Console.Error.WriteLine("snoid <id...>"); return 2; }
+        var want = argv.Skip(1).Select(int.Parse).ToHashSet();
+        foreach (var e in toc.Entries.Where(e => want.Contains(e.Id)))
+            Console.WriteLine($"  group {(int)e.Group,3}  id {e.Id,9}  {e.Name}");
         return 0;
     }
     case "rawhex":
