@@ -207,20 +207,68 @@ internal static class ParagonNodeInfoBuilder
         return lastUnderscore > 0 ? nodeName[(lastUnderscore + 1)..] : null;
     }
 
-    /// <summary>Humanize a stat token: split CamelCase boundaries and
-    /// expand the handful of standard abbreviations. <c>"Str" → "Strength"</c>,
-    /// <c>"DamageToElite" → "Damage to Elite"</c>,
-    /// <c>"HPFlat" → "Max Life (Flat)"</c>.</summary>
-    /// <param name="token">The trailing token from a Generic_* node
-    /// name, or <see langword="null"/> for class-specific nodes.</param>
-    /// <param name="attributeId">Fallback when the node name carries
-    /// no stat token (class-specific rares); returned as
-    /// <c>"Attribute &lt;id&gt;"</c>.</param>
+    /// <summary>Resolve the per-row stat name for one node attribute.
+    /// Two-source dispatch (CL-76, FR-C21 multi-row defect fix):
+    /// <list type="number">
+    /// <item><b>AttributeId map (primary, when canonical).</b> For
+    /// attributes whose identity is bound to the id (not the node
+    /// name) — the basic-four player stats
+    /// (<c>9 → "Strength"</c>, <c>10 → "Intelligence"</c>,
+    /// <c>11 → "Willpower"</c>, <c>12 → "Dexterity"</c>) — return the
+    /// canonical name directly. Critical for multi-attribute nodes
+    /// like Gate (4 rows, all named "Gate" by the node-token alone)
+    /// where the per-row identity has to come from the id, not the
+    /// shared name.</item>
+    /// <item><b>Node-name token (fallback).</b> For attributes where
+    /// multiple stats share the same id (the famous
+    /// <c>AttributeId 481</c> power-budget category — Armor /
+    /// ArmorPercent / DamageReductionFromElite all share it), the
+    /// stat identity lives in the node name. Humanize the token via
+    /// CamelCase split + the small abbreviation table.</item>
+    /// <item><b>Honest fallback.</b> No token AND no canonical id
+    /// mapping ⇒ <c>"Attribute &lt;id&gt;"</c>.</item>
+    /// </list>
+    /// The <c>AttributeDescriptions</c> (sno <c>4080</c>) localized-
+    /// label integration is the eventual canonical path for every
+    /// attribute id; today the map covers only the basic-four
+    /// (sufficient for Gate + Generic_Normal_{Str,Int,Will,Dex} —
+    /// every other multi-row case the Optimizer has flagged so far).</summary>
     internal static string ResolveStatName(string? token, int attributeId)
     {
-        if (token is null)
-            return $"Attribute {attributeId}";
+        // (1) Canonical AttributeId → name. Wins when set — the id is
+        // a stable stat identity for these attrs.
+        if (TryCanonicalNameByAttributeId(attributeId) is { } byId) return byId;
 
+        // (2) Node-name token (covers the budget-category attrs where
+        // the node name disambiguates the stat).
+        if (token is not null) return HumanizeStatToken(token);
+
+        // (3) Honest fallback for class-specific names whose stat
+        // identity isn't yet resolvable from either source.
+        return $"Attribute {attributeId}";
+    }
+
+    /// <summary>The canonical stat name for an attribute id, when the
+    /// id IS the stat identity (not a budget-category collision). The
+    /// basic-four player attributes (Strength / Intelligence /
+    /// Willpower / Dexterity) are the verified canonical anchors;
+    /// future ids (133 HPFlat, 208 MoveSpeed, etc.) can be added as
+    /// owner game-oracle confirms them.</summary>
+    private static string? TryCanonicalNameByAttributeId(int attributeId) =>
+        attributeId switch
+        {
+            9 => "Strength",
+            10 => "Intelligence",
+            11 => "Willpower",
+            12 => "Dexterity",
+            _ => null,
+        };
+
+    /// <summary>Humanize a stat-token string: whole-token
+    /// abbreviation replacements then CamelCase splitting +
+    /// preposition lowercasing.</summary>
+    private static string HumanizeStatToken(string token)
+    {
         // Whole-token replacements first (the abbreviations the engine
         // uses where the CamelCase split would otherwise mangle them).
         switch (token)
@@ -242,8 +290,7 @@ internal static class ParagonNodeInfoBuilder
         // General CamelCase split with the prepositions kept lowercase
         // for the natural-language read (Damage TO Elite reads worse
         // than Damage to Elite).
-        var humanized = HumanizeCamelCase(token);
-        return humanized;
+        return HumanizeCamelCase(token);
     }
 
     private static string HumanizeCamelCase(string token)

@@ -1999,6 +1999,35 @@ derived from FR-C14 R8's `snoTiledStyle` crack and R10's variant
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
 
+- **CL-76 — `ParagonNodeStat.StatName` prefers the canonical
+  AttributeId map over the node-name token (FR-C21 multi-row
+  defect fix).** Optimizer CL-74 consume-verify caught a defect:
+  every Gate-stat row returned `StatName == "Gate"` because the
+  CL-69 builder fed the same shared node-name token to every row.
+  Single-stat nodes like `Generic_Magic_Armor` always worked
+  (token "Armor" → "Armor"); multi-stat nodes like `Generic_Gate`
+  (which carries 4 attribute rows with AttributeIds 9 / 10 / 11
+  / 12 sharing the token "Gate") didn't. **Fix:** make the
+  canonical AttributeId map the **primary** source — for the
+  basic-four (9 → "Strength", 10 → "Intelligence",
+  11 → "Willpower", 12 → "Dexterity") the id IS the stat
+  identity, so use it directly. The node-name token stays as the
+  **fallback** for budget-category attributes where the stat
+  identity lives in the name (`AttributeId 481` — Armor /
+  ArmorPercent / DamageReductionFromElite share the id; the
+  token disambiguates). Unchanged behaviour for every previously-
+  green node — single-row Generic_Normal_{Str,Int,Will,Dex} get
+  the same canonical names from the id-map that the token-map
+  used to produce. `AttributeDescriptions` (sno `4080`)
+  integration is the eventual canonical path for every id;
+  today the map covers only the basic-four (the Optimizer's
+  accepted minimum scope for the Gate fix). Acceptance: 12
+  Theory cases (basic-four × 2 paths × token shapes; budget-
+  category 481 with two tokens; class-specific honest-fallback)
+  plus the live Gate matrix tightened to assert per-row
+  `StatName == "Strength"/"Intelligence"/"Willpower"/"Dexterity"`.
+  104/104 tests green on `3.0.2.71886`. Devlog 0071.
+
 - **CL-75 — `ParagonNodeInfo.LocalizedTitle` from the
   `ParagonNode_<SnoName>` sibling StringList (FR-C22).** Engine
   authors a per-node title StringList for every node that has its
