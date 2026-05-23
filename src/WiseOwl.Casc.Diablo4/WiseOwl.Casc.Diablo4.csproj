@@ -20,6 +20,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Internal helpers (ParagonNodeInfoBuilder StatName/Unit resolvers,
+         etc.) are unit-testable directly from the Diablo4 test project. -->
+    <InternalsVisibleTo Include="WiseOwl.Casc.Diablo4.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0"
                       PrivateAssets="All" />
   </ItemGroup>

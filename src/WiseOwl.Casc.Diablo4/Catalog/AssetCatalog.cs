@@ -198,6 +198,17 @@ public sealed class Catalog
     private readonly Diablo4Storage _d4;
     private readonly IReadOnlyList<IAssetProvider> _providers;
 
+    // FR-C21 caches — node defs and resolved infos are reused ~25× per
+    // board and many boards repeat across a search. Decoded once on
+    // first access, kept for the storage's lifetime. ConcurrentDictionary
+    // tolerates the optimizer's parallel queries.
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<int, ParagonNodeDefinition?>
+        _nodeDefCache = new();
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<int, ParagonNodeInfo?>
+        _nodeInfoCache = new();
+    private AttributeFormulaTable? _attributeFormulas;
+    private readonly object _formulasLock = new();
+
     internal Catalog(Diablo4Storage d4)
     {
         _d4 = d4;
@@ -488,5 +499,64 @@ public sealed class Catalog
         if (TryGet(asset, out var v) && v is T t) { value = t; return true; }
         value = default!;
         return false;
+    }
+
+    /// <summary>FR-C21 — the display-ready projection of one paragon
+    /// node, evaluated and resolved through the Appendix C carve-out
+    /// (magnitudes computed via <see cref="ParagonMagnitudeFormula.Evaluate"/>;
+    /// the <see cref="AssetKind.AttributeFormulas"/> table consulted
+    /// once and re-used; stat names resolved from the
+    /// <c>Generic_&lt;Rarity&gt;_&lt;Token&gt;</c> node-name
+    /// convention). Returns <see langword="null"/> when the SNO is
+    /// missing, the record fails to decode, or has no corresponding
+    /// <see cref="CoreToc"/> name.</summary>
+    /// <remarks>
+    /// <b>Caching.</b> Results are cached by SNO for the storage's
+    /// lifetime — the optimizer hot path re-queries the same boards
+    /// repeatedly, and each board carries ~17–21 distinct node defs
+    /// across ~441 cells. Decode once, reuse. The cache also stores
+    /// negative results (missing/undecodable SNOs) so a malformed
+    /// repeat-query is just as cheap as a hit.
+    /// </remarks>
+    /// <param name="sno">The <see cref="SnoGroup.ParagonNode"/> id.</param>
+    public ParagonNodeInfo? GetNodeInfo(int sno) =>
+        _nodeInfoCache.GetOrAdd(sno, ComputeNodeInfo);
+
+    private ParagonNodeInfo? ComputeNodeInfo(int sno)
+    {
+        var def = GetNodeDef(sno);
+        if (def is null) return null;
+        var name = _d4.CoreToc.GetName(SnoGroup.ParagonNode, sno);
+        if (name is null) return null;
+        var formulas = GetAttributeFormulas();
+        return ParagonNodeInfoBuilder.Build(_d4, this, def, name, formulas);
+    }
+
+    /// <summary>Return the cached decoded
+    /// <see cref="ParagonNodeDefinition"/> for an SNO (decodes on first
+    /// miss). The cache key is the SNO id; missing/undecodable SNOs
+    /// memoize as <see langword="null"/> so repeat lookups stay
+    /// O(1).</summary>
+    internal ParagonNodeDefinition? GetNodeDef(int sno) =>
+        _nodeDefCache.GetOrAdd(sno, ComputeNodeDef);
+
+    private ParagonNodeDefinition? ComputeNodeDef(int sno)
+    {
+        try { return _d4.ReadParagonNode(sno); }
+        catch (CascException) { return null; }
+    }
+
+    /// <summary>Lazy access to the shared
+    /// <see cref="AttributeFormulaTable"/> (sno
+    /// <c>201912</c>) — read once on first use and held for the
+    /// catalog's lifetime. The table is ~1MB and otherwise re-decoded
+    /// once per node-info build.</summary>
+    private AttributeFormulaTable GetAttributeFormulas()
+    {
+        if (_attributeFormulas is not null) return _attributeFormulas;
+        lock (_formulasLock)
+        {
+            return _attributeFormulas ??= _d4.ReadAttributeFormulas();
+        }
     }
 }

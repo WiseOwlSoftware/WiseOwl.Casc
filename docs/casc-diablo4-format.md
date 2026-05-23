@@ -673,6 +673,87 @@ the paragon node-info surface. Power-script formulas, glyph
 rank/radius scaling, item/affix value resolution, and general
 `AttributeFormulaTable` evaluation remain the consumer's.
 
+### 7.7 `ParagonNodeInfo` — the FR-C21 node projection (CL-69)
+
+A display-ready projection of one paragon node, served by
+`Catalog.GetNodeInfo(int sno)`. The library does the magnitude
+evaluation (§7.6), unit inference, and stat-name resolution so the
+consumer renders directly from the projection.
+
+```
+ParagonNodeInfo {
+  int Sno; string Name;
+  ParagonNodeKind Kind;       // Normal/Magic/Rare/Legendary/Start/Socket/Gate
+  ParagonRarity   Rarity;     // raw eRarityOverride (distinct axis from Kind)
+  AssetRef? Icon, IconMask;   // TextureAtlas refs (null when handle absent/unresolved)
+  AssetRef? PassivePower;     // Power SNO ref (null when none)
+  string?   PassivePowerName; // sibling-StringList localized name (null when missing)
+  ParagonNodeStat[] Stats;    // empty for Start / Socket / Gate
+  bool HasSocket, IsGate;     // raw flags retained for parity
+}
+
+ParagonNodeStat {
+  int AttributeId;            // raw eAttribute (budget category, NOT the stat key)
+  string StatName;            // resolved English name (token humanized; "Armor",
+                              //   "Damage to Elite", "Resistance Cold", …;
+                              //   "Attribute <id>" fallback for class-specific names)
+  int Variant;                // raw NParam (informational; 0 on every observed node)
+  string? VariantName;        // reserved (always null today)
+  double? FlatValue;          // displayed magnitude (formula evaluated; null when
+                              //   the formula references an unknown intrinsic)
+  StatUnit Unit;              // Flat | Percent | Multiplier (heuristic; FlatValue
+                              //   is the numeric truth)
+  AssetRef? Formula;          // named AttributeFormulas entry (null when inline)
+  string? InlineFormula;      // node's own formula text (null when GBID-referenced)
+}
+```
+
+**`Sno` is the canonical aggregation key** for a stat (not
+`(AttributeId, Variant)`). Three nodes — `Generic_Magic_Armor`,
+`Generic_Magic_ArmorPercent`, `Generic_Magic_DamageReductionFromElite`
+— decode to **identical** attribute fields (`AttributeId 481`,
+`NParam 0`, same formula GBID, same parallel-array GBID) yet display
+three distinct stats; only the SNO/name disambiguates them. The
+Optimizer signed off on this correction (`casc-fr#33`, 2026-05-23).
+
+**`StatName` resolution.** For `Generic_<Rarity>_<Token>` node
+names the trailing token is humanized via a CamelCase split +
+abbreviation expansion: `Generic_Magic_DamageToElite` ⇒
+`"Damage to Elite"`, `Generic_Magic_DamageReductionFromVulnerable`
+⇒ `"Damage Reduction from Vulnerable"`, `Generic_Magic_Str` ⇒
+`"Strength"`, `Generic_Magic_HPFlat` ⇒ `"Max Life (Flat)"`,
+`Generic_Magic_HPPercent` ⇒ `"Max Life"`, `Generic_Magic_CDR` ⇒
+`"Cooldown Reduction"`, `Generic_Magic_AttackSpeedBasic` ⇒
+`"Attack Speed (Basic Skills)"`. Class-specific names without the
+`Generic_` prefix (e.g. `Warlock_Rare_006`) carry no encoded stat
+token — the projection falls back to `"Attribute <id>"` (the
+`NodeAttribute.AttributeId`). Localized labels via
+`AttributeDescriptions` (sno `4080`) are deferred to a follow-on
+iteration.
+
+**`StatUnit` heuristic.** Token-driven dispatch: `ResistanceMax*`
+caps render as `Percent`, all other `Resistance*` render as
+`Flat`; the pure-stat tokens (`Str`, `Int`, `Will`, `Dex`),
+`HPFlat`, `Thorns`, `Essence`, `MaximumWrath`, `MaximumDominance`,
+`HealingBonus`, `BonusFortify` render as `Flat`; every other token
+renders as `Percent`. Bare-constant formulas (Normal-rarity nodes
+whose magnitude text has no identifier) render as `Flat`. When the
+node name carries no `Generic_<Rarity>_<Token>` token, dispatch
+falls back to the player-stat / resistance / HP-flat / Thorns
+`AttributeId`s. This is a hint — `FlatValue` is the numeric truth.
+
+**Caching.** `Catalog.GetNodeInfo` caches both the decoded
+`ParagonNodeDefinition` and the resolved `ParagonNodeInfo` by SNO
+for the storage's lifetime (`ConcurrentDictionary`). The optimizer
+hot path re-queries the same boards repeatedly, each carrying
+~17–21 distinct node defs across ~441 cells. The shared
+`AttributeFormulaTable` (sno `201912`, ~1 MB) is decoded once on
+first call and held. Missing/undecodable SNOs memoize as `null`
+so a malformed repeat-query is just as cheap as a hit.
+
+The hot-path projection (`Catalog.GetBoardNodes(int boardSno)` with
+grid cell coordinates) lands in CL-70.
+
 ## 8. GameBalance `AttributeFormulas` (group 20, SNO 201912)
 
 Only `eGameBalanceType == 22` (AttributeFormulas) is in scope; other
@@ -1882,6 +1963,43 @@ derived from FR-C14 R8's `snoTiledStyle` crack and R10's variant
 
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
+
+- **CL-69 — `ParagonNodeInfo` projection + `Catalog.GetNodeInfo` +
+  SNO-keyed decode cache (FR-C21, second build slice).** The public
+  surface the Optimizer renders from. Builds on CL-68's magnitude
+  evaluator: each `ParagonNodeStat` carries the formula-resolved
+  `FlatValue` + an inferred `Unit` (`Flat | Percent | Multiplier`)
+  alongside the raw `(AttributeId, Variant)` and a humanized
+  `StatName` derived clean-room from the
+  `Generic_<Rarity>_<Token>` node-name convention (CamelCase split +
+  small abbreviation table; class-specific names without the
+  `Generic_` prefix fall back to `"Attribute <id>"`). The node-level
+  shape carries the visual archetype as `Kind`
+  (`ParagonNodeKind`: `Normal | Magic | Rare | Legendary | Start |
+  Socket | Gate`) — a distinct axis from `Rarity` (the raw
+  `eRarityOverride`); `Stats` is empty for `Start`/`Socket`/`Gate`.
+  Catalog refs for the icon atlases (`Icon`, `IconMask`) and the
+  granted passive power (`PassivePower`, with the sibling-StringList
+  localized name on `PassivePowerName`) are pre-resolved.
+  **Caching:** `ConcurrentDictionary<int, ParagonNodeDefinition>` and
+  `ConcurrentDictionary<int, ParagonNodeInfo>` on `Catalog`; the
+  ~1 MB `AttributeFormulaTable` (sno `201912`) is read once and
+  held; missing/undecodable SNOs memoize as `null`. **`Sno` is the
+  canonical stat-aggregation key** (Optimizer-signed-off correction
+  from `casc-fr#33`, 2026-05-23) — three nodes can share
+  `(AttributeId 481, NParam 0)` while displaying three distinct
+  stats. Surface: `ParagonNodeInfo`, `ParagonNodeStat`,
+  `ParagonNodeKind`, `StatUnit`, `Catalog.GetNodeInfo(int sno)`.
+  Acceptance: `B9_stat_name_resolves_from_node_name_token` (13
+  Theory cases), `B9_stat_name_falls_back_to_attribute_id_for_non_generic_names`,
+  `B9_stat_unit_inferred_from_token_and_attribute_id` (9 Theory
+  cases), and the live matrix's `GetNodeInfo` round-trips against
+  `Generic_Magic_Armor` (671247), `Warlock_Rare_006` (2451111),
+  `Generic_Socket` (681756) — plus a cache-identity check and the
+  missing-SNO ⇒ `null` memoization. 92/92 tests green on
+  `3.0.2.71886`. Spec §7.7, devlog 0064. Next CL-70 —
+  `Catalog.GetBoardNodes(int boardSno)` hot path with cell
+  coordinates + `EnumerateNodes`.
 
 - **CL-68 — Paragon magnitude resolution: budget-multiplier intrinsics
   + formula evaluator (FR-C21, first build slice).** The Optimizer
