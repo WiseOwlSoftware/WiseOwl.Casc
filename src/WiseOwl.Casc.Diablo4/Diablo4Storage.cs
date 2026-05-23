@@ -784,7 +784,17 @@ public sealed class Diablo4Storage : IDisposable
     /// set (honest sentinel, per the durable opaque-id boundary —
     /// Appendix C / CL-18). Raw decoded values only.
     /// </remarks>
-    public ParagonGlyphDefinition ReadParagonGlyph(int id)
+    public ParagonGlyphDefinition ReadParagonGlyph(int id) =>
+        ReadParagonGlyph(id, DefaultLocale);
+
+    /// <summary>Read + decode a <see cref="ParagonGlyphDefinition"/>
+    /// with the FR-C24 (CL-79) localized fields populated
+    /// (<see cref="ParagonGlyphDefinition.LocalizedTitle"/> from the
+    /// <c>Item_ParagonGlyph_&lt;SnoName&gt;</c> sibling, label
+    /// <c>Name</c>, with the universal <c>"Glyph: "</c> prefix
+    /// stripped; <see cref="ParagonGlyphDefinition.Rarity"/> from the
+    /// SnoName's leading-token convention).</summary>
+    public ParagonGlyphDefinition ReadParagonGlyph(int id, string locale)
     {
         var blob = ReadSno(SnoGroup.ParagonGlyph, id);
         var glyph = ParagonGlyphDefinition.Parse(blob);
@@ -807,13 +817,75 @@ public sealed class Diablo4Storage : IDisposable
             }
             if (hits.Count > 0) glyph.SetUsableByClassSnoIds(hits.ToArray());
         }
+
+        // FR-C24 / CL-79 — localized title via the sibling
+        // Item_ParagonGlyph_<SnoName> StringList; the universal
+        // "Glyph: " prefix is stripped library-side so the consumer
+        // gets the bare title ("Guzzler" rather than "Glyph: Guzzler").
+        var title = string.Empty;
+        if (TryReadSiblingString(
+                SnoGroup.ParagonGlyph, id,
+                ParagonGlyphStringTablePrefix, ParagonBoardNameLabel,
+                locale, out var raw))
+        {
+            title = raw.StartsWith(GlyphTitlePrefix, StringComparison.Ordinal)
+                ? raw[GlyphTitlePrefix.Length..]
+                : raw;
+        }
+        glyph.SetLocalizedFields(title, GlyphRarityFromSnoName(id));
         return glyph;
     }
+
+    /// <summary>The leading-token convention: every glyph's CoreTOC
+    /// name on the live build (3.0.2.71886) starts with
+    /// <c>Rare_&lt;NN&gt;_&lt;Stat&gt;_&lt;Slot&gt;</c>. Forward-looking
+    /// for any future Magic / Legendary glyphs the engine adds.</summary>
+    private ParagonRarity GlyphRarityFromSnoName(int snoId)
+    {
+        var name = CoreToc.GetName(SnoGroup.ParagonGlyph, snoId);
+        if (string.IsNullOrEmpty(name)) return ParagonRarity.Common;
+        var underscore = name.IndexOf('_');
+        if (underscore <= 0) return ParagonRarity.Common;
+        return name[..underscore] switch
+        {
+            "Magic" => ParagonRarity.Magic,
+            "Rare" => ParagonRarity.Rare,
+            "Legendary" => ParagonRarity.Legendary,
+            _ => ParagonRarity.Common,
+        };
+    }
+
+    private const string ParagonGlyphStringTablePrefix = "Item_ParagonGlyph_";
+    private const string GlyphTitlePrefix = "Glyph: ";
 
     /// <summary>Read + decode a <see cref="ParagonGlyphAffixDefinition"/> by
     /// SNO id (group 112).</summary>
     public ParagonGlyphAffixDefinition ReadParagonGlyphAffix(int id) =>
-        ParagonGlyphAffixDefinition.Parse(ReadSno(SnoGroup.ParagonGlyphAffix, id));
+        ReadParagonGlyphAffix(id, DefaultLocale);
+
+    /// <summary>Read + decode a
+    /// <see cref="ParagonGlyphAffixDefinition"/> with the FR-C24 (CL-79)
+    /// localized
+    /// <see cref="ParagonGlyphAffixDefinition.Description"/> populated
+    /// (sibling <c>ParagonGlyphAffix_&lt;SnoName&gt;</c>, label
+    /// <c>Desc</c>; raw template text with all engine markup
+    /// preserved).</summary>
+    public ParagonGlyphAffixDefinition ReadParagonGlyphAffix(int id, string locale)
+    {
+        var affix = ParagonGlyphAffixDefinition.Parse(
+            ReadSno(SnoGroup.ParagonGlyphAffix, id));
+        if (TryReadSiblingString(
+                SnoGroup.ParagonGlyphAffix, id,
+                ParagonGlyphAffixStringTablePrefix, ParagonGlyphAffixDescLabel,
+                locale, out var desc))
+        {
+            affix.SetDescription(desc);
+        }
+        return affix;
+    }
+
+    private const string ParagonGlyphAffixStringTablePrefix = "ParagonGlyphAffix_";
+    private const string ParagonGlyphAffixDescLabel = "Desc";
 
     /// <summary>Read + decode a <see cref="StatTagDefinition"/> by SNO id
     /// (group <see cref="SnoGroup.StatTag"/>=124) — the stat-threshold tag

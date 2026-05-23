@@ -32,6 +32,30 @@ public sealed class ParagonGlyphDefinition
     /// <summary>The glyph's own SNO id.</summary>
     public int SnoId { get; }
 
+    /// <summary>FR-C24 (CL-79) — the glyph's localized display title
+    /// (e.g. <c>"Attrition"</c>, <c>"Guzzler"</c>, <c>"Abyssal"</c>)
+    /// resolved via the §6.7 sibling-StringList convention
+    /// (<c>Item_ParagonGlyph_&lt;GlyphSnoName&gt;</c>, label
+    /// <c>Name</c>) with the universal <c>"Glyph: "</c> prefix
+    /// stripped. Empty when the sibling table is missing or the
+    /// glyph was decoded via the byte-only
+    /// <see cref="Parse(ReadOnlySpan{byte})"/> (no
+    /// <see cref="CoreToc"/> to resolve the sibling name).
+    /// Populated by
+    /// <see cref="Diablo4Storage.ReadParagonGlyph(int, string)"/>.</summary>
+    public string LocalizedTitle { get; private set; } = string.Empty;
+
+    /// <summary>FR-C24 (CL-79) — the glyph's nominal
+    /// <see cref="ParagonRarity"/>. Every glyph in the live build
+    /// (3.0.2.71886) is authored as <see cref="ParagonRarity.Rare"/>
+    /// (the SNO name follows <c>Rare_&lt;NN&gt;_&lt;Stat&gt;_&lt;Slot&gt;</c>);
+    /// the field is exposed forward-looking should the engine add
+    /// Magic / Legendary glyphs in a future build. The value comes
+    /// from the SNO name's leading-token convention — the durable
+    /// opaque-id principle (Appendix C) decodes naming-convention
+    /// fields library-side and surfaces them typed.</summary>
+    public ParagonRarity Rarity { get; private set; } = ParagonRarity.Common;
+
     /// <summary>The glyph's ParagonGlyphAffix SNO ids (0..3, in slot order).</summary>
     public IReadOnlyList<int> AffixSnoIds => _affixSnoIds;
 
@@ -63,6 +87,15 @@ public sealed class ParagonGlyphDefinition
     /// <see cref="Diablo4Storage.ReadParagonGlyph(int)"/>).</summary>
     internal void SetUsableByClassSnoIds(int[] classSnoIds) =>
         _usableByClassSnoIds = classSnoIds;
+
+    /// <summary>Attach the localized title + rarity-token resolution
+    /// (internal — set by
+    /// <see cref="Diablo4Storage.ReadParagonGlyph(int)"/>).</summary>
+    internal void SetLocalizedFields(string title, ParagonRarity rarity)
+    {
+        LocalizedTitle = title;
+        Rarity = rarity;
+    }
 
     /// <summary>Decode a ParagonGlyph from its raw SNO blob.</summary>
     public static ParagonGlyphDefinition Parse(ReadOnlySpan<byte> blob)

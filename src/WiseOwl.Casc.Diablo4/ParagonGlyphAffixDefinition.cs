@@ -50,6 +50,27 @@ public sealed class ParagonGlyphAffixDefinition
     /// magnitude increment (== Maxroll <c>perLevel</c>).</summary>
     public float PerLevel { get; }
 
+    /// <summary>FR-C24 (CL-79) — the affix's localized description
+    /// template (e.g. <c>"For every 5 Intelligence purchased within
+    /// range, you deal {c_number}+[{GlyphAffixScalar}|1%|]{/c}
+    /// increased damage while {c_important}{u}Healthy{/u}{/c}."</c>)
+    /// resolved via the §6.7 sibling-StringList convention
+    /// (<c>ParagonGlyphAffix_&lt;AffixSnoName&gt;</c>, label
+    /// <c>Desc</c>). Returned as the raw template — color tags
+    /// (<c>{c_…}{/c}</c>), underline tags (<c>{u}{/u}</c>), value
+    /// placeholders (<c>[{GlyphAffixScalar}|1%|]</c>), and the
+    /// markup tokens the consumer renders (<c>[x]</c>, <c>[+]</c>,
+    /// <c>&lt;Keyword&gt;</c>) all preserved. Empty when the
+    /// sibling table is missing or the affix was decoded via the
+    /// byte-only <see cref="Parse(ReadOnlySpan{byte})"/>. Populated
+    /// by <see cref="Diablo4Storage.ReadParagonGlyphAffix(int, string)"/>.</summary>
+    public string Description { get; private set; } = string.Empty;
+
+    /// <summary>Attach the localized description (internal — set by
+    /// <see cref="Diablo4Storage.ReadParagonGlyphAffix(int)"/>).</summary>
+    internal void SetDescription(string description) =>
+        Description = description;
+
     /// <summary>Decode a ParagonGlyphAffix from its raw SNO blob.</summary>
     public static ParagonGlyphAffixDefinition Parse(ReadOnlySpan<byte> blob)
     {
