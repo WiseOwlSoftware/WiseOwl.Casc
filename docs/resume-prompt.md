@@ -107,8 +107,16 @@ The `Side*` vs `Main*` suffix corresponds to threshold tier
   reliable Flat vs Percent indicator — unit is intrinsic to the eAttribute /
   formula structure, not the name suffix).
 
-**Active branch:** `fr-c21-formula-eval-budget-multipliers` (PR pending) →
-**CL-68** — first build slice of FR-C21: `ParagonPowerBudget` (the 6
+**Active branch:** `fr-c21-node-info-projection` (PR pending) → **CL-69**
+— second build slice of FR-C21: `ParagonNodeInfo` / `ParagonNodeStat` /
+`ParagonNodeKind` / `StatUnit` public projection types +
+`Catalog.GetNodeInfo(int sno)` + SNO-keyed decode cache
+(`ConcurrentDictionary`) + AttributeFormulaTable lazy-singleton.
+StatName from the `Generic_<Rarity>_<Token>` node-name convention
+(CamelCase split + small abbreviation table; class-specific names
+fall back to `"Attribute <id>"`). 92/92 tests green. Devlog 0064.
+Previous: **`fr-c21-formula-eval-budget-multipliers`** merged via PR #57
+→ **CL-68** (`a7a22aa`) — first build slice of FR-C21: `ParagonPowerBudget` (the 6
 empirically-pinned budget multipliers) + `ParagonMagnitudeFormula.Evaluate`
 (numeric / zero-arg-intrinsic-call / binary / parens; built on the existing
 internal `PowerScriptFormulaEvaluator`). Eight worked validations round-trip
@@ -263,9 +271,11 @@ awaiting:casc; 2 fixed, 1 in progress:**
 - **#24** rim = mesh/material (not a frame) — **`fr:consumed`** (owner accepted
   the procedural rim ✓).
 
-Latest CL = **68** (PR pending, branch `fr-c21-formula-eval-budget-multipliers`
-— FR-C21 magnitude evaluator + budget multipliers). CL-67 (`e6e226e`, PR #56)
-merged 2026-05-22 — rare bonus mechanic `@48`/`@64` + group-124
+Latest CL = **69** (PR pending, branch `fr-c21-node-info-projection` —
+FR-C21 `ParagonNodeInfo` projection + `Catalog.GetNodeInfo` + decode
+cache). CL-68 (`a7a22aa`, PR #57) merged 2026-05-23 — FR-C21 magnitude
+evaluator + budget multipliers. CL-67 (`e6e226e`, PR #56) merged
+2026-05-22 — rare bonus mechanic `@48`/`@64` + group-124
 `StatTagDefinition`, FR-C21 deferred RE.
 CL-66 (`0945892`, PR #54) merged 2026-05-22 — ParagonNode `eNodeType@16` +
 per-attribute GBID array `@88`, FR-C21 foundation.

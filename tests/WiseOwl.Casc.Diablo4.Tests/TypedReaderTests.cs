@@ -300,6 +300,63 @@ public sealed class TypedReaderTests
         Assert.False(ParagonPowerBudget.TryGetMultiplier("Nope", out _));
     }
 
+    [Theory]
+    // Stat-name resolution from the Generic_<Rarity>_<Token> convention:
+    // the trailing token is humanized via CamelCase split + abbreviation
+    // expansion to the displayed in-game stat name.
+    [InlineData("Generic_Magic_Armor", "Armor")]
+    [InlineData("Generic_Magic_DamageToElite", "Damage to Elite")]
+    [InlineData("Generic_Magic_ResistanceCold", "Resistance Cold")]
+    [InlineData("Generic_Rare_Damage", "Damage")]
+    [InlineData("Generic_Rare_CriticalDamage", "Critical Damage")]
+    [InlineData("Generic_Magic_DamageReductionFromVulnerable",
+        "Damage Reduction from Vulnerable")]
+    [InlineData("Generic_Magic_DamageReductionWhileHealthy",
+        "Damage Reduction while Healthy")]
+    [InlineData("Generic_Magic_Str", "Strength")]
+    [InlineData("Generic_Magic_HPFlat", "Max Life (Flat)")]
+    [InlineData("Generic_Magic_HPPercent", "Max Life")]
+    [InlineData("Generic_Magic_CDR", "Cooldown Reduction")]
+    [InlineData("Generic_Magic_MoveSpeed", "Movement Speed")]
+    [InlineData("Generic_Magic_AttackSpeedBasic", "Attack Speed (Basic Skills)")]
+    public void B9_stat_name_resolves_from_node_name_token(string nodeName, string expected)
+    {
+        var token = ParagonNodeInfoBuilder.ExtractStatToken(nodeName);
+        // attributeId=0 is the don't-care fallback; only used when token is null.
+        Assert.Equal(expected, ParagonNodeInfoBuilder.ResolveStatName(token, 0));
+    }
+
+    [Fact]
+    public void B9_stat_name_falls_back_to_attribute_id_for_non_generic_names()
+    {
+        // Class-specific rares (no Generic_ prefix) carry no encoded stat
+        // token — the projection's fallback exposes the AttributeId.
+        var token = ParagonNodeInfoBuilder.ExtractStatToken("Warlock_Rare_006");
+        Assert.Null(token);
+        Assert.Equal("Attribute 259", ParagonNodeInfoBuilder.ResolveStatName(token, 259));
+    }
+
+    [Theory]
+    // Token-driven dispatch — pure-stat tokens + Resistance* + HPFlat
+    // are Flat; budget-multiplied magnitudes are Percent. Bare-constant
+    // formulas (Normal-rarity) are Flat too.
+    [InlineData("Generic_Magic_Str", 9, "5", StatUnit.Flat)]
+    [InlineData("Generic_Magic_HPFlat", 133, "0.75 * Foo()", StatUnit.Flat)]
+    [InlineData("Generic_Magic_ResistanceCold", 79, "0.75 * Foo()", StatUnit.Flat)]
+    [InlineData("Generic_Magic_ResistanceMaxCold", 79, "0.75 * Foo()", StatUnit.Percent)]
+    [InlineData("Generic_Magic_Armor", 481, "0.75 * Foo()", StatUnit.Percent)]
+    [InlineData("Generic_Magic_DamageToElite", 950, "3 * Foo()", StatUnit.Percent)]
+    [InlineData("Generic_Magic_HPPercent", 142, "0.75 * Foo()", StatUnit.Percent)]
+    [InlineData("Generic_Magic_CDR", 237, "0.75 * Foo()", StatUnit.Percent)]
+    // Normal-rarity bare constant — Flat regardless of attribute id.
+    [InlineData("Generic_Normal_Damage", 252, "5", StatUnit.Flat)]
+    public void B9_stat_unit_inferred_from_token_and_attribute_id(
+        string nodeName, int attributeId, string formulaText, StatUnit expected)
+    {
+        var token = ParagonNodeInfoBuilder.ExtractStatToken(nodeName);
+        Assert.Equal(expected, ParagonNodeInfoBuilder.InferUnit(token, attributeId, formulaText));
+    }
+
     [Fact]
     public void B3_glyph_collects_up_to_three_affixes()
     {
@@ -473,5 +530,38 @@ public sealed class TypedReaderTests
         Assert.True(gb.TryGetNameByGbid(armorAttr.FormulaGbid, out var armorFn));
         Assert.True(gb.TryGetFormulaText(armorFn, out var armorTxt));
         Assert.Equal(7.5, ParagonMagnitudeFormula.Evaluate(armorTxt), precision: 6);
+
+        // FR-C21 projection (CL-69) — Catalog.GetNodeInfo end-to-end against
+        // a magic, a rare, a socket, and a class start.
+        var armorInfo = d4.Catalog.GetNodeInfo(671247)!;
+        Assert.Equal(671247, armorInfo.Sno);
+        Assert.Equal("Generic_Magic_Armor", armorInfo.Name);
+        Assert.Equal(ParagonNodeKind.Magic, armorInfo.Kind);
+        Assert.Single(armorInfo.Stats);
+        var armorStat = armorInfo.Stats[0];
+        Assert.Equal("Armor", armorStat.StatName);
+        Assert.Equal(StatUnit.Percent, armorStat.Unit);
+        Assert.NotNull(armorStat.FlatValue);
+        Assert.Equal(7.5, armorStat.FlatValue!.Value, precision: 6);
+
+        var rareInfo = d4.Catalog.GetNodeInfo(2451111)!;
+        Assert.Equal(ParagonNodeKind.Rare, rareInfo.Kind);
+        Assert.Equal(2, rareInfo.Stats.Count);
+        // Warlock_Rare_006 has no Generic_ prefix — StatName falls back to
+        // "Attribute <id>"; magnitudes still resolve through the formula path.
+        Assert.StartsWith("Attribute ", rareInfo.Stats[0].StatName);
+
+        // Socket and Start nodes carry no stat grants.
+        var socketInfo = d4.Catalog.GetNodeInfo(681756)!;
+        Assert.Equal(ParagonNodeKind.Socket, socketInfo.Kind);
+        Assert.Empty(socketInfo.Stats);
+
+        // Cache check — repeat lookup returns the same instance (reference
+        // equality is the Optimizer's perf guarantee).
+        var armorInfo2 = d4.Catalog.GetNodeInfo(671247)!;
+        Assert.Same(armorInfo, armorInfo2);
+
+        // Missing SNO ⇒ null (and the cache memoizes that miss).
+        Assert.Null(d4.Catalog.GetNodeInfo(999_999_999));
     }
 }
