@@ -1999,6 +1999,40 @@ derived from FR-C14 R8's `snoTiledStyle` crack and R10's variant
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
 
+- **CL-79 — ParagonGlyph + GlyphAffix sibling-StringList projection
+  (FR-C24, slice 1 of N).** The Optimizer's `casc-fr#36` asks for
+  the full glyph + glyph-affix display projection — eleven new
+  fields total — so the App can render glyph tooltips with zero
+  Maxroll fallback. This CL ships the **sibling-StringList slice**:
+  `ParagonGlyphDefinition.LocalizedTitle` (via
+  `Item_ParagonGlyph_<SnoName>`, label `Name`, with the universal
+  <c>"Glyph: "</c> prefix stripped library-side so the consumer
+  gets the bare title — `"Guzzler"` not `"Glyph: Guzzler"`);
+  `ParagonGlyphDefinition.Rarity` (from the SnoName leading-token
+  convention — every glyph on the live build is
+  `Rare_<NN>_<Stat>_<Slot>`, forward-looking for Magic / Legendary
+  if the engine adds them); `ParagonGlyphAffixDefinition.Description`
+  (via sibling `ParagonGlyphAffix_<SnoName>`, label `Desc`, raw
+  template — color tags / underline tags / `[{GlyphAffixScalar}|…|]`
+  value placeholders all preserved for the consumer's renderer).
+  New storage overloads `ReadParagonGlyph(int, locale)` /
+  `ReadParagonGlyphAffix(int, locale)` (the no-locale overloads
+  forward to the default `enUS`). **Honest partial — five fields
+  remain deferred**: `BaseRadius` / `RadiusUpgradeLevels` /
+  `MaxLevel` on the glyph (need byte-layout RE of `nStartingSize`
+  / `arSizeUpgradeLevels` / `nMaxLevel` fields); `DisplayFactor` /
+  `AffectedAttributes` / `SkillTagSelector` / `Requirements` on the
+  affix (need byte-layout RE — the variable-length `Requirements`
+  list especially). Per protocol §3 the structural-fields slice
+  will split into a fresh issue if the deferred fields turn out
+  larger than expected; the Optimizer can drive priority via the
+  delivery counter-round. Acceptance: live anchor on the
+  Optimizer's Warlock-21 row 13 — `Rare_011_Intelligence_Side`
+  (sno 1023194) → `"Guzzler"` with `Rarity == Rare`; the glyph's
+  affix 1068542 carries a non-empty `Description` containing the
+  `[{GlyphAffixScalar}` template marker. 126/126 tests green on
+  `3.0.2.71886`. Devlog 0074.
+
 - **CL-78 — `Diablo4Storage.GetAttributeName(int, locale)` from
   `AttributeDescriptions` (sno 4080); retires the CL-76 basic-four
   hardcode in `ParagonNodeStat.StatName` (FR-C25).** The eventual

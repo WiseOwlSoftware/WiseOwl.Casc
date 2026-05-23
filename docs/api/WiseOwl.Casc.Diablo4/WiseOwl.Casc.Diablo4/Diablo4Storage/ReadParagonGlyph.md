@@ -1,4 +1,4 @@
-# Diablo4Storage.ReadParagonGlyph method
+# Diablo4Storage.ReadParagonGlyph method (1 of 2)
 
 Read + decode a [`ParagonGlyphDefinition`](../ParagonGlyphDefinition.md) by SNO id (group 111), with its class membership resolved ([`UsableByClassSnoIds`](../ParagonGlyphDefinition/UsableByClassSnoIds.md) — FR-D3).
 
@@ -9,6 +9,22 @@ public ParagonGlyphDefinition ReadParagonGlyph(int id)
 ## Remarks
 
 The record's `fUsableByClass` boolean fixed array (payload `+0x24`) is indexed by eClass rank (see PlayerClassRanks); membership = the §6.5 PlayerClass SNO ids whose rank slot is non-zero. Only resolved for a structurally well-formed glyph (the affix descriptor at payload `+0x50` == 104); malformed/placeholder records get an empty set (honest sentinel, per the durable opaque-id boundary — Appendix C / CL-18). Raw decoded values only.
+
+## See Also
+
+* class [ParagonGlyphDefinition](../ParagonGlyphDefinition.md)
+* class [Diablo4Storage](../Diablo4Storage.md)
+* namespace [WiseOwl.Casc.Diablo4](../../WiseOwl.Casc.Diablo4.md)
+
+---
+
+# Diablo4Storage.ReadParagonGlyph method (2 of 2)
+
+Read + decode a [`ParagonGlyphDefinition`](../ParagonGlyphDefinition.md) with the FR-C24 (CL-79) localized fields populated ([`LocalizedTitle`](../ParagonGlyphDefinition/LocalizedTitle.md) from the `Item_ParagonGlyph_<SnoName>` sibling, label `Name`, with the universal `"Glyph: "` prefix stripped; [`Rarity`](../ParagonGlyphDefinition/Rarity.md) from the SnoName's leading-token convention).
+
+```csharp
+public ParagonGlyphDefinition ReadParagonGlyph(int id, string locale)
+```
 
 ## See Also
 

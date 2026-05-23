@@ -846,6 +846,25 @@ public sealed class TypedReaderTests
         Assert.All(druidItems, r =>
             Assert.Contains("_Druid", r.Name, StringComparison.Ordinal));
 
+        // CL-79 / FR-C24 — ParagonGlyphDefinition.LocalizedTitle
+        // (sibling Item_ParagonGlyph_<SnoName>, label Name, "Glyph: "
+        // prefix stripped) + Rarity from SnoName leading-token.
+        // Anchor: glyph 1023194 'Rare_011_Intelligence_Side' →
+        // "Guzzler" (the Optimizer's Warlock oracle, row 13).
+        var guzzler = d4.ReadParagonGlyph(1023194);
+        Assert.Equal("Guzzler", guzzler.LocalizedTitle);
+        Assert.Equal(ParagonRarity.Rare, guzzler.Rarity);
+        Assert.NotEmpty(guzzler.UsableByClassSnoIds);  // CL-18 stayed populated
+
+        // CL-79 / FR-C24 — ParagonGlyphAffixDefinition.Description
+        // (sibling ParagonGlyphAffix_<SnoName>, label Desc; raw template
+        // text with engine markup preserved). Anchor: affix 1068542 on
+        // glyph Guzzler — the Optimizer's probe sno.
+        var affix = d4.ReadParagonGlyphAffix(1068542);
+        Assert.NotEmpty(affix.Description);
+        // Engine markup tokens preserved (color tags, value placeholder).
+        Assert.Contains("[{GlyphAffixScalar}", affix.Description, StringComparison.Ordinal);
+
         // CL-77 / FR-C23 Option A — tooltip chrome inventory.
         // Per-rarity 9-slice TiledStyle panels for paragon nodes +
         // future-proofing handle on item-side rarities.

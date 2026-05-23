@@ -1,9 +1,25 @@
-# Diablo4Storage.ReadParagonGlyphAffix method
+# Diablo4Storage.ReadParagonGlyphAffix method (1 of 2)
 
 Read + decode a [`ParagonGlyphAffixDefinition`](../ParagonGlyphAffixDefinition.md) by SNO id (group 112).
 
 ```csharp
 public ParagonGlyphAffixDefinition ReadParagonGlyphAffix(int id)
+```
+
+## See Also
+
+* class [ParagonGlyphAffixDefinition](../ParagonGlyphAffixDefinition.md)
+* class [Diablo4Storage](../Diablo4Storage.md)
+* namespace [WiseOwl.Casc.Diablo4](../../WiseOwl.Casc.Diablo4.md)
+
+---
+
+# Diablo4Storage.ReadParagonGlyphAffix method (2 of 2)
+
+Read + decode a [`ParagonGlyphAffixDefinition`](../ParagonGlyphAffixDefinition.md) with the FR-C24 (CL-79) localized [`Description`](../ParagonGlyphAffixDefinition/Description.md) populated (sibling `ParagonGlyphAffix_<SnoName>`, label `Desc`; raw template text with all engine markup preserved).
+
+```csharp
+public ParagonGlyphAffixDefinition ReadParagonGlyphAffix(int id, string locale)
 ```
 
 ## See Also
