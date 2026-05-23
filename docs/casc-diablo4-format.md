@@ -1999,6 +1999,44 @@ derived from FR-C14 R8's `snoTiledStyle` crack and R10's variant
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
 
+- **CL-78 — `Diablo4Storage.GetAttributeName(int, locale)` from
+  `AttributeDescriptions` (sno 4080); retires the CL-76 basic-four
+  hardcode in `ParagonNodeStat.StatName` (FR-C25).** The eventual
+  canonical path called out in the CL-69 honesty note. Pipeline:
+  `AttributeId → label key` (clean-room curated map in
+  `AttributeNames.LabelByAttributeId`, ~40 entries covering every
+  `attrmap`-observed id and every Optimizer FR-C25 anchor case)
+  `→ AttributeDescriptions template` (sno 4080 via existing
+  per-locale StringList machinery) `→ stripped name`
+  (`[{VALUE…|…|}]` placeholders, standalone `{VALUE…}`/`{c_*}`
+  tags, orphan `+`/`-` sign chars, leading bracket markup all
+  removed; whitespace collapsed). Examples on build
+  `3.0.2.71886`: `9 → "Strength"`, `133 → "Maximum Life"`,
+  `481 → "Armor"`, `950 → "Damage to Elites"`,
+  `275 → "Critical Strike Chance"`, `237 → "Cooldown Reduction"`.
+  Curated map omits ambiguous ids where the stat identity lives in
+  the node name (e.g. `481` returns the canonical "Armor"; the
+  per-stat disambiguation — ArmorPercent / DamageReductionFromElite
+  / etc. — still surfaces via `ParagonNodeInfoBuilder`'s
+  node-name-token fallback). `ParagonNodeInfoBuilder.ResolveStatName`
+  rewired with a new storage overload that routes through
+  `GetAttributeName` first; the CL-76 hardcoded basic-four kept as
+  a defensive offline fallback (synthetic-test path + locale-bundle
+  missing). Unmapped ids and missing locale bundles surface as
+  `null` from `GetAttributeName` (honest sentinel), then fall
+  through to the token / `"Attribute &lt;id&gt;"` chain.
+  Acceptance: 8 Theory cases on `AttributeNames.StripTemplate`
+  (anchor templates from sno 4080 + the orphan-sign cleanup case);
+  13 SkippableFact-attached Theory cases on
+  `Diablo4Storage.GetAttributeName` against the Optimizer's anchor
+  ids (basic-four + 133/481/950 + 6 more); honest-null on an
+  unmapped id. 126/126 tests green on `3.0.2.71886`. Devlog 0073.
+  Surface: `AttributeNames.LabelByAttributeId` (public — the
+  curated map, inspectable);
+  `AttributeNames.StripTemplate(string)` (public — the helper);
+  `Diablo4Storage.GetAttributeName(int, locale)` (public);
+  `Diablo4Storage.AttributeDescriptionsSno = 4080` (public const).
+
 - **CL-77 — `Catalog.GetParagonTooltipChrome()` (FR-C23 Option A,
   chrome inventory).** Optimizer-confirmed scope after the #35
   recon (Option A — chrome-only — chosen; full layout RE split off
