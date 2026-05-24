@@ -1347,6 +1347,42 @@ switch (cmd)
         }
         return 0;
     }
+    case "nodetuplescan":
+    {
+        // FR-C28 recon: enumerate every (AttributeId, ParamPlus12) tuple
+        // on group-106 ParagonNode records where ParamPlus12 != -1 (a
+        // tag-conditional ptAttributes entry).  ptAttributes lives at the
+        // payload+32 DT_VARIABLEARRAY descriptor (dataOffset@+8,
+        // dataSize@+12); element stride is 88 bytes — AttributeId is at
+        // entry+0, ParamPlus12 is at entry+12 (per the NodeAttribute
+        // shape in src/.../ParagonNodeDefinition.cs).
+        const int GidNode = 106;
+        const int Stride = 88;
+        const int DescriptorOff = 32;
+        const int ParamFieldOff = 12;
+        Console.WriteLine("attr\tparam\tnode_sno\tnode_name");
+        var entries = toc.Entries.Where(e => (int)e.Group == GidNode);
+        foreach (var e in entries)
+        {
+            if (!d4.TryReadSno(GidNode, e.Id, SnoFolder.Meta, out var b)) continue;
+            const int PB = 0x10;
+            if (b.Length < PB + DescriptorOff + 16) continue;
+            int dataOff = BitConverter.ToInt32(b, PB + DescriptorOff + 8);
+            int dataSize = BitConverter.ToInt32(b, PB + DescriptorOff + 12);
+            if (dataOff <= 0 || dataSize <= 0 || dataSize % Stride != 0) continue;
+            int count = dataSize / Stride;
+            if (PB + dataOff + dataSize > b.Length) continue;
+            for (int i = 0; i < count; i++)
+            {
+                int entryBase = PB + dataOff + i * Stride;
+                int attr = BitConverter.ToInt32(b, entryBase);
+                uint param = BitConverter.ToUInt32(b, entryBase + ParamFieldOff);
+                if (param == 0xFFFFFFFFu) continue;
+                Console.WriteLine($"{attr}\t0x{param:X8}\t{e.Id}\t{e.Name}");
+            }
+        }
+        return 0;
+    }
     case "glyphaffixscan":
     {
         // FR-C24 slice 2b recon: dump candidate slice-2b offsets for every

@@ -2037,6 +2037,33 @@ derived from FR-C14 R8's `snoTiledStyle` crack and R10's variant
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
 
+- **CL-85 — tag-conditional `(AttributeId, ParamPlus12)` attribute-
+  name resolution (FR-C28 — `casc-fr#40`).** The CL-78 honesty note
+  flagged that `AttributeId 259` (`DamageBonusTag`) returned `null`
+  from `GetAttributeName` because the same id covers many distinct
+  display strings (Abyss / Demonology / Conjuration / Hellfire / …
+  Damage) — the per-tag identity lives in `ParamPlus12`, not the
+  AttributeId. CL-85 ships a parallel
+  `AttributeNames.LabelByCompoundKey: IReadOnlyDictionary<(int, uint),
+  string>` keyed on the raw tuple, plus a
+  `Diablo4Storage.GetAttributeName(int, uint, string)` overload, and
+  threads `ParamPlus12` through `ParagonNodeInfoBuilder.ResolveStatName`
+  so every multi-attribute node picks up the resolved name
+  automatically (the FR's anchor: `Warlock_Rare_006` attr 259,
+  `ParamPlus12 = 0x32ABA6FB` → `"Demonology Damage"`). Coverage: 100+
+  curated entries across 17 AttributeIds (the full set surfaced by the
+  affix + node tuple scan on the live `3.0.2.71886` build). Hash
+  recovery: 19 skill-tag GBIDs cracked via the `Skill_<TagName>`
+  lowercased-DJB2 pattern (`Skill_Demonology` = `0x32ABA6FB`,
+  `Skill_Abyss` = `0x6A1F0A80`, etc.), appended to
+  `docs/d4-hash-dictionary.md`. The remaining ~30 GBIDs (Archfiend /
+  Conjuration / Companion / Corpse / Earthquake / etc.) don't match
+  the `Skill_<Name>` pattern — engine-internal key is something else;
+  empirical names carried from the affix / node sno-name convention
+  (every `<Tag>Damage_*` affix + every `Generic_Magic_Damage<Tag>` node
+  confirms the same display string). 127/127 tests green on
+  `3.0.2.71886`. Devlog 0080.
+
 - **CL-84 — `ParagonGlyphAffixDefinition` structural decode of the
   affix-side fields (FR-C24 slice 2b — `casc-fr#36`).** Closes the
   affix half that CL-83 left open. The `.gaf` record carries an

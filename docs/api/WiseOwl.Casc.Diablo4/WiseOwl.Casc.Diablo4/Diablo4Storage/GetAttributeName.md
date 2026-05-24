@@ -1,4 +1,4 @@
-# Diablo4Storage.GetAttributeName method
+# Diablo4Storage.GetAttributeName method (1 of 2)
 
 FR-C25 — resolve an `AttributeId` (the raw `eAttribute` int on a [`NodeAttribute`](../NodeAttribute.md) / [`AffectedRarity`](../ParagonGlyphAffixDefinition/AffectedRarity.md)'s attribute references) to its in-game localized display name via the `AttributeDescriptions` StringList (sno `4080`). The same source the tooltip renderer uses. Returns `null` when the id isn't in the curated label map ([`LabelByAttributeId`](../AttributeNames/LabelByAttributeId.md)), when the AttributeDescriptions bundle is missing for the requested locale, or when the label isn't present in the table (honest sentinel — consumer falls back to `"Attribute <id>"`).
 
@@ -14,6 +14,37 @@ public string? GetAttributeName(int attributeId, string locale = "enUS")
 ## Return Value
 
 The stripped display name (templates / placeholders / color tags removed) — e.g. `"Strength"` for id 9, `"Maximum Life"` for 133, `"Armor"` for 481, `"Damage to Elites"` for 950. `null` on any of the unresolved cases above.
+
+## See Also
+
+* class [Diablo4Storage](../Diablo4Storage.md)
+* namespace [WiseOwl.Casc.Diablo4](../../WiseOwl.Casc.Diablo4.md)
+
+---
+
+# Diablo4Storage.GetAttributeName method (2 of 2)
+
+FR-C28 (CL-85) — compound-key attribute-name resolution. Same pipeline as the single-id [`GetAttributeName`](./GetAttributeName.md) overload, but consults the [`LabelByCompoundKey`](../AttributeNames/LabelByCompoundKey.md) map first when *paramPlus12* is non-sentinel (a real `ParamPlus12` GBID / enum / SNO ref). Resolves the tag-conditional cases the simple id can't disambiguate — e.g. `(259, 0x32ABA6FB) → "Demonology Damage"` on `Warlock_Rare_006`, `(254, 1) → "Fire Damage"` on a fire-typed elemental node, `(238, 0xCCA1AF65) → "Companion Cooldown Reduction"` on a Druid CDR node.
+
+```csharp
+public string? GetAttributeName(int attributeId, uint paramPlus12, string locale = "enUS")
+```
+
+| parameter | description |
+| --- | --- |
+| attributeId | The raw `eAttribute` int. |
+| paramPlus12 | The associated `ParamPlus12` — a skill-tag GBID, element/status/form/resource enum, or power/weapon SNO ref depending on *attributeId*'s semantics. Pass the [`NoParam`](../GlyphAffixAttributeRef/NoParam.md) sentinel (`0xFFFFFFFF`) for "no compound key" (forwards to the single-id overload). |
+| locale | Locale (default [`DefaultLocale`](./DefaultLocale.md)). |
+
+## Return Value
+
+The resolved display string, or `null` when neither the compound map nor the single-id map has an entry.
+
+## Remarks
+
+Cascade. (1) If *paramPlus12* is the no-param sentinel (`0xFFFFFFFF`) → forward to [`GetAttributeName`](./GetAttributeName.md). (2) Else, look up `(attributeId, paramPlus12)` in [`LabelByCompoundKey`](../AttributeNames/LabelByCompoundKey.md) — direct hit returns the curated enUS string. (3) Compound miss → fall through to the single-id lookup (so a partially-mapped attribute still surfaces the base label rather than nothing).
+
+Locale. The compound map is enUS-only today (clean-room curated; the tag names are typically build-stable and don't need StringList resolution). The *locale* argument is reserved for the future iteration that pipes the AttributeDescriptions template through the per-locale StringList and substitutes the per-tag name.
 
 ## See Also
 

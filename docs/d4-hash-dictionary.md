@@ -107,4 +107,48 @@ moved to the field-hash table: `0x093CBAA8 = eHorizontalAnchoring`
 | `0xE549F591` | Less common; 2 fields observed |
 | `0x2B0285C0` | 1 field observed |
 
+## Gbid hashes (lowercased DJB2)
+
+`GbidHash` is the lowercased-input DJB2 (`Diablo4.GbidHash`). Used for
+the per-attribute `ParamPlus12` field on `NodeAttribute` /
+`GlyphAffixAttributeRef` when the attribute is tag-conditional
+(`AttributeId 259` = `DamageBonusTag`, `AttributeId 290` =
+`CritDamageBonusTag`, etc.). The cracked-name convention is
+`Skill_<TagName>` — every cracked entry below was discovered via FR-C28
+in-process brute-force against the affix / node tuple data, anchored to
+the FR-C24 oracle (Demonology = `0x32ABA6FB` on `Warlock_Rare_006`).
+
+| Hash | Name | Source / first observed |
+|---|---|---|
+| `0x0F479E53` | `Skill_Incarnate` | FR-C28 CL-85 brute-force; `Druid` |
+| `0x12674CDC` | `Skill_Cutthroat` | FR-C28 CL-85 brute-force; `Rogue` |
+| `0x32ABA6FB` | `Skill_Demonology` | FR-C28 CL-85 — FR-C28 anchor (`Warlock_Rare_006`) |
+| `0x5FCEB9D4` | `Skill_Grenade` | FR-C28 CL-85 brute-force; `Demon Hunter` |
+| `0x6625AC6B` | `Skill_Shapeshifting` | FR-C28 CL-85 brute-force; `Druid` |
+| `0x6A1F0A80` | `Skill_Abyss` | FR-C28 CL-85 brute-force; `Warlock` |
+| `0x6A3673AE` | `Skill_Blood` | FR-C28 CL-85 brute-force; `Necromancer` |
+| `0x6B67A5C3` | `Skill_Shade` | FR-C28 CL-85 brute-force |
+| `0x6D657409` | `Skill_Hellfire` | FR-C28 CL-85 brute-force; `Warlock` |
+| `0x8C8DF55A` | `Skill_Juggernaut` | FR-C28 CL-85 brute-force |
+| `0xCEAEA388` | `Skill_Occult` | FR-C28 CL-85 brute-force; `Warlock` |
+| `0xD5D1FA40` | `Skill_Recast` | FR-C28 CL-85 brute-force |
+| `0xE4303EA2` | `Skill_Bone` | FR-C28 CL-85 brute-force; `Necromancer` |
+| `0xE43A2895` | `Skill_Trap` | FR-C28 CL-85 brute-force; `Rogue` |
+| `0xE43BC256` | `Skill_Wolf` | FR-C28 CL-85 brute-force; `Druid` |
+| `0xE4B9B478` | `Skill_Marksman` | FR-C28 CL-85 brute-force; `Rogue` |
+| `0xE87A54CD` | `Skill_Zealot` | FR-C28 CL-85 brute-force |
+| `0xF4EE66C7` | `Skill_Mobility` | FR-C28 CL-85 brute-force; `Rogue` |
+| `0xFFFA158B` | `Skill_Disciple` | FR-C28 CL-85 brute-force |
+
+**Empirically named (uncracked GBID, name derived from affix /
+node sno-name)**: the curated CL-85 `LabelByCompoundKey` map covers
+~30 additional tags whose engine-internal hash key was not cracked
+(Archfiend / Conjuration / Companion / Corpse / Earthquake / etc. —
+their GBIDs do **not** match the `Skill_<Name>` pattern, so the key is
+something the brute-force grid didn't cover). The display label is
+still trustworthy — every affix's sno-name carries the tag name as
+a leading prefix and every `Generic_Magic_Damage<Tag>` node confirms
+the same name. Future hash-decode passes may crack the engine-internal
+keys and migrate those rows in.
+
 (`0x6B1C5D9C` cracked R10 = `UIImageHandleReference`.)

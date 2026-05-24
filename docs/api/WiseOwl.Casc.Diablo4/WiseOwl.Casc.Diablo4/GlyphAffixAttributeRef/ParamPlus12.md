@@ -1,6 +1,6 @@
 # GlyphAffixAttributeRef.ParamPlus12 property
 
-The associated GBID (`0xFFFFFFFF` when the attribute is tag-agnostic). On tag-conditional attribute ids — e.g. `AttributeId 259` (`DamageBonusTag`) — this GBID identifies the skill-tag the affix scales against (Abyss / Archfiend / Demonology / etc.); the consumer can call [`FormatFieldHash`](../Diablo4/FormatFieldHash.md) to render the raw GBID for uncracked names and [`HasParam`](./HasParam.md) to filter out the unset slots.
+The associated GBID (`0xFFFFFFFF` when the attribute is tag-agnostic). On tag-conditional attribute ids — e.g. `AttributeId 259` (`DamageBonusTag`) — this GBID identifies the skill-tag the affix scales against (Abyss / Archfiend / Demonology / etc.); the consumer can call [`GetAttributeName`](../Diablo4Storage/GetAttributeName.md) to resolve the per-tag display string (the compound-key lookup in [`LabelByCompoundKey`](../AttributeNames/LabelByCompoundKey.md)) and [`HasParam`](./HasParam.md) to filter out the unset slots.
 
 ```csharp
 public uint ParamPlus12 { get; set; }
