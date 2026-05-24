@@ -899,6 +899,14 @@ public sealed class TypedReaderTests
         Assert.Contains("Map", chrome.BannerByPlacement.Keys);
         Assert.Contains("Town", chrome.BannerByPlacement.Keys);
 
+        // CL-81 — the inline skill-tag icon atlas surfaced + decodable.
+        Assert.Equal(AssetKind.TextureAtlas, chrome.SkillIconAtlas.Kind);
+        Assert.Equal(2119840, chrome.SkillIconAtlas.Sno);
+        Assert.Equal("2DUI_Tooltip_Icons", chrome.SkillIconAtlas.Name);
+        Assert.True(d4.Catalog.TryGet<TextureDefinition>(
+            chrome.SkillIconAtlas, out var skillIconTd));
+        Assert.Equal(61, skillIconTd.Frames.Count);
+
         // All four paragon rarities populated on the live build,
         // each pointing at TooltipBackgroundRarity_<Rarity>.
         Assert.Equal(4, chrome.PanelByRarity.Count);
