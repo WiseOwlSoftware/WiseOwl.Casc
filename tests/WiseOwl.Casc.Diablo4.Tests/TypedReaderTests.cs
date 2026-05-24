@@ -866,10 +866,38 @@ public sealed class TypedReaderTests
         Assert.Contains("[{GlyphAffixScalar}", affix.Description, StringComparison.Ordinal);
 
         // CL-77 / FR-C23 Option A — tooltip chrome inventory.
-        // Per-rarity 9-slice TiledStyle panels for paragon nodes +
-        // future-proofing handle on item-side rarities.
+        // CL-80 — extended with the full multi-layer composite
+        // (BaseLayer + OrnateFrame + variants + banners).
         var chrome = d4.Catalog.GetParagonTooltipChrome();
         Assert.NotNull(chrome);
+
+        // CL-80 — the universal base + ornate frame layers populated.
+        Assert.Equal(602266, chrome.BaseLayer.Sno);
+        Assert.Equal("TooltipBaseBackground", chrome.BaseLayer.Name);
+        Assert.Equal(602013, chrome.OrnateFrame.Sno);
+        Assert.Equal("TooltipFrame", chrome.OrnateFrame.Name);
+        Assert.Equal(603057, chrome.OrnateFrameLight.Sno);
+        Assert.Equal("TooltipFrameLight", chrome.OrnateFrameLight.Name);
+        Assert.Equal(478952, chrome.DefaultFrame.Sno);
+        Assert.Equal(478948, chrome.TextFrame.Sno);
+
+        // CL-80 — every composite layer round-trips through the
+        // existing TiledStyle decoder.
+        foreach (var layer in new[]
+        {
+            chrome.BaseLayer, chrome.OrnateFrame,
+            chrome.OrnateFrameLight, chrome.DefaultFrame,
+            chrome.TextFrame,
+        })
+        {
+            Assert.True(d4.Catalog.TryGet<TiledStyleDefinition>(layer, out var td));
+            Assert.NotNull(td);
+        }
+
+        // CL-80 — both banner variants present.
+        Assert.Equal(2, chrome.BannerByPlacement.Count);
+        Assert.Contains("Map", chrome.BannerByPlacement.Keys);
+        Assert.Contains("Town", chrome.BannerByPlacement.Keys);
 
         // All four paragon rarities populated on the live build,
         // each pointing at TooltipBackgroundRarity_<Rarity>.

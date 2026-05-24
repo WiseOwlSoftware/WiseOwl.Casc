@@ -536,7 +536,35 @@ public sealed class Catalog
             if (TryGetTiledStyleRef($"TooltipBackgroundRarity_{suffix}", out var assetRef))
                 item[suffix] = assetRef;
 
-        return new ParagonTooltipChrome(paragon, item);
+        // CL-80 — the rest of the engine's multi-layer tooltip
+        // composite. TooltipBaseBackground is the universal dark
+        // backdrop; TooltipFrame / TooltipFrameLight are the ornate
+        // spiky outer border (9-slice; centre from
+        // 2DUI_BackgroundSquares); DefaultTooltip / TextTooltip are
+        // the smaller simple-frame variants. All decode through the
+        // existing TryGet<TiledStyleDefinition> path.
+        _ = TryGetTiledStyleRef("TooltipBaseBackground", out var baseLayer);
+        _ = TryGetTiledStyleRef("TooltipFrame", out var ornateFrame);
+        _ = TryGetTiledStyleRef("TooltipFrameLight", out var ornateFrameLight);
+        _ = TryGetTiledStyleRef("DefaultTooltip", out var defaultFrame);
+        _ = TryGetTiledStyleRef("TextTooltip", out var textFrame);
+
+        // Banner variants (Map / Town) — future-proofing for non-
+        // tooltip placements. Keyed by the placement token.
+        var banners = new SortedDictionary<string, AssetRef>(StringComparer.Ordinal);
+        foreach (var placement in (string[])["Map", "Town"])
+            if (TryGetTiledStyleRef($"TooltipBanner_{placement}", out var bannerRef))
+                banners[placement] = bannerRef;
+
+        return new ParagonTooltipChrome(
+            BaseLayer: baseLayer,
+            PanelByRarity: paragon,
+            ItemSidePanelByRarityName: item,
+            OrnateFrame: ornateFrame,
+            OrnateFrameLight: ornateFrameLight,
+            DefaultFrame: defaultFrame,
+            TextFrame: textFrame,
+            BannerByPlacement: banners);
     }
 
     private static IEnumerable<(ParagonRarity Rarity, string Suffix)>

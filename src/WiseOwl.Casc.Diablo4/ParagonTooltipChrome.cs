@@ -50,6 +50,11 @@ namespace WiseOwl.Casc.Diablo4;
 /// stops at the chrome panel.
 /// </para>
 /// </remarks>
+/// <param name="BaseLayer">The universal dark backdrop
+/// (<c>TooltipBaseBackground</c>, sno <c>602266</c>) — the bottom-
+/// most layer in the multi-layer composite, common across every
+/// rarity. The consumer composites this first, then layers a
+/// <see cref="PanelByRarity"/> overlay on top.</param>
 /// <param name="PanelByRarity">Map from the four paragon
 /// <see cref="ParagonRarity"/> values to the
 /// <c>TooltipBackgroundRarity_&lt;Rarity&gt;</c>
@@ -66,6 +71,40 @@ namespace WiseOwl.Casc.Diablo4;
 /// not keyed by <see cref="ParagonRarity"/> because none of these
 /// rarities apply to paragon nodes. Available for any item-tooltip
 /// work the consumer takes on.</param>
+/// <param name="OrnateFrame">The decorative ornate spiky outer
+/// border (<c>TooltipFrame</c>, sno <c>602013</c>) — the engine's
+/// top layer over <see cref="BaseLayer"/> +
+/// <see cref="PanelByRarity"/>; the 9-slice's centre comes from
+/// <c>2DUI_BackgroundSquares</c> (handle <c>0xD756FD92</c>), the
+/// 8 perimeter pieces from <c>2DUITiled_TooltipFrame</c>. The
+/// dark-teal universal frame the Optimizer described as the
+/// "ornate spiky panel border" (the per-rarity color tint comes
+/// from <see cref="PanelByRarity"/>; this frame stays universal).</param>
+/// <param name="OrnateFrameLight">Light variant of
+/// <see cref="OrnateFrame"/> (<c>TooltipFrameLight</c>, sno
+/// <c>603057</c>) — same 9 piece handles, alternative
+/// composition. The consumer picks whichever matches the desired
+/// brightness.</param>
+/// <param name="DefaultFrame">A smaller simple-bordered tooltip
+/// (<c>DefaultTooltip</c>, sno <c>478952</c>) — 9 small frames
+/// (28×28 corners) at the bottom of
+/// <c>2DUITiled_TooltipFrame</c>. Lower-decoration alternative
+/// for compact tooltips.</param>
+/// <param name="TextFrame">A text-only tooltip
+/// (<c>TextTooltip</c>, sno <c>478948</c>) — same nine atlas
+/// handles as <see cref="DefaultFrame"/>, alternative
+/// composition. Used by the engine for text-heavy tooltips.</param>
+/// <param name="BannerByPlacement">Banner-style chrome variants
+/// (<c>TooltipBanner_Map</c>, <c>TooltipBanner_Town</c>) keyed
+/// by their placement-token (the suffix on the SNO name).
+/// Not the same shape as the panel chrome; included as
+/// future-proofing for any non-tooltip banner work.</param>
 public sealed record ParagonTooltipChrome(
+    AssetRef BaseLayer,
     IReadOnlyDictionary<ParagonRarity, AssetRef> PanelByRarity,
-    IReadOnlyDictionary<string, AssetRef> ItemSidePanelByRarityName);
+    IReadOnlyDictionary<string, AssetRef> ItemSidePanelByRarityName,
+    AssetRef OrnateFrame,
+    AssetRef OrnateFrameLight,
+    AssetRef DefaultFrame,
+    AssetRef TextFrame,
+    IReadOnlyDictionary<string, AssetRef> BannerByPlacement);

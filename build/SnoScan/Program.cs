@@ -1165,6 +1165,25 @@ switch (cmd)
         }
         return 0;
     }
+    case "listframes":
+    {
+        // listframes <atlasSno> — list every TexFrame in an atlas
+        // (handle + native pixel rect at mip0). For finding chrome
+        // pieces not surfaced via any TiledStyle 9-slice.
+        if (argv.Count < 2) { Console.Error.WriteLine("listframes <atlasSno>"); return 2; }
+        int sno = int.Parse(argv[1]);
+        if (!d4.TextureMeta.TryGet(sno, out var td))
+        { Console.Error.WriteLine($"no combined-meta for atlas {sno}"); return 1; }
+        Console.WriteLine($"atlas {sno} {td.Codec} {td.Width}x{td.Height}  frames={td.Frames.Count}");
+        int idx = 0;
+        foreach (var f in td.Frames)
+        {
+            var (x, y, w, h) = f.PixelRect(td.Width, td.Height);
+            Console.WriteLine($"  [{idx,3}] 0x{f.ImageHandle:X8}  {w,4}x{h,-4} @ ({x,4},{y,4})  inner={(f.HasDistinctInner ? "yes" : "no")}");
+            idx++;
+        }
+        return 0;
+    }
     case "framescan":
     {
         // framescan — scan every TextureDefinition in the combined-meta and

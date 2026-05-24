@@ -1999,6 +1999,42 @@ derived from FR-C14 R8's `snoTiledStyle` crack and R10's variant
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
 
+- **CL-80 — `ParagonTooltipChrome` multi-layer composite — base /
+  rarity / ornate-frame / variants (FR-C26 recon shipped chrome
+  side).** The CL-77 chrome surface was only the per-rarity panel
+  — one layer of what is actually a multi-layer engine composite.
+  Recon on `casc-fr#38` confirmed the engine stacks (1) a
+  universal `TooltipBaseBackground` (sno 602266) — the dark
+  backdrop, atlas `2DUI_TooltipBaseBackground` 602265; (2) a
+  per-rarity `TooltipBackgroundRarity_<R>` overlay — the
+  CL-77 layer, atlas `2DUI_TooltipBackgroundRarity_<R>`; (3) a
+  universal ornate spiky border via `TooltipFrame` (sno 602013) or
+  `TooltipFrameLight` (sno 603057), atlas
+  `2DUITiled_TooltipFrame` 369421's 8 corner+edge frames at
+  143×143/144 with the centre coming from
+  `2DUI_BackgroundSquares` (sno 141461, handle `0xD756FD92`). The
+  smaller `DefaultTooltip` (sno 478952) and `TextTooltip`
+  (sno 478948) live in the same atlas as alternative compact
+  variants (9-slice at y≥1161, 28×28 corners). Plus
+  `TooltipBanner_Map` (sno 734179) and `TooltipBanner_Town`
+  (sno 967402) for non-tooltip banner placements. Surface:
+  `ParagonTooltipChrome` extended with `BaseLayer`,
+  `OrnateFrame`, `OrnateFrameLight`, `DefaultFrame`, `TextFrame`,
+  `BannerByPlacement`. Each new `AssetRef` decodes via the
+  existing `Catalog.TryGet<TiledStyleDefinition>` path
+  (verified in the live matrix). Visually confirmed via
+  `build/AtlasExport frame` extraction on the 8 perimeter pieces
+  of `2DUITiled_TooltipFrame` (artifacts at
+  `artifacts/fr-c26-tooltip-recon/`): 4 corners + 4 edges of a
+  clean dark-teal ornate spiky 9-slice (centre transparent,
+  rendered with `0xD756FD92`). The Optimizer's "red+blue spikes"
+  description matches the **per-rarity overlay** colors layered
+  ON TOP of the universal dark-teal frame. Still NOT located in
+  data: bullet glyph / divider / icon bezel — those need a
+  separate recon pass with owner visual-close on screenshot
+  candidates (next task on `casc-fr#38`). 126/126 tests green on
+  `3.0.2.71886`. Devlog 0075.
+
 - **CL-79 — ParagonGlyph + GlyphAffix sibling-StringList projection
   (FR-C24, slice 1 of N).** The Optimizer's `casc-fr#36` asks for
   the full glyph + glyph-affix display projection — eleven new
