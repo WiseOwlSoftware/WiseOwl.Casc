@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 
 namespace WiseOwl.Casc.Diablo4;
 
@@ -55,6 +56,49 @@ public sealed class ParagonGlyphDefinition
     /// opaque-id principle (Appendix C) decodes naming-convention
     /// fields library-side and surfaces them typed.</summary>
     public ParagonRarity Rarity { get; private set; } = ParagonRarity.Common;
+
+    /// <summary>FR-C24 (CL-83) — the glyph's base socket-effect
+    /// radius at Level 1. Engine constant on build
+    /// <c>3.0.2.71886</c> — empirically <c>3</c> across all 21
+    /// Warlock glyphs in the Optimizer's oracle table; the
+    /// <c>.gph</c> record itself has no <c>nStartingSize</c> field
+    /// (payload ends at the affix-array descriptor; no per-glyph
+    /// variance authored). Surfaced as a read-only constant so a
+    /// future season's per-glyph variation triggers an Appendix D
+    /// re-verify on this property rather than a silent drift in
+    /// consumer code that hard-coded <c>3</c>.</summary>
+    [SuppressMessage("Performance", "CA1822:Mark members as static",
+        Justification = "Instance property to preserve consumer-side " +
+            "`glyph.BaseRadius` access pattern when a future season " +
+            "may ship per-glyph variance (engine-constant today).")]
+    public int BaseRadius => 3;
+
+    /// <summary>FR-C24 (CL-83) — the player levels at which the
+    /// glyph's socket-effect radius grows by one. Engine constant
+    /// on build <c>3.0.2.71886</c> — empirically <c>[25, 50]</c>
+    /// across all 21 Warlock glyphs (radius is
+    /// <see cref="BaseRadius"/> at L1..L24, <see cref="BaseRadius"/>+1
+    /// at L25..L49, <see cref="BaseRadius"/>+2 at L50+). Same
+    /// rationale + re-verify trigger as <see cref="BaseRadius"/> —
+    /// the <c>.gph</c> record carries no <c>arSizeUpgradeLevels</c>
+    /// field.</summary>
+    public IReadOnlyList<int> RadiusUpgradeLevels { get; }
+        = ParagonGlyphEngineConstants.RadiusUpgradeLevels;
+
+    /// <summary>FR-C24 (CL-83) — the maximum player level a glyph
+    /// can reach (the level cap that gates <see cref="RadiusUpgradeLevels"/>
+    /// and the per-level affix scaling). Engine constant on build
+    /// <c>3.0.2.71886</c> — empirically <c>150</c>; the
+    /// <c>ParagonGlyphExperienceTable</c> (sno <c>810212</c>) ships
+    /// 201 XP-curve entries but the in-game cap is held at 150.
+    /// Same re-verify trigger as <see cref="BaseRadius"/> — if a
+    /// future season raises the cap, this property's value needs
+    /// updating + Appendix D re-verify.</summary>
+    [SuppressMessage("Performance", "CA1822:Mark members as static",
+        Justification = "Instance property to preserve consumer-side " +
+            "`glyph.MaxLevel` access pattern when a future season " +
+            "may ship per-glyph variance (engine-constant today).")]
+    public int MaxLevel => 150;
 
     /// <summary>The glyph's ParagonGlyphAffix SNO ids (0..3, in slot order).</summary>
     public IReadOnlyList<int> AffixSnoIds => _affixSnoIds;
