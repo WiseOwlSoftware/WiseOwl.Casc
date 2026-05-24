@@ -907,6 +907,15 @@ public sealed class TypedReaderTests
             chrome.SkillIconAtlas, out var skillIconTd));
         Assert.Equal(61, skillIconTd.Frames.Count);
 
+        // CL-82 — the Center_Divider_White divider TiledStyle (the
+        // Optimizer-validated structural pick on #38).
+        Assert.Equal(AssetKind.TiledStyle, chrome.Divider.Kind);
+        Assert.Equal(1559055, chrome.Divider.Sno);
+        Assert.Equal("Center_Divider_White", chrome.Divider.Name);
+        Assert.True(d4.Catalog.TryGet<TiledStyleDefinition>(
+            chrome.Divider, out var dividerTd));
+        Assert.NotNull(dividerTd);
+
         // All four paragon rarities populated on the live build,
         // each pointing at TooltipBackgroundRarity_<Rarity>.
         Assert.Equal(4, chrome.PanelByRarity.Count);

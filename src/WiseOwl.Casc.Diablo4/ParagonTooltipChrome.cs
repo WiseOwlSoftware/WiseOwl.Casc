@@ -99,6 +99,19 @@ namespace WiseOwl.Casc.Diablo4;
 /// by their placement-token (the suffix on the SNO name).
 /// Not the same shape as the panel chrome; included as
 /// future-proofing for any non-tooltip banner work.</param>
+/// <param name="Divider">The horizontal divider line the engine
+/// draws between the tooltip title and body (and between the
+/// body's stat rows and the footer) — <c>Center_Divider_White</c>
+/// (sno <c>1559055</c>), a <c>TiledStyle</c> over an 873×18
+/// source-image atlas frame with sweeping white lines + a
+/// center diamond decoration. Optimizer-validated structural
+/// pick (`casc-fr#38`, 2026-05-24) — the only white candidate of
+/// the four divider TiledStyles in group 103; the other three
+/// (dark-teal) would render invisible against the
+/// <see cref="BaseLayer"/> dark backdrop. The consumer renders
+/// this via the existing
+/// <see cref="Catalog.TryGet{T}(AssetRef, out T)"/> +
+/// <see cref="TiledStyleDefinition"/> path.</param>
 /// <param name="SkillIconAtlas">The
 /// <c>2DUI_Tooltip_Icons</c> (sno <c>2119840</c>)
 /// <see cref="AssetKind.TextureAtlas"/> — a 61-frame atlas of the
@@ -125,4 +138,5 @@ public sealed record ParagonTooltipChrome(
     AssetRef DefaultFrame,
     AssetRef TextFrame,
     IReadOnlyDictionary<string, AssetRef> BannerByPlacement,
+    AssetRef Divider,
     AssetRef SkillIconAtlas);

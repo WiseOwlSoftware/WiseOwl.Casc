@@ -1999,6 +1999,33 @@ derived from FR-C14 R8's `snoTiledStyle` crack and R10's variant
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
 
+- **CL-82 — `ParagonTooltipChrome.Divider`: `Center_Divider_White`
+  (1559055) — Optimizer-validated structural pick (FR-C26).**
+  After CL-77 / 80 / 81 nailed down the chrome stack, the
+  remaining open chrome piece was the horizontal divider line.
+  Owner directive 2026-05-23: *"approximate without graphic-
+  picking from the owner"* — so the four candidate TiledStyles
+  (`Center_Divider_White` 1559055, `HorizontalDivider_CenterGem`
+  1559057, `Divider_Header_Decorative_Edges` 2151092,
+  `HorizontalDivider` 478966) got a structural pattern-match
+  pick on `casc-fr#38`: `Center_Divider_White` is the only WHITE
+  candidate; the other three are dark-teal and would render
+  invisible against the tooltip's dark backdrop. Surface:
+  `ParagonTooltipChrome.Divider` (typed `AssetRef`, sno
+  `1559055`) — same record-position discipline as the other
+  chrome layers (no consumer-side SNO hard-coding;
+  forward-proof if a future season ships a different divider).
+  Resolved via `CoreToc.TryGetId(SnoGroup.UiStyle, "Center_Divider_White")`.
+  Acceptance: live matrix asserts `Divider.Sno == 1559055` +
+  name + `TryGet<TiledStyleDefinition>` round-trip. **FR-C26
+  closes pending consumer visual-close** — the bullet glyph
+  (Unicode `◆` U+25C6 procedural fallback per Optimizer accept)
+  and icon bezel (deferred consumer-owned residual) are the
+  FR-C7 §6-equivalent residuals; per the engine-controller
+  encryption finding (Optimizer's note 2026-05-24), Phase C-
+  style EXE RE for the runtime-bound bullet/bezel is permanently
+  impossible. 126/126 tests green on `3.0.2.71886`. Devlog 0077.
+
 - **CL-81 — `ParagonTooltipChrome.SkillIconAtlas`: the
   `2DUI_Tooltip_Icons` inline-skill-tag icon set (FR-C26 chrome
   side, slice 3).** Recon on the FR-C26 thread surfaced
