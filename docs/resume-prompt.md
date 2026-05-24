@@ -7,7 +7,7 @@
 > layer) — each with its own correction log; `docs/devlog/` (the
 > narrative), `docs/ARTICLE-SOURCE.md` (wiseowl.com article source).
 
-## CURRENT STATE (2026-05-24) — read this first
+## CURRENT STATE (2026-05-24, late) — read this first
 
 The sections below this one ("Status (end of session 1)", the numbered
 "Next steps") are **historical** — accurate for their era but superseded
@@ -37,18 +37,16 @@ public repo; never commit it). Read CLAUDE.md before any FR action.
   CI checks pass, run `gh pr merge --squash --delete-branch`; no need
   to wait for owner to merge manually.
 
-### Active threads (2026-05-24, all DELIVERED — queue split)
+### Active threads (2026-05-24 late, FR-C24 fully delivered — 2 awaiting:casc)
 
-**3 awaiting:casc** open as the new-session start point:
+**2 awaiting:casc** open as the new-session start point:
 
 | # | FR | What's needed |
 |---|---|---|
-| 36 | FR-C24 slice 2b — affix-side 4 structural fields | DisplayFactor, AffectedAttributes, SkillTagSelector, Requirements + AffectedRarity refinement. Recon notes in devlog 0078: candidate offsets pinned on `DamageWhileHealthy_Intelligence_Side` (1068542), but `payload+84 == 500.0f` doesn't match consumer's 100 assumption — multi-affix dump needed before shipping. |
 | 39 | FR-C27 — `DataAttributes` (sno 1907204) full registry RE | Deferred from CL-78 honesty note. 278 entries × 360 stride; entry layout `szName[256]@+0` + `gbid@+256` + ~104 bytes auxiliary; **AttributeId field offset within an entry not yet pinned**. First 40 entries are skill-keyed (`Flurry_Consume_*` / `BSK_Bonus_Int`) — find basic-stat entries (Strength etc.) to correlate the offset empirically. Would retire CL-78's curated `AttributeNames.LabelByAttributeId` map. |
-| 40 | FR-C28 — tag-conditional `(AttributeId, ParamPlus12)` → label | Filed from CL-78 honesty note. Attr 259 (tag-conditional damage — Demonology / Conjuration / Hellfire) needs a parallel `(int, uint)` keyed map; today returns `null` and consumer sees `"Attribute 259"`. Medium RE. |
+| 40 | FR-C28 — tag-conditional `(AttributeId, ParamPlus12)` → label | Filed from CL-78 honesty note. Attr 259 (tag-conditional damage — Demonology / Conjuration / Hellfire) needs a parallel `(int, uint)` keyed map; today returns `null` and consumer sees `"Attribute 259"`. **CL-84 unblocks this**: the `(AttributeId, ParamPlus12)` shape is now decoded on the affix, so the parallel labels-map slot has a typed home (mirroring `AttributeNames.LabelByAttributeId`). Cross-reference affix sno-name suffixes (`AbyssDamage_*` → `0x6A1F0A80`, `ArchfiendDamage_*` → `0x945652E5`, `DemonologyDamage_*` → `0x32ABA6FB`, etc.) against owner Warlock-21 oracle tag prose to crack the names empirically. Medium RE. |
 
-All other FRs are `awaiting:optimizer` or `needs:owner` — see "Open
-casc-fr issues" further down.
+FR-C24 (`#36`) closed the slice 2b round and is now `awaiting:optimizer` (CL-84). All other FRs are `awaiting:optimizer` or `needs:owner` — see "Open casc-fr issues" further down.
 
 ### Recent CL trajectory (2026-05-22 → 2026-05-24)
 
@@ -71,8 +69,9 @@ All on `main`, all `unreleased` (no nupkg cut since `0.3.0-alpha`). Auto-merge a
 | 81 | `1d6e94b` | #70 | FR-C26 — `SkillIconAtlas` (`2DUI_Tooltip_Icons`, 61 frames) on chrome record |
 | 82 | `8e44df2` | #71 | FR-C26 — typed `Divider` field (Optimizer-picked `Center_Divider_White` 1559055) |
 | 83 | `84a5e2f` | #72 | FR-C24 slice 2a — glyph engine constants (`BaseRadius=3` / `RadiusUpgradeLevels=[25,50]` / `MaxLevel=150`) |
+| 84 | `d376b12` | #73 | FR-C24 slice 2b — `ParagonGlyphAffixDefinition` structural decode (`OperationKind`/`DisplayFactor`/`AffectedAttributes`/`Tags`/`LinkedPowerSnoId`/`AffectedRarityKind`); op-coupled byte layout. Closes FR-C24. |
 
-**Test count:** 126/126 green on `3.0.2.71886`.
+**Test count:** 127/127 green on `3.0.2.71886`.
 
 ### FR-C21 — full node-info API (DELIVERED 2026-05-23)
 
@@ -216,20 +215,19 @@ chrome additions (CL-77/80/81/82). New family = one
 edits. Per [[feedback_optimizer-as-customer-proxy]] — don't pre-build
 speculative kinds; Optimizer drives what's needed via FR.
 
-### Open casc-fr issues (snapshot 2026-05-24 — re-poll before acting)
+### Open casc-fr issues (snapshot 2026-05-24 late — re-poll before acting)
 
-CASC turn (3, all "awaiting:casc"):
-- **#36** FR-C24 slice 2b — affix-side 4 structural fields. Recon
-  notes in devlog 0078; first new-session target.
+CASC turn (2, all "awaiting:casc"):
 - **#39** FR-C27 — `DataAttributes` full registry RE.
 - **#40** FR-C28 — tag-conditional `(AttributeId, ParamPlus12)` names.
 
-Optimizer turn (5, all "awaiting:optimizer" or "needs:owner"):
+Optimizer turn (6, all "awaiting:optimizer" or "needs:owner"):
 - **#32** FR-C20 — `fr:delivered`, `needs:owner` to bless `fr:consumed`.
 - **#33** FR-C21 — `fr:delivered`, `needs:owner` to bless `fr:consumed`.
 - **#34** FR-C22 — `fr:delivered`, `needs:owner`.
 - **#35** FR-C23 — `fr:delivered`, `awaiting:optimizer` (consumer
   visual-close iteration).
+- **#36** FR-C24 — `fr:delivered` (CL-79+CL-83+CL-84 the full arc), `awaiting:optimizer`.
 - **#37** FR-C25 — `fr:delivered`, `awaiting:optimizer`.
 - **#38** FR-C26 — `fr:delivered`, `awaiting:optimizer` (consumer
   visual-close iteration).
@@ -241,20 +239,17 @@ the historical section below.)
 
 1. **Poll** — re-check `awaiting:casc` (this snapshot drifts as the
    Optimizer's overnight session may have added counter-rounds).
-2. **CL-84 → FR-C24 slice 2b** (affix-side 4). Multi-affix dump
-   needed; recon notes in devlog 0078:
-   - DisplayFactor candidate @+84 = 500.0f on the Healthy affix
-     (but consumer assumes 100 — multi-affix dump to confirm or
-     relocate).
-   - SkillTagSelector candidate @+72 = 0x16A2B4DF (a GBID).
-   - AffectedAttributes candidates at @+120/+124 + @+152..+163
-     (3 GBIDs).
-   - Requirements offset not yet pinned (variable-length
-     `(AttributeId, Magnitude, Scope)` rows).
-3. **CL-85 → FR-C27** OR **CL-85 → FR-C28** — owner/Optimizer's
-   call on which to prioritize. FR-C27 retires the curated map but
-   is deeper; FR-C28 is bounded but covers a narrower case (attr 259
-   tag-conditional damage).
+2. **CL-85 → FR-C28** (recommended — bounded; CL-84 already pinned
+   the `(AttributeId, ParamPlus12)` shape on the affix, so the
+   parallel labels-map slot has a typed home). Cross-reference affix
+   sno-name suffixes against owner Warlock-21 oracle tag prose to
+   crack the names empirically (`AbyssDamage_*` → `0x6A1F0A80` = "Abyss",
+   etc.) — every Op-2 affix in the live install has a
+   structurally-bound name⇄GBID pair, so the resolution is data-driven
+   rather than EXE-RE-coupled.
+3. **CL-86 → FR-C27** (deeper — full `DataAttributes` registry RE).
+   Would retire CL-78's curated map and consolidate attribute-name
+   resolution to a single source.
 
 ### Older FR issues (historical — all delivered or closed)
 
