@@ -1,6 +1,6 @@
 # ParagonGlyphAffixDefinition.AffectedRarity property
 
-`eAffectedNodeRarity` (`+24`) — Maxroll-compact 1=Normal, 2=Magic, 3=Rare.
+`eAffectedNodeRarity` (payload `+24`) — the raw rarity gate int. Universally `0` across every live affix in `3.0.2.71886` (the implicit "any" case); see [`AffectedRarityKind`](./AffectedRarityKind.md) for the typed view.
 
 ```csharp
 public int AffectedRarity { get; }

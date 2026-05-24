@@ -1,6 +1,6 @@
 # ParagonGlyphAffixDefinition.Operation property
 
-`eBonusOperation` (`+48`) — 1/2/4/5 (Attribute / NodeAmplification / Power / AttributeConversion).
+`eBonusOperation` (payload `+48`) — the raw op int (1/2/4/5). See [`OperationKind`](./OperationKind.md) for the named enum.
 
 ```csharp
 public int Operation { get; }

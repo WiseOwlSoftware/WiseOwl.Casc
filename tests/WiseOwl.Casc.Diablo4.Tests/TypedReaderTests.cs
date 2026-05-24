@@ -460,18 +460,59 @@ public sealed class TypedReaderTests
     [Fact]
     public void B4_glyph_affix_round_trips()
     {
-        var b = new Blob(96);
+        // Op-1 (Attribute): the AffectedAttributes VLA descriptor lives
+        // at payload +16/+20 — point it at 2 packed (i32 AttributeId,
+        // u32 ParamPlus12) entries to prove the per-op descriptor walk.
+        var b = new Blob(160);
         b.PI32(0, 700200);
-        b.PI32(24, 3);                                 // eAffectedNodeRarity
-        b.PI32(48, 1);                                 // eBonusOperation
+        b.PI32(24, 3);                                 // eAffectedNodeRarity (synthetic non-zero)
+        b.PI32(48, 1);                                 // eBonusOperation = Attribute
         b.PF32(76, 250f);                              // flStartingBonusScalar
         b.PF32(80, 25f);                               // flAddedBonusScalarPerLevel
+        b.PF32(84, 100f);                              // flDisplayFactor
+        b.PI32(88, -1);                                // snoPower (no linked power on Op-1)
+        // VLA at +16/+20 → data @128, 16 bytes (2 entries).
+        b.PI32(16, 128);
+        b.PI32(20, 16);
+        b.PI32(128, 9);                                // AttributeId = 9 (Strength)
+        b.PU32(132, 0xFFFFFFFF);                       // ParamPlus12 = NoParam
+        b.PI32(136, 259);                              // AttributeId = 259 (DamageBonusTag)
+        b.PU32(140, 0x6A1F0A80);                       // ParamPlus12 = Abyss skill-tag GBID
         var a = ParagonGlyphAffixDefinition.Parse(b.Bytes);
         Assert.Equal(700200, a.SnoId);
         Assert.Equal(3, a.AffectedRarity);
+        Assert.Equal(ParagonRarity.Rare, a.AffectedRarityKind);
         Assert.Equal(1, a.Operation);
+        Assert.Equal(ParagonGlyphAffixOperation.Attribute, a.OperationKind);
         Assert.Equal(250f, a.Base);
         Assert.Equal(25f, a.PerLevel);
+        Assert.Equal(100.0, a.DisplayFactor);
+        Assert.Null(a.LinkedPowerSnoId);
+        Assert.Equal(2, a.AffectedAttributes.Count);
+        Assert.Equal(9, a.AffectedAttributes[0].AttributeId);
+        Assert.False(a.AffectedAttributes[0].HasParam);
+        Assert.Equal(259, a.AffectedAttributes[1].AttributeId);
+        Assert.True(a.AffectedAttributes[1].HasParam);
+        Assert.Equal(0x6A1F0A80u, a.AffectedAttributes[1].ParamPlus12);
+    }
+
+    [Fact]
+    public void B4_glyph_affix_op5_surfaces_linked_power()
+    {
+        // Op-5 (Power): no per-attribute scaling, but snoPower @88 is a
+        // group-29 PowerDefinition ref (the linked power that defines
+        // the threshold chain).
+        var b = new Blob(112);
+        b.PI32(0, 800300);
+        b.PI32(48, 5);                                 // eBonusOperation = Power
+        b.PF32(84, 1f);                                // flDisplayFactor (always 1 on Op-5)
+        b.PI32(88, 2072755);                           // snoPower = ParagonGlyph_DamageElite
+        var a = ParagonGlyphAffixDefinition.Parse(b.Bytes);
+        Assert.Equal(ParagonGlyphAffixOperation.Power, a.OperationKind);
+        Assert.Equal(2072755, a.LinkedPowerSnoId);
+        Assert.Empty(a.AffectedAttributes);            // op-5 has no per-attribute VLA
+        Assert.Null(a.AffectedRarityKind);             // raw 0 → null
+        Assert.Equal(1.0, a.DisplayFactor);
     }
 
     [Fact]
@@ -874,6 +915,59 @@ public sealed class TypedReaderTests
         Assert.NotEmpty(affix.Description);
         // Engine markup tokens preserved (color tags, value placeholder).
         Assert.Contains("[{GlyphAffixScalar}", affix.Description, StringComparison.Ordinal);
+
+        // CL-84 / FR-C24 slice 2b — DamageWhileHealthy_Intelligence_Side
+        // is an Op-2 (NodeAmplification) affix. AffectedAttributes VLA
+        // sits at +64/+68 → 2 entries; Tags VLA sits at +120/+124 → 3
+        // GBIDs; DisplayFactor is the per-op constant 500; no linked
+        // power (Op-2 carries scaling in Base/PerLevel, not a Power ref);
+        // AffectedRarityKind is null (every live affix has +24 == 0).
+        Assert.Equal(2, affix.Operation);
+        Assert.Equal(ParagonGlyphAffixOperation.NodeAmplification, affix.OperationKind);
+        Assert.Equal(500.0, affix.DisplayFactor);
+        Assert.Null(affix.LinkedPowerSnoId);
+        Assert.Null(affix.AffectedRarityKind);
+        Assert.Equal(2, affix.AffectedAttributes.Count);
+        // First entry = AttributeId 1120 (no tag); second = 10 (no tag).
+        Assert.Equal(1120, affix.AffectedAttributes[0].AttributeId);
+        Assert.False(affix.AffectedAttributes[0].HasParam);
+        Assert.Equal(10, affix.AffectedAttributes[1].AttributeId);
+        Assert.Equal(3, affix.Tags.Count);
+        // The trailing entry is the universal "ParagonGlyphAffix root"
+        // anchor 0xD4A1BC54 that appears on every Op-2 affix.
+        Assert.Equal(0xD4A1BC54u, affix.Tags[2]);
+
+        // CL-84 — Op-1 affix (Nodes_BonusToMinion): the AffectedAttributes
+        // VLA descriptor lives at +16/+20 instead, and carries 27 flat
+        // (AttributeId, ParamPlus12) entries.
+        var nodesBonus = d4.ReadParagonGlyphAffix(1031882);
+        Assert.Equal(ParagonGlyphAffixOperation.Attribute, nodesBonus.OperationKind);
+        Assert.Equal(100.0, nodesBonus.DisplayFactor);
+        Assert.Null(nodesBonus.LinkedPowerSnoId);
+        Assert.Equal(27, nodesBonus.AffectedAttributes.Count);
+
+        // CL-84 — Op-4 affix (MultCritDmgPercent_Legendary): VLA at +104/+108,
+        // 1 entry. Base/PerLevel encode fractions (×100 → percent display).
+        var multCritLegendary = d4.ReadParagonGlyphAffix(2111927);
+        Assert.Equal(ParagonGlyphAffixOperation.AttributeConversion,
+            multCritLegendary.OperationKind);
+        Assert.Equal(100.0, multCritLegendary.DisplayFactor);
+        Assert.Null(multCritLegendary.LinkedPowerSnoId);
+        Assert.Single(multCritLegendary.AffectedAttributes);
+
+        // CL-84 — Op-5 affix (DamageElite__Strength_Legendary): no scalars,
+        // no per-attribute VLA, linked PowerDefinition at snoPower (+88).
+        var damageElite = d4.ReadParagonGlyphAffix(2098405);
+        Assert.Equal(ParagonGlyphAffixOperation.Power, damageElite.OperationKind);
+        Assert.Equal(1.0, damageElite.DisplayFactor);
+        Assert.Equal(0f, damageElite.Base);
+        Assert.Equal(0f, damageElite.PerLevel);
+        Assert.Empty(damageElite.AffectedAttributes);
+        Assert.NotNull(damageElite.LinkedPowerSnoId);
+        Assert.Equal(2072755, damageElite.LinkedPowerSnoId);
+        // The linked power lives in group 29 (PowerDefinition).
+        Assert.Equal("ParagonGlyph_DamageElite",
+            d4.CoreToc.GetName(SnoGroup.Power, damageElite.LinkedPowerSnoId!.Value));
 
         // CL-77 / FR-C23 Option A — tooltip chrome inventory.
         // CL-80 — extended with the full multi-layer composite

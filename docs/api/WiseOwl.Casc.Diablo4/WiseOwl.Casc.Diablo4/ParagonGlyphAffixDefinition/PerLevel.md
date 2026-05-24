@@ -1,6 +1,6 @@
 # ParagonGlyphAffixDefinition.PerLevel property
 
-`flAddedBonusScalarPerLevel` (`+80`) — per-level magnitude increment (== Maxroll `perLevel`).
+`flAddedBonusScalarPerLevel` (payload `+80`) — per-level magnitude increment. Zero on Op-5 (see [`Base`](./Base.md)).
 
 ```csharp
 public float PerLevel { get; }
