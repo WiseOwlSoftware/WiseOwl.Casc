@@ -675,9 +675,13 @@ public sealed class TypedReaderTests
         var rareInfo = d4.Catalog.GetNodeInfo(2451111)!;
         Assert.Equal(ParagonNodeKind.Rare, rareInfo.Kind);
         Assert.Equal(2, rareInfo.Stats.Count);
-        // Warlock_Rare_006 has no Generic_ prefix — StatName falls back to
-        // "Attribute <id>"; magnitudes still resolve through the formula path.
-        Assert.StartsWith("Attribute ", rareInfo.Stats[0].StatName);
+        // Warlock_Rare_006's first stat is attr 259 (DamageBonusTag,
+        // tag-conditional). Pre-CL-85 fell back to "Attribute 259"
+        // (no Generic_ token, no curated id label); CL-85's
+        // compound-key map resolves it to "Demonology Damage" — the
+        // FR-C28 anchor. Magnitudes still resolve through the formula
+        // path (CL-76 validated).
+        Assert.Equal("Demonology Damage", rareInfo.Stats[0].StatName);
 
         // Socket and Start nodes carry no stat grants.
         var socketInfo = d4.Catalog.GetNodeInfo(681756)!;
@@ -968,6 +972,45 @@ public sealed class TypedReaderTests
         // The linked power lives in group 29 (PowerDefinition).
         Assert.Equal("ParagonGlyph_DamageElite",
             d4.CoreToc.GetName(SnoGroup.Power, damageElite.LinkedPowerSnoId!.Value));
+
+        // CL-85 / FR-C28 — tag-conditional (AttributeId, ParamPlus12)
+        // attribute name resolution. Anchor: Warlock_Rare_006 (sno
+        // 2451111) attribute id 259 with ParamPlus12 = 0x32ABA6FB
+        // (Skill_Demonology, cracked via the FR-C28 brute-force pass).
+        // The compound-key map surfaces "Demonology Damage" — the
+        // FR's expected example.
+        Assert.Equal("Demonology Damage", d4.GetAttributeName(259, 0x32ABA6FBu));
+
+        // CL-85 — basic-four still resolve through the single-id fast
+        // path when ParamPlus12 is the no-param sentinel.
+        Assert.Equal("Strength", d4.GetAttributeName(9, 0xFFFFFFFFu));
+        // A compound miss falls through to the single-id lookup —
+        // attr 9 + bogus GBID still returns "Strength" rather than null.
+        Assert.Equal("Strength", d4.GetAttributeName(9, 0xDEADBEEFu));
+
+        // CL-85 — the ParagonNodeStat pipeline picks up the compound
+        // name on Warlock_Rare_006 (the FR-C28 anchor). 17.5% magnitude
+        // already validated by CL-76; CL-85 adds the resolved StatName.
+        var warlockRare = d4.Catalog.GetNodeInfo(2451111)!;
+        var demonologyStat = warlockRare.Stats.First(s => s.AttributeId == 259);
+        Assert.Equal("Demonology Damage", demonologyStat.StatName);
+        Assert.Equal(17.5, demonologyStat.FlatValue!.Value, precision: 6);
+
+        // CL-85 — element-keyed compound lookups (attr 254 +
+        // element enum):
+        Assert.Equal("Physical Damage",  d4.GetAttributeName(254, 0u));
+        Assert.Equal("Fire Damage",      d4.GetAttributeName(254, 1u));
+        Assert.Equal("Lightning Damage", d4.GetAttributeName(254, 2u));
+        Assert.Equal("Cold Damage",      d4.GetAttributeName(254, 3u));
+        Assert.Equal("Poison Damage",    d4.GetAttributeName(254, 4u));
+        Assert.Equal("Shadow Damage",    d4.GetAttributeName(254, 5u));
+        Assert.Equal("Holy Damage",      d4.GetAttributeName(254, 6u));
+
+        // CL-85 — resource-keyed compound lookups (attr 161 +
+        // resource enum):
+        Assert.Equal("Maximum Fury",      d4.GetAttributeName(161, 1u));
+        Assert.Equal("Maximum Spirit",    d4.GetAttributeName(161, 5u));
+        Assert.Equal("Maximum Essence",   d4.GetAttributeName(161, 6u));
 
         // CL-77 / FR-C23 Option A — tooltip chrome inventory.
         // CL-80 — extended with the full multi-layer composite

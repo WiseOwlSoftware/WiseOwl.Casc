@@ -14,18 +14,21 @@ namespace WiseOwl.Casc.Diablo4;
 /// shape.
 /// </summary>
 /// <param name="AttributeId">The <c>eAttribute</c> int (matches the
-/// id used by <see cref="Diablo4Storage.GetAttributeName"/> — names are
-/// resolved out of the <see cref="AttributeNames.LabelByAttributeId"/>
-/// curated map or <c>AttributeDescriptions</c>; the AttributeId is itself
-/// a power-budget category, not a stat key — per the FR-C21 finding
-/// recorded in <c>casc-diablo4-format.md §7.6</c>).</param>
+/// id used by <see cref="Diablo4Storage.GetAttributeName(int, uint, string)"/>
+/// — names are resolved via that overload
+/// — the compound-key overload that handles the tag-conditional cases the
+/// raw id cannot disambiguate; the AttributeId is itself a power-budget
+/// category, not a stat key — per the FR-C21 finding recorded in
+/// <c>casc-diablo4-format.md §7.6</c>).</param>
 /// <param name="ParamPlus12">The associated GBID (<c>0xFFFFFFFF</c> when
 /// the attribute is tag-agnostic). On tag-conditional attribute ids — e.g.
 /// <c>AttributeId 259</c> (<c>DamageBonusTag</c>) — this GBID identifies
 /// the skill-tag the affix scales against (Abyss / Archfiend /
 /// Demonology / etc.); the consumer can call
-/// <see cref="Diablo4.FormatFieldHash(uint)"/> to render the raw GBID for
-/// uncracked names and <see cref="GlyphAffixAttributeRef.HasParam"/>
+/// <see cref="Diablo4Storage.GetAttributeName(int, uint, string)"/> to
+/// resolve the per-tag display string (the compound-key lookup in
+/// <see cref="AttributeNames.LabelByCompoundKey"/>) and
+/// <see cref="GlyphAffixAttributeRef.HasParam"/>
 /// to filter out the unset slots.</param>
 [SuppressMessage("Naming", "CA1711:Identifiers should not have incorrect suffix",
     Justification = "\"Attribute\" is the established Diablo IV domain term " +

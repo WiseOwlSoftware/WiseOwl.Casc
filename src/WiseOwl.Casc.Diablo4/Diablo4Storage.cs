@@ -629,6 +629,61 @@ public sealed class Diablo4Storage : IDisposable
         return string.IsNullOrEmpty(stripped) ? null : stripped;
     }
 
+    /// <summary>
+    /// FR-C28 (CL-85) — compound-key attribute-name resolution. Same
+    /// pipeline as the single-id <see cref="GetAttributeName(int, string)"/>
+    /// overload, but consults the
+    /// <see cref="AttributeNames.LabelByCompoundKey"/> map first when
+    /// <paramref name="paramPlus12"/> is non-sentinel (a real
+    /// <c>ParamPlus12</c> GBID / enum / SNO ref). Resolves the
+    /// tag-conditional cases the simple id can't disambiguate — e.g.
+    /// <c>(259, 0x32ABA6FB) → "Demonology Damage"</c> on
+    /// <c>Warlock_Rare_006</c>, <c>(254, 1) → "Fire Damage"</c> on a
+    /// fire-typed elemental node, <c>(238, 0xCCA1AF65) → "Companion
+    /// Cooldown Reduction"</c> on a Druid CDR node.
+    /// </summary>
+    /// <remarks>
+    /// <para><b>Cascade.</b> (1) If <paramref name="paramPlus12"/> is
+    /// the no-param sentinel (<c>0xFFFFFFFF</c>) → forward to
+    /// <see cref="GetAttributeName(int, string)"/>. (2) Else, look up
+    /// <c>(attributeId, paramPlus12)</c> in
+    /// <see cref="AttributeNames.LabelByCompoundKey"/> — direct hit
+    /// returns the curated enUS string. (3) Compound miss → fall through
+    /// to the single-id lookup (so a partially-mapped attribute still
+    /// surfaces the base label rather than nothing).</para>
+    /// <para><b>Locale.</b> The compound map is enUS-only today
+    /// (clean-room curated; the tag names are typically build-stable and
+    /// don't need StringList resolution). The <paramref name="locale"/>
+    /// argument is reserved for the future iteration that pipes the
+    /// AttributeDescriptions template through the per-locale StringList
+    /// and substitutes the per-tag name.</para>
+    /// </remarks>
+    /// <param name="attributeId">The raw <c>eAttribute</c> int.</param>
+    /// <param name="paramPlus12">The associated <c>ParamPlus12</c>
+    /// — a skill-tag GBID, element/status/form/resource enum, or
+    /// power/weapon SNO ref depending on
+    /// <paramref name="attributeId"/>'s semantics. Pass the
+    /// <see cref="GlyphAffixAttributeRef.NoParam"/> sentinel
+    /// (<c>0xFFFFFFFF</c>) for "no compound key" (forwards to the
+    /// single-id overload).</param>
+    /// <param name="locale">Locale (default
+    /// <see cref="DefaultLocale"/>).</param>
+    /// <returns>The resolved display string, or
+    /// <see langword="null"/> when neither the compound map nor the
+    /// single-id map has an entry.</returns>
+    public string? GetAttributeName(int attributeId, uint paramPlus12,
+        string locale = DefaultLocale)
+    {
+        if (paramPlus12 == GlyphAffixAttributeRef.NoParam)
+            return GetAttributeName(attributeId, locale);
+
+        if (AttributeNames.LabelByCompoundKey.TryGetValue(
+                (attributeId, paramPlus12), out var compound))
+            return compound;
+
+        return GetAttributeName(attributeId, locale);
+    }
+
     /// <summary>The canonical SNO id of the
     /// <c>AttributeDescriptions</c> StringList in
     /// <see cref="SnoGroup.StringList"/> — the per-attribute display-

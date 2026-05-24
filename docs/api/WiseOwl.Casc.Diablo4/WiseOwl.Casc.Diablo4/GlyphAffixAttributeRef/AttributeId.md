@@ -1,6 +1,6 @@
 # GlyphAffixAttributeRef.AttributeId property
 
-The `eAttribute` int (matches the id used by [`GetAttributeName`](../Diablo4Storage/GetAttributeName.md) — names are resolved out of the [`LabelByAttributeId`](../AttributeNames/LabelByAttributeId.md) curated map or `AttributeDescriptions`; the AttributeId is itself a power-budget category, not a stat key — per the FR-C21 finding recorded in `casc-diablo4-format.md §7.6`).
+The `eAttribute` int (matches the id used by [`GetAttributeName`](../Diablo4Storage/GetAttributeName.md) — names are resolved via that overload — the compound-key overload that handles the tag-conditional cases the raw id cannot disambiguate; the AttributeId is itself a power-budget category, not a stat key — per the FR-C21 finding recorded in `casc-diablo4-format.md §7.6`).
 
 ```csharp
 public int AttributeId { get; set; }

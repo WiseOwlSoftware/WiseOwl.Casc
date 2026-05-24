@@ -182,7 +182,7 @@ internal static class ParagonNodeInfoBuilder
             if (!double.IsNaN(v)) flatValue = v;
         }
 
-        var statName = ResolveStatName(d4, nameToken, a.AttributeId);
+        var statName = ResolveStatName(d4, nameToken, a.AttributeId, (uint)a.ParamPlus12);
         var unit = InferUnit(nameToken, a.AttributeId, formulaText);
 
         return new ParagonNodeStat(
@@ -238,9 +238,9 @@ internal static class ParagonNodeInfoBuilder
     /// <summary>Resolve the per-row stat name for one node attribute
     /// (test-overload — no storage). Routes through the existing
     /// token + honest-fallback path; the live path
-    /// (<see cref="ResolveStatName(Diablo4Storage, string?, int)"/>)
+    /// (<see cref="ResolveStatName(Diablo4Storage, string?, int, uint)"/>)
     /// also consults
-    /// <see cref="Diablo4Storage.GetAttributeName"/> for the
+    /// <see cref="Diablo4Storage.GetAttributeName(int, string)"/> for the
     /// CL-78 AttributeDescriptions lookup.</summary>
     internal static string ResolveStatName(string? token, int attributeId)
     {
@@ -253,8 +253,8 @@ internal static class ParagonNodeInfoBuilder
     }
 
     /// <summary>Resolve the per-row stat name via the FR-C25 pipeline
-    /// (CL-78): first try
-    /// <see cref="Diablo4Storage.GetAttributeName"/> (the
+    /// (CL-78 / CL-85): first try
+    /// <see cref="Diablo4Storage.GetAttributeName(int, uint, string)"/> (the
     /// AttributeDescriptions-driven localized name); fall back to the
     /// hardcoded basic-four (consistent with CL-76 if the locale
     /// bundle is missing); fall back to the node-name token (covers
@@ -262,11 +262,15 @@ internal static class ParagonNodeInfoBuilder
     /// in the name); honest <c>"Attribute &lt;id&gt;"</c> as the last
     /// resort.</summary>
     internal static string ResolveStatName(
-        Diablo4Storage d4, string? token, int attributeId)
+        Diablo4Storage d4, string? token, int attributeId, uint paramPlus12 = 0xFFFFFFFFu)
     {
         // (1) AttributeDescriptions lookup via the curated map +
-        // sno-4080 template strip (FR-C25 / CL-78).
-        var localized = d4.GetAttributeName(attributeId);
+        // sno-4080 template strip (FR-C25 / CL-78). Routes through the
+        // CL-85 compound-key overload — if ParamPlus12 is non-sentinel,
+        // tries the (AttributeId, ParamPlus12) map first
+        // (e.g. attr 259 + Demonology GBID → "Demonology Damage" on
+        // Warlock_Rare_006); falls through to the single-id map on a miss.
+        var localized = d4.GetAttributeName(attributeId, paramPlus12);
         if (!string.IsNullOrEmpty(localized)) return localized;
 
         // (2) Hardcoded basic-four as a defensive fallback when the
@@ -288,7 +292,7 @@ internal static class ParagonNodeInfoBuilder
     /// for the synthetic-test path and for the live path when the
     /// requested locale bundle is missing. The live-data answer for
     /// these ids matches what
-    /// <see cref="Diablo4Storage.GetAttributeName"/> returns.</summary>
+    /// <see cref="Diablo4Storage.GetAttributeName(int, string)"/> returns.</summary>
     private static string? TryHardcodedBasicFour(int attributeId) =>
         attributeId switch
         {
