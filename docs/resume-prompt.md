@@ -70,6 +70,7 @@ All on `main`, all `unreleased` (no nupkg cut since `0.3.0-alpha`). Auto-merge a
 | 83 | `84a5e2f` | #72 | FR-C24 slice 2a — glyph engine constants (`BaseRadius=3` / `RadiusUpgradeLevels=[25,50]` / `MaxLevel=150`) |
 | 84 | `d376b12` | #73 | FR-C24 slice 2b — `ParagonGlyphAffixDefinition` structural decode (`OperationKind`/`DisplayFactor`/`AffectedAttributes`/`Tags`/`LinkedPowerSnoId`/`AffectedRarityKind`); op-coupled byte layout. Closes FR-C24. |
 | 85 | `b226adb` | #74 | FR-C28 — tag-conditional `(AttributeId, ParamPlus12)` resolution; `AttributeNames.LabelByCompoundKey` (100+ entries / 17 attrs) + `GetAttributeName(int, uint, locale)`; 19 `Skill_<Tag>` GBIDs cracked. Closes FR-C28. |
+| 86 | `95e1150` | #75 | FR-C24 Headhunter counter-round — `ParagonGlyph_<SnoName>` sibling-StringList (non-`Item_`-prefixed) for `LocalizedTitle`; `Rare_<Stat>_Generic` shape now resolves (`Rare_Will_Generic` → "Headhunter"). |
 
 **Test count:** 127/127 green on `3.0.2.71886`.
 
