@@ -843,12 +843,17 @@ public sealed class Diablo4Storage : IDisposable
         ReadParagonGlyph(id, DefaultLocale);
 
     /// <summary>Read + decode a <see cref="ParagonGlyphDefinition"/>
-    /// with the FR-C24 (CL-79) localized fields populated
+    /// with the FR-C24 localized fields populated
     /// (<see cref="ParagonGlyphDefinition.LocalizedTitle"/> from the
-    /// <c>Item_ParagonGlyph_&lt;SnoName&gt;</c> sibling, label
-    /// <c>Name</c>, with the universal <c>"Glyph: "</c> prefix
-    /// stripped; <see cref="ParagonGlyphDefinition.Rarity"/> from the
-    /// SnoName's leading-token convention).</summary>
+    /// <c>ParagonGlyph_&lt;SnoName&gt;</c> sibling, label <c>Name</c>;
+    /// <see cref="ParagonGlyphDefinition.Rarity"/> from the SnoName's
+    /// leading-token convention). CL-86 swapped CL-79's
+    /// <c>Item_ParagonGlyph_&lt;SnoName&gt;</c> sibling for the
+    /// non-<c>Item_</c>-prefixed table — the prefixed one is missing for
+    /// the <c>Rare_&lt;Stat&gt;_Generic</c> shape (e.g.
+    /// <c>Rare_Will_Generic</c> = <c>Headhunter</c>) while the
+    /// non-prefixed table exists for every glyph and carries the bare
+    /// title directly (no <c>"Glyph: "</c> prefix to strip).</summary>
     public ParagonGlyphDefinition ReadParagonGlyph(int id, string locale)
     {
         var blob = ReadSno(SnoGroup.ParagonGlyph, id);
@@ -873,19 +878,22 @@ public sealed class Diablo4Storage : IDisposable
             if (hits.Count > 0) glyph.SetUsableByClassSnoIds(hits.ToArray());
         }
 
-        // FR-C24 / CL-79 — localized title via the sibling
-        // Item_ParagonGlyph_<SnoName> StringList; the universal
-        // "Glyph: " prefix is stripped library-side so the consumer
-        // gets the bare title ("Guzzler" rather than "Glyph: Guzzler").
+        // FR-C24 / CL-86 — localized title via the sibling
+        // ParagonGlyph_<SnoName> StringList (no Item_ prefix). The
+        // CL-79 Item_ParagonGlyph_<SnoName> table carries "Glyph:
+        // <Title>" + a Description label, but it's only emitted for the
+        // numbered Rare_<NN>_<Stat>_<Slot> shape; the
+        // Rare_<Stat>_Generic shape (e.g. Rare_Will_Generic =
+        // "Headhunter") only has the non-prefixed sibling. The
+        // non-prefixed table covers every glyph + carries the bare
+        // title directly, so it's the canonical source.
         var title = string.Empty;
         if (TryReadSiblingString(
                 SnoGroup.ParagonGlyph, id,
                 ParagonGlyphStringTablePrefix, ParagonBoardNameLabel,
                 locale, out var raw))
         {
-            title = raw.StartsWith(GlyphTitlePrefix, StringComparison.Ordinal)
-                ? raw[GlyphTitlePrefix.Length..]
-                : raw;
+            title = raw;
         }
         glyph.SetLocalizedFields(title, GlyphRarityFromSnoName(id));
         return glyph;
@@ -910,8 +918,7 @@ public sealed class Diablo4Storage : IDisposable
         };
     }
 
-    private const string ParagonGlyphStringTablePrefix = "Item_ParagonGlyph_";
-    private const string GlyphTitlePrefix = "Glyph: ";
+    private const string ParagonGlyphStringTablePrefix = "ParagonGlyph_";
 
     /// <summary>Read + decode a <see cref="ParagonGlyphAffixDefinition"/> by
     /// SNO id (group 112).</summary>

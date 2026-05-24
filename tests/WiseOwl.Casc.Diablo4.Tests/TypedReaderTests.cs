@@ -901,15 +901,27 @@ public sealed class TypedReaderTests
         Assert.Equal(new[] { 25, 50 }, anyGlyph.RadiusUpgradeLevels);
         Assert.Equal(150, anyGlyph.MaxLevel);
 
-        // CL-79 / FR-C24 — ParagonGlyphDefinition.LocalizedTitle
-        // (sibling Item_ParagonGlyph_<SnoName>, label Name, "Glyph: "
-        // prefix stripped) + Rarity from SnoName leading-token.
+        // CL-79 / CL-86 / FR-C24 — ParagonGlyphDefinition.LocalizedTitle
+        // (sibling ParagonGlyph_<SnoName>, label Name; CL-86 swapped the
+        // CL-79 Item_-prefixed table for the non-prefixed table that
+        // covers every glyph including the Rare_<Stat>_Generic shape).
         // Anchor: glyph 1023194 'Rare_011_Intelligence_Side' →
         // "Guzzler" (the Optimizer's Warlock oracle, row 13).
         var guzzler = d4.ReadParagonGlyph(1023194);
         Assert.Equal("Guzzler", guzzler.LocalizedTitle);
         Assert.Equal(ParagonRarity.Rare, guzzler.Rarity);
         Assert.NotEmpty(guzzler.UsableByClassSnoIds);  // CL-18 stayed populated
+
+        // CL-86 / FR-C24 Headhunter counter-round — glyph 2117207
+        // 'Rare_Will_Generic' is the 21st Warlock glyph whose
+        // LocalizedTitle CL-79 returned empty because no
+        // Item_ParagonGlyph_Rare_Will_Generic sibling exists. The
+        // non-prefixed sibling ParagonGlyph_Rare_Will_Generic (sno
+        // 2117206) carries label Name = "Headhunter" — the in-game
+        // oracle title for that glyph.
+        var headhunter = d4.ReadParagonGlyph(2117207);
+        Assert.Equal("Headhunter", headhunter.LocalizedTitle);
+        Assert.Equal(ParagonRarity.Rare, headhunter.Rarity);
 
         // CL-79 / FR-C24 — ParagonGlyphAffixDefinition.Description
         // (sibling ParagonGlyphAffix_<SnoName>, label Desc; raw template
