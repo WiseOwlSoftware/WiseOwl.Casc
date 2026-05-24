@@ -2037,6 +2037,26 @@ derived from FR-C14 R8's `snoTiledStyle` crack and R10's variant
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
 
+- **CL-86 — `ParagonGlyphDefinition.LocalizedTitle` sibling-StringList
+  pattern switch (FR-C24 Headhunter counter-round on `casc-fr#36`).**
+  CL-79 picked the <c>Item_ParagonGlyph_&lt;SnoName&gt;</c> sibling
+  table for the localized title (and stripped the universal
+  <c>"Glyph: "</c> prefix); that table is emitted only for the
+  numbered <c>Rare_&lt;NN&gt;_&lt;Stat&gt;_&lt;Slot&gt;</c> shape and
+  is **missing** for the <c>Rare_&lt;Stat&gt;_Generic</c> shape —
+  glyph sno `2117207` `Rare_Will_Generic` (in-game title
+  `"Headhunter"`) had no `Item_ParagonGlyph_Rare_Will_Generic`
+  sibling, so its `LocalizedTitle` returned empty. CL-86 swaps the
+  lookup to the **non-prefixed** sibling
+  <c>ParagonGlyph_&lt;SnoName&gt;</c> which exists for every glyph
+  and carries the bare title directly (no `"Glyph: "` prefix to
+  strip). For numbered glyphs both tables exist (`Item_`-prefixed
+  carries `"Glyph: Guzzler"` + a `Description` label; non-prefixed
+  carries `"Guzzler"`); for the `_Generic` shape only the
+  non-prefixed table exists. The non-prefixed table is the canonical
+  source. 127/127 tests green on `3.0.2.71886`. Devlog 0081.
+
+
 - **CL-85 — tag-conditional `(AttributeId, ParamPlus12)` attribute-
   name resolution (FR-C28 — `casc-fr#40`).** The CL-78 honesty note
   flagged that `AttributeId 259` (`DamageBonusTag`) returned `null`

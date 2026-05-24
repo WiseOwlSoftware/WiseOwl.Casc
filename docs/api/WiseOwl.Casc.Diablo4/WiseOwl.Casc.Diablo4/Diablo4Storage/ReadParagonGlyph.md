@@ -20,7 +20,7 @@ The record's `fUsableByClass` boolean fixed array (payload `+0x24`) is indexed b
 
 # Diablo4Storage.ReadParagonGlyph method (2 of 2)
 
-Read + decode a [`ParagonGlyphDefinition`](../ParagonGlyphDefinition.md) with the FR-C24 (CL-79) localized fields populated ([`LocalizedTitle`](../ParagonGlyphDefinition/LocalizedTitle.md) from the `Item_ParagonGlyph_<SnoName>` sibling, label `Name`, with the universal `"Glyph: "` prefix stripped; [`Rarity`](../ParagonGlyphDefinition/Rarity.md) from the SnoName's leading-token convention).
+Read + decode a [`ParagonGlyphDefinition`](../ParagonGlyphDefinition.md) with the FR-C24 localized fields populated ([`LocalizedTitle`](../ParagonGlyphDefinition/LocalizedTitle.md) from the `ParagonGlyph_<SnoName>` sibling, label `Name`; [`Rarity`](../ParagonGlyphDefinition/Rarity.md) from the SnoName's leading-token convention). CL-86 swapped CL-79's `Item_ParagonGlyph_<SnoName>` sibling for the non-`Item_`-prefixed table — the prefixed one is missing for the `Rare_<Stat>_Generic` shape (e.g. `Rare_Will_Generic` = `Headhunter`) while the non-prefixed table exists for every glyph and carries the bare title directly (no `"Glyph: "` prefix to strip).
 
 ```csharp
 public ParagonGlyphDefinition ReadParagonGlyph(int id, string locale)
