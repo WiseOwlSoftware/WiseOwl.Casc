@@ -7,7 +7,7 @@
 > layer) — each with its own correction log; `docs/devlog/` (the
 > narrative), `docs/ARTICLE-SOURCE.md` (wiseowl.com article source).
 
-## CURRENT STATE (2026-05-23) — read this first
+## CURRENT STATE (2026-05-24) — read this first
 
 The sections below this one ("Status (end of session 1)", the numbered
 "Next steps") are **historical** — accurate for their era but superseded
@@ -33,338 +33,236 @@ public repo; never commit it). Read CLAUDE.md before any FR action.
   work, schedule a fallback wake. **`needs:owner` is the only hard stop.**
   After >1 idle poll with nothing queued, do available work (cumulative
   hash-decode, deferred RE) — owner-approved standing directive.
+- **Auto-merge on CI green** (owner directive 2026-05-23): after a PR's
+  CI checks pass, run `gh pr merge --squash --delete-branch`; no need
+  to wait for owner to merge manually.
 
-### Active work — FR-C21 full node-info API (the live thread)
+### Active threads (2026-05-24, all DELIVERED — queue split)
 
-**FR-C21 (`casc-fr#33`)** is the live FR. Goal: efficient API that returns
-**fully-resolved** info (value+unit+name) for every paragon node, of every
-type/rarity, with per-board `GetBoardNodes(boardSno)` as the hot path. Optimizer
-gave consensus-level requirements (2026-05-22); CASC posted the
-**node-SNO-as-canonical-key correction** + full-resolution scope expansion
-(2026-05-23); **Optimizer signed off on both** (2026-05-23): "Build to it." The
-multi-CL build began with **CL-68** (this branch — magnitude evaluator + budget
-multipliers; landed); next is **CL-69** (the public projection types +
-`Catalog.GetNodeInfo` + decode cache).
+**3 awaiting:casc** open as the new-session start point:
 
-**Owner direction (2026-05-22, durable):** CASC delivers **full resolution**
-(value+unit+name) for FR-C21. This **reverses** the documented "evaluation +
-the 6 calibrated intrinsics are the consumer's" boundary (`§8.x`/Appendix C)
-for the node-info surface. Update that boundary when shipping the FR.
-See memory [[project_fr-c21-node-info]].
+| # | FR | What's needed |
+|---|---|---|
+| 36 | FR-C24 slice 2b — affix-side 4 structural fields | DisplayFactor, AffectedAttributes, SkillTagSelector, Requirements + AffectedRarity refinement. Recon notes in devlog 0078: candidate offsets pinned on `DamageWhileHealthy_Intelligence_Side` (1068542), but `payload+84 == 500.0f` doesn't match consumer's 100 assumption — multi-affix dump needed before shipping. |
+| 39 | FR-C27 — `DataAttributes` (sno 1907204) full registry RE | Deferred from CL-78 honesty note. 278 entries × 360 stride; entry layout `szName[256]@+0` + `gbid@+256` + ~104 bytes auxiliary; **AttributeId field offset within an entry not yet pinned**. First 40 entries are skill-keyed (`Flurry_Consume_*` / `BSK_Bonus_Int`) — find basic-stat entries (Strength etc.) to correlate the offset empirically. Would retire CL-78's curated `AttributeNames.LabelByAttributeId` map. |
+| 40 | FR-C28 — tag-conditional `(AttributeId, ParamPlus12)` → label | Filed from CL-78 honesty note. Attr 259 (tag-conditional damage — Demonology / Conjuration / Hellfire) needs a parallel `(int, uint)` keyed map; today returns `null` and consumer sees `"Attribute 259"`. Medium RE. |
 
-**Calibration table is COMPLETE** — six budget-multiplier intrinsics empirically
-pinned via owner in-game oracle (all cross-validated against decoded formulas):
-```
-MagicDef   = 10     RareMajorDef = 4     RareMinorDef = 4
-MagicOff   = 2.5    RareMajorOff = 5     RareMinorOff = 5
-```
-Magnitude model: `displayed = formula-constant × budget-multiplier`. Verified
-on Armor (`0.75×10=7.5%`), DamageToElite (`3×2.5=7.5%`), AllRes
-(`0.75×4=3.0%`), Max Life (`1×4=4.0%`), Damage (`2×5=10%`), DemonologyDamage
-(`3.5×5=17.5%`), Critical Damage (`3×5=15%`). The multipliers are intrinsic
-formula-DSL functions (`ParagonPowerBudgetMultiplierNode<Rarity><Off/Def>()`)
-absent from any GameBalance table (`AttributeFormulas`/`PowerFormulaTables`/
-`find Budget`=0); they're baked as a clean-room calibration table from the
-owner's in-game readings (saved in [[project_fr-c21-node-info]]).
+All other FRs are `awaiting:optimizer` or `needs:owner` — see "Open
+casc-fr issues" further down.
 
-**Bonus-mechanic decoded + shipped (CL-67, devlog 0062):** rare nodes' "third
-effect" (`Bonus: another +X% [stat] when xxx/T [Stat] met`) lives in **two
-additional `DT_VARIABLEARRAY` descriptors on the node record** at `@48`
-(size-4, single `DT_SNO` — surface `BonusPassivePowerSno`) and `@64` (size-N
-`DT_SNO[]` — surface `BonusStatTagSnoIds`). The `@64` entries reference
-**group-124 stat-threshold tag SNOs** (named `StrengthSide2`,
-`IntelligenceSide1`, `WillpowerMain2`, …) — read via the new
-`Diablo4Storage.ReadStatTag(int)` → `StatTagDefinition`. Each tag's payload
-carries a **formula text** at the `@64` descriptor's payload offset that
-yields the threshold value, scaling by board position:
-```
-StrengthSide2     = "210 + (75 * ParagonBoardEquipIndex)"
-IntelligenceSide1 = "190 + (75 * ParagonBoardEquipIndex)"
-WillpowerMain2    = "760 + (455 * ParagonBoardEquipIndex)"
-```
-Cross-validated: Binding (Fathomless, Warlock_01, `EquipIndex=?`) shows `2125
-Willpower` = `760 + 455 × 3` → equip-index = 3 for Fathomless. Multi-tag
-pattern: generic-class rares list 2–3 tags (class-keyed alternatives, e.g.
-679732 has `[Barb_Strength+Dexterity, DexteritySide2, StrengthSide2]`),
-class-specific rares list one (`Warlock_Rare_006` has only `WillpowerMain2`).
-The `Side*` vs `Main*` suffix corresponds to threshold tier
-(Side=lower/Main=higher scale).
+### Recent CL trajectory (2026-05-22 → 2026-05-24)
 
-**Other RE findings (this session):**
-- **`AttributeId` is a power-budget category, not the stat.** Three nodes
-  (`Generic_Magic_Armor`, `Generic_Magic_ArmorPercent`,
-  `Generic_Magic_DamageReductionFromElite`) all decode to identical fields:
-  `AttributeId 481`, `NParam 0`, same `@88` GBID, same formula
-  `0.75 × MagicDef`. All three placed on real boards. Stat identity = **node
-  SNO/name** (from `Generic_<rarity>_<StatToken>` convention). Canonical
-  aggregation key for FR-C21 = **node SNO**, NOT `(AttributeId, NParam)`.
-- **`ParamPlus12` is the skill-tag GBID for tag-conditional attrs** (e.g.
-  `attr 259` = DamageBonusTag): `+12` holds the same GBID as the `@88` array
-  entry (e.g. Demonology = `0x32ABA6FB`, **NOT** `GbidHash("Demonology")` =
-  `0x8A6E75BD` — uncracked label). For non-tag attrs `+12 = -1`.
-- Magic `_Damage` and `_DamageToElite` magic nodes display `+7.5%`; magic
-  `_Armor` displays `+7.5% Total Armor` (the node-name "Armor" is **NOT** a
-  reliable Flat vs Percent indicator — unit is intrinsic to the eAttribute /
-  formula structure, not the name suffix).
+All on `main`, all `unreleased` (no nupkg cut since `0.3.0-alpha`). Auto-merge after CI green is the new pattern; PRs are open ~minutes.
 
-**Active branch:** `fr-c21-board-nodes-hot-path` (PR pending) → **CL-70**
-— third (and consensus-backlog-final) build slice of FR-C21:
-`Catalog.GetBoardNodes(int boardSno)` hot path returning
-`(ParagonGridCell, ParagonNodeInfo)` pairs (row-major, empty cells
-skipped, three-layer cache, repeat-query reference identity) +
-`Catalog.EnumerateNodes(AssetQuery?)` lazy global enumerator +
-`ParagonGridCell(Row, Col)` value type. **FR-C21 consumer-signed-off
-backlog now complete** (CL-68/69/70) — ready for Optimizer
-verification + `fr:consumed` sign-off. 92/92 tests green. Devlog 0065.
-Previous: **`fr-c21-node-info-projection`** merged via PR #58 →
-**CL-69** (`342205c`) — `ParagonNodeInfo` / `ParagonNodeStat` /
-`ParagonNodeKind` / `StatUnit` public projection types +
-`Catalog.GetNodeInfo(int sno)` + SNO-keyed decode cache. **`fr-c21-formula-eval-budget-multipliers`** merged via PR #57
-→ **CL-68** (`a7a22aa`) — first build slice of FR-C21: `ParagonPowerBudget` (the 6
-empirically-pinned budget multipliers) + `ParagonMagnitudeFormula.Evaluate`
-(numeric / zero-arg-intrinsic-call / binary / parens; built on the existing
-internal `PowerScriptFormulaEvaluator`). Eight worked validations round-trip
-to the in-game oracle; live matrix assertion proves the
-`AttributeFormulaTable` → evaluator path against `Generic_Magic_Armor`'s
-shipped formula (`0.75 * MagicDefensive() = 7.5`). 69/69 tests green.
-Devlog 0063. **Appendix C boundary amended** — the magnitude evaluator +
-calibration table are now in-scope for the FR-C21 node-info surface; other
-formula domains (power-script output, glyph rank/radius, item/affix,
-general AttributeFormulaTable evaluation) stay the consumer's. Previous:
-**`fr-c21-bonus-mechanic-stat-tag` MERGED via PR #56 → CL-67 (`e6e226e`)**
-on `main`, unreleased — extends CL-66 by closing the rare bonus-mechanic
-field debt: `@48` is the
-bonus-passive-power slot (`DT_VARIABLEARRAY[DT_SNO]`; size-1 on rares, always
-value `0` so far; descriptor empty on every other observed kind), and `@64`
-is the bonus stat-threshold tag array (`DT_VARIABLEARRAY[DT_SNO]` referencing
-group 124 `StatTag`). Surfaces: `ParagonNodeDefinition.BonusPassivePowerSno`
-(`-1` = no descriptor, `0` = rare with empty slot, otherwise SNO id),
-`ParagonNodeDefinition.BonusStatTagSnoIds`, new `StatTagDefinition`
-(`ThresholdFormulaText`), `Diablo4Storage.ReadStatTag` / `TryReadStatTag`,
-`SnoGroup.StatTag = 124`. Live-verified: `Warlock_Rare_006` ⇒
-`[WillpowerMain2]` ⇒ `"760 + (455 * ParagonBoardEquipIndex)"`;
-`Generic_Rare_001` ⇒ the three class-keyed alternatives. **58/58 tests green
-on 3.0.2.71886.** Devlog 0062. The earlier active branch was
-`fr-c21-node-fields-re` (CL-66, `0945892`, PR #54 MERGED).
+| CL | SHA | PR | FR / slice |
+|---|---|---|---|
+| 66 | `0945892` | #54 | FR-C21 foundation — `ParagonNode eNodeType@16` + per-attr GBID @88 |
+| 67 | `e6e226e` | #56 | FR-C21 — rare bonus mechanic `@48`/`@64` + `StatTagDefinition` (group 124) |
+| 68 | `a7a22aa` | #57 | FR-C21 — `ParagonPowerBudget` + `ParagonMagnitudeFormula` |
+| 69 | `342205c` | #58 | FR-C21 — `ParagonNodeInfo` projection + `Catalog.GetNodeInfo` + decode cache |
+| 70 | `8c463d8` | #59 | FR-C21 — `Catalog.GetBoardNodes` hot path + `EnumerateNodes` |
+| 74 | `0aa6f39` | #63 | FR-C21 oracle fix — Gate nodes DO carry stats (CL-69 over-drop reversed) |
+| 75 | `d068086` | #64 | FR-C22 — `ParagonNodeInfo.LocalizedTitle` via sibling `ParagonNode_<SnoName>` |
+| 76 | `0c9b46e` | #65 | FR-C21 — `StatName` prefers AttributeId map over node-token (multi-stat-node fix) |
+| 77 | `b50f170` | #66 | FR-C23 Option A — `Catalog.GetParagonTooltipChrome().PanelByRarity` |
+| 78 | `164499e` | #67 | FR-C25 — `Diablo4Storage.GetAttributeName` + `AttributeNames` curated map |
+| 79 | `76fd286` | #68 | FR-C24 slice 1 — sibling-StringList projection (glyph title + affix description) |
+| 80 | `847abd4` | #69 | FR-C26 — multi-layer tooltip chrome composite (BaseLayer / OrnateFrame / variants / banners) |
+| 81 | `1d6e94b` | #70 | FR-C26 — `SkillIconAtlas` (`2DUI_Tooltip_Icons`, 61 frames) on chrome record |
+| 82 | `8e44df2` | #71 | FR-C26 — typed `Divider` field (Optimizer-picked `Center_Divider_White` 1559055) |
+| 83 | `84a5e2f` | #72 | FR-C24 slice 2a — glyph engine constants (`BaseRadius=3` / `RadiusUpgradeLevels=[25,50]` / `MaxLevel=150`) |
 
-**Still NOT decoded on `ParagonNodeDefinition`** (debt remaining after CL-67):
-- The **bonus stat itself** (the "+Z% [stat]" magnitude + which `eAttribute`
-  it modifies). Strongest candidate: the per-attribute GBID array `@88` is
-  one entry larger than `ptAttributes.Count` on every rare sampled (2 attrs
-  ⇒ 3 entries; the extra is node-specific — Warlock_Rare_006 → `0xAC62A180`,
-  Generic_Rare_001 → `0x6D91307D`). Verifying the linkage + identifying
-  magnitude needs owner oracle (which displayed bonus values pair with
-  which rare). Open follow-up.
-- `ParagonBoard.payload+32` (128 Warlock / 64 Paladin / 0 older — equip-index
-  or per-class flag; the threshold formula consumes `ParagonBoardEquipIndex`,
-  so this is likely **that index** and the next puzzle piece).
-- Composite-tag sub-records on group-124 (`Barb_Strength+Dexterity` etc.) —
-  the primary formula text decodes; the per-alternative records do not.
-- The 4 per-specifier sub-descriptors at `+24/+40/+64/+80` (sizes 1, 0, 2, 12)
-  inside each AttributeSpecifier — the size-12 region is byte-identical across
-  nodes with different thresholds, so it's structural padding, not bonus data.
+**Test count:** 126/126 green on `3.0.2.71886`.
 
-**Recon tooling on `build/SnoScan` is committed on `main`** (PR #55, `8cdcea1`):
-`nodeinfo` (dogfooded full per-node dump with resolved formula text),
-`nodesbyformula`, `formula`, `formulafind`, `boardname` (dogfoods
-`TryReadParagonBoardName`), `cellof`, `rawhex`, `listgroup`, `snoid`,
-`attrmap` (`AttributeId → stat-name` map via `Generic_*` node-name
-convention). The CL-66 PR (#54) included `attrmap`, `rawhex`, `listgroup`,
-`cellof`, `boardnodes` already.
+### FR-C21 — full node-info API (DELIVERED 2026-05-23)
 
-**Owner oracle help still open (when convenient):** the `@48` slot's meaning
-(always 0 on the 3 rares examined — verify across more rare/non-rare nodes);
-identifying what `ParagonBoardEquipIndex` is (likely `ParagonBoard.payload+32`
-already decoded raw); cracking the GBID label for `0x32ABA6FB` (Demonology
-tag) — none blocking.
+Public surface ([[project_fr-c21-node-info]]):
+- `Catalog.GetNodeInfo(int sno)` → `ParagonNodeInfo` (cached + memoized).
+- `Catalog.GetBoardNodes(int boardSno)` → `IReadOnlyList<(ParagonGridCell, ParagonNodeInfo)>`
+  — the consumer hot path; reference-equal repeat lookups (3-layer cache).
+- `Catalog.EnumerateNodes(AssetQuery?)` → lazy global enumerator.
+- `ParagonNodeInfo` (`Sno`, `Name`, `LocalizedTitle`, `Kind`, `Rarity`,
+  `Icon`, `IconMask`, `PassivePower`, `PassivePowerName`, `Stats[]`,
+  `HasSocket`, `IsGate`).
+- `ParagonNodeStat` (`AttributeId`, `StatName`, `Variant`, `VariantName`,
+  `FlatValue`, `Unit`, `Formula`, `InlineFormula`).
+- `ParagonPowerBudget` + `ParagonMagnitudeFormula` (the math; engine-constant
+  budget multipliers per [[project_engine-constants-pattern]]).
+- `ParagonNodeDefinition.BonusPassivePowerSno` / `.BonusStatTagSnoIds` +
+  `Diablo4Storage.ReadStatTag` → `StatTagDefinition` (rare bonus mechanic).
+- `Diablo4Storage.GetAttributeName(int, locale)` via the
+  `AttributeNames.LabelByAttributeId` curated map (~40 ids) + sno-4080
+  `AttributeDescriptions` template strip.
+
+Status: `awaiting:optimizer` for `fr:consumed` on `casc-fr#33`. The
+two CL-74 + CL-76 mid-flight oracle corrections + CL-78 localization
+all landed cleanly. Open future-RE-threads (filed as fresh FRs):
+- Bonus stat magnitude (`+Z% [stat]` on rares) — strongest candidate
+  is the `@88` GBID array's `+1` entry; linkage not yet verified.
+- AttributeId 259 tag-conditional names → **FR-C28** (`casc-fr#40`).
+- `DataAttributes` (sno 1907204) full registry RE → **FR-C27** (`casc-fr#39`).
+
+### Recon tooling on `build/SnoScan` (all committed on `main`)
+
+`nodeinfo` (full per-node dump + formula text), `nodesbyformula`,
+`formula`, `formulafind`, `boardname` (dogfoods
+`TryReadParagonBoardName`), `cellof`, `rawhex`, `listgroup`
+(+max-results param, `c4e9d56`), `snoid`, `attrmap`
+(`AttributeId → stat-name`), `findhandle` (scans all 140k textures),
+`checkfields` (hash-dictionary sanity), `texdump` / `frametail` /
+`framescan` / `framediv` / `listframes` (FR-C26 tooltip-chrome RE).
+`build/AtlasExport` has `frame <handle> <out.png>` for visual
+extraction.
+
+### Engine-bound residuals (read once, don't re-discover)
+
+- **`AttributeId` is a power-budget category, NOT the stat key.**
+  `Generic_Magic_Armor` / `_ArmorPercent` / `_DamageReductionFromElite`
+  all share `AttributeId 481`. Stat identity = node SNO/name. Canonical
+  agg key for FR-C21 = node SNO. CL-69 / CL-76 / CL-78 wire this in.
+- **`ParamPlus12` is the skill-tag GBID for tag-conditional attrs**
+  (attr 259 = DamageBonusTag): `+12` holds the same GBID as the
+  `@88` array entry (Demonology = `0x32ABA6FB`, label uncracked).
+  FR-C28 (`#40`) is the typed-resolution slot.
+- **Bonus stat magnitude** (`+Z% [stat]` on rares) — strongest
+  candidate: rare's `@88` GBID array has `ptAttributes.Count + 1`
+  entries (Warlock_Rare_006 → `0xAC62A180`, Generic_Rare_001 →
+  `0x6D91307D`). Linkage not verified; owner oracle pairing needed.
+- **`ParagonBoardEquipIndex` is runtime**, not in the board record.
+  `ParagonBoard.payload+32` (128 Warlock / 64 Paladin / 0 older) is
+  almost certainly a class-version flag — values don't match
+  indices 0..7. Consumer supplies the index at evaluation time.
+- **Composite tag-record sub-records** on group-124
+  (`Barb_Strength+Dexterity` etc.) — primary formula text decodes;
+  per-alternative records do not. Open follow-up if Optimizer
+  needs them.
+- **Engine controller code is encrypted** ([[project_engine-controller-code-encrypted]])
+  — Phase-C-style EXE RE for runtime-bound bindings (hover tooltip
+  layout, bullet glyph, icon bezel, AttributeId registry semantic
+  mapping) is permanently impossible. Procedural fallback is the
+  accepted answer per FR-C7 §6 + FR-C26.
+- **Engine constants pattern** ([[project_engine-constants-pattern]])
+  — when a field is universal across every record + not in the
+  byte layout, bake as an instance property with Appendix D
+  re-verify trigger. CL-68 budget multipliers + CL-83 glyph
+  radius/maxlevel are the precedents.
 
 ### Active branch / PR / release state
 
-- **PR #34 (`fr-c14-r9-tiled-style`) MERGED and RELEASED** in
-  `v0.3.0-alpha` (CL-42..CL-49). **CL-50** (PR #36, FR-C16 R9 / FR-C18
-  child sub-record rects, squash `5397868`) and **CL-51** (PR #37, FR-C16
-  R11/R12 typed `NodeActivation` surface + EXE-RE of the binding mechanism,
-  squash `2614e9b`), and **CL-52** (PR #38, FR-C16 R14 flat
-  `ParagonNodeRecipe.Components` + `bActive`-driven activation, squash
-  `d97ff8b`), **CL-54** (PR #40, FR-C16 #26.4 socket disc remapped to the
-  base-disc band, squash `4d3efaa`), and **CL-55** (PR #41, FR-C20 `d4.Catalog`
-  asset discovery/retrieval API + folds in CL-53 selection highlight, squash
-  `0f1764f`) MERGED to `main`, **unreleased** (no package). **PR #39 closed —
-  superseded** by #41 (selection highlight folded into the Catalog). No open
-  PRs. New code work starts a fresh branch off `main`; docs-only commit straight
-  to `main` (pref §7).
+- **No open PRs.** Auto-merge after CI green is the new pattern (owner
+  directive 2026-05-23) — PRs open ~minutes between push and merge.
+- **`main` is the integration branch.** New code work starts a fresh
+  branch off `main`; docs-only commit straight to `main` per preferences
+  §7 ([[feedback_doc-changes-no-pr]]).
 - **Published on nuget.org (immutable): `0.1.0-alpha`, `0.2.0-alpha`,
-  `0.3.0-alpha`.** **CL-50/51/52/54/55 are unreleased** — on `main`, in no
-  package (CL-53 folded into CL-55). Release is owner-driven & batched (never
-  cut for one fix without explicit "release now").
-- **`d4.Catalog` (FR-C20/CL-55) is the discovery surface:** `Find(AssetQuery)`/
-  `OfKind`/`TryResolve` → `AssetRef(Kind,Group,Sno,Name,Tags)`; `TryGet`/
-  `TryGet<T>` → the real decoded type (exception-safe). New family = one
-  `IAssetProvider` + one `AssetKind`, zero facade edits. **FR-C20 #32 is OPEN,
-  `awaiting:optimizer`** — soliciting consumer feedback on missing kinds/tags/
-  filters/ergonomics (owner: Optimizer is the proxy for other customers). The
-  existing typed `ReadX()` accessors remain as shortcuts.
-- 50/50 Diablo4 + 8/8 transport tests green on live build `3.0.2.71886`.
-- **FR-C16 node recipe is the flat `Components` model (CL-52, R14).** Draw
-  every `ParagonNodeComponent` whose `Activation.Evaluate(facts)` holds, in
-  z-order, at its rect/alpha/tint. Owner-oracle-validated this session: base
-  disc = **Unpurchased↔Purchased** swap (`bActive`-driven, NOT selection);
-  node KIND is one mutually-exclusive dimension; purchased add-on = arrows
-  (→purchasable nbr) + connectors (→purchased nbr); `rgbaTint` + anchoring
-  applied; selection highlight is an EXTERNAL engine cursor (→ FR-C19).
-  Hash-dictionary mislabel fixed (`0x093CBAA8` = `eHorizontalAnchoring`, not
-  `eGroupType`) via the new `build/SnoScan checkfields` validator. The
-  engine binds visibility BY NAME in the compiled `ParagonBoardUI`
-  controller; EXE field names are hashed/absent; see [[reference_exe-symbol-re]].
+  `0.3.0-alpha`.** Everything from CL-50 onward is **unreleased** — on
+  `main`, in no package. Release is owner-driven + batched
+  ([[feedback_release-cadence]]); never cut for one fix without explicit
+  "release now".
+- **126/126 Diablo4 + 8/8 transport tests green on live build `3.0.2.71886`.**
 
-### Autonomous CASC⇄Optimizer loop (owner-authorized 2026-05-22)
+### Autonomous CASC⇄Optimizer loop (owner-authorized 2026-05-22 + auto-merge 2026-05-23)
 
 Owner authorized the two agents to **negotiate the API to consensus, then CASC
 builds / Optimizer consumes / iterate on inefficiencies, working independently
-unless a critical decision is required** (the GUI browser-app scope was the
-first thing escalated). Poll actively to minimize latency. The FR-C20 loop is
-running this way: Optimizer consume-tests each increment against its
-`ParagonDataGen catalog` probe and reports friction; CASC ships the next agreed
-item. Consensus build order: **P1 ✓ → P2(atlas) ✓ → P4 ✓ → P3 ✓ → P2b →
-Q2 → Q4 → P5.**
+unless a critical decision is required**. Poll actively to minimize latency.
+2026-05-23 extension: **auto-merge after CI green** — once CI checks pass,
+run `gh pr merge --squash --delete-branch` from CASC's side; no need to wait
+for owner manual-merge. The full FR-C21..C26 cluster shipped this way over
+2026-05-22..05-24.
+
+### FR-C22..C26 tooltip arc — DELIVERED (chrome side) / open (affix structural-8)
+
+Full state in [[project_post-c21-tooltip-arc]]. Headline:
+
+- **FR-C22 (CL-75)** `ParagonNodeInfo.LocalizedTitle` via sibling
+  `ParagonNode_<SnoName>` (label `Name`) — `awaiting:optimizer`,
+  `needs:owner`. Gate → "Board Attachment Gate", Start → "Paragon
+  Starting Node", class-rares → authored names ("Binding" etc.).
+- **FR-C23/C26 chrome (CL-77/80/81/82)** `ParagonTooltipChrome` —
+  the full 3-layer composite (BaseLayer + PanelByRarity + OrnateFrame)
+  + variants + banners + `SkillIconAtlas` (`2DUI_Tooltip_Icons`) +
+  typed `Divider` (`Center_Divider_White` 1559055). Bullet glyph =
+  Unicode `◆` procedural fallback; icon bezel = deferred residual.
+  **Engine controller is encrypted** ([[project_engine-controller-code-encrypted]])
+  — Phase-C EXE RE is permanently impossible.
+- **FR-C25 (CL-78)** `Diablo4Storage.GetAttributeName(int, locale)`
+  via curated `AttributeNames.LabelByAttributeId` (~40 ids) + sno-4080
+  `AttributeDescriptions` template strip. Retires CL-76 basic-four
+  hardcode on the live path. `awaiting:optimizer`.
+- **FR-C24 (CL-79 + CL-83; slice 2b OPEN)** — sibling-StringList slice
+  done; glyph engine constants done (`BaseRadius=3` /
+  `RadiusUpgradeLevels=[25,50]` / `MaxLevel=150` per
+  [[project_engine-constants-pattern]]); affix-side 4 fields
+  (DisplayFactor / AffectedAttributes / SkillTagSelector /
+  Requirements) + rarity refinement stay open on `casc-fr#36` as
+  slice 2b. **First new-session target.**
+- **FR-C27 (#39, awaiting:casc)** `DataAttributes` (sno 1907204) full
+  registry decode — deferred from CL-78. Would retire the curated map.
+  Deep RE; entry layout known (stride 360, name@+0, gbid@+256,
+  +104 aux) but AttributeId field offset not pinned.
+- **FR-C28 (#40, awaiting:casc)** tag-conditional `(AttributeId,
+  ParamPlus12)` → label map for attr 259 (Demonology / Conjuration /
+  Hellfire / etc.). Medium RE.
 
 ### Catalog discovery API — SHIPPED + iterating (FR-C20)
 
-CL-55 (`0f1764f`) base; **CL-56 (`5054df1`)** P1 `TryResolveHandle` +
-P2 atlas `TryPeek`/`AssetFacets` + `codec:` tags + P4 `Find<T>`; **CL-57
-(`11148fb`)** P3 `TryGetFrameImage`/`TryGetAtlasImage` + `TryResolveFrame`;
-**CL-58 (`e5f5823`)** Q2 `AssetQuery.DecodableOnly`/`OrderByName` + Q4 `AssetRef`
-identity/stability doc. **All consume-verified** by the Optimizer (P3 decode
-pixel-correct; 4,726 atlases codec-classified decode-free). Plus **AtlasExport
-CLI** (`build/AtlasExport`, `0b45c2a`) — list/export atlases over the Catalog
-(FR-T1 interim browser; GUI deferred by owner).
+`d4.Catalog` (`Find`/`OfKind`/`TryResolve`/`TryGet<T>`,
+`AssetRef(Kind,Group,Sno,Name,Tags)`, `Facets` /
+`Related` / `FindByFacet`) shipped through CL-55..60 + the FR-C26
+chrome additions (CL-77/80/81/82). New family = one
+`IAssetProvider` + one `AssetKind` in
+`src/WiseOwl.Casc.Diablo4/Catalog/AssetProviders.cs`, zero facade
+edits. Per [[feedback_optimizer-as-customer-proxy]] — don't pre-build
+speculative kinds; Optimizer drives what's needed via FR.
 
-**FR-C20 CONSENSUS BACKLOG COMPLETE (P1–P5 + Q2/Q4/P2b, all consume-verified).**
-**P5 (CL-60, `d8f7969`):** `Catalog.Related(ref)` → `AssetLink(Role, AssetRef
-Target)` — authored FK traversal: board→`node`, node→`power` (`SnoPassivePower`>0),
-glyph→`affix`+`class`; each Target chains. Node↔glyph is runtime (not a link);
-affix→power doesn't exist (use node→power). Deferred (no consumer need):
-power→class facet (skill-kit RE), item NameConvention facets, codec tail, atlas
-GUI. **#32 Optimizer proxy SIGN-OFF (2026-05-22): whole backlog consume-verified,
-honesty notes accepted — `needs:owner` to bless `fr:consumed`.**
+### Open casc-fr issues (snapshot 2026-05-24 — re-poll before acting)
 
-**POST-SIGN-OFF owner visual-close round (2026-05-22) — owner pushed 3 back to
-awaiting:casc; 2 fixed, 1 in progress:**
-- **#22** Start node oversized → **FIXED CL-61 (`01ddeca`)**: Starter base
-  `0xF8312CA8` all-zero rect was full-cell; now inherits base-disc inset (86²).
-  `needs:owner` visual-close. (Filigree authored 140² unchanged — flag if still off.)
-- **#30** node hover selection — **RESOLVED, CL-64 (`9ec540e`)**, `awaiting:optimizer`.
-  Saga: CL-62 wrong row-major placement → CL-63 wrongly declared "unrecoverable"
-  → owner corrected ("find the existing recipe, don't invent"). **The authored
-  recipe is `ContextualHighlight_Square` (TiledStyle 2434982)** — 4-piece
-  TiledWindowPieces (4 corners, no edges/centre, ImageScale 0.5) = the square
-  hover highlight. Its own handles are engine-internal (unresolvable; scanned
-  all 140k textures). Owner-approved pairing: surface it + the drawable corner
-  art from `SelectionRectangleInset` window-pieces (585030 corners: TL `0x95DA4E78`,
-  TR `0x5192E52B`, BR `0xEA71A5AD`, BL `0xB1C206BA`, roles verified by viewing).
-  **`ReadNodeSelectionHighlight()`** → `NodeSelectionHighlight(RecipeSno,
-  RecipeName, TL,TR,BR,BL)`. Draw recipe: hollow square border, 4 corners only,
-  each in its quadrant, no fill, sized to node perimeter (owner-validated via
-  `AtlasExport compose c4`). LESSON: search for the named authored recipe before
-  reconstructing/declaring unrecoverable. New recon: `SnoScan findhandle`.
-- **#31** atlas browser → **GUI DELIVERED**: `build/AtlasBrowser` (WinForms,
-  `b1c685a`) over `d4.Catalog` (filter/peek/decode/frames). Compile-verified
-  only — `needs:owner` to run + visual-close, then iterate (tree-nav,
-  search-by-handle, frame-extract). WinForms chosen for robust blind build;
-  re-home to Avalonia/consumer-repo on request.
-- **#24** rim = mesh/material (not a frame) — **`fr:consumed`** (owner accepted
-  the procedural rim ✓).
+CASC turn (3, all "awaiting:casc"):
+- **#36** FR-C24 slice 2b — affix-side 4 structural fields. Recon
+  notes in devlog 0078; first new-session target.
+- **#39** FR-C27 — `DataAttributes` full registry RE.
+- **#40** FR-C28 — tag-conditional `(AttributeId, ParamPlus12)` names.
 
-Latest CL = **70** (PR pending, branch `fr-c21-board-nodes-hot-path` —
-FR-C21 `GetBoardNodes` hot path + `EnumerateNodes`; consumer-signed-off
-backlog complete). CL-69 (`342205c`, PR #58) merged 2026-05-23 —
-FR-C21 `ParagonNodeInfo` projection + `Catalog.GetNodeInfo` + decode
-cache. CL-68 (`a7a22aa`, PR #57) merged 2026-05-23 — FR-C21 magnitude
-evaluator + budget multipliers. CL-67 (`e6e226e`, PR #56) merged
-2026-05-22 — rare bonus mechanic `@48`/`@64` + group-124
-`StatTagDefinition`, FR-C21 deferred RE.
-CL-66 (`0945892`, PR #54) merged 2026-05-22 — ParagonNode `eNodeType@16` +
-per-attribute GBID array `@88`, FR-C21 foundation.
-AtlasExport + AtlasBrowser are build tools (no CL). #33 (FR-C21)
-`awaiting:optimizer`; #30 `awaiting:optimizer`; #32/#22/#31 `needs:owner`.
-Next branch off `main` is for FR-C21 build once the Optimizer signs off on
-the node-SNO key (or for further deferred RE — `ParagonBoard.payload+32`
-EquipIndex verification or the bonus-stat-magnitude linkage on `@88`+1).
+Optimizer turn (5, all "awaiting:optimizer" or "needs:owner"):
+- **#32** FR-C20 — `fr:delivered`, `needs:owner` to bless `fr:consumed`.
+- **#33** FR-C21 — `fr:delivered`, `needs:owner` to bless `fr:consumed`.
+- **#34** FR-C22 — `fr:delivered`, `needs:owner`.
+- **#35** FR-C23 — `fr:delivered`, `awaiting:optimizer` (consumer
+  visual-close iteration).
+- **#37** FR-C25 — `fr:delivered`, `awaiting:optimizer`.
+- **#38** FR-C26 — `fr:delivered`, `awaiting:optimizer` (consumer
+  visual-close iteration).
 
-**P2b shipped marked-A (CL-59, `0a868f4`):** `Facet(Key,Value,FacetSource{NameConvention,
-Decoded,SceneField})` + `Catalog.Facets(ref)` + `FindByFacet(kind,key,value)`.
-`ParagonGlyph→class` = **Decoded** (`UsableByClassSnoIds`→PlayerClass name);
-`TextureAtlas→codec` = Decoded. **`Power→class` has NO cheap source** (PowerDefinition
-no class; PlayerClass no power list; names don't encode it) — RE question put to
-the Optimizer on #32. **Item** facets (NameConvention from `<Type>_<Rarity>_<Class>`
-names) deferred (consumer-deprioritised, items≠critical path). **Open on #32
-(awaiting:optimizer):** pursue power→class RE? start **P5 relationships**
-(board→nodes→glyph→affix→power)?
+(Older `fr:consumed`-closed issues #22/24/25/27/29 etc. covered in
+the historical section below.)
 
-### Issue states (2026-05-22, all awaiting:casc cleared)
+### Suggested new-session ordering
 
-- **#32** FR-C20 — CL-55..58 delivered+consumed; `awaiting:optimizer` for the
-  **P2b A/B** decision.
-- **#30** FR-C19 — cursor wired (`SelectionRectangleInset`, interim full-cell
-  stretch; consumed via `ReadSelectionHighlight()`→Catalog dogfood);
-  **`needs:owner`** live hover visual-close. If stretched 9-slice corners read
-  wrong, CASC finishes the **TiledStyle variant-suffix decode** (9-slice insets
-  + tile flags, FR-C14 R9/R10) — offered, owner-gated.
-- **#31** FR-T1 — API delivered by Catalog + AtlasExport CLI; GUI deferred;
-  `needs:owner` (bookkeeping only).
-- **#24** FR-C14 rim — **FINDING: the board fire-rim is an engine mesh+material+
-  ember-VFX effect** (`UI_ParagonBoard_Background_BurningEdge_Mesh`+`_Mesh_Mat`,
-  groups 27/57), NOT a UI atlas frame — hence the 6 handles don't resolve. The
-  procedural ember rim is the correct 2D representation. `needs:owner` scope
-  call: (a) accept procedural [recommended] / (b) surface mesh+material SNO refs
-  / (c) build mesh+material decode (large).
+1. **Poll** — re-check `awaiting:casc` (this snapshot drifts as the
+   Optimizer's overnight session may have added counter-rounds).
+2. **CL-84 → FR-C24 slice 2b** (affix-side 4). Multi-affix dump
+   needed; recon notes in devlog 0078:
+   - DisplayFactor candidate @+84 = 500.0f on the Healthy affix
+     (but consumer assumes 100 — multi-affix dump to confirm or
+     relocate).
+   - SkillTagSelector candidate @+72 = 0x16A2B4DF (a GBID).
+   - AffectedAttributes candidates at @+120/+124 + @+152..+163
+     (3 GBIDs).
+   - Requirements offset not yet pinned (variable-length
+     `(AttributeId, Magnitude, Scope)` rows).
+3. **CL-85 → FR-C27** OR **CL-85 → FR-C28** — owner/Optimizer's
+   call on which to prioritize. FR-C27 retires the curated map but
+   is deeper; FR-C28 is bounded but covers a narrower case (attr 259
+   tag-conditional damage).
 
-`d4.Catalog` shipped (commit `0f1764f`): generic discovery/retrieval so the
-consumer finds/enumerates(filtered)/retrieves any RE'd recipe or definition
-dynamically. Open generic-retrieval model (`TryGet`→real decoded type, no
-wrapper union); providers (`IAssetProvider`) one per `AssetKind`; exception-safe.
-Next increments (await consumer feedback on **FR-C20 #32**): richer `Item` tags
-(slot/type/class), more kinds (chrome, item-types, game-balance, string tables),
-typed enumerators / relationships / build-stable refs — **don't pre-build these;
-the owner wants the Optimizer (proxy for other customers) to drive what's
-needed.** When asked to add a kind: write one provider in
-`src/WiseOwl.Casc.Diablo4/Catalog/AssetProviders.cs` + one `AssetKind` value.
+### Older FR issues (historical — all delivered or closed)
 
-### Open casc-fr issues (2026-05-22 snapshot — re-poll, this drifts)
-
-- **#33** FR-C21 full node-info API — **PROPOSED, awaiting:optimizer**. Foundation
-  (CL-66, `0945892`) merged. Public projection (`ParagonNodeInfo`/
-  `ParagonNodeStat`/`GetBoardNodes`) is being negotiated; CASC posted the
-  node-SNO-key correction + full-resolution scope expansion; needs Optimizer
-  sign-off before build. See "Active work — FR-C21" above.
-- **#32** FR-C20 Catalog discovery/retrieval API — **DELIVERED + consumed**
-  (CL-55..60). `needs:owner` to bless `fr:consumed`.
-
-- **#26** FR-C16 node render recipe — flat `Components` model. **CL-52**
-  (`d97ff8b`) base; **CL-54** (`4d3efaa`) socket-disc fix (#26.4): `Usage_Slot_*`
-  is the `KindSocket` type-disc carrier → its disc children remapped into the
-  base-disc band (below symbol/arrows/connectors), 12² side-panel pip dropped.
-  Owner visually validated ("socket looks good"). `awaiting:optimizer`. Open
-  observation passed back: `Usage_Slot_2[0]` (grey, centred) vs `[1]` (untinted,
-  absolute) are the same handle `0xF6443089`, both `bActive=1` → both draw.
-- **#30** FR-C19 selection-highlight resource — **DELIVERED** (`fr:delivered`,
-  `awaiting:optimizer`). Authored as named TiledStyle 9-slice recipes (group 103)
-  over `2DUI_SelectionHighlight` (337357)/`2DUITiled_SelectionHighlight` (585030):
-  `SelectionRectangleInset` + `ControllerSelection{Rectangle,Circle,Diamond,
-  TearDrop,APS}`. Shape from the authored name (corrected eyeballed labels:
-  `0xBA7D2638`=TearDrop not "circle"; `0x0BD8A829`=Circle not "diamond").
-  Surfaced via `ReadSelectionHighlight()` AND `Catalog.OfKind(SelectionHighlight)`
-  (CL-53 folded into CL-55).
-- **#31** FR-T1 UI texture-atlas catalog API + browser app — `awaiting:casc`
-  (scoping done: 4,726 atlases, BC1/BC3=99%; hierarchical-tree API design).
-- **#29** FR-C18 rarity-template WidgetRect all-zero — `fr:delivered`; CL-50
-  (parent rect faithful; disc inset 7 on the children). `awaiting:optimizer`.
-- **#27** FR-C17 board grid/composition — `awaiting:optimizer` (CL-45).
-- **#22** FR-C12 special-node composites — `awaiting:optimizer`.
-- **#24** FR-C14 ParagonBoardChrome — `needs:owner` (CL-42/43; CL-48 note).
-- **#25** FR-C15 per-node cell tile — `needs:owner`.
-- **#28** `DecodeMip0` BC row-pitch bug — resolved (Optimizer: CL-49 stone
-  decodes clean ✓).
+Older issues `#22..#31` (FR-C12 through FR-C19, plus FR-T1) all
+sit `awaiting:optimizer` / `needs:owner` / `fr:consumed` as of the
+session of 2026-05-22. See historical sections below + `Appendix A`
+in `docs/casc-diablo4-format.md` for the per-CL audit trail
+(CL-42..CL-65 cover this older arc).
 
 ### Key recent findings (don't re-discover these)
 
@@ -399,13 +297,28 @@ needed.** When asked to add a kind: write one provider in
   flat one (a flat frame masked the CL-49 row-pitch bug → I wrongly
   blamed the consumer on #26); subagents must never touch `e:\Casc`.
 
-### Devlogs for this arc
+### Devlogs
 
-0016–0026 (FR-C8/C9/C10/C11/C12), 0033–0034 (FR-C13 power formulas),
-0039 (FR-C13 phase 3), 0040 (TiledStyle), 0041 (node recipe + grid),
-0042 (per-state split), 0043 (tag-2 grammar crack), 0044 (tag-2 shipped),
-0045 (DecodeMip0 row-pitch). `docs/casc-diablo4-format.md` Appendix A is
-the authoritative CL log; `docs/d4-hash-dictionary.md` the hash registry.
+**FR-C21..C26 arc (2026-05-22..05-24):**
+- 0062 FR-C21 bonus mechanic + StatTag (CL-67)
+- 0063 budget multipliers + magnitude evaluator (CL-68)
+- 0064 ParagonNodeInfo projection + GetNodeInfo (CL-69)
+- 0065 GetBoardNodes hot path + EnumerateNodes (CL-70)
+- 0069 Gate-stats fix (CL-74)
+- 0070 LocalizedTitle FR-C22 (CL-75)
+- 0071 StatName per-attribute fix (CL-76)
+- 0072 GetParagonTooltipChrome FR-C23 Option A (CL-77)
+- 0073 GetAttributeName FR-C25 (CL-78)
+- 0074 Glyph sibling-StringList projection FR-C24 slice 1 (CL-79)
+- 0075 Tooltip chrome multi-layer composite FR-C26 (CL-80)
+- 0076 SkillIconAtlas FR-C26 slice 3 (CL-81)
+- 0077 Divider field FR-C26 (CL-82)
+- 0078 Glyph engine constants FR-C24 slice 2a (CL-83)
+
+**Earlier arc (FR-C8..C20):** devlogs 0016–0061 cover FR-C8..C20 +
+the FR-C13/C14/C16/C19 deep RE. `docs/casc-diablo4-format.md`
+Appendix A is the authoritative CL log; `docs/d4-hash-dictionary.md`
+the hash registry.
 
 ## What this project is
 
