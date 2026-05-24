@@ -1347,6 +1347,70 @@ switch (cmd)
         }
         return 0;
     }
+    case "glyphaffixscan":
+    {
+        // FR-C24 slice 2b recon: dump candidate slice-2b offsets for every
+        // group-112 ParagonGlyphAffix.  Columns chosen from devlog 0078's
+        // single-affix dump (DamageWhileHealthy_Intelligence_Side @1068542).
+        //   +24  : eAffectedNodeRarity (DT_ENUM)            int32
+        //   +48  : eBonusOperation (DT_ENUM)                int32
+        //   +64,+68 : DT_VARIABLEARRAY descriptor (dataOff, dataSize)
+        //   +72  : SkillTagSelector candidate               u32 (GBID-shaped)
+        //   +76  : flStartingBonusScalar (Base)             float
+        //   +80  : flAddedBonusScalarPerLevel (PerLevel)    float
+        //   +84  : DisplayFactor / mystery float            float
+        //   +88..+96 : observed-zero on the seed dump       u32×3
+        //   +120,+124: 2nd DT_VARIABLEARRAY descriptor      (dataOff, dataSize)
+        //   payload length + first VLA payload + second VLA payload tail.
+        // Output is tab-separated; pipe to a file to import into a sheet.
+        int gid = 112;
+        string sub = argv.Count > 1 ? argv[1] : "";
+        int max = argv.Count > 2 ? int.Parse(argv[2]) : 400;
+        Console.WriteLine("sno\tname\tlen\tar+24\top+48\tva1_off+64\tva1_size+68\tgbid+72\tbase+76\tper+80\tf+84\tu+88\tu+92\tu+96\tva2_off+120\tva2_size+124\tva1_payload_hex\tva2_payload_hex");
+        var picks = toc.Entries.Where(e => (int)e.Group == gid
+                && e.Name.Contains(sub, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(e => e.Name).Take(max);
+        foreach (var e in picks)
+        {
+            if (!d4.TryReadSno(gid, e.Id, SnoFolder.Meta, out var b)) continue;
+            const int PB = 0x10; // payload base
+            int P(int o) => PB + o;
+            int Lim = b.Length;
+            int I32(int o) => P(o) + 4 <= Lim ? BitConverter.ToInt32(b, P(o)) : 0;
+            uint U32(int o) => (uint)(P(o) + 4 <= Lim ? BitConverter.ToInt32(b, P(o)) : 0);
+            float F32(int o) => P(o) + 4 <= Lim ? BitConverter.UInt32BitsToSingle(BitConverter.ToUInt32(b, P(o))) : 0f;
+            int va1Off = I32(64), va1Size = I32(68);
+            int va2Off = I32(120), va2Size = I32(124);
+            string Hex(int payOff, int size)
+            {
+                if (size <= 0 || size > 256) return "";
+                int start = P(payOff);
+                if (start < 0 || start + size > Lim) return "";
+                var sb = new System.Text.StringBuilder(size * 2 + 8);
+                for (int k = 0; k < size; k += 4)
+                    sb.Append(BitConverter.ToUInt32(b, start + k).ToString("X8")).Append(' ');
+                return sb.ToString().TrimEnd();
+            }
+            Console.WriteLine(string.Join('\t',
+                e.Id,
+                e.Name,
+                b.Length,
+                I32(24),
+                I32(48),
+                va1Off, va1Size,
+                $"0x{U32(72):X8}",
+                F32(76).ToString("0.######"),
+                F32(80).ToString("0.######"),
+                F32(84).ToString("0.######"),
+                $"0x{U32(88):X8}",
+                $"0x{U32(92):X8}",
+                $"0x{U32(96):X8}",
+                va2Off, va2Size,
+                Hex(va1Off, va1Size),
+                Hex(va2Off, va2Size)));
+        }
+        return 0;
+    }
     default:
         Console.Error.WriteLine($"unknown command '{cmd}'");
         return 2;

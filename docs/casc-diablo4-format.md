@@ -559,15 +559,53 @@ it empty — the ordering needs `CoreToc`). See Appendix A CL-18.
 
 ### 7.4 `ParagonGlyphAffixDefinition` (group 112, `.gaf`)
 
-formatHash `353797140`.
+formatHash `0xB460195F` (decimal `353797140`).
 
-| Offset | Type | Field |
-|---|---|---|
-| 0 | DT_INT | `snoId` |
-| 24 | DT_ENUM | `eAffectedNodeRarity` (1=Normal, 2=Magic, 3=Rare) |
-| 48 | DT_ENUM | `eBonusOperation` (1/2/4/5) |
-| 76 | DT_FLOAT | `flStartingBonusScalar` (== Maxroll `base`) |
-| 80 | DT_FLOAT | `flAddedBonusScalarPerLevel` (== Maxroll `perLevel`) |
+| Offset    | Type                              | Field |
+|---        |---                                |---|
+| 0         | DT_INT                            | `snoId` |
+| 16, 20    | DT_VARIABLEARRAY[ptAttr]          | **Op-1 only** — `ptAttributes` descriptor (`dataOffset` payload-relative `@+0`, `dataSize@+4`; element stride 8: `(int AttributeId, uint ParamPlus12)`) |
+| 24        | DT_ENUM                           | `eAffectedNodeRarity` — universally `0` on the live build (the "any rarity" sentinel; no live affix authors a rarity gate) |
+| 48        | DT_ENUM                           | `eBonusOperation` (`1`=Attribute / `2`=NodeAmplification / `4`=AttributeConversion / `5`=Power) |
+| 56, 60    | DT_VARIABLEARRAY[…]               | **Op-5 only** — first VLA descriptor (single 4-byte element of as-yet-uninterpreted purpose; placeholder) |
+| 64, 68    | DT_VARIABLEARRAY[ptAttr]          | **Op-2 only** — `ptAttributes` descriptor (same shape as the Op-1 slot) |
+| 72        | DT_UINT (GBID)                    | Op-2 main/side marker (`0x169F493F` on `_Main`, `0x16A2B4DF` on `_Side`); `0xFFFFFFFF` on every non-Op-2 |
+| 76        | DT_FLOAT                          | `flStartingBonusScalar` (== Maxroll `base`; zero on Op-5) |
+| 80        | DT_FLOAT                          | `flAddedBonusScalarPerLevel` (== Maxroll `perLevel`; zero on Op-5) |
+| 84        | DT_FLOAT                          | `flDisplayFactor` — per-op engine constant: `100` on Op-1/4, `500` on Op-2, `1` on Op-5 |
+| 88        | DT_SNO                            | `snoPower` — group-29 PowerDefinition ref on Op-5; sentinel `-1` on every other op |
+| 104, 108  | DT_VARIABLEARRAY[ptAttr]          | **Op-4 only** — `ptAttributes` descriptor (same shape) |
+| 120, 124  | DT_VARIABLEARRAY[DT_UINT]         | `Tags` descriptor — raw GBID list; element stride 4 |
+
+The `ptAttributes` descriptor moves between three slots (`+16`, `+64`,
+`+104`) because each is a distinct schema field (`Attribute` / `NodeAmplification`
+/ `AttributeConversion`) — the decoder switches on
+`eBonusOperation` to read the right one (Op-5 has no per-attribute
+scaling — its magnitude lives in the linked `snoPower` record). The
+`Tags` descriptor is at a fixed `+120/+124` across every op; it
+contains the affix's classification anchors — an always-present
+`0xD4A1BC54` "ParagonGlyphAffix root" anchor on Op-2, a class-attribute
+anchor (`0xD8EA381A` co-occurs with Willpower-keyed affixes,
+`0x6D5C0968` with Intelligence, `0x1E663884` with Strength, `0x3044FD97`
+with Dexterity), and the per-skill-tag selector (`0x6A1F0A80` Abyss,
+`0x945652E5` Archfiend, `0x32ABA6FB` Demonology, `0x911594F4` Vulnerable,
+`0x8A342FB1` Bleeding, `0x979521AC` Burning, etc. — uncracked; tracked
+in `docs/d4-hash-dictionary.md`).
+
+**Threshold / level-gate `Requirements` are NOT in the `.gaf` bytes** —
+the per-class "+40 Willpower" / "+25 Intelligence" gate on Op-2 main
+affixes and the "unlocks at Level 50" gate on Op-4 `Mult*_Legendary`
+affixes are engine constants (class-coupled / op-coupled). They are
+runtime-bound on the same axis as the encrypted controller code
+(memory `[[project_engine-controller-code-encrypted]]`); the consumer
+hard-codes them per class (Warlock = `+40 W`, etc.) or queries them
+out of band. The library boundary stops at what is structurally
+encoded.
+
+Shipped public surface (CL-84): `ParagonGlyphAffixDefinition.OperationKind`
+(typed enum), `.DisplayFactor`, `.AffectedAttributes` (`IReadOnlyList<GlyphAffixAttributeRef>`),
+`.Tags` (`IReadOnlyList<uint>`), `.LinkedPowerSnoId` (`int?`),
+`.AffectedRarityKind` (`ParagonRarity?` — null on every live affix).
 
 ### 7.5 `StatTagDefinition` (group 124, stat-threshold tag) (CL-67)
 
@@ -1998,6 +2036,51 @@ derived from FR-C14 R8's `snoTiledStyle` crack and R10's variant
 
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
+
+- **CL-84 — `ParagonGlyphAffixDefinition` structural decode of the
+  affix-side fields (FR-C24 slice 2b — `casc-fr#36`).** Closes the
+  affix half that CL-83 left open. The `.gaf` record carries an
+  op-coupled byte layout: the `ptAttributes` descriptor (an
+  8-byte packed `(int AttributeId, uint ParamPlus12)` pair) sits at
+  payload `+16/+20` on Op-1 (Attribute), `+64/+68` on Op-2
+  (NodeAmplification), `+104/+108` on Op-4 (AttributeConversion),
+  and is absent on Op-5 (Power — magnitude lives in the linked
+  `snoPower` PowerDefinition at `+88`, group 29). The
+  per-op-fixed `Tags` GBID list at `+120/+124` carries the affix's
+  classification anchors (the universal `0xD4A1BC54`
+  "ParagonGlyphAffix root" + a class-attribute anchor + the
+  per-skill-tag selector — Abyss `0x6A1F0A80`, Archfiend
+  `0x945652E5`, Demonology `0x32ABA6FB`, etc. — names tracked in
+  `docs/d4-hash-dictionary.md`). `flDisplayFactor@+84` is a
+  per-op engine constant (`100` on Op-1/4, `500` on Op-2, `1` on
+  Op-5), surfaced verbatim. The byte at `+24` (`eAffectedNodeRarity`)
+  is universally `0` across all 314 live affixes; the existing field
+  doc was overspecified (no record authors a 1/2/3 value); the typed
+  `AffectedRarityKind` projection returns `null` for the "any
+  rarity" sentinel. Two fields the FR asked for are **not encoded in
+  the `.gaf` bytes**: the per-class "+40 Willpower" / "+25
+  Intelligence" gate on Op-2 main affixes and the "unlocks at
+  Level 50" gate on Op-4 `Mult*_Legendary` are engine-coupled
+  constants (memory `[[project_engine-controller-code-encrypted]]`)
+  — runtime-bound on the same axis as the encrypted controller
+  code, library cannot ship them. Surface:
+  `ParagonGlyphAffixDefinition.OperationKind` (typed enum), `.DisplayFactor`,
+  `.AffectedAttributes` (`IReadOnlyList<GlyphAffixAttributeRef>`),
+  `.Tags` (`IReadOnlyList<uint>`), `.LinkedPowerSnoId` (`int?`),
+  `.AffectedRarityKind` (`ParagonRarity?`); new typed
+  `ParagonGlyphAffixOperation` enum + `GlyphAffixAttributeRef`
+  record struct. The §7.4 table is corrected verbatim
+  (formatHash was decimal — added the hex form `0xB460195F`; the
+  doc-asserted `eAffectedNodeRarity` 1/2/3 mapping is now noted
+  as the sentinel `0` everywhere; the op enum names re-pinned —
+  4=`AttributeConversion`, 5=`Power`, correcting an inverted pair
+  in the prior comment). Acceptance: live matrix exercises one
+  affix per op (Op-1 `Nodes_BonusToMinion` 1031882 = 27 attribute
+  grants; Op-2 `DamageWhileHealthy_Intelligence_Side` 1068542 = 2
+  attrs + 3 tags + DF=500; Op-4 `MultCritDmgPercent_Legendary`
+  2111927 = 1 attr + DF=100; Op-5 `DamageElite__Strength_Legendary`
+  2098405 → `LinkedPowerSnoId=2072755` = `ParagonGlyph_DamageElite`).
+  127/127 tests green on `3.0.2.71886`. Devlog 0079.
 
 - **CL-83 — `ParagonGlyphDefinition` engine constants for radius +
   cap (FR-C24 structural slice, glyph half).** The Optimizer's

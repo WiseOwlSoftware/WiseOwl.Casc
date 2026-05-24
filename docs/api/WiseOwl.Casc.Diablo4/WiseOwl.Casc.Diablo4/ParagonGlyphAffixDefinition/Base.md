@@ -1,6 +1,6 @@
 # ParagonGlyphAffixDefinition.Base property
 
-`flStartingBonusScalar` (`+76`) — the base magnitude (level-invariant; == Maxroll `base`).
+`flStartingBonusScalar` (payload `+76`) — the level-1 magnitude scalar. Zero on Op-5 (the magnitude lives in the [`LinkedPowerSnoId`](./LinkedPowerSnoId.md) Power record).
 
 ```csharp
 public float Base { get; }
