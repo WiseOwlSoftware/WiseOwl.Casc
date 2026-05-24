@@ -564,6 +564,13 @@ public sealed class Catalog
         // TryGet<TextureDefinition> and uses the Frames list.
         _ = TryGetAtlasRef("2DUI_Tooltip_Icons", out var skillIconAtlas);
 
+        // CL-82 — the horizontal divider line (Center_Divider_White,
+        // sno 1559055). Optimizer-validated structural pick on #38
+        // (the only white candidate of four divider TiledStyles —
+        // the other three are dark-teal and would render invisible
+        // against the tooltip's dark backdrop).
+        _ = TryGetTiledStyleRef("Center_Divider_White", out var divider);
+
         return new ParagonTooltipChrome(
             BaseLayer: baseLayer,
             PanelByRarity: paragon,
@@ -573,6 +580,7 @@ public sealed class Catalog
             DefaultFrame: defaultFrame,
             TextFrame: textFrame,
             BannerByPlacement: banners,
+            Divider: divider,
             SkillIconAtlas: skillIconAtlas);
     }
 
