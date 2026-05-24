@@ -846,6 +846,16 @@ public sealed class TypedReaderTests
         Assert.All(druidItems, r =>
             Assert.Contains("_Druid", r.Name, StringComparison.Ordinal));
 
+        // CL-83 / FR-C24 — glyph engine constants
+        // (BaseRadius / RadiusUpgradeLevels / MaxLevel). The .gph
+        // record carries no per-glyph variance on the live build, so
+        // these are engine constants (cross-validated against the
+        // Optimizer's Warlock-21 oracle).
+        var anyGlyph = d4.ReadParagonGlyph(1023194);
+        Assert.Equal(3, anyGlyph.BaseRadius);
+        Assert.Equal(new[] { 25, 50 }, anyGlyph.RadiusUpgradeLevels);
+        Assert.Equal(150, anyGlyph.MaxLevel);
+
         // CL-79 / FR-C24 — ParagonGlyphDefinition.LocalizedTitle
         // (sibling Item_ParagonGlyph_<SnoName>, label Name, "Glyph: "
         // prefix stripped) + Rarity from SnoName leading-token.

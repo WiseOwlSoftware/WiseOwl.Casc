@@ -1999,6 +1999,32 @@ derived from FR-C14 R8's `snoTiledStyle` crack and R10's variant
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
 
+- **CL-83 — `ParagonGlyphDefinition` engine constants for radius +
+  cap (FR-C24 structural slice, glyph half).** The Optimizer's
+  CL-79 consume-verify (`casc-fr#36`) counter-roundered for the
+  8 structural fields deferred from slice 1. This CL closes the
+  3 glyph-side fields (`BaseRadius`, `RadiusUpgradeLevels`,
+  `MaxLevel`); the affix-side 4 fields (`DisplayFactor`,
+  `AffectedAttributes`, `SkillTagSelector`, `Requirements`)
+  stay on the FR for a focused follow-on CL. Decode finding:
+  the `.gph` record carries no per-glyph variance — payload
+  ends at the affix-array descriptor with no `nStartingSize` /
+  `arSizeUpgradeLevels` / `nMaxLevel` fields. Empirical cross-
+  validation against the Optimizer's Warlock-21 oracle confirms
+  every glyph uses the same values (`BaseRadius=3`,
+  `RadiusUpgradeLevels=[25, 50]`, `MaxLevel=150`); the
+  `ParagonGlyphExperienceTable` (sno `810212`, GameBalance
+  type 49) ships a 201-entry XP curve but no cap field. Surface:
+  `ParagonGlyphDefinition.BaseRadius` / `RadiusUpgradeLevels` /
+  `MaxLevel` exposed as instance properties (forward-compat
+  shape — if a future season ships per-glyph variance, the
+  property migrates from constant-return to record-decode
+  without consumer API churn). Pattern parallels
+  `ParagonPowerBudget` (CL-68 budget multipliers). Appendix D
+  re-verify trigger updated. Acceptance: live matrix asserts
+  the three constants on a sample glyph. 126/126 tests green on
+  `3.0.2.71886`. Devlog 0078.
+
 - **CL-82 — `ParagonTooltipChrome.Divider`: `Center_Divider_White`
   (1559055) — Optimizer-validated structural pick (FR-C26).**
   After CL-77 / 80 / 81 nailed down the chrome stack, the
