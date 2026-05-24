@@ -556,6 +556,14 @@ public sealed class Catalog
             if (TryGetTiledStyleRef($"TooltipBanner_{placement}", out var bannerRef))
                 banners[placement] = bannerRef;
 
+        // CL-81 — the inline skill-tag icon atlas (2DUI_Tooltip_Icons,
+        // sno 2119840). 61 frames the engine composites into tooltip
+        // body prose wherever a {c_important} keyword token appears
+        // in a glyph-affix description (Demonology / Hellfire / Abyss
+        // / Archfiend / Healthy / etc.). The consumer decodes via
+        // TryGet<TextureDefinition> and uses the Frames list.
+        _ = TryGetAtlasRef("2DUI_Tooltip_Icons", out var skillIconAtlas);
+
         return new ParagonTooltipChrome(
             BaseLayer: baseLayer,
             PanelByRarity: paragon,
@@ -564,7 +572,19 @@ public sealed class Catalog
             OrnateFrameLight: ornateFrameLight,
             DefaultFrame: defaultFrame,
             TextFrame: textFrame,
-            BannerByPlacement: banners);
+            BannerByPlacement: banners,
+            SkillIconAtlas: skillIconAtlas);
+    }
+
+    private bool TryGetAtlasRef(string name, out AssetRef assetRef)
+    {
+        if (_d4.CoreToc.TryGetId(SnoGroup.Texture, name, out var id))
+        {
+            assetRef = AssetProviders.AtlasRef(_d4, id);
+            return true;
+        }
+        assetRef = default;
+        return false;
     }
 
     private static IEnumerable<(ParagonRarity Rarity, string Suffix)>

@@ -99,6 +99,23 @@ namespace WiseOwl.Casc.Diablo4;
 /// by their placement-token (the suffix on the SNO name).
 /// Not the same shape as the panel chrome; included as
 /// future-proofing for any non-tooltip banner work.</param>
+/// <param name="SkillIconAtlas">The
+/// <c>2DUI_Tooltip_Icons</c> (sno <c>2119840</c>)
+/// <see cref="AssetKind.TextureAtlas"/> — a 61-frame atlas of the
+/// inline skill-tag icons the engine composites into tooltip
+/// BODY prose (Druid mark, Demonform goat, Demonology / Hellfire
+/// / Abyss / Archfiend skill marks, etc.) wherever a <c>{c_important}</c>
+/// keyword token appears in an
+/// <see cref="ParagonGlyphAffixDefinition.Description"/> template.
+/// Not chrome in the strict layout sense — surfaced here because
+/// it's a sibling tooltip resource the consumer needs alongside
+/// the panel layers when rendering glyph affixes (FR-C24
+/// continuation). Decode via the existing
+/// <see cref="Catalog.TryGet{T}(AssetRef, out T)"/> path with
+/// <see cref="TextureDefinition"/> to access the 61 individual
+/// <see cref="TexFrame"/> handles + UVs; the semantic
+/// keyword→handle mapping (which frame is "Demonology", etc.) is
+/// engine-coded and is the consumer's calibration.</param>
 public sealed record ParagonTooltipChrome(
     AssetRef BaseLayer,
     IReadOnlyDictionary<ParagonRarity, AssetRef> PanelByRarity,
@@ -107,4 +124,5 @@ public sealed record ParagonTooltipChrome(
     AssetRef OrnateFrameLight,
     AssetRef DefaultFrame,
     AssetRef TextFrame,
-    IReadOnlyDictionary<string, AssetRef> BannerByPlacement);
+    IReadOnlyDictionary<string, AssetRef> BannerByPlacement,
+    AssetRef SkillIconAtlas);

@@ -1999,6 +1999,31 @@ derived from FR-C14 R8's `snoTiledStyle` crack and R10's variant
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
 
+- **CL-81 — `ParagonTooltipChrome.SkillIconAtlas`: the
+  `2DUI_Tooltip_Icons` inline-skill-tag icon set (FR-C26 chrome
+  side, slice 3).** Recon on the FR-C26 thread surfaced
+  `2DUI_Tooltip_Icons` (sno `2119840`) — a 61-frame texture
+  atlas the engine composites inline in tooltip BODY prose
+  (Druid mark, Demonform goat, Demonology / Hellfire / Abyss /
+  Archfiend skill marks, etc.) wherever the
+  `{c_important}{u}…{/u}{/c}` keyword tokens appear in glyph
+  affix description templates (FR-C24). Not chrome in the
+  strict panel-layout sense — surfaced on `ParagonTooltipChrome`
+  alongside the chrome layers because it's the consumer's
+  sibling resource when rendering glyph-affix bodies. Resolved
+  via `CoreToc.TryGetId(SnoGroup.Texture, "2DUI_Tooltip_Icons")`
+  + `AssetProviders.AtlasRef` (the existing
+  `AssetKind.TextureAtlas` shape — no new asset kind needed).
+  The 61 individual frame handles + UVs are accessed via the
+  existing `Catalog.TryGet<TextureDefinition>` decode path
+  (`td.Frames`). The semantic keyword→handle mapping (which
+  frame is "Demonology", etc.) is engine-coded; the library
+  surfaces the atlas, the consumer calibrates the mapping.
+  Acceptance: live matrix asserts `SkillIconAtlas.Sno == 2119840`
+  + name + `TryGet<TextureDefinition>` round-trip with
+  `Frames.Count == 61`. 126/126 tests green on `3.0.2.71886`.
+  Devlog 0076.
+
 - **CL-80 — `ParagonTooltipChrome` multi-layer composite — base /
   rarity / ornate-frame / variants (FR-C26 recon shipped chrome
   side).** The CL-77 chrome surface was only the per-rarity panel

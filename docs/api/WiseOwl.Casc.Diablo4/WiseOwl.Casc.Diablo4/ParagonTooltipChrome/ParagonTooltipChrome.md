@@ -7,7 +7,7 @@ public ParagonTooltipChrome(AssetRef BaseLayer,
     IReadOnlyDictionary<ParagonRarity, AssetRef> PanelByRarity, 
     IReadOnlyDictionary<string, AssetRef> ItemSidePanelByRarityName, AssetRef OrnateFrame, 
     AssetRef OrnateFrameLight, AssetRef DefaultFrame, AssetRef TextFrame, 
-    IReadOnlyDictionary<string, AssetRef> BannerByPlacement)
+    IReadOnlyDictionary<string, AssetRef> BannerByPlacement, AssetRef SkillIconAtlas)
 ```
 
 | parameter | description |
@@ -20,6 +20,7 @@ public ParagonTooltipChrome(AssetRef BaseLayer,
 | DefaultFrame | A smaller simple-bordered tooltip (`DefaultTooltip`, sno `478952`) — 9 small frames (28×28 corners) at the bottom of `2DUITiled_TooltipFrame`. Lower-decoration alternative for compact tooltips. |
 | TextFrame | A text-only tooltip (`TextTooltip`, sno `478948`) — same nine atlas handles as [`DefaultFrame`](./DefaultFrame.md), alternative composition. Used by the engine for text-heavy tooltips. |
 | BannerByPlacement | Banner-style chrome variants (`TooltipBanner_Map`, `TooltipBanner_Town`) keyed by their placement-token (the suffix on the SNO name). Not the same shape as the panel chrome; included as future-proofing for any non-tooltip banner work. |
+| SkillIconAtlas | The `2DUI_Tooltip_Icons` (sno `2119840`) TextureAtlas — a 61-frame atlas of the inline skill-tag icons the engine composites into tooltip BODY prose (Druid mark, Demonform goat, Demonology / Hellfire / Abyss / Archfiend skill marks, etc.) wherever a `{c_important}` keyword token appears in an [`Description`](../ParagonGlyphAffixDefinition/Description.md) template. Not chrome in the strict layout sense — surfaced here because it's a sibling tooltip resource the consumer needs alongside the panel layers when rendering glyph affixes (FR-C24 continuation). Decode via the existing [`TryGet`](../Catalog/TryGet.md) path with [`TextureDefinition`](../TextureDefinition.md) to access the 61 individual [`TexFrame`](../TexFrame.md) handles + UVs; the semantic keyword→handle mapping (which frame is "Demonology", etc.) is engine-coded and is the consumer's calibration. |
 
 ## Remarks
 
