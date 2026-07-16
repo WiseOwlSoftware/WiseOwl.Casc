@@ -55,16 +55,18 @@ API diff, no CL/FR/SNO jargon). `PackageReleaseNotes` de-absolutized
 (was pinned to a stale `0.2.0-alpha`). Post-release: CA1861 test warning
 fixed (`#80`, `6313423`). **Release mechanics** (`publish.yml`): GitHub
 Release published → `nuget` env reviewer gate → OIDC push; the tag must
-equal `Directory.Build.props <Version>`. `main` tip: **`6313423`**;
+equal `Directory.Build.props <Version>`. `main` tip: **`7bfe7bb`** (FR-C29
+data-mine recon tooling + devlog 0084 — docs/dev-tooling, no package change);
 `<Version>` is still `0.4.0` (bump before the next release).
 
-### Active threads (2026-07-15, FR-C27+C30 delivered — 1 awaiting:casc)
+### Active threads (2026-07-15, FR-C29 R2 finding posted — 0 awaiting:casc)
 
-**1 awaiting:casc** (`#41` FR-C29 — the big open RE):
+**0 awaiting:casc.** FR-C29 (`#41`) advanced to **`needs:owner`** this session
+after the full data-mine (R2 comment `#issuecomment-4989033546`).
 
-| # | FR | What's needed |
+| # | FR | State |
 |---|---|---|
-| 41 | FR-C29 — per-class character-stat derivation formulae | `fr:accepted`. Big multi-phase (per-class core→bonus coefficients, base/level scaling, composites, Torment multipliers). Owner relayed 2026-05-24: **search all non-identified data sources** — leads `LevelScaling` (206158), `SimpleScalarFormulas` (2536879), `DamageMitigation` (1846727). Owner-suggested **name-hash-grep** short-circuit (DJB2 the in-game stat names → grep unidentified SNOs). **NOTE: `DataAttributes` (1907204) is ruled out** — CL-88 proved it's the designer/season-attribute subset, not a scalar registry. If coefficients prove engine-coded, honest boundary → consumer hard-codes. Phase 1 first; Phase 2 (`LevelScaling`) / Phase 4 (`MonsterLevelCurves`) are incremental slices. |
+| 41 | FR-C29 — per-class character-stat derivation formulae | **`needs:owner`** (was awaiting:casc). **Phase 1 (the unlock) = ENGINE-CODED** — searched 9 sources (PlayerClass g74, Hero g39, AttributeFormulas 201912, AttributeDescriptions/HeroDetails g42, SimpleScalarFormulas 2536879, LevelScaling 206158, DataAttributes 1907204, DamageMitigation 1846727-empty, broad g20+g49 float-grep). Clincher: the core-stat tooltip (`HeroDetails 4123 [TipStrength]`) is engine-computed (`{s1}`/`{s3}` runtime substitution — coefficient not in data). → owner's option-4 boundary. **Rescue path posted**: if conversions are *universal* (only per-class datum = which core is primary), I bake them as validated engine constants (engine-constants pattern) — decisive test = owner captures **one non-Warlock class's** core-stat tooltips. Phase 2 (`LevelScaling` anon per-level curves) decodable w/ base-Life anchors; Phase 3 (`DamageMitigation` empty) engine-coded; Phase 4 (`DifficultyTiers` 1973217 = per-**monster-level** curve, NOT discrete Torment — the "TormentVI=8.0" match was level-40's per-level XP value). Devlog 0084. Recon: new `f32grep`/`hashgrep` on SnoScan @`7bfe7bb`. **Awaiting 3 owner oracles** (see comment). |
 
 FR-C30 (`#42`, CL-87) + FR-C27 (`#39`, CL-88) delivered this session,
 both now `released:v0.4.0`. `#42` advanced to `needs:owner` (owner
