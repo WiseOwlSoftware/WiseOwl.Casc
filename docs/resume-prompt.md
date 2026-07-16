@@ -13,47 +13,60 @@ The sections below this one ("Status (end of session 1)", the numbered
 "Next steps") are **historical** — accurate for their era but superseded
 by what follows. This block is the live state.
 
-### ⏭️ NEXT-SESSION PICKUP (2026-07-16 handoff #2) — start here
+### ⏭️ NEXT-SESSION PICKUP (2026-07-16 handoff #3) — start here
 
-Last session shipped **CL-92 (LIB-3 affix effects)** — merged to `main`
-(**`main` tip `f04d6aa`**, PR #84) + delivered on `casc-fr#45`
-(`fr:delivered`/`awaiting:optimizer`). LIB-3 = **which attribute(s) each item/
-aspect affix modifies**: `AffixDefinition.Effects` → `IReadOnlyList<AffixEffect>`
-(the `arModifiers` VLA at payload `+0xB0`, array of fixed 104-byte modifier
-records; `idx4`=AttributeId, `idx7`=ParamPlus12). idx4 validated 1:1 across
-1,220 single-modifier affixes vs their `Desc` value-token. **The old idx10
-hypothesis was disproven and held off.** Spec §11.3; devlog 0088; Appendix A.
+Last session shipped **CL-92 (LIB-3 affix effects, PR #84)** + **CL-93
+(namespace-aware GetAttributeName + DataAttributes, PR #85)** — both merged to
+`main` (**`main` tip `234eb57`**). Delivered on **`casc-fr#45` (LIB-3),
+`#46`/`#47`/`#48`** (the GetAttributeName cluster). All UNRELEASED (`[Unreleased]`
+in CHANGELOG; owner cuts `0.5.0` once the batch — #41/#43/#44/#45 — is done, then
+the Optimizer consumes together).
 
-**5 issues now `awaiting:casc`** (the Optimizer queued a cluster during the
-session). Priority order:
+- **CL-92 (LIB-3):** `AffixDefinition.Effects` → `IReadOnlyList<AffixEffect>`;
+  `idx4`=AttributeId (validated 1:1 across 1,220 affixes vs Desc token),
+  `idx7`=ParamPlus12. Old idx10 hypothesis disproven/held. Spec §11.3; devlog 0088.
+- **CL-93 (#46/47/48):** bit 31 on AttributeId = the `DataAttributes` (SNO
+  1907204) namespace flag → `Diablo4Storage.TryGetDataAttributeName(id, out token)`
+  (ordinal = `id & 0x7FFFFFFF`). `GetAttributeName` by-id fallback restricted to
+  the stable low range (`< 481`) so stale ids return null not wrong names
+  (1124→null, was "Barrier Generation"). Docs regenerated. Devlog 0089.
 
-**#47 FR-C32 — decode bit 31 on AttributeId (`0x800000xx`) + confirm the `-1`
-sentinel. ALREADY SOLVED by CL-92** — bit 31 = the `DataAttributes` (SNO
-1907204) namespace flag; ordinal = `id & 0x7FFFFFFF` (verified: 84 =
-`Barb_Berserking_AttackSpeed`); `-1` = the "no attribute" sentinel. Just
-respond with the finding (`AffixEffect.IsDataDefinedAttribute`/
-`DataAttributeOrdinal` already ship it) + decide whether to add the same
-flag-decode to `GetAttributeName`/node attrs. **Fast win — start here.**
+**3 issues `awaiting:casc` — all counter-rounded, deep, interrelated
+(attribute registry + affix values + character stats):**
 
-**#46 FR-C31 / #48 LIB-4 — `GetAttributeName` returns a WRONG (stale) name,
-not null, for live-referenced ids; the API doc page shows stale examples
-(481/950).** Directly helped by the LIB-3 finding: **affix `Desc` placeholders
-are a rich season-robust first-party AttributeId→token source** (~86 positive
-engine attrs — many the node scan misses: 1125/1157/483/484 — PLUS the
-DataAttributes ordinals). Consider feeding that source into `GetAttributeName`
-to fix the stale/wrong-name cases + regen the API doc page.
+**#45 R2 — value range is the reopened half of LIB-3.** The Optimizer accepts
+"no (min,max) pair in the record" but the FR title is *"AttributeId + value
+range + operation"* and the **value range is why it exists** (their KB prints
+`[roll]` across 305 uniques / 596 aspects). Ask: **decode the `idx16` formula
+GBID → item-power curve** so a consumer can compute an affix's value at a given
+item power — via (1) expose `AffixEffect.FormulaGbid` + a curve reader (there IS
+existing machinery: `AttributeFormulaTable`, type 22 "AttributeFormulas", SNO
+group — check if idx16 keys it), (2) a `GetAffixValue(affixSno, itemPower)`
+projection, or (3) **record the engine-coded boundary WITH EVIDENCE** if the
+curve is engine-side (legit terminal state; they'll take the residual). ALSO:
+expose the **`"Static Value N"` VLA at struct `+0xC0`** (set/unique fixed
+scalars — mythic/unique numbers, high value, cheap). Small wiring gap flagged:
+`AffixEffect.AttributeName` is still **empty for negative (DataAttributes) ids** —
+wire `TryGetDataAttributeName` into `ReadAffix`'s effect-name resolution.
 
-**#39 FR-C27 (DataAttributes full registry RE)** and **#41 FR-C29 (per-class
-stat formulae)** — the strategic threads; LIB-3 advanced both (the affix layer
-names attribute ids the node layer could not; negative idx4 = DataAttributes
-ordinal is a concrete breach of the registry wall). See
-[[project_comprehensive-data-exposure]], [[project_attributeid-registry-ordinal]].
+**#39 FR-C27 — feed the affix-Desc source in (Optimizer: "yes, emphatically").**
+`#39` is counter-rounded: **52% of live paragon AttributeIds (48/92) resolve to
+nothing** via CL-88's `Generic_`-node scan (curated-token-only). The LIB-3 affix
+`Desc` placeholders are a first-party in-data name source covering ids the node
+scan misses (1125/1157/483/484) AND the DataAttributes ordinals — could
+**retire** the curated `LabelByToken` map (read-it-don't-curate = #39 closing).
+Build an affix-Desc-derived id→name source and wire it into `GetAttributeName`.
+
+**#41 FR-C29 — per-class stat formulae** (open-ended; Phase-1 shipped CL-89; the
+universal-coefficient data source still unlocated). See
+[[project_fr-c29-character-stats]], [[project_attributeid-registry-ordinal]],
+[[project_comprehensive-data-exposure]].
 
 Recon tooling on `build/SnoScan` (all on `main`): `affixcorpus`, `affixattrmap`,
-`affixfloatscan`, `affixeffects` (LIB-3), `dataattrs`, `attrname`, `attrmap`,
-`affixdump`, `itemtypes`, `classstats`, `locate`, `f32grep`, `hashgrep`.
+`affixfloatscan`, `affixeffects` (LIB-3), `dataattrs`, `attrname` (+DataAttr),
+`attrmap`, `affixdump`, `itemtypes`, `classstats`, `f32grep`, `hashgrep`.
 Session corpus in scratchpad: `affix-corpus-full.txt` (all 6,145),
-`affix-attrmap.txt` (idx4→token map), `affix-floatscan.txt`.
+`affix-attrmap.txt` (idx4→token), `affix-floatscan.txt`.
 
 ### How work arrives now: the CASC⇄Optimizer FR loop (GitHub Issues)
 
