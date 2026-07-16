@@ -1,4 +1,19 @@
-# Diablo4Storage.Open method
+# Diablo4Storage.Open method (1 of 2)
+
+Open the local Diablo IV installation, auto-detecting its location (see [`TryLocateInstall`](./TryLocateInstall.md)). Throws CascException when none can be found — use [`Open`](./Open.md) with an explicit path for a custom or non-Windows install.
+
+```csharp
+public static Diablo4Storage Open()
+```
+
+## See Also
+
+* class [Diablo4Storage](../Diablo4Storage.md)
+* namespace [WiseOwl.Casc.Diablo4](../../WiseOwl.Casc.Diablo4.md)
+
+---
+
+# Diablo4Storage.Open method (2 of 2)
 
 Open a local Diablo IV installation.
 

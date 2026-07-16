@@ -2183,6 +2183,16 @@ armor, …). Structural — no name parsing.
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
 
+- **CL-91 — install auto-detection for `Diablo4Storage.Open()` (LIB-2).**
+  No-arg `Open()` / `OpenAsync()` + `TryLocateInstall(out path)` resolve the
+  install root from the `WISEOWL_CASC_INSTALL` override then the Windows
+  registry — the Battle.net uninstall entry `…\Uninstall\Diablo IV` →
+  `InstallLocation`. **Note:** the Battle.net uninstaller is 32-bit, so the key
+  is under `WOW6432Node`, not the 64-bit view; the locator tries both.
+  Dependency-free (`reg.exe` via `Process`, guarded by
+  `OperatingSystem.IsWindows()`); a candidate is accepted only with a
+  `.build.info`. Not a byte-format change.
+
 - **CL-90 — item base-type taxonomy: weapon/armor/jewelry/charm
   classification + enumeration (LIB-1, §13).** First proactive
   comprehensive-data-exposure work item. Group 98 (`GearItem`) is the

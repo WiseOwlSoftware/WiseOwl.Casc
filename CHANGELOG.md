@@ -8,6 +8,11 @@ Semantic Versioning once it reaches `1.0.0`.
 
 ### Added
 
+- **Install auto-detection** — `Diablo4Storage.Open()` (no arguments) now finds
+  the Diablo IV installation automatically from the Windows registry (or the
+  `WISEOWL_CASC_INSTALL` override), so consumers no longer have to hard-code the
+  path. `TryLocateInstall` exposes the discovered path directly. The
+  explicit-path overload stays for custom or non-Windows installs.
 - **Gear/item taxonomy** — classify and enumerate items by category. Every item
   now exposes its base type (weapon / armor / jewelry / charm / other), decoded
   structurally from the game data; `EnumerateItems(ItemClass.Weapon)` lists every

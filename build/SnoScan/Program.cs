@@ -1577,6 +1577,18 @@ switch (cmd)
         }
         return 0;
     }
+    case "locate":
+    {
+        // LIB-2: exercise the install auto-detector.
+        bool ok = Diablo4Storage.TryLocateInstall(out var path);
+        Console.WriteLine($"TryLocateInstall -> {ok}  path='{path}'");
+        if (ok)
+        {
+            using var located = Diablo4Storage.Open();   // no-arg auto-detect
+            Console.WriteLine($"Open() auto-detected; CoreTOC entries = {located.CoreToc.Entries.Count:N0}");
+        }
+        return ok ? 0 : 1;
+    }
     case "itemtypes":
     {
         // LIB-1 recon: dump every g98 ItemType's candidate category/slot fields
