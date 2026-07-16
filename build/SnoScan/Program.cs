@@ -1447,6 +1447,42 @@ switch (cmd)
         }
         return 0;
     }
+    case "powersf":
+    {
+        // Recon: dump a Power's decoded ScriptFormulas + ResolvedFormulas.
+        // powersf <sno...>
+        if (argv.Count < 2) { Console.Error.WriteLine("powersf <sno...>"); return 2; }
+        foreach (var s in argv.Skip(1))
+        {
+            int id = int.Parse(s);
+            var pow = d4.ReadPower(id);
+            Console.WriteLine($"{id}  {pow.Name}  slots={pow.ScriptFormulas.Count}");
+            foreach (var f in pow.ScriptFormulas)
+                Console.WriteLine($"    SF_{f.Index}  text=\"{f.Text}\"  lit={f.LiteralValue}  expr={f.IsExpression}");
+            var keys = pow.ResolvedFormulas.Keys.OrderBy(k => k, StringComparer.Ordinal);
+            Console.WriteLine("    resolved: " + string.Join(", ", keys.Select(k => $"{k}={pow.ResolvedFormulas[k]}")));
+            // Raw tail hex (last 128 bytes) — 16-byte rows, hex + ASCII, so
+            // the slot records / ("0",0) terminator are inspectable.
+            if (d4.TryReadSno((int)SnoGroup.Power, id, SnoFolder.Meta, out var blob))
+            {
+                int start = Math.Max(0, blob.Length - 128);
+                for (int r = start; r < blob.Length; r += 16)
+                {
+                    int n = Math.Min(16, blob.Length - r);
+                    var hex = new System.Text.StringBuilder();
+                    var asc = new System.Text.StringBuilder();
+                    for (int k = 0; k < n; k++)
+                    {
+                        hex.Append(blob[r + k].ToString("X2")).Append(' ');
+                        byte bb = blob[r + k];
+                        asc.Append(bb >= 0x20 && bb < 0x7F ? (char)bb : '.');
+                    }
+                    Console.WriteLine($"    @{r,5}  {hex,-48} {asc}");
+                }
+            }
+        }
+        return 0;
+    }
     default:
         Console.Error.WriteLine($"unknown command '{cmd}'");
         return 2;
