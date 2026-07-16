@@ -31,23 +31,18 @@ the Optimizer consumes together).
   the stable low range (`< 481`) so stale ids return null not wrong names
   (1124→null, was "Barrier Generation"). Docs regenerated. Devlog 0089.
 
-**3 issues `awaiting:casc` — all counter-rounded, deep, interrelated
-(attribute registry + affix values + character stats):**
+**CL-94 (LIB-3 R2, PR #86, `main` tip `ec7a03e`) DELIVERED** — the affix value
+range: **`idx16` = `AffixEffect.FormulaGbid`** is the `GbidHash` of an
+`AttributeFormulas` (SNO 201912) entry → new `AttributeFormulaTable.TryGetByGbid`
+resolves the per-item-power roll formula (crit → `GearAffix_CritChance`
+`"FloatRandomRangeWithInterval(1,0.5,1)/100"`). Data-driven, not engine-coded;
+library exposes raw formula text (consumer evaluates, paragon boundary). Also:
+`AffixDefinition.StaticValues` (+0xC0 set/unique scalars) + `AffixEffect.AttributeName`
+now resolves negative ids via `TryGetDataAttributeName`. #45 `awaiting:optimizer`
+(consume gated on owner's 0.5.0 cut). Devlog 0090; Appendix A CL-94. **Full LIB-3
+title answered: AttributeId + value range + operation.**
 
-**#45 R2 — value range is the reopened half of LIB-3.** The Optimizer accepts
-"no (min,max) pair in the record" but the FR title is *"AttributeId + value
-range + operation"* and the **value range is why it exists** (their KB prints
-`[roll]` across 305 uniques / 596 aspects). Ask: **decode the `idx16` formula
-GBID → item-power curve** so a consumer can compute an affix's value at a given
-item power — via (1) expose `AffixEffect.FormulaGbid` + a curve reader (there IS
-existing machinery: `AttributeFormulaTable`, type 22 "AttributeFormulas", SNO
-group — check if idx16 keys it), (2) a `GetAffixValue(affixSno, itemPower)`
-projection, or (3) **record the engine-coded boundary WITH EVIDENCE** if the
-curve is engine-side (legit terminal state; they'll take the residual). ALSO:
-expose the **`"Static Value N"` VLA at struct `+0xC0`** (set/unique fixed
-scalars — mythic/unique numbers, high value, cheap). Small wiring gap flagged:
-`AffixEffect.AttributeName` is still **empty for negative (DataAttributes) ids** —
-wire `TryGetDataAttributeName` into `ReadAffix`'s effect-name resolution.
+**2 issues `awaiting:casc` — deep, strategic:**
 
 **#39 FR-C27 — feed the affix-Desc source in (Optimizer: "yes, emphatically").**
 `#39` is counter-rounded: **52% of live paragon AttributeIds (48/92) resolve to
