@@ -55,18 +55,31 @@ API diff, no CL/FR/SNO jargon). `PackageReleaseNotes` de-absolutized
 (was pinned to a stale `0.2.0-alpha`). Post-release: CA1861 test warning
 fixed (`#80`, `6313423`). **Release mechanics** (`publish.yml`): GitHub
 Release published → `nuget` env reviewer gate → OIDC push; the tag must
-equal `Directory.Build.props <Version>`. `main` tip: **`7bfe7bb`** (FR-C29
-data-mine recon tooling + devlog 0084 — docs/dev-tooling, no package change);
-`<Version>` is still `0.4.0` (bump before the next release).
+equal `Directory.Build.props <Version>`. `main` tip: **`e4f7946`** (CL-89 FR-C29
+Phase 1 + CL-90 LIB-1 gear/item + CL-91 LIB-2 install-autodetect — all
+UNRELEASED, `[Unreleased]` in CHANGELOG); `<Version>` is still `0.4.0` (bump
+before the next release).
 
-### Active threads (2026-07-15, FR-C29 R2 finding posted — 0 awaiting:casc)
+### Active threads (2026-07-16 — 0 awaiting:casc; 3 delivered this session)
 
-**0 awaiting:casc.** FR-C29 (`#41`) advanced to **`needs:owner`** this session
-after the full data-mine (R2 comment `#issuecomment-4989033546`).
+**0 awaiting:casc.** This session delivered **CL-89/90/91**; all three issues
+sit `fr:delivered` / `awaiting:optimizer`. **NEW STRATEGIC DIRECTION (owner,
+2026-07-16): expose ALL dataset data via typed APIs, confidence-gated —
+proactive coverage, not just reactive FRs** ([[project_comprehensive-data-exposure]]).
+CASC now self-assigns proactive `LIB-N` work items (distinct from the
+Optimizer's `FR-C##` series) and delivers on the loop.
 
-| # | FR | State |
+| # | Item | State |
 |---|---|---|
-| 41 | FR-C29 — per-class character-stat derivation formulae | **`needs:owner`** (was awaiting:casc). **Phase 1 (the unlock) = ENGINE-CODED** — searched 9 sources (PlayerClass g74, Hero g39, AttributeFormulas 201912, AttributeDescriptions/HeroDetails g42, SimpleScalarFormulas 2536879, LevelScaling 206158, DataAttributes 1907204, DamageMitigation 1846727-empty, broad g20+g49 float-grep). Clincher: the core-stat tooltip (`HeroDetails 4123 [TipStrength]`) is engine-computed (`{s1}`/`{s3}` runtime substitution — coefficient not in data). → owner's option-4 boundary. **Rescue path posted**: if conversions are *universal* (only per-class datum = which core is primary), I bake them as validated engine constants (engine-constants pattern) — decisive test = owner captures **one non-Warlock class's** core-stat tooltips. Phase 2 (`LevelScaling` anon per-level curves) decodable w/ base-Life anchors; Phase 3 (`DamageMitigation` empty) engine-coded; Phase 4 (`DifficultyTiers` 1973217 = per-**monster-level** curve, NOT discrete Torment — the "TormentVI=8.0" match was level-40's per-level XP value). Devlog 0084. Recon: new `f32grep`/`hashgrep` on SnoScan @`7bfe7bb`. **Awaiting 3 owner oracles** (see comment). |
+| 41 | FR-C29 — per-class character-stat formulae | **`fr:delivered`** (CL-89 `e1c43bb`). **Phase 1 shipped**: coefficients are UNIVERSAL (owner oracles Warlock/Rogue/Necro/Barbarian + high-Paragon) → baked as `CharacterStatModel` constants; the per-class core→bonus MAP is data-driven, decoded structurally from `PlayerClass` (3 `(coreIndex,weight)` arrays @+0x40/+0x50/+0x60). A "Crit=opposite primary" rule fits 3 classes but is WRONG for Druid/Paladin/Spiritborn — read the array. **OPEN**: owner believes the coefficients are data-driven; I swept every config/attribute/global group (20/21/49/104/114/119/124 + AttributeFormulas) and can't find them — framed honestly as "not located in searched data." Phase 2 (Life curve L1=50/L60=860/L70=1526, class-independent) decodable next; Phase 3/4 engine-coded. Spec §12; devlog 0084/0085. |
+| 43 | LIB-1 — gear/item taxonomy | **`fr:delivered`** (CL-90 `5cb3090`). `ItemType`/`ItemClass`, `ReadItemType`/`EnumerateItemTypes`/`EnumerateItems(ItemClass)`, `ItemDefinition.ItemTypeSnoId` (item +0xC → g98 type), `AssetKind.ItemType` + decoded `category` facet. Structural classify (g98 fields kind+8/subkind+0xC=Charm/weaponfam+0x30/armorscalar+0x3C/slot+0x44): Weapon28/Armor5/Jewelry2/Charm1/Other117. Spec §13; devlog 0086. |
+| 44 | LIB-2 — install auto-detect | **`fr:delivered`** (CL-91 `e4f7946`). No-arg `Open()`/`OpenAsync()` + `TryLocateInstall(out path)` via `WISEOWL_CASC_INSTALL` → registry (Battle.net `Uninstall\Diablo IV\InstallLocation`; **key is under WOW6432Node**, tries both views). Dependency-free (`reg.exe` via Process). Devlog 0087. |
+
+**Next comprehensive-data-exposure frontiers** (per [[project_comprehensive-data-exposure]]):
+affix EFFECTS (g104, only name/desc so far — highest build-planning value),
+power/skill mechanics (g29), skill trees (g99), item stats, FR-C29 Phase 2 Life
+curve. **SnoScan gained**: `f32grep`/`hashgrep` (@`7bfe7bb`), `classstats`,
+`itemtypes`, `locate`.
 
 FR-C30 (`#42`, CL-87) + FR-C27 (`#39`, CL-88) delivered this session,
 both now `released:v0.4.0`. `#42` advanced to `needs:owner` (owner
