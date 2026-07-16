@@ -1010,17 +1010,42 @@ public sealed class Diablo4Storage : IDisposable
 
     /// <summary>Read + decode an <see cref="AffixDefinition"/> by SNO id
     /// (group <see cref="SnoGroup.Affix"/> = 104): identity + the localized
-    /// <c>Desc</c> from the sibling <c>Affix_&lt;snoName&gt;</c> StringList
-    /// table (§11.3 / CL-22).</summary>
+    /// <c>Name</c> and <c>Desc</c> from the sibling <c>Affix_&lt;snoName&gt;</c>
+    /// StringList table (§11.3 / CL-87 / CL-22). Each localized field is an
+    /// honest empty sentinel when its label is absent (many system/internal
+    /// affixes carry a <c>Desc</c> but no <c>Name</c>).</summary>
     /// <param name="id">The Affix SNO id.</param>
     /// <param name="locale">Locale (default <see cref="DefaultLocale"/>).</param>
     public AffixDefinition ReadAffix(int id, string locale = DefaultLocale)
     {
         var a = AffixDefinition.Parse(ReadSno(SnoGroup.Affix, id));
+        TryReadSiblingString(SnoGroup.Affix, id, "Affix_", "Name", locale, out var n);
         TryReadSiblingString(SnoGroup.Affix, id, "Affix_", "Desc", locale, out var d);
+        a.SetName(n);
         a.SetDescription(d);
         return a;
     }
+
+    /// <summary>Resolve an affix's localized <b>display name</b> without a
+    /// full <see cref="ReadAffix(int,string)"/> decode — the affix analogue
+    /// of <see cref="TryReadParagonBoardName"/>. The name lives in the
+    /// affix's sibling StringList table (group
+    /// <see cref="SnoGroup.StringList"/> = 42), CoreTOC name
+    /// <c>"Affix_" + affixSnoName</c>, under label <c>Name</c>
+    /// (§11.3 / CL-87). Strictly name-keyed via <see cref="CoreToc"/> — the
+    /// SNO ids are unrelated. Raw decoded value only, no fallback: returns
+    /// the authored fragment verbatim (e.g. <c>"of Limitless Rage"</c>) with
+    /// any <c>"Aspect …"</c> composition left to the consumer. Only ~1 in 4
+    /// group-104 affixes carry a <c>Name</c>; the remainder are unnamed
+    /// system/internal affixes → honest <see langword="false"/>.</summary>
+    /// <param name="affixSnoId">The <c>Affix</c> SNO id (group 104).</param>
+    /// <param name="name">The localized affix name, or <see cref="string.Empty"/>.</param>
+    /// <param name="locale">Locale (default <see cref="DefaultLocale"/>).</param>
+    /// <returns><see langword="true"/> iff a localized name was decoded.</returns>
+    public bool TryReadAffixName(
+        int affixSnoId, out string name, string locale = DefaultLocale) =>
+        TryReadSiblingString(
+            SnoGroup.Affix, affixSnoId, "Affix_", "Name", locale, out name);
 
     /// <summary>Read + decode an <see cref="ItemDefinition"/> by SNO id
     /// (group <see cref="SnoGroup.Item"/> = 73): identity + the localized

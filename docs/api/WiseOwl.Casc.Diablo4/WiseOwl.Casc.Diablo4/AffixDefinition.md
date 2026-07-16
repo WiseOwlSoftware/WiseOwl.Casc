@@ -1,6 +1,6 @@
 # AffixDefinition class
 
-A decoded Diablo IV `AffixDefinition` (`.aff`, SNO group Affix = 104) — an item/charm affix. Identity + localized description only; affix magnitude/operation modeling stays the consumer's (the glyph-affix magnitudes are [`ParagonGlyphAffixDefinition`](./ParagonGlyphAffixDefinition.md); general item-affix stat-effect modeling is a consumer domain spec — Appendix C).
+A decoded Diablo IV `AffixDefinition` (`.aff`, SNO group Affix = 104) — an item/charm affix. Identity + localized name and description only; affix magnitude/operation modeling stays the consumer's (the glyph-affix magnitudes are [`ParagonGlyphAffixDefinition`](./ParagonGlyphAffixDefinition.md); general item-affix stat-effect modeling is a consumer domain spec — Appendix C).
 
 ```csharp
 public sealed class AffixDefinition
@@ -12,11 +12,12 @@ public sealed class AffixDefinition
 | --- | --- |
 | static [Parse](AffixDefinition/Parse.md)(…) | Decode an Affix from its raw SNO blob (identity only — the localized field needs [`CoreToc`](./CoreToc.md); use [`ReadAffix`](./Diablo4Storage/ReadAffix.md)). |
 | [Description](AffixDefinition/Description.md) { get; } | Localized affix description (sibling label `Desc`; raw D4 markup intact), or Empty. |
+| [Name](AffixDefinition/Name.md) { get; } | Localized affix display name (sibling label `Name`; the raw authored fragment, e.g. `"Bear Clan Berserker's"`, `"of Limitless Rage"`, `"Devilish"`), or Empty when the affix has no sibling `Name` (system/internal affixes). The consumer owns any `"Aspect …"` composition. |
 | [SnoId](AffixDefinition/SnoId.md) { get; } | The affix's own SNO id (== the CoreTOC id). |
 
 ## Remarks
 
-[`SnoId`](./AffixDefinition/SnoId.md) is the binary field (payload `0`). The localized [`Description`](./AffixDefinition/Description.md) is resolved from the affix's sibling StringList table (`docs/casc-diablo4-format.md §11.3`, Appendix A CL-22 / CL-20): group-42 SNO `"Affix_" + snoName`, label `Desc` (carries D4 markup like `[Affix_Value_1|%|]`). Empty (honest sentinel) when decoded byte-only or when there is no sibling table; the consumer owns any fallback.
+[`SnoId`](./AffixDefinition/SnoId.md) is the binary field (payload `0`). The localized [`Name`](./AffixDefinition/Name.md) and [`Description`](./AffixDefinition/Description.md) are both resolved from the affix's sibling StringList table (`docs/casc-diablo4-format.md §11.3`, Appendix A CL-87 / CL-22 / CL-20): group-42 SNO `"Affix_" + snoName`, labels `Name` (the display name, e.g. `"of Limitless Rage"`) and `Desc` (the rules text, carrying D4 markup like `[Affix_Value_1|%|]`). Each field is Empty (honest sentinel) when decoded byte-only, when there is no sibling table, or when that specific label is absent — many system/internal affixes carry a `Desc` but no `Name`. The consumer owns any fallback and any `"Aspect"` composition around the raw display name.
 
 ## See Also
 

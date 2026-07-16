@@ -417,7 +417,7 @@ prefixes/labels on build `3.0.2.71886`:
 |---|---|---|---|
 | 108 ParagonBoard | `ParagonBoard_` | `Name` | `Paragon_Warlock_00` → `Start` (§6.4) |
 | 73 Item | `Item_` | `Name`, `Flavor`, `TransmogName`, `Description` | `1HAxe_Unique_Generic_001` (223287) → `Item_1HAxe_Unique_Generic_001` (941704) → Name `The Butcher's Cleaver` |
-| 104 Affix | `Affix_` | `Desc` | `Talisman_Charm_Affix_1HAxe_Unique_Generic_001` (2586362) → `Affix_…` (2586361) → Desc `Your attacks Critically Strike …` |
+| 104 Affix | `Affix_` | `Name`, `Desc` | `Legendary_Barb_110` (578755) → `Affix_Legendary_Barb_110` (1106289) → Name `of Limitless Rage`; charm `2586362` → `Affix_…` (2586361) → Desc `Your attacks Critically Strike …` (Desc-only, no Name) |
 | 29 Power | `Power_` | `name`, `desc` (lowercase) | `Paragon_Warlock_Legendary_001` (2521393) → `Power_…` (2521392) → name `Fathomless` |
 
 (Character-class names are the parallel §6.5 case — the `General`
@@ -1939,11 +1939,20 @@ shapes would need additional record-shape RE.
 
 ### 11.3 `AffixDefinition` (group 104, `.aff`)
 
-Identity (`snoId@0`) + localized `Description` from sibling
-`Affix_<snoName>`, label `Desc`. Affix magnitude/operation modeling is
-the consumer's (glyph-affix magnitudes are §7.4). Anchor: affix
-`2586362` → Desc `Your attacks Critically Strike …`. Surface:
-`Diablo4Storage.ReadAffix(int, locale)`. CL-22.
+Identity (`snoId@0`) + localized `Name` and `Description` from the same
+sibling `Affix_<snoName>` table (§6.7), labels `Name` (the display name,
+e.g. `"of Limitless Rage"`) and `Desc` (the rules text). Each field is an
+honest empty sentinel when its label is absent — every affix that carries
+rules text has a `Desc`, but only ~1 in 4 group-104 affixes (1,464 / 6,145
+on `3.1.1.72836`) carry a `Name` (the rest are unnamed system/internal
+affixes). Affix magnitude/operation modeling is the consumer's (glyph-affix
+magnitudes are §7.4), as is any `"Aspect …"` composition around the raw
+display name. Anchors: affix `578755` (`Legendary_Barb_110`) → Name
+`of Limitless Rage`; affix `2586362` → Desc `Your attacks Critically
+Strike …`, no `Name`. Surface: `Diablo4Storage.ReadAffix(int, locale)`
+(both fields on `AffixDefinition`) + `TryReadAffixName(int, out string,
+locale)` (name without a full decode — the affix analogue of
+`TryReadParagonBoardName`). CL-22, CL-87.
 
 ### 11.4 `ItemDefinition` (group 73, `.itm`)
 
@@ -2036,6 +2045,26 @@ derived from FR-C14 R8's `snoTiledStyle` crack and R10's variant
 
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
+
+- **CL-87 — `AffixDefinition.Name` + `Diablo4Storage.TryReadAffixName`
+  (FR-C30 on `casc-fr#42`).** The §11.3 affix reader already resolved
+  the sibling `Affix_<snoName>` table's `Desc` label; the same table
+  also carries a `Name` label (the localized display name) that was
+  simply never surfaced. CL-87 adds `AffixDefinition.Name` (read
+  alongside `Description` in `ReadAffix`) and the standalone
+  `TryReadAffixName(int, out string, locale)` — the affix analogue of
+  the §6.4 `TryReadParagonBoardName`, name-keyed via `CoreToc`, raw
+  value only, honest `false`/`Empty` when the affix has no `Name`.
+  Consumer motivation: aspect display names (`"Aspect of …"`) are absent
+  from Maxroll's `data.min.json` (desc-only) and from `CoreTOC.dat` (only
+  the internal slug), making this the sole first-party name source; the
+  consumer owns the `"Aspect"` composition around the raw fragment. On
+  `3.1.1.72836` (Season 14) 1,464 / 6,145 group-104 affixes carry a
+  `Name`; the remainder are unnamed system/internal affixes → honest
+  empty. Anchors: `578755` `Legendary_Barb_110` → `of Limitless Rage`,
+  `1199626` `Legendary_Barb_109` → `Devilish`, charm `2586362` Desc-only
+  → empty `Name` + `false`. No byte-layout change — pure sibling-label
+  surface. Devlog 0082.
 
 - **CL-86 — `ParagonGlyphDefinition.LocalizedTitle` sibling-StringList
   pattern switch (FR-C24 Headhunter counter-round on `casc-fr#36`).**

@@ -755,6 +755,16 @@ public sealed class Diablo4StorageIntegrationTests
         var aff = d4.ReadAffix(2586362);    // Talisman_Charm_Affix_1HAxe_Unique_Generic_001
         Assert.Equal(2586362, aff.SnoId);
         Assert.StartsWith("Your attacks Critically Strike", aff.Description);
+        // FR-C30 / CL-87 — sibling Name label (display name) alongside Desc.
+        // This charm affix is Desc-only (no Name) → honest empty sentinel.
+        Assert.Equal(string.Empty, aff.Name);
+        Assert.False(d4.TryReadAffixName(2586362, out _));
+        // Named affixes resolve the display name via the same sibling table.
+        Assert.Equal("of Limitless Rage",                   // Legendary_Barb_110
+            d4.ReadAffix(578755).Name);
+        Assert.True(d4.TryReadAffixName(1199626, out var devilish));  // Legendary_Barb_109
+        Assert.Equal("Devilish", devilish);
+        Assert.Equal("Devilish", d4.ReadAffix(1199626).Name);
 
         // Item (group 73): sibling Item_<snoName> Name/Flavor/TransmogName.
         var item = d4.ReadItem(223287);     // 1HAxe_Unique_Generic_001

@@ -1,6 +1,6 @@
 # Diablo4Storage.ReadAffix method
 
-Read + decode an [`AffixDefinition`](../AffixDefinition.md) by SNO id (group Affix = 104): identity + the localized `Desc` from the sibling `Affix_<snoName>` StringList table (§11.3 / CL-22).
+Read + decode an [`AffixDefinition`](../AffixDefinition.md) by SNO id (group Affix = 104): identity + the localized `Name` and `Desc` from the sibling `Affix_<snoName>` StringList table (§11.3 / CL-87 / CL-22). Each localized field is an honest empty sentinel when its label is absent (many system/internal affixes carry a `Desc` but no `Name`).
 
 ```csharp
 public AffixDefinition ReadAffix(int id, string locale = "enUS")
