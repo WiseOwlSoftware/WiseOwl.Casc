@@ -1577,6 +1577,48 @@ switch (cmd)
         }
         return 0;
     }
+    case "affixdump":
+    {
+        // LIB-3 recon: dump a g104 affix's struct fields + every VLA (8-byte
+        // descriptor dataOff@+0/size@+4) with its contents, to map the effect
+        // layout. affixdump <sno> [structbytes=0x100]
+        if (argv.Count < 2) { Console.Error.WriteLine("affixdump <sno> [structbytes]"); return 2; }
+        int asno = int.Parse(argv[1]);
+        int structBytes = argv.Count > 2 ? Convert.ToInt32(argv[2], 16) : 0x100;
+        if (!d4.TryReadSno(104, asno, SnoFolder.Meta, out var b)) { Console.WriteLine("no content"); return 1; }
+        var r = new SnoRecord(b);
+        int len = b.Length, pb = SnoRecord.DefaultPayloadBase;
+        Console.WriteLine($"affix {asno} len={len}");
+        Console.WriteLine("-- struct fields (payloadOff: int | float) --");
+        for (int o = 0; o < structBytes && pb + o + 4 <= len; o += 4)
+        {
+            uint u = r.U32(o); float f = r.F32(o);
+            string fs = (u != 0 && Math.Abs(f) is > 1e-3f and < 1e7f) ? $" f={f:0.###}" : "";
+            string vla = "";
+            // 8-byte VLA descriptor heuristic: dataOff in data region, size>0, fits.
+            if (o + 8 <= structBytes) { int d0 = (int)u, d1 = (int)r.U32(o + 4);
+                if (d0 >= structBytes && d0 < len - pb && d1 > 0 && d1 % 4 == 0 && pb + d0 + d1 <= len)
+                    vla = $"  <VLA dataOff=0x{d0:X} size={d1}>"; }
+            if (u != 0 || vla.Length > 0)
+                Console.WriteLine($"  +0x{o:X2}: {(int)u,11} (0x{u:X8}){fs}{vla}");
+        }
+        // Dump each detected VLA's contents.
+        Console.WriteLine("-- VLA contents --");
+        for (int o = 0; o + 8 <= structBytes && pb + o + 8 <= len; o += 4)
+        {
+            int d0 = r.I32(o), d1 = r.I32(o + 4);
+            if (!(d0 >= structBytes && d0 < len - pb && d1 > 0 && d1 % 4 == 0 && pb + d0 + d1 <= len)) continue;
+            var sb = new System.Text.StringBuilder();
+            for (int k = 0; k < d1 / 4 && k < 32; k++)
+            {
+                uint u = r.U32(d0 + k * 4); float f = r.F32(d0 + k * 4);
+                string fs = (u != 0 && Math.Abs(f) is > 1e-3f and < 1e7f) ? $"={f:0.##}f" : "";
+                sb.Append($"{(int)u}{fs} ");
+            }
+            Console.WriteLine($"  desc@+0x{o:X2} -> dataOff=0x{d0:X} size={d1}: [{sb.ToString().Trim()}]");
+        }
+        return 0;
+    }
     case "locate":
     {
         // LIB-2: exercise the install auto-detector.
