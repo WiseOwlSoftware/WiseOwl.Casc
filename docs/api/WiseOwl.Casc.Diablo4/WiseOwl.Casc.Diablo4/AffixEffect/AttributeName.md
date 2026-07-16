@@ -1,6 +1,6 @@
 # AffixEffect.AttributeName property
 
-The resolved localized attribute display name (via [`GetAttributeName`](../Diablo4Storage/GetAttributeName.md)), or Empty when the id is unresolved or the affix was decoded byte-only via [`Parse`](../AffixDefinition/Parse.md).
+The resolved attribute display name — the localized engine name (via [`GetAttributeName`](../Diablo4Storage/GetAttributeName.md)) for a positive id, or the `DataAttributes` designer token (via [`TryGetDataAttributeName`](../Diablo4Storage/TryGetDataAttributeName.md), flagged by [`IsDataDefinedAttribute`](./IsDataDefinedAttribute.md)) for a negative id — or Empty when unresolved or the affix was decoded byte-only via [`Parse`](../AffixDefinition/Parse.md).
 
 ```csharp
 public string AttributeName { get; set; }

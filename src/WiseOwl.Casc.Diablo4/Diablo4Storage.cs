@@ -1345,10 +1345,14 @@ public sealed class Diablo4Storage : IDisposable
         TryReadSiblingString(SnoGroup.Affix, id, "Affix_", "Desc", locale, out var d);
         a.SetName(n);
         a.SetDescription(d);
-        // CL-92 (LIB-3) — resolve each effect's attribute name via the
-        // season-robust compound resolver (handles tag-conditional params).
+        // CL-92 (LIB-3) / CL-94 — resolve each effect's attribute name: the
+        // season-robust engine resolver for a positive id (handles
+        // tag-conditional params), or the DataAttributes designer token for a
+        // flag-namespaced (negative) id (CL-93 — a disjoint namespace).
         a.ResolveEffectNames((attrId, param) =>
-            GetAttributeName(attrId, param, locale));
+            attrId < 0
+                ? (TryGetDataAttributeName(attrId, out var dataName) ? dataName : null)
+                : GetAttributeName(attrId, param, locale));
         return a;
     }
 

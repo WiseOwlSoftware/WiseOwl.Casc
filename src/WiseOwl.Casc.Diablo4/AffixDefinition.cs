@@ -56,12 +56,23 @@ public sealed class AffixDefinition
     /// within a modifier record.</summary>
     private const int ModifierParamOffset = 28;
 
-    private readonly AffixEffect[] _effects;
+    /// <summary>Byte offset of the value-formula GBID (slot <c>idx16</c>)
+    /// within a modifier record.</summary>
+    private const int ModifierFormulaGbidOffset = 64;
 
-    private AffixDefinition(int snoId, AffixEffect[] effects)
+    /// <summary>Payload offset of the <c>"Static Value N"</c>
+    /// <c>DT_VARIABLEARRAY[float]</c> descriptor (<c>dataOff@+0xC0</c> /
+    /// <c>byteSize@+0xC4</c>).</summary>
+    private const int StaticValuesDescriptorOffset = 0xC0;
+
+    private readonly AffixEffect[] _effects;
+    private readonly float[] _staticValues;
+
+    private AffixDefinition(int snoId, AffixEffect[] effects, float[] staticValues)
     {
         SnoId = snoId;
         _effects = effects;
+        _staticValues = staticValues;
     }
 
     /// <summary>The affix's own SNO id (== the CoreTOC id).</summary>
@@ -90,16 +101,31 @@ public sealed class AffixDefinition
     /// for the byte layout and the magnitude/operation boundary.</summary>
     public IReadOnlyList<AffixEffect> Effects => _effects;
 
+    /// <summary>CL-94 — the affix's <c>"Static Value N"</c> scalars: the
+    /// fixed, non-rolled numbers set/mythic/unique-power affixes carry
+    /// (decoded from the <c>DT_VARIABLEARRAY[float]</c> at payload
+    /// <c>+0xC0</c>), indexed positionally to match the affix
+    /// <see cref="Description"/>'s <c>[Affix."Static Value <i>N</i>"]</c>
+    /// placeholders. Each entry is a <b>distinct quantity</b> (a threshold,
+    /// duration, percent, …), <i>not</i> a min/max of one stat — e.g. a
+    /// Barbarian set power's <c>[100 Fury, 50%, 20%, 120%]</c>. Empty (never
+    /// <see langword="null"/>) for the majority of affixes, whose magnitudes
+    /// are the item-power formula on each <see cref="AffixEffect.FormulaGbid"/>
+    /// instead. This is the reliable in-record float field; the rolled
+    /// per-item-power ranges are <i>not</i> literals here (see
+    /// <see cref="AffixEffect.FormulaGbid"/>).</summary>
+    public IReadOnlyList<float> StaticValues => _staticValues;
+
     /// <summary>Decode an Affix from its raw SNO blob (identity + the
-    /// structural <see cref="Effects"/>; the localized fields need
-    /// <see cref="CoreToc"/> — use
+    /// structural <see cref="Effects"/> + <see cref="StaticValues"/>; the
+    /// localized fields need <see cref="CoreToc"/> — use
     /// <see cref="Diablo4Storage.ReadAffix(int,string)"/>). On the byte-only
     /// path each effect's <see cref="AffixEffect.AttributeName"/> is
     /// <see cref="string.Empty"/>.</summary>
     public static AffixDefinition Parse(ReadOnlySpan<byte> blob)
     {
         var r = new SnoRecord(blob);
-        return new AffixDefinition(r.SnoId, ReadEffects(r));
+        return new AffixDefinition(r.SnoId, ReadEffects(r), ReadStaticValues(r));
     }
 
     private static AffixEffect[] ReadEffects(SnoRecord r)
@@ -123,9 +149,25 @@ public sealed class AffixDefinition
             // (high-bit-flagged) DataAttributes ordinal — see AffixEffect.
             if (attributeId is 0 or -1) continue;
             uint param = r.U32(baseOff + ModifierParamOffset);
-            effects.Add(new AffixEffect(attributeId, param, string.Empty));
+            uint formulaGbid = r.U32(baseOff + ModifierFormulaGbidOffset);
+            effects.Add(new AffixEffect(attributeId, param, formulaGbid, string.Empty));
         }
         return effects.Count == 0 ? [] : effects.ToArray();
+    }
+
+    private static float[] ReadStaticValues(SnoRecord r)
+    {
+        if (r.PayloadBase + StaticValuesDescriptorOffset + 8 > r.Length) return [];
+        int dataOff = r.I32(StaticValuesDescriptorOffset);
+        int byteSize = r.I32(StaticValuesDescriptorOffset + 4);
+        if (dataOff <= 0 || byteSize <= 0 || byteSize % 4 != 0) return [];
+        if (r.PayloadBase + dataOff + byteSize > r.Length) return [];
+
+        int count = byteSize / 4;
+        var values = new float[count];
+        for (int i = 0; i < count; i++)
+            values[i] = r.F32(dataOff + i * 4);
+        return values;
     }
 
     internal void SetName(string name) =>

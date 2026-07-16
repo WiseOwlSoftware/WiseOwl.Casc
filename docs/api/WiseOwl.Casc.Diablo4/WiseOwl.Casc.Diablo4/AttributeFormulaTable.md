@@ -14,6 +14,7 @@ public sealed class AttributeFormulaTable
 | [ByName](AttributeFormulaTable/ByName.md) { get; } | `name → primary formula text` (`arRanges[0].FormulaText`). |
 | [Entries](AttributeFormulaTable/Entries.md) { get; } | Every parsed formula entry, in file order. |
 | [SnoId](AttributeFormulaTable/SnoId.md) { get; } | The table's SNO id (201912 for the paragon table). |
+| [TryGetByGbid](AttributeFormulaTable/TryGetByGbid.md)(…) | CL-94 — resolve a full [`AttributeFormula`](./AttributeFormula.md) entry (its [`Name`](./AttributeFormula/Name.md) and per-`ItemPowerRangeStart`[`Ranges`](./AttributeFormula/Ranges.md)) directly from a `FormulaGbid` — a node's [`NodeAttribute`](./NodeAttribute.md) formula ref or an item affix's [`FormulaGbid`](./AffixEffect/FormulaGbid.md) (the value-by-item- power curve). Returns `false` for a gbid absent from the table (e.g. [`NoFormula`](./AffixEffect/NoFormula.md) or a non-formula gbid). |
 | [TryGetFormulaText](AttributeFormulaTable/TryGetFormulaText.md)(…) | Resolve a formula's primary source text by name. |
 | [TryGetNameByGbid](AttributeFormulaTable/TryGetNameByGbid.md)(…) | Resolve a formula name from a node's `FormulaGbid` (keyed on `GbidHash(szName)` — the entry's identity). |
 | const [AttributeFormulasType](AttributeFormulaTable/AttributeFormulasType.md) | The `eGameBalanceType` value this reader handles. |

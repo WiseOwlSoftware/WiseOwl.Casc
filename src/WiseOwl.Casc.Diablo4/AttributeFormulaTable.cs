@@ -66,16 +66,19 @@ public sealed class AttributeFormulaTable
 
     private readonly Dictionary<string, string> _byName;
     private readonly Dictionary<uint, string> _nameByGbid;
+    private readonly Dictionary<uint, AttributeFormula> _entryByGbid;
     private readonly AttributeFormula[] _entries;
 
     private AttributeFormulaTable(
         int snoId, AttributeFormula[] entries,
-        Dictionary<string, string> byName, Dictionary<uint, string> nameByGbid)
+        Dictionary<string, string> byName, Dictionary<uint, string> nameByGbid,
+        Dictionary<uint, AttributeFormula> entryByGbid)
     {
         SnoId = snoId;
         _entries = entries;
         _byName = byName;
         _nameByGbid = nameByGbid;
+        _entryByGbid = entryByGbid;
     }
 
     /// <summary>The table's SNO id (201912 for the paragon table).</summary>
@@ -102,6 +105,21 @@ public sealed class AttributeFormulaTable
     {
         var ok = _nameByGbid.TryGetValue(gbid, out var v);
         name = v ?? string.Empty;
+        return ok;
+    }
+
+    /// <summary>CL-94 — resolve a full <see cref="AttributeFormula"/> entry
+    /// (its <see cref="AttributeFormula.Name"/> and per-<c>ItemPowerRangeStart</c>
+    /// <see cref="AttributeFormula.Ranges"/>) directly from a
+    /// <c>FormulaGbid</c> — a node's <see cref="NodeAttribute"/> formula ref or
+    /// an item affix's <see cref="AffixEffect.FormulaGbid"/> (the value-by-item-
+    /// power curve). Returns <see langword="false"/> for a gbid absent from the
+    /// table (e.g. <see cref="AffixEffect.NoFormula"/> or a non-formula
+    /// gbid).</summary>
+    public bool TryGetByGbid(uint gbid, out AttributeFormula formula)
+    {
+        var ok = _entryByGbid.TryGetValue(gbid, out var v);
+        formula = v!;
         return ok;
     }
 
@@ -133,6 +151,7 @@ public sealed class AttributeFormulaTable
         var entries = new AttributeFormula[entryCount];
         var byName = new Dictionary<string, string>(entryCount, StringComparer.Ordinal);
         var nameByGbid = new Dictionary<uint, string>(entryCount);
+        var entryByGbid = new Dictionary<uint, AttributeFormula>(entryCount);
 
         for (var i = 0; i < entryCount; i++)
         {
@@ -162,9 +181,10 @@ public sealed class AttributeFormulaTable
             {
                 byName[name] = ranges.Length > 0 ? ranges[0].FormulaText : string.Empty;
                 nameByGbid.TryAdd(gbid, name);
+                entryByGbid.TryAdd(gbid, entries[i]);
             }
         }
 
-        return new AttributeFormulaTable(snoId, entries, byName, nameByGbid);
+        return new AttributeFormulaTable(snoId, entries, byName, nameByGbid, entryByGbid);
     }
 }

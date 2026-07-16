@@ -915,6 +915,25 @@ switch (cmd)
             Console.WriteLine(gbf.TryGetFormulaText(s, out var t) ? $"  {s} = \"{t}\"" : $"  {s} = (not in table)");
         return 0;
     }
+    case "formulagbid":
+    {
+        // LIB-3 R2: resolve a GBID (e.g. an affix modifier idx16) via the
+        // AttributeFormulas table and dump the full entry — every arRanges row
+        // (ItemPowerRangeStart, RangeValue1/2, FormulaText). Tests whether the
+        // affix idx16 keys the item-power value curve. formulagbid <hex...>
+        if (argv.Count < 2) { Console.Error.WriteLine("formulagbid <hex...>"); return 2; }
+        var gbg = d4.ReadAttributeFormulas();
+        foreach (var s in argv.Skip(1))
+        {
+            uint g = Convert.ToUInt32(s.Replace("0x", "", StringComparison.OrdinalIgnoreCase), 16);
+            if (!gbg.TryGetNameByGbid(g, out var nm)) { Console.WriteLine($"  0x{g:X8} -> (not in AttributeFormulas)"); continue; }
+            var entry = gbg.Entries.First(e => e.Name == nm);
+            Console.WriteLine($"  0x{g:X8} -> {nm}  ({entry.Ranges.Count} range(s))");
+            foreach (var rg in entry.Ranges)
+                Console.WriteLine($"      itemPower>={rg.ItemPowerRangeStart,4}  v1={rg.RangeValue1:0.####}  v2={rg.RangeValue2:0.####}  \"{rg.FormulaText}\"");
+        }
+        return 0;
+    }
     case "nodeinfo":
     {
         // nodeinfo <nodeSno...> — full decoded ParagonNode dump (dogfoods the
@@ -1691,6 +1710,7 @@ switch (cmd)
             int id = int.Parse(s);
             AffixDefinition a;
             try { a = d4.ReadAffix(id); } catch (Exception ex) { Console.WriteLine($"{id}: {ex.Message}"); continue; }
+            var gbf = d4.ReadAttributeFormulas();
             string nm = a.Name.Length > 0 ? a.Name : "(no name)";
             Console.WriteLine($"{id} {nm}  [{a.Effects.Count} effect(s)]");
             if (a.Description.Length > 0) Console.WriteLine($"    desc: {a.Description.Replace("\n", " ")}");
@@ -1698,8 +1718,15 @@ switch (cmd)
             {
                 string pn = e.HasParam ? $" param=0x{e.ParamPlus12:X8}" : "";
                 string an = e.AttributeName.Length > 0 ? e.AttributeName : "(unresolved)";
-                Console.WriteLine($"    attr {e.AttributeId,5}{pn} -> {an}");
+                string fg = e.FormulaGbid != AffixEffect.NoFormula
+                    ? (gbf.TryGetByGbid(e.FormulaGbid, out var fm)
+                        ? $"  formula={fm.Name} \"{fm.PrimaryText}\""
+                        : $"  formula=0x{e.FormulaGbid:X8}(unresolved)")
+                    : "";
+                Console.WriteLine($"    attr {e.AttributeId,5}{pn} -> {an}{fg}");
             }
+            if (a.StaticValues.Count > 0)
+                Console.WriteLine($"    StaticValues: [{string.Join(", ", a.StaticValues)}]");
         }
         return 0;
     }

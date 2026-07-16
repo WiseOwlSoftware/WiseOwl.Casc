@@ -2014,30 +2014,37 @@ absent — a shifted id returns an honest `null` rather than a wrong name (the
 CL-93 FR-C31 fix: live glyph-affix refs to pre-shift id `1124` had resolved to
 `"Barrier Generation"` on a damage-while-Healthy affix).
 
-**Magnitude & operation stay the consumer's / engine's (boundary, verified).**
-There is **no `(min,max)` float pair** at any structural position in the affix
-record. For the bulk of stat affixes (CoreStat / Resistance / DamageReduction)
-the roll magnitude is **not in the record at all** — it is item-power-curve
-driven, keyed by the `idx16` formula GBID (the only in-record float is a
-constant `1.0` flag at the `+0x38` VLA `idx1`). Explicit in-record floats
-occur only as **single fixed scalars** (set/unique powers, never a stat's
-min/max): the reliable one is the `"Static Value N"` `float32` VLA whose
-descriptor is at fixed struct `+0xC0` (`count = size/4`, positional). The
-**operation** (additive / percent / multiplicative) has *no* structural
-discriminator either — additive-vs-multiplicative twins of the same stat
-(`252` vs `253`, `707` vs `708`, `736` vs `737`) are byte-identical in all 26
-slots except `idx4`; combine semantics are intrinsic to the AttributeId
-identity (the `Multiplicative_*` / `_Percent` attribute) plus the `Desc`
-format. Both are surfaced only implicitly (via `AttributeName` + `Description`)
-per the durable boundary (Appendix C). Surface: `AffixDefinition.Effects`
-(`IReadOnlyList<AffixEffect>`); each `AffixEffect` carries
-`AttributeId` / `ParamPlus12` / resolved `AttributeName`
-(`HasParam`, `IsDataDefinedAttribute`, `DataAttributeOrdinal`). Names are
-resolved by `ReadAffix` via the season-robust `GetAttributeName(int, uint,
-locale)`; byte-only `Parse` leaves them empty. Anchors: `2590254`
-(CriticalHitChance) → 1 effect attr `275` "Critical Strike Chance";
-`928841` (Resistance_Dual_ColdLightning) → 2 effects attr `74` param `3`/`2`;
-`1234184` (INHERENT_Thorns) → attr `373` "Thorns". CL-92.
+**Value range — the `idx16` formula GBID → item-power roll curve (CL-94).**
+There is no literal `(min,max)` float pair anywhere in the affix record; the
+rolled magnitude is **item-power-curve driven**, and `idx16` (`AffixEffect.FormulaGbid`)
+is the key: it is the `GbidHash` of an `AttributeFormulas` (SNO `201912`,
+§8) entry name, resolvable via `AttributeFormulaTable.TryGetByGbid(gbid, out
+formula)`. The entry's `arRanges` give, per `ItemPowerRangeStart`, the
+`DT_STRING_FORMULA` source text the game rolls from — e.g. `GearAffix_CritChance
+→ "FloatRandomRangeWithInterval(1,0.5,1)/100"` at low item power, `…(1,3,3.5)/100`
+at high; `AffixCoreStat1x` / `AffixInversePercentage*` / `GearAffix_AttackSpeed`
+similarly. The min/max a UI prints comes from **evaluating** that text at a given
+`IPower()`; the library exposes the raw formula (it never evaluates — same
+boundary as the paragon magnitudes, Appendix C). The one **literal** in-record
+float field is the `"Static Value N"` `float32` VLA at fixed struct `+0xC0`
+(`count = size/4`, positional → the `Desc`'s `[Affix."Static Value N"]`
+placeholders) — set/mythic/unique fixed scalars, each a distinct quantity, on
+`AffixDefinition.StaticValues` (empty for rollable stat affixes). **Operation**
+(additive / percent / multiplicative) has *no* structural discriminator —
+additive-vs-multiplicative twins of the same stat (`252` vs `253`, `707` vs
+`708`, `736` vs `737`) are byte-identical in all 26 slots except `idx4`; combine
+semantics are intrinsic to the AttributeId identity (the `Multiplicative_*` /
+`_Percent` attribute name) plus the `Desc` format, surfaced implicitly via
+`AttributeName` + `Description`. Surface: `AffixDefinition.Effects`
+(`IReadOnlyList<AffixEffect>`, each `AttributeId` / `ParamPlus12` / `FormulaGbid`
+/ resolved `AttributeName` + `HasParam` / `IsDataDefinedAttribute` /
+`DataAttributeOrdinal`) + `AffixDefinition.StaticValues`. Names resolved by
+`ReadAffix`: `GetAttributeName(int, uint, locale)` for positive ids,
+`TryGetDataAttributeName` for negative (DataAttributes) ids (CL-94); byte-only
+`Parse` leaves them empty. Anchors: `2590254` (CriticalHitChance) → attr `275`
+"Critical Strike Chance", formula `GearAffix_CritChance`; `928841`
+(Resistance_Dual_ColdLightning) → 2 effects attr `74` param `3`/`2`; `2292505`
+(SetPower_Barb01_01) → `StaticValues [100,50,20,120]`. CL-92, CL-94.
 
 ### 11.4 `ItemDefinition` (group 73, `.itm`)
 
@@ -2267,6 +2274,21 @@ armor, …). Structural — no name parsing.
 
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
+
+- **CL-94 — affix value range: `idx16` → the item-power roll formula (LIB-3
+  R2, `casc-fr#45`).** The modifier `idx16` GBID (`AffixEffect.FormulaGbid`,
+  byte `+64`) is the `GbidHash` of an `AttributeFormulas` (SNO 201912) entry —
+  the affix's **value-by-item-power** curve, resolvable via the new
+  `AttributeFormulaTable.TryGetByGbid(gbid, out formula)` (verified: crit affix
+  → `GearAffix_CritChance` → `"FloatRandomRangeWithInterval(1,0.5,1)/100"`;
+  `AffixCoreStat1x`; `GearAffix_AttackSpeed`). So the value range is
+  **data-driven, not engine-coded** — the library exposes the raw per-
+  `ItemPowerRangeStart` formula text; evaluation stays the consumer's (paragon
+  magnitude boundary). Also shipped: `AffixDefinition.StaticValues` — the
+  `"Static Value N"` `float32` VLA at struct `+0xC0` (set/unique fixed scalars,
+  `Desc`-indexed; `2292505 → [100,50,20,120]`); and `AffixEffect.AttributeName`
+  now resolves **negative (DataAttributes) ids** via `TryGetDataAttributeName`
+  (was empty). §11.3.
 
 - **CL-93 — namespace-aware `GetAttributeName` + `DataAttributes`
   resolution; stop stale wrong-names (FR-C31/C32 + LIB-4,
