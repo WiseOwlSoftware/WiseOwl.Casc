@@ -1577,6 +1577,81 @@ switch (cmd)
         }
         return 0;
     }
+    case "f32grep":
+    {
+        // FR-C29: scan a group's Meta records for an IEEE-754 float within a
+        // relative tolerance; report SNO + offset + neighbouring floats (so a
+        // coefficient adjacent to a name-hash key surfaces). Reads whole group.
+        //   f32grep <value> [tolpct=0.5] [gid=20] [maxhits=200]
+        if (argv.Count < 2) { Console.Error.WriteLine("f32grep <value> [tolpct=0.5] [gid=20] [maxhits=200]"); return 2; }
+        double want = double.Parse(argv[1]);
+        double tol = (argv.Count > 2 ? double.Parse(argv[2]) : 0.5) / 100.0;
+        int fg = argv.Count > 3 ? int.Parse(argv[3]) : 20;
+        int fmax = argv.Count > 4 ? int.Parse(argv[4]) : 200;
+        double lo = want - Math.Abs(want) * tol - 1e-12, hi = want + Math.Abs(want) * tol + 1e-12;
+        int hits = 0, scanned = 0;
+        foreach (var e in toc.Entries)
+        {
+            if (fg >= 0 && (int)e.Group != fg) continue;
+            if (!d4.TryReadSno((int)e.Group, e.Id, SnoFolder.Meta, out var b)) continue;
+            scanned++;
+            for (int i = 0; i + 4 <= b.Length; i += 4)
+            {
+                float f = BitConverter.ToSingle(b, i);
+                if (!(f >= lo && f <= hi)) continue;
+                var sb = new System.Text.StringBuilder();
+                for (int j = -8; j <= 12; j += 4)
+                {
+                    int o = i + j; if (o < 0 || o + 4 > b.Length) { sb.Append("        .   "); continue; }
+                    uint u = BitConverter.ToUInt32(b, o); float g = BitConverter.ToSingle(b, o);
+                    string gv = (u != 0 && Math.Abs(g) is > 1e-5f and < 1e8f) ? $"={g:0.####}" : "";
+                    sb.Append(j == 0 ? "[" : " ").Append($"{u:X8}{gv}").Append(j == 0 ? "]" : "");
+                }
+                Console.WriteLine($"g{(int)e.Group} {e.Id,9} @0x{i:X4} {sb}  {e.Name}");
+                if (++hits >= fmax) { Console.WriteLine("-- maxhits --"); goto donef; }
+            }
+        }
+        donef:
+        Console.WriteLine($"-- {hits} hit(s) for {want} (±{tol*100}%) over {scanned} SNO(s) in group {fg} --");
+        return 0;
+    }
+    case "hashgrep":
+    {
+        // FR-C29 name-hash-grep: hash candidate names (fieldHash/gbid/typeHash),
+        // grep a group's Meta for any 32-bit-aligned match; cluster by SNO with
+        // the adjacent float (a coefficient bound to a named engine field).
+        //   hashgrep <gid> <name...>   (gid=-1 scans every group)
+        if (argv.Count < 3) { Console.Error.WriteLine("hashgrep <gid> <name...>"); return 2; }
+        int hg = int.Parse(argv[1]);
+        var targets = new Dictionary<uint, string>();
+        foreach (var nm in argv.Skip(2))
+        {
+            void T(uint h, string kind) { if (h > 0xFFFF) targets.TryAdd(h, $"{nm}[{kind}]"); }
+            T(Diablo4.FieldHash(nm), "field"); T(Diablo4.TypeHash(nm), "type"); T(Diablo4.GbidHash(nm), "gbid");
+        }
+        Console.WriteLine($"{targets.Count} target hash(es) from {argv.Count - 2} name(s)");
+        int hits = 0, scanned = 0;
+        foreach (var e in toc.Entries)
+        {
+            if (hg >= 0 && (int)e.Group != hg) continue;
+            if (!d4.TryReadSno((int)e.Group, e.Id, SnoFolder.Meta, out var b)) continue;
+            scanned++;
+            for (int i = 0; i + 4 <= b.Length; i += 4)
+            {
+                uint u = BitConverter.ToUInt32(b, i);
+                if (!targets.TryGetValue(u, out var who)) continue;
+                bool hasNext = i + 8 <= b.Length;
+                float adj = hasNext ? BitConverter.ToSingle(b, i + 4) : 0;
+                string av = Math.Abs(adj) is > 1e-5f and < 1e8f ? $"{adj:0.####}" : "";
+                uint next = hasNext ? BitConverter.ToUInt32(b, i + 4) : 0;
+                Console.WriteLine($"g{(int)e.Group} {e.Id,9} @0x{i:X4} = {who}  next=0x{next:X8} ({av})  {e.Name}");
+                if (++hits >= 400) goto doneh;
+            }
+        }
+        doneh:
+        Console.WriteLine($"-- {hits} hit(s) over {scanned} SNO(s) in group {hg} --");
+        return 0;
+    }
     default:
         Console.Error.WriteLine($"unknown command '{cmd}'");
         return 2;
