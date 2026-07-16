@@ -1,4 +1,19 @@
-# Diablo4Storage.OpenAsync method
+# Diablo4Storage.OpenAsync method (1 of 2)
+
+Open the auto-detected local Diablo IV installation asynchronously (see [`Open`](./Open.md)).
+
+```csharp
+public static Task<Diablo4Storage> OpenAsync(CancellationToken cancellationToken = default)
+```
+
+## See Also
+
+* class [Diablo4Storage](../Diablo4Storage.md)
+* namespace [WiseOwl.Casc.Diablo4](../../WiseOwl.Casc.Diablo4.md)
+
+---
+
+# Diablo4Storage.OpenAsync method (2 of 2)
 
 Open a local Diablo IV installation asynchronously.
 

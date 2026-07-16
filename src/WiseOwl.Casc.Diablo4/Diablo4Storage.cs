@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -91,6 +93,134 @@ public sealed class Diablo4Storage : IDisposable
     public static Task<Diablo4Storage> OpenAsync(
         string installPath, CancellationToken cancellationToken = default) =>
         Task.Run(() => Open(installPath), cancellationToken);
+
+    /// <summary>Environment variable that overrides install auto-detection
+    /// (<see cref="TryLocateInstall"/>) — set it to a Diablo IV install root.</summary>
+    public const string InstallPathEnvironmentVariable = "WISEOWL_CASC_INSTALL";
+
+    /// <summary>Open the local Diablo IV installation, auto-detecting its
+    /// location (see <see cref="TryLocateInstall"/>). Throws
+    /// <see cref="CascException"/> when none can be found — use
+    /// <see cref="Open(string)"/> with an explicit path for a custom or
+    /// non-Windows install.</summary>
+    public static Diablo4Storage Open() => Open(LocateInstall());
+
+    /// <summary>Open the auto-detected local Diablo IV installation
+    /// asynchronously (see <see cref="Open()"/>).</summary>
+    public static Task<Diablo4Storage> OpenAsync(CancellationToken cancellationToken = default) =>
+        Task.Run(() => Open(), cancellationToken);
+
+    /// <summary>Resolve the local Diablo IV install root without opening it —
+    /// the <see cref="InstallPathEnvironmentVariable"/> override first, then (on
+    /// Windows) the registry: the Battle.net uninstall entry
+    /// <c>HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Diablo IV</c>
+    /// → <c>InstallLocation</c>. A candidate is accepted only when it carries a
+    /// <c>.build.info</c> (a real CASC install). Returns <see langword="false"/>
+    /// when none is found (no install, or a non-Windows host with no
+    /// override).</summary>
+    /// <param name="installPath">The resolved install root, or
+    /// <see langword="null"/>.</param>
+    public static bool TryLocateInstall([NotNullWhen(true)] out string? installPath)
+    {
+        if (IsCascInstall(Environment.GetEnvironmentVariable(InstallPathEnvironmentVariable), out var env))
+        {
+            installPath = env;
+            return true;
+        }
+        if (OperatingSystem.IsWindows() && IsCascInstall(ReadRegistryInstallLocation(), out var reg))
+        {
+            installPath = reg;
+            return true;
+        }
+        installPath = null;
+        return false;
+    }
+
+    /// <summary>Resolve the install root or throw a clear
+    /// <see cref="CascException"/> (see <see cref="TryLocateInstall"/>).</summary>
+    private static string LocateInstall() =>
+        TryLocateInstall(out var path)
+            ? path
+            : throw new CascException(
+                "Could not locate a Diablo IV installation. Set the " +
+                InstallPathEnvironmentVariable +
+                " environment variable, or call Open(installPath) with an explicit path.");
+
+    /// <summary>A path is a Diablo IV install when it exists and carries the
+    /// <c>.build.info</c> CASC marker.</summary>
+    private static bool IsCascInstall(string? candidate, [NotNullWhen(true)] out string? path)
+    {
+        if (!string.IsNullOrWhiteSpace(candidate) &&
+            File.Exists(Path.Combine(candidate, ".build.info")))
+        {
+            path = candidate;
+            return true;
+        }
+        path = null;
+        return false;
+    }
+
+    /// <summary>The Battle.net uninstall keys carrying the Diablo IV
+    /// <c>InstallLocation</c> — the 64-bit view and the WOW6432Node (32-bit)
+    /// view the Battle.net installer typically writes.</summary>
+    private static readonly string[] UninstallKeys =
+    [
+        @"HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Diablo IV",
+        @"HKLM\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Diablo IV",
+    ];
+
+    /// <summary>Read <c>Uninstall\Diablo IV\InstallLocation</c> via <c>reg.exe</c>
+    /// (dependency-free; Windows-only), trying both the native and 32-bit
+    /// registry views. Returns <see langword="null"/> on any failure (key
+    /// absent, access denied, reg.exe missing).</summary>
+    private static string? ReadRegistryInstallLocation()
+    {
+        foreach (var key in UninstallKeys)
+            if (QueryRegistrySz(key, "InstallLocation") is { } value)
+                return value;
+        return null;
+    }
+
+    private static string? QueryRegistrySz(string keyPath, string valueName)
+    {
+        try
+        {
+            var psi = new ProcessStartInfo("reg")
+            {
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+            psi.ArgumentList.Add("query");
+            psi.ArgumentList.Add(keyPath);       // space in "Diablo IV" quoted by ArgumentList
+            psi.ArgumentList.Add("/v");
+            psi.ArgumentList.Add(valueName);
+
+            using var process = Process.Start(psi);
+            if (process is null) return null;
+            string output = process.StandardOutput.ReadToEnd();
+            if (!process.WaitForExit(5000))
+            {
+                try { process.Kill(); } catch { /* best effort */ }
+                return null;
+            }
+            // A value line reads: "    InstallLocation    REG_SZ    D:\Diablo IV"
+            // — the path can contain spaces, so take everything after REG_SZ.
+            foreach (var line in output.Split('\n'))
+            {
+                if (!line.Contains(valueName, StringComparison.Ordinal)) continue;
+                int at = line.IndexOf("REG_SZ", StringComparison.Ordinal);
+                if (at >= 0) return line[(at + "REG_SZ".Length)..].Trim();
+            }
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception
+            or InvalidOperationException or IOException or SystemException)
+        {
+            // reg.exe unavailable / spawn failure → treat as "not found".
+        }
+        return null;
+    }
 
     /// <summary>Wrap an already-opened <see cref="CascStorage"/> as a
     /// Diablo IV view (the caller keeps ownership of the storage).</summary>

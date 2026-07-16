@@ -1404,4 +1404,23 @@ public sealed class TypedReaderTests
         Assert.Equal(2, byClass[ItemClass.Jewelry]);
         Assert.Equal(1, byClass[ItemClass.Charm]);
     }
+
+    // --- LIB-2 install auto-detection -------------------------------------
+
+    /// <summary>
+    /// LIB-2: <see cref="Diablo4Storage.TryLocateInstall"/> finds a real CASC
+    /// install (via the env override or the Windows registry) and the no-arg
+    /// <see cref="Diablo4Storage.Open()"/> opens it end-to-end. Skips when no
+    /// install is auto-detectable (e.g. CI).
+    /// </summary>
+    [SkippableFact]
+    public void LIB2_auto_detects_install_and_opens()
+    {
+        Skip.If(!Diablo4Storage.TryLocateInstall(out var path),
+            "No auto-detectable Diablo IV install.");
+        Assert.True(File.Exists(Path.Combine(path!, ".build.info")));
+
+        using var d4 = Diablo4Storage.Open();          // no-arg auto-detect
+        Assert.True(d4.CoreToc.Entries.Count > 100000);
+    }
 }

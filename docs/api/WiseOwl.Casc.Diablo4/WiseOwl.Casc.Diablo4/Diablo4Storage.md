@@ -11,6 +11,7 @@ public sealed class Diablo4Storage : IDisposable
 | name | description |
 | --- | --- |
 | static [Attach](Diablo4Storage/Attach.md)(…) | Wrap an already-opened CascStorage as a Diablo IV view (the caller keeps ownership of the storage). |
+| static [Open](Diablo4Storage/Open.md)() | Open the local Diablo IV installation, auto-detecting its location (see [`TryLocateInstall`](./Diablo4Storage/TryLocateInstall.md)). Throws CascException when none can be found — use [`Open`](./Diablo4Storage/Open.md) with an explicit path for a custom or non-Windows install. |
 | static [Open](Diablo4Storage/Open.md)(…) | Open a local Diablo IV installation. |
 | [Casc](Diablo4Storage/Casc.md) { get; } | The underlying game-agnostic CASC storage. |
 | [Catalog](Diablo4Storage/Catalog.md) { get; } | FR-C20 — the asset discovery/retrieval facade: find / enumerate (filtered) / retrieve any catalogued recipe or definition without hardcoding SNO ids/names. The typed accessors below are ergonomic shortcuts over the same providers. |
@@ -59,10 +60,12 @@ public sealed class Diablo4Storage : IDisposable
 | [TryReadTiledStyle](Diablo4Storage/TryReadTiledStyle.md)(…) | Try-read the tile-style record at *id*, returning `false` when the read or parse fails (typically because *id* is a small sentinel rather than a real SNO reference — see the `snoTiledStyle = 1 | 3 | 20` bindings observed in scene 657304). |
 | const [AttributeDescriptionsSno](Diablo4Storage/AttributeDescriptionsSno.md) | The canonical SNO id of the `AttributeDescriptions` StringList in StringList — the per-attribute display- name templates the engine renders tooltips from. |
 | const [DefaultLocale](Diablo4Storage/DefaultLocale.md) | The default locale (the one most installs ship enabled). |
+| const [InstallPathEnvironmentVariable](Diablo4Storage/InstallPathEnvironmentVariable.md) | Environment variable that overrides install auto-detection ([`TryLocateInstall`](./Diablo4Storage/TryLocateInstall.md)) — set it to a Diablo IV install root. |
 | const [ProductCode](Diablo4Storage/ProductCode.md) | The Diablo IV TACT product code. |
 | static [ExtensionFor](Diablo4Storage/ExtensionFor.md)(…) | The Diablo IV SNO-group → file-extension table (factual data, matching the current build). Unknown groups fall back to the numeric `.NNN` form the game uses. |
-| static [OpenAsync](Diablo4Storage/OpenAsync.md)(…) | Open a local Diablo IV installation asynchronously. |
+| static [OpenAsync](Diablo4Storage/OpenAsync.md)(…) | Open a local Diablo IV installation asynchronously. (2 methods) |
 | static [SnoPath](Diablo4Storage/SnoPath.md)(…) | The TVFS path a SNO resolves through: `<prefix>\<Folder>\<id>` (a child sub-id appends `-<subId>`). Verified empirically against the live build: Diablo IV addresses SNO content in TVFS by the numeric id — not by a `<group>\<name><ext>` name path and not by the `base:meta\<id>` colon form. |
+| static [TryLocateInstall](Diablo4Storage/TryLocateInstall.md)(…) | Resolve the local Diablo IV install root without opening it — the [`InstallPathEnvironmentVariable`](./Diablo4Storage/InstallPathEnvironmentVariable.md) override first, then (on Windows) the registry: the Battle.net uninstall entry `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Diablo IV` → `InstallLocation`. A candidate is accepted only when it carries a `.build.info` (a real CASC install). Returns `false` when none is found (no install, or a non-Windows host with no override). |
 
 ## Remarks
 
