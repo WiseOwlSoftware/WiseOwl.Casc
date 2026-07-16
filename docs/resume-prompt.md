@@ -7,7 +7,7 @@
 > layer) — each with its own correction log; `docs/devlog/` (the
 > narrative), `docs/ARTICLE-SOURCE.md` (wiseowl.com article source).
 
-## CURRENT STATE (2026-05-24, late) — read this first
+## CURRENT STATE (2026-07-15) — read this first
 
 The sections below this one ("Status (end of session 1)", the numbered
 "Next steps") are **historical** — accurate for their era but superseded
@@ -37,17 +37,18 @@ public repo; never commit it). Read CLAUDE.md before any FR action.
   CI checks pass, run `gh pr merge --squash --delete-branch`; no need
   to wait for owner to merge manually.
 
-### Active threads (2026-05-24 late, FR-C24 + FR-C28 delivered — 1 awaiting:casc)
+### Active threads (2026-07-15, FR-C30 delivered — 2 awaiting:casc, both RE-heavy)
 
-**1 awaiting:casc** open as the new-session start point:
+**2 awaiting:casc** open as the new-session start point (both open-ended RE, no quick surface):
 
 | # | FR | What's needed |
 |---|---|---|
-| 39 | FR-C27 — `DataAttributes` (sno 1907204) full registry RE | Deferred from CL-78 honesty note. 278 entries × 360 stride; entry layout `szName[256]@+0` + `gbid@+256` + ~104 bytes auxiliary; **AttributeId field offset within an entry not yet pinned**. First 40 entries are skill-keyed (`Flurry_Consume_*` / `BSK_Bonus_Int`) — find basic-stat entries (Strength etc.) to correlate the offset empirically. Would retire CL-78's curated `AttributeNames.LabelByAttributeId` map. |
+| 41 | FR-C29 — per-class character-stat derivation formulae | `fr:accepted`. Big multi-phase (per-class core→bonus coefficients, base/level scaling, composites, Torment multipliers). Owner relayed 2026-05-24: **search all non-identified data sources** — leads `LevelScaling` (206158), `DataAttributes` (1907204 = FR-C27, bundle if scalars co-located), `SimpleScalarFormulas` (2536879), `DamageMitigation` (1846727). Owner-suggested **name-hash-grep** short-circuit (DJB2 the in-game stat names → grep unidentified SNOs). If coefficients prove engine-coded, honest boundary → consumer hard-codes. Phase 1 first; Phase 2 (`LevelScaling`) / Phase 4 (`MonsterLevelCurves`) are incremental slices. |
+| 39 | FR-C27 — `DataAttributes` (sno 1907204) full registry RE | `fr:proposed`. Deferred from CL-78 honesty note. 278 entries × 360 stride; entry layout `szName[256]@+0` + `gbid@+256` + ~104 bytes auxiliary; **AttributeId field offset within an entry not yet pinned**. First 40 entries are skill-keyed (`Flurry_Consume_*` / `BSK_Bonus_Int`) — find basic-stat entries (Strength etc.) to correlate the offset empirically. Would retire CL-78's curated `AttributeNames.LabelByAttributeId` map. Coupled with FR-C29 (bundle if per-attr scalars co-located). |
 
-FR-C24 (`#36`) closed the slice 2b round and is now `awaiting:optimizer` (CL-84). FR-C28 (`#40`) is `awaiting:optimizer` (CL-85). All other FRs are `awaiting:optimizer` or `needs:owner` — see "Open casc-fr issues" further down.
+FR-C30 (`#42`) delivered this session (CL-87, `awaiting:optimizer`). FR-C24 (`#36`)/FR-C28 (`#40`) closed rounds, `awaiting:optimizer`. All other FRs are `awaiting:optimizer` or `needs:owner` — see "Open casc-fr issues" further down.
 
-### Recent CL trajectory (2026-05-22 → 2026-05-24)
+### Recent CL trajectory (2026-05-22 → 2026-07-15)
 
 All on `main`, all `unreleased` (no nupkg cut since `0.3.0-alpha`). Auto-merge after CI green is the new pattern; PRs are open ~minutes.
 
@@ -71,8 +72,9 @@ All on `main`, all `unreleased` (no nupkg cut since `0.3.0-alpha`). Auto-merge a
 | 84 | `d376b12` | #73 | FR-C24 slice 2b — `ParagonGlyphAffixDefinition` structural decode (`OperationKind`/`DisplayFactor`/`AffectedAttributes`/`Tags`/`LinkedPowerSnoId`/`AffectedRarityKind`); op-coupled byte layout. Closes FR-C24. |
 | 85 | `b226adb` | #74 | FR-C28 — tag-conditional `(AttributeId, ParamPlus12)` resolution; `AttributeNames.LabelByCompoundKey` (100+ entries / 17 attrs) + `GetAttributeName(int, uint, locale)`; 19 `Skill_<Tag>` GBIDs cracked. Closes FR-C28. |
 | 86 | `95e1150` | #75 | FR-C24 Headhunter counter-round — `ParagonGlyph_<SnoName>` sibling-StringList (non-`Item_`-prefixed) for `LocalizedTitle`; `Rare_<Stat>_Generic` shape now resolves (`Rare_Will_Generic` → "Headhunter"). |
+| 87 | `35649fe` | #76 | FR-C30 — `AffixDefinition.Name` + `Diablo4Storage.TryReadAffixName` (sibling `Affix_<sno>` StringList, label `Name`); mirror of `Desc`/`TryReadParagonBoardName`. Sole first-party source for aspect display names. 1,464/6,145 affixes named; honest empty otherwise. Pure sibling-label surface, no byte-layout change. |
 
-**Test count:** 127/127 green on `3.0.2.71886`.
+**Test count:** 123/127 green on the **live `3.1.1.72836` (Season 14)** install. ⚠️ **4 pre-existing failures are build-drift from the `3.0.2.71886 → 3.1.1.72836` season update, NOT regressions** — hardcoded exact-count / owner-oracle anchors that moved with the patch: `Acceptance_matrix_against_live_install` (`AttributeFormulas` 1038→**1040**), `StringListTests.Resolves_real_enUS_strings` (`AttributeDescriptions` 646→**650**), and the two `PowerDefinition_*_script_formulas` SF_N oracle tests. Count re-baselines are mechanical; the Power SF_N values were owner-confirmed and need owner re-validation before their anchors move → **open task: a Season-14 test re-baseline round.** All are `[SkippableFact]` integration tests → they *skip* in CI (no live install there), so CI stays green and auto-merge is unaffected. The FR-C30 affix assertions pass on the live build.
 
 ### FR-C21 — full node-info API (DELIVERED 2026-05-23)
 
@@ -232,6 +234,11 @@ Optimizer turn (7, all "awaiting:optimizer" or "needs:owner"):
 - **#38** FR-C26 — `fr:delivered`, `awaiting:optimizer` (consumer
   visual-close iteration).
 - **#40** FR-C28 — `fr:delivered` (CL-85), `awaiting:optimizer`.
+- **#42** FR-C30 — `fr:delivered` (CL-87, `35649fe`), `awaiting:optimizer`.
+- **#41** FR-C29 — `fr:accepted`, **`awaiting:casc`** (per-class stat
+  formulae; open-ended RE — see Active-threads table).
+- **#39** FR-C27 — `fr:proposed`, **`awaiting:casc`** (`DataAttributes`
+  registry RE; coupled to FR-C29).
 
 (Older `fr:consumed`-closed issues #22/24/25/27/29 etc. covered in
 the historical section below.)
@@ -239,14 +246,21 @@ the historical section below.)
 ### Suggested new-session ordering
 
 1. **Poll** — re-check `awaiting:casc` (this snapshot drifts as the
-   Optimizer's overnight session may have added counter-rounds).
-2. **CL-86 → FR-C27** — full `DataAttributes` (sno `1907204`) registry
-   RE. 278 entries × 360 stride; entry layout `szName[256]@+0` +
-   `gbid@+256` + ~104 bytes auxiliary; the AttributeId field offset
-   within an entry is the open recon target — basic-stat entries
-   (Strength etc.) are the best correlation point for finding it. Would
-   retire CL-78's curated `LabelByAttributeId` map and consolidate
-   attribute-name resolution to one data-driven source.
+   Optimizer's session may have added counter-rounds).
+2. **FR-C29 (#41) + FR-C27 (#39) are the two open RE threads** and are
+   coupled — both may hinge on the same `DataAttributes` (1907204) /
+   `LevelScaling` (206158) decode. Owner's directive on FR-C29: search
+   all non-identified sources, short-circuit via the name-hash-grep
+   technique (DJB2 the in-game stat/attribute names → grep unidentified
+   SNOs → cluster hits → cross-validate the adjacent float against the
+   expected coefficient). Start with `DataAttributes` (retires FR-C27's
+   curated map AND is a FR-C29 candidate if per-attr scalars co-locate),
+   then `LevelScaling` (Phase-2 baselines: Warlock@70 Life=1526 etc.),
+   then `SimpleScalarFormulas`/`DamageMitigation`. Ship as multi-slice
+   CLs (FR-C24 precedent); honest engine-coded boundary if the mine dries.
+3. **Season-14 test re-baseline** (housekeeping, non-blocking) — update
+   the 4 drifted anchors on the live `3.1.1.72836` suite; the two Power
+   SF_N tests need owner oracle re-validation first.
 
 ### Older FR issues (historical — all delivered or closed)
 
