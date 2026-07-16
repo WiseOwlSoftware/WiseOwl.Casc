@@ -7,7 +7,7 @@
 > layer) — each with its own correction log; `docs/devlog/` (the
 > narrative), `docs/ARTICLE-SOURCE.md` (wiseowl.com article source).
 
-## CURRENT STATE (2026-07-15) — read this first
+## CURRENT STATE (2026-07-16) — read this first
 
 The sections below this one ("Status (end of session 1)", the numbered
 "Next steps") are **historical** — accurate for their era but superseded
@@ -33,19 +33,30 @@ public repo; never commit it). Read CLAUDE.md before any FR action.
   work, schedule a fallback wake. **`needs:owner` is the only hard stop.**
   After >1 idle poll with nothing queued, do available work (cumulative
   hash-decode, deferred RE) — owner-approved standing directive.
-- **Auto-merge on CI green** (owner directive 2026-05-23): after a PR's
-  CI checks pass, run `gh pr merge --squash --delete-branch`; no need
-  to wait for owner to merge manually.
+- **Merge on CI green** (owner directive 2026-05-23): after a PR's CI
+  checks pass, `gh pr merge <n> --squash --delete-branch`; no need to wait
+  for owner. **GitHub auto-merge is NOT enabled on this repo** (`--auto`
+  → "Auto merge is not allowed"), so the pattern is: `gh pr checks <n>
+  --watch --interval 20` (do **not** add `--fail-fast` — it can exit 0
+  before checks register, racing ahead), then merge manually. Branch
+  protection requires the `Build & test` + `API docs in sync` checks
+  (integration tests `[SkippableFact]`-skip in CI, so they never gate).
+  Doc-only changes push straight to `main` (no PR).
 
-### 🚀 0.4.0 release — DRAFTED, awaiting owner publish (2026-07-15)
+### ✅ 0.4.0 — PUBLISHED to NuGet (2026-07-16)
 
-**First stable release** (drops `-alpha`). `<Version>0.4.0` is on `main`
-(`d6d7188`); `dotnet pack -c Release` verified (both nupkg+snupkg).
-A **draft** GitHub Release `v0.4.0` exists (humanized CHANGELOG notes) —
-**owner must click "Publish release"**, which fires `publish.yml` →
-pauses at the `nuget` environment's **required-reviewer gate** → owner
-approves → OIDC NuGet push. Nothing ships until both clicks. The publish
-workflow verifies the release tag == `Directory.Build.props <Version>`.
+**First stable release** (dropped `-alpha`) — **live on NuGet.org**: both
+`WiseOwl.Casc` and `WiseOwl.Casc.Diablo4` `0.4.0` indexed + installable.
+Cut at `d6d7188`; owner published the GitHub Release `v0.4.0` (tag
+created), approved the `nuget`-environment reviewer gate, OIDC push
+succeeded. CHANGELOG `[0.4.0]` is the **humanized/succinct** style the
+owner wants ([[feedback_changelog-features-only]] — release notes, not an
+API diff, no CL/FR/SNO jargon). `PackageReleaseNotes` de-absolutized
+(was pinned to a stale `0.2.0-alpha`). Post-release: CA1861 test warning
+fixed (`#80`, `6313423`). **Release mechanics** (`publish.yml`): GitHub
+Release published → `nuget` env reviewer gate → OIDC push; the tag must
+equal `Directory.Build.props <Version>`. `main` tip: **`6313423`**;
+`<Version>` is still `0.4.0` (bump before the next release).
 
 ### Active threads (2026-07-15, FR-C27+C30 delivered — 1 awaiting:casc)
 
@@ -56,8 +67,16 @@ workflow verifies the release tag == `Directory.Build.props <Version>`.
 | 41 | FR-C29 — per-class character-stat derivation formulae | `fr:accepted`. Big multi-phase (per-class core→bonus coefficients, base/level scaling, composites, Torment multipliers). Owner relayed 2026-05-24: **search all non-identified data sources** — leads `LevelScaling` (206158), `SimpleScalarFormulas` (2536879), `DamageMitigation` (1846727). Owner-suggested **name-hash-grep** short-circuit (DJB2 the in-game stat names → grep unidentified SNOs). **NOTE: `DataAttributes` (1907204) is ruled out** — CL-88 proved it's the designer/season-attribute subset, not a scalar registry. If coefficients prove engine-coded, honest boundary → consumer hard-codes. Phase 1 first; Phase 2 (`LevelScaling`) / Phase 4 (`MonsterLevelCurves`) are incremental slices. |
 
 FR-C30 (`#42`, CL-87) + FR-C27 (`#39`, CL-88) delivered this session,
-`awaiting:optimizer`. FR-C24 (`#36`)/FR-C28 (`#40`) closed rounds,
-`awaiting:optimizer`. Others `awaiting:optimizer`/`needs:owner`.
+both now `released:v0.4.0`. `#42` advanced to `needs:owner` (owner
+validation); `#39` `awaiting:optimizer`. FR-C24 (`#36`)/FR-C28 (`#40`)
+closed rounds, `awaiting:optimizer`.
+
+**Pending release-label bulk:** every CL-42..CL-86 FR (C21..C28) also
+shipped in 0.4.0 but is NOT yet tagged `released:v0.4.0` — per protocol,
+bulk-labeling waits for the Optimizer's pinned tracking issue to be
+`awaiting:casc` / an explicit owner relay (don't bulk ahead of it). Only
+this session's two deliveries were labeled (I'd promised the label in
+their delivery comments).
 
 ### Recent CL trajectory (2026-05-22 → 2026-07-15)
 
