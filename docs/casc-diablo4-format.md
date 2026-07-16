@@ -2041,10 +2041,119 @@ CL-42 (R9 typed-surface lift) + CL-43 (R10 NSlice full decode),
 derived from FR-C14 R8's `snoTiledStyle` crack and R10's variant
 + field cracks via the `blizzhackers/d4data` checksum registries.
 
+## 12. Character-Sheet stat model (FR-C29)
+
+The in-game Character Sheet derives ~25 stats from the four core
+attributes (Strength / Intelligence / Willpower / Dexterity) plus level,
+class, Torment tier, gear and Paragon. FR-C29 asked for the per-class
+derivation. The split is: the **coefficients are universal engine
+constants** (not authored anywhere), and the **core→bonus map is
+per-class data** (decoded from `PlayerClass`).
+
+### 12.1 The coefficients are universal constants (not located in the data)
+
+The per-point core→derived-stat rates were **not located in any searched
+SNO source**. A thorough data-mine (2026-07, re-run against the
+Paragon-corrected precise values) searched every candidate source —
+`PlayerClass` (g74), `Hero` (g39), `AttributeFormulas` (201912),
+`AttributeDescriptions`/`HeroDetails` (g42), `SimpleScalarFormulas`
+(2536879), `LevelScaling` (206158), `DataAttributes` (1907204),
+`DamageMitigation` (1846727, empty), and a whole-group float-grep over
+GameBalance (g20, g49) — and found no coefficient home. The core-stat
+tooltip is engine-computed: `HeroDetails` (sno 4123) `[TipStrength]` =
+`Strength: {s1} … Increases Armor by {s3}` — the coefficient never
+appears, only the runtime-substituted result. So the rates are not in any
+searched source (engine-side, or a global config not yet identified);
+being **universal**, a newly-added class reuses them without an engine
+change, so they are baked as owner-oracle-validated constants
+(`CharacterStatModel`; the engine-constants pattern, Appendix D):
+
+| Derived stat | Per point | Unit / source |
+|---|---|---|
+| Armor | 2.0 | flat, from Strength |
+| Resistance to All Elements | 0.4 | flat, from Intelligence |
+| Skill Damage | 0.125 | %, from the **primary** attribute |
+| Healing Received | 0.035 | %, from Willpower |
+| Dodge Chance | 0.006 | %, from Dexterity |
+| Critical Strike Chance | 0.0025 | %, from the **crit** attribute |
+| Resource Generation | 0.005 | %, from the **resource** attribute |
+
+Inherent base stats (class-independent): base Crit `5.0%`, Crit Damage
+`50.0%`, Vulnerable Damage `20.0%`, Movement Speed `100.0%`. Validated
+across four classes spanning all four primary-attribute archetypes
+(Warlock, Rogue, Necromancer, Barbarian), incl. a high-Paragon Warlock
+(Will 1876 → Skill Damage 234.6%) that pinned the small-magnitude rates
+to three significant figures. (Skill-damage per point reads lower at
+level 1 and plateaus at `0.125%` by ~L60 — the endgame value is the API
+constant.)
+
+### 12.2 The core→bonus map IS data (per class, decoded structurally)
+
+What varies by class is *which core feeds which mobile bonus*. Four
+conversions are fixed for every class (Str→Armor, Int→Resist,
+Will→Healing, Dex→Dodge); three are "mobile" — **Skill Damage** goes to
+the class's primary, and **Critical Strike Chance** / **Resource
+Generation** go to per-class cores. This mapping is authored in the
+`PlayerClass` record as three `DT_VARIABLEARRAY` descriptors at payload
+`+0x40` / `+0x50` / `+0x60`, each a single `(coreIndex:int32,
+weight:float32, …)` element; in slot order they name the SkillDamage core
+(weight `1.25`), the Crit core, and the ResourceGen core (weight `1.0`).
+Decoded structurally by `PlayerClassDefinition` (`PrimaryAttribute` /
+`CriticalStrikeAttribute` / `ResourceGenerationAttribute` /
+`StatConversions`) — **no per-class table is hard-coded**. A rule
+inferred from the first three classes ("Crit = the core opposite the
+primary") is wrong for Druid / Paladin / Spiritborn, so reading the array
+is required. All eight decoded maps:
+
+| Class | Skill Damage | Crit | Resource Gen |
+|---|---|---|---|
+| Warlock | Willpower | Strength | Intelligence |
+| Rogue | Dexterity | Intelligence | Strength |
+| Necromancer | Intelligence | Dexterity | Willpower |
+| Sorcerer | Intelligence | Dexterity | Willpower |
+| Barbarian | Strength | Dexterity | Willpower |
+| Paladin | Strength | Intelligence | Willpower |
+| Druid | Willpower | Dexterity | Intelligence |
+| Spiritborn | Dexterity | Strength | Intelligence |
+
+### 12.3 Boundary
+
+The library returns the typed conversion table + the base constants; the
+consumer composes the actual numbers (base × level scaling) + (cores ×
+coefficients) + (gear/Paragon contributions). Base Max Life is
+level-driven and class-independent (L1=50, L60=860, L70=1526 — anchors
+for a future `CharacterBaseStats` level-curve decode); the Toughness /
+damage-reduction composites (Phase 3) and the discrete Torment
+multipliers (Phase 4) are engine-coded — the honest boundary (devlog
+0084; `DifficultyTiers` 1973217 is a per-monster-level curve, not the
+Torment-tier table).
+
 ## Appendix A — correction log (Diablo IV errata)
 
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
+
+- **CL-89 — Character-Sheet stat model: universal coefficients +
+  structural per-class core→bonus map (FR-C29 Phase 1, §12).** The
+  premise that the per-class core→derived-stat coefficients are authored
+  data was **half wrong**: a nine-source data-mine (devlog 0084, re-run
+  against the Paragon-corrected precise values) found no coefficient home
+  (the core-stat tooltip substitutes a runtime-computed result rather than
+  exposing them — engine-side, or a global config not yet located), but
+  owner core-stat oracles across all four primary-attribute archetypes
+  showed the coefficients are **universal** (identical for every class —
+  so a newly-added class reuses them, no per-class data needed), so they
+  bake as validated constants (`CharacterStatModel`). What *is* per-class — and *is*
+  in the data — is the **map** of which core feeds Skill Damage / Crit /
+  Resource Generation, authored as three `(coreIndex, weight)` arrays in
+  the `PlayerClass` record (payload `+0x40`/`+0x50`/`+0x60`). Decoded
+  structurally (`PlayerClassDefinition.PrimaryAttribute` /
+  `CriticalStrikeAttribute` / `ResourceGenerationAttribute` /
+  `StatConversions`); a "Crit = opposite the primary" rule that fit the
+  first three classes is wrong for Druid/Paladin/Spiritborn, so reading
+  the array is required — no per-class table is hard-coded. Phases 2–4
+  (base-Life curve, Toughness composite, Torment multipliers) stay at the
+  honest engine-coded/level-curve boundary.
 
 - **CL-88 — season-robust `GetAttributeName` via runtime `id→token`
   resolution; retires the fragile curated `AttributeId` map (FR-C27 on

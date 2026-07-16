@@ -1,6 +1,6 @@
 # PlayerClassDefinition class
 
-A decoded Diablo IV `PlayerClassDefinition` (`.prd`, SNO group PlayerClass = 74) — the playable character class record. Raw fields only (the class roster + localized names are [`ReadCharacterClasses`](./Diablo4Storage/ReadCharacterClasses.md); this is the typed record reader, C6).
+A decoded Diablo IV `PlayerClassDefinition` (`.prd`, SNO group PlayerClass = 74) — the playable character class record. Exposes identity ([`SnoId`](./PlayerClassDefinition/SnoId.md)/[`EClass`](./PlayerClassDefinition/EClass.md)) plus the per-class Character-Sheet stat-conversion map (FR-C29): which core attribute feeds each derived stat. (The class roster + localized names are [`ReadCharacterClasses`](./Diablo4Storage/ReadCharacterClasses.md).)
 
 ```csharp
 public sealed class PlayerClassDefinition
@@ -11,12 +11,18 @@ public sealed class PlayerClassDefinition
 | name | description |
 | --- | --- |
 | static [Parse](PlayerClassDefinition/Parse.md)(…) | Decode a PlayerClass from its raw SNO blob. |
+| [CriticalStrikeAttribute](PlayerClassDefinition/CriticalStrikeAttribute.md) { get; } | The core attribute that grants this class its Critical Strike Chance (per-class; e.g. Warlock Strength, Rogue Intelligence). `null` for a malformed record. |
 | [EClass](PlayerClassDefinition/EClass.md) { get; } | The game's internal class enum ordinal (`eClass`, payload `+16`). Sparse but stable; ranking the real-class roster by this value yields the glyph class-array slot order (§7.3). |
+| [PrimaryAttribute](PlayerClassDefinition/PrimaryAttribute.md) { get; } | The core attribute that grants this class its Skill Damage — the class's primary stat (Warlock Willpower, Rogue Dexterity, Necromancer/Sorcerer Intelligence, Barbarian/Paladin Strength, …). `null` for a malformed/placeholder record (e.g. `Axe Bad Data`). |
+| [ResourceGenerationAttribute](PlayerClassDefinition/ResourceGenerationAttribute.md) { get; } | The core attribute that grants this class its Resource Generation (per-class; e.g. Warlock Intelligence, Rogue Strength). `null` for a malformed record. |
 | [SnoId](PlayerClassDefinition/SnoId.md) { get; } | The class's own SNO id (== the CoreTOC id; the stable per-class key shared with [`SnoId`](./CharacterClass/SnoId.md) and [`ClassSnoId`](./ParagonBoardDefinition/ClassSnoId.md)). |
+| [StatConversions](PlayerClassDefinition/StatConversions.md) { get; } | The full per-class Character-Sheet conversion table (FR-C29): the four universal signatures (Str→Armor, Int→Resist, Will→Healing, Dex→Dodge) plus the three per-class mobile bonuses (Skill Damage / Crit / Resource Generation) mapped onto their class cores, each with its universal per-point coefficient. Empty for a malformed record. The consumer composes actual stat values from these + the core totals + the base constants in [`CharacterStatModel`](./CharacterStatModel.md). |
 
 ## Remarks
 
-Byte layout (clean-room, `docs/casc-diablo4-format.md §11.1`, Appendix A CL-21): payload base `0x10`; `snoId` at payload `0`; `eClass` (the game's internal class enum ordinal) at payload `16`. The `eClass` ordinal is sparse but stable (Sorcerer 0, Barbarian 1, Rogue 3, Druid 5, Necromancer 6, Spiritborn 7, Paladin 9, Warlock 10 on build 3.0.2.71886) and is the ordering behind the glyph `fUsableByClass` rank (§7.3 / FR-D3).
+Byte layout (clean-room, `docs/casc-diablo4-format.md §11.1` / §12, Appendix A CL-21): payload base `0x10`; `snoId` at payload `0`; `eClass` (the game's internal class enum ordinal) at payload `16`. The `eClass` ordinal is sparse but stable (Sorcerer 0, Barbarian 1, Rogue 3, Druid 5, Necromancer 6, Spiritborn 7, Paladin 9, Warlock 10) and is the ordering behind the glyph `fUsableByClass` rank (§7.3 / FR-D3).
+
+The stat-conversion map is three `DT_VARIABLEARRAY` descriptors at payload `+0x40`/`+0x50`/`+0x60`, each a single `(coreIndex:int32, weight:float32, …)` element. In slot order they name the core that feeds Skill Damage (the primary, weight 1.25), Critical Strike Chance, and Resource Generation (weight 1.0). The mapping is per-class and read straight from the record — verified against live core-stat tooltips for all four primary-attribute archetypes (Warlock/Rogue/Necromancer/Barbarian). The per-point coefficients are universal engine constants in [`CharacterStatModel`](./CharacterStatModel.md).
 
 ## See Also
 

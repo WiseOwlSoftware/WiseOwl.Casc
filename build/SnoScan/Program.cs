@@ -1577,6 +1577,21 @@ switch (cmd)
         }
         return 0;
     }
+    case "classstats":
+    {
+        // FR-C29 validation: decode ReadPlayerClass for every real class and
+        // print the per-class core->bonus map + full conversion table.
+        foreach (var e in toc.Entries)
+        {
+            if ((int)e.Group != 74) continue;
+            PlayerClassDefinition pc; try { pc = d4.ReadPlayerClass(e.Id); } catch { continue; }
+            if (pc.PrimaryAttribute is null) { Console.WriteLine($"{e.Name,-12} (sno {e.Id}) — no map (placeholder)"); continue; }
+            Console.WriteLine($"{e.Name,-12} (sno {e.Id}, eClass {pc.EClass}): SkillDmg<-{pc.PrimaryAttribute}  Crit<-{pc.CriticalStrikeAttribute}  ResGen<-{pc.ResourceGenerationAttribute}");
+            foreach (var cv in pc.StatConversions)
+                Console.WriteLine($"     {cv.Core,-12} -> {cv.Stat,-22} {cv.PerPoint}{(cv.Unit == ConversionUnit.Percent ? "%" : "")}/pt");
+        }
+        return 0;
+    }
     case "f32grep":
     {
         // FR-C29: scan a group's Meta records for an IEEE-754 float within a
