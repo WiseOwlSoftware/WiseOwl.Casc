@@ -915,6 +915,33 @@ switch (cmd)
             Console.WriteLine(gbf.TryGetFormulaText(s, out var t) ? $"  {s} = \"{t}\"" : $"  {s} = (not in table)");
         return 0;
     }
+    case "formuladump":
+    {
+        // LIB-3 R3: dump every AttributeFormulas entry with all ranges
+        // (ItemPowerRangeStart, RangeValue1/2, FormulaText) to study the
+        // function contracts + RangeValue clamp hypothesis. formuladump [substr]
+        string sub = argv.Count > 1 ? argv[1] : "";
+        var gbd = d4.ReadAttributeFormulas();
+        int n = 0;
+        var rv = new List<(float v1, float v2)>();
+        foreach (var e in gbd.Entries)
+        {
+            if (sub.Length > 0 && !e.Name.Contains(sub, StringComparison.OrdinalIgnoreCase)) continue;
+            n++;
+            if (sub.Length > 0)
+            {
+                Console.WriteLine($"{e.Name}  ({e.Ranges.Count} range(s))");
+                foreach (var r in e.Ranges)
+                    Console.WriteLine($"    ip>={r.ItemPowerRangeStart,4} clamp[{r.RangeValue1:0.####},{r.RangeValue2:0.####}]  \"{r.FormulaText}\"");
+            }
+            foreach (var r in e.Ranges) rv.Add((r.RangeValue1, r.RangeValue2));
+        }
+        // RangeValue clamp-hypothesis summary: how many distinct (v1,v2) pairs?
+        var distinct = rv.Distinct().OrderBy(p => p.v1).ThenBy(p => p.v2).ToList();
+        Console.WriteLine($"-- {n} entries; {rv.Count} ranges; {distinct.Count} distinct (RangeValue1,RangeValue2) pairs --");
+        foreach (var p in distinct.Take(30)) Console.WriteLine($"    ({p.v1:0.####}, {p.v2:0.####}) x{rv.Count(x => x == p)}");
+        return 0;
+    }
     case "formulagbid":
     {
         // LIB-3 R2: resolve a GBID (e.g. an affix modifier idx16) via the
@@ -1400,6 +1427,36 @@ switch (cmd)
                 Console.WriteLine($"{attr}\t0x{param:X8}\t{e.Id}\t{e.Name}");
             }
         }
+        return 0;
+    }
+    case "multcheck":
+    {
+        // FR-C31 R2: test the "multiplicative variant id = additive id + 1"
+        // convention. For each group-112 ParagonGlyphAffix whose name contains
+        // "Mult", print each AffectedAttribute id, GetAttributeName(id) and
+        // GetAttributeName(id-1). If id resolves to null/wrong but (id-1)
+        // matches the affix's stat, the +1 convention holds.
+        //   multcheck [substr=Mult] [max=400]
+        string sub = argv.Count > 1 ? argv[1] : "Mult";
+        int max = argv.Count > 2 ? int.Parse(argv[2]) : 400;
+        int total = 0, idNull = 0, prevResolves = 0;
+        foreach (var e in toc.Entries.Where(e => (int)e.Group == 112
+                     && e.Name.Contains(sub, StringComparison.OrdinalIgnoreCase))
+                 .OrderBy(e => e.Name).Take(max))
+        {
+            ParagonGlyphAffixDefinition gx; try { gx = d4.ReadParagonGlyphAffix(e.Id); } catch { continue; }
+            foreach (var ar in gx.AffectedAttributes)
+            {
+                if (ar.AttributeId < 0) continue;   // DataAttributes namespace — separate
+                total++;
+                string nId = d4.GetAttributeName(ar.AttributeId) ?? "(null)";
+                string nPrev = d4.GetAttributeName(ar.AttributeId - 1) ?? "(null)";
+                if (nId == "(null)") idNull++;
+                if (nId == "(null)" && nPrev != "(null)") prevResolves++;
+                Console.WriteLine($"{e.Name,-52} id={ar.AttributeId,4} name(id)={nId,-28} name(id-1)={nPrev}");
+            }
+        }
+        Console.WriteLine($"-- {total} attrs; id null={idNull}; of those, (id-1) resolves={prevResolves} --");
         return 0;
     }
     case "glyphaffixscan":

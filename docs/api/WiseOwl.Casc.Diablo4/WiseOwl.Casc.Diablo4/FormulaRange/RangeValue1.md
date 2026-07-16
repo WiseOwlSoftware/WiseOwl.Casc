@@ -1,6 +1,6 @@
 # FormulaRange.RangeValue1 property
 
-First range value (`+4`, float).
+CL-95 — the output lower clamp (`+4`), not the roll minimum. The evaluated value is pinned to `[RangeValue1, RangeValue2]` — across the table these are round, formula-independent bounds (e.g. `0`/`100` for a percent, `1`/`9999` for a core stat). The roll min/max come from the roll functions' arguments inside [`FormulaText`](./FormulaText.md), not from these — see `casc-diablo4-format.md §8.1`.
 
 ```csharp
 public float RangeValue1 { get; set; }

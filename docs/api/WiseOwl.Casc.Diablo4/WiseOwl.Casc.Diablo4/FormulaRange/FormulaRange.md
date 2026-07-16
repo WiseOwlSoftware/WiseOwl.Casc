@@ -1,6 +1,6 @@
 # FormulaRange constructor
 
-One `arRanges` row of an [`AttributeFormula`](../AttributeFormula.md): a power-range start, its two range values, and the formula source text. Raw decoded fields — the library never evaluates the text.
+One `arRanges` row of an [`AttributeFormula`](../AttributeFormula.md): the item-power band this row applies to, its output clamps, and the formula source text. Raw decoded fields — the library never evaluates the text.
 
 ```csharp
 public FormulaRange(int ItemPowerRangeStart, float RangeValue1, float RangeValue2, 
@@ -9,10 +9,10 @@ public FormulaRange(int ItemPowerRangeStart, float RangeValue1, float RangeValue
 
 | parameter | description |
 | --- | --- |
-| ItemPowerRangeStart | `nItemPowerRangeStart` (`+0`). |
-| RangeValue1 | First range value (`+4`, float). |
-| RangeValue2 | Second range value (`+8`, float). |
-| FormulaText | The `DT_STRING_FORMULA` source text (e.g. `"5"`, `"2 * ParagonPowerBudgetMultiplierNodeMagicOffensive()"`). |
+| ItemPowerRangeStart | `nItemPowerRangeStart` (`+0`) — the row applies when the item's item power is `≥` this and below the next row's start (the last row covers all higher item powers). |
+| RangeValue1 | CL-95 — the output lower clamp (`+4`), not the roll minimum. The evaluated value is pinned to `[RangeValue1, RangeValue2]` — across the table these are round, formula-independent bounds (e.g. `0`/`100` for a percent, `1`/`9999` for a core stat). The roll min/max come from the roll functions' arguments inside [`FormulaText`](./FormulaText.md), not from these — see `casc-diablo4-format.md §8.1`. |
+| RangeValue2 | CL-95 — the output upper clamp (`+8`); see [`RangeValue1`](./RangeValue1.md). |
+| FormulaText | The `DT_STRING_FORMULA` source text (e.g. `"5"`, `"FloatRandomRangeWithInterval(1,3,3.5)/100"`, `"2 * ParagonPowerBudgetMultiplierNodeMagicOffensive()"`). The value range is `[eval with each roll fn at its low arg, eval at its high arg]` clamped to `[RangeValue1, RangeValue2]`; the function contracts are in `casc-diablo4-format.md §8.1`. |
 
 ## See Also
 
