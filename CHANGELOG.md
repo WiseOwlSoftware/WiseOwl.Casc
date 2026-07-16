@@ -24,6 +24,13 @@ Semantic Versioning once it reaches `1.0.0`.
   Chance, and Resource Generation, plus the universal per-point conversion
   rates (Armor, Resistances, Dodge, Healing, …) and the inherent base stats —
   the inputs a build planner needs to compute a character's derived stats.
+- **Affix effects** — every item and aspect affix now exposes which
+  attribute(s) it modifies. `AffixDefinition.Effects` lists each modified
+  attribute with its resolved display name and any parameter (a resistance's
+  element, a skill tag), so a build planner can see what an aspect actually
+  does — including multi-stat affixes like a dual-element resistance. Roll
+  values and additive-vs-multiplicative operation remain the game's
+  item-power-scaled domain (not stored on the affix).
 
 ## [0.4.0] — 2026-07-15
 

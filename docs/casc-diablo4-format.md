@@ -1954,6 +1954,71 @@ Strike …`, no `Name`. Surface: `Diablo4Storage.ReadAffix(int, locale)`
 locale)` (name without a full decode — the affix analogue of
 `TryReadParagonBoardName`). CL-22, CL-87.
 
+**Effects — which attribute(s) the affix modifies (CL-92, LIB-3).**
+`AffixDefinition.Effects` is the `arModifiers` `DT_VARIABLEARRAY` at payload
+`+0xB0` (descriptor `dataOff@+0xB0` / `byteSize@+0xB4`), an array of fixed
+**104-byte modifier records** (`count = byteSize / 104`, verified: every one
+of 5,867 authored arrays is an exact multiple of 104, 1–24 modifiers). Within
+each 104-byte record (26 `int32` slots `idx0..25`):
+
+- **`idx4` = the modified `AttributeId`** (byte `+16`) — the single load-bearing
+  field. Validated 1:1 across 1,220 single-modifier affixes against the value
+  token their `Desc` placeholder names (`275 → Crit_Percent_Bonus`,
+  `142 → Hitpoints_Max_Percent_Bonus`, `79 → Resistance_All_Bonus_Percent`,
+  `482 → Armor_Percent`, core-stat sibling blocks `4/5/6/7` flat &
+  `13/14/15/16/17` percent). Zero conflicts. `idx4` unifies with the runtime
+  engine `eAttribute` space `GetAttributeName` resolves (§ FR-C25/C27), and is
+  *finer* than the coarse power-budget category on a node (`482 = Armor%` and
+  `1125 = Damage Reduction` are distinct affix ids that a node lumps together).
+- **`idx7` = the attribute parameter** (`ParamPlus12`, byte `+28`): `0xFFFFFFFF`
+  when tag-agnostic; a small enum for parametric attributes (single-resistance
+  element: cold `3` / lightning `2` / poison `4`); or a skill-tag GBID on
+  tag-conditional attributes (`259 = Damage per Skill Tag`) — the same
+  mechanism as §7.4 and FR-C28.
+- `idx10/14/20/24` (values `~472..640`, params `idx11/15/21/25 = 2/4/12`) and
+  the family-shared GBID `idx16` are the engine's **magnitude-formula slots** —
+  shared identically across every affix of a family, therefore *not* stat
+  identity.
+- Sentinels skipped: `idx4 == 0` (empty/padding) and `idx4 == -1` (explicit
+  "no attribute" marker, e.g. a socket-restriction modifier).
+
+**Two AttributeId namespaces (verified CL-92).** The high bit `0x80000000`
+selects the registry: a **positive** `idx4` is an engine `eAttribute` →
+localized name via `GetAttributeName`; a **negative** `idx4` is a reference
+into the data-defined **`DataAttributes`** designer table (SNO `1907204`) by
+*ordinal* `idx4 & 0x7FFFFFFF` (verified: ordinal `84 = Barb_Berserking_
+AttackSpeed`, `82 = Barb_Berserking_DamageReduction`, `86 = …MovementSpeed`).
+The two namespaces are **disjoint** — never `abs()` the id (negative-208 is a
+different attribute from positive-208). `AffixEffect.IsDataDefinedAttribute` /
+`.DataAttributeOrdinal` expose the split; data-defined names are the FR-C27
+registry frontier (left empty in this slice; the raw token is on the affix's
+own `Desc`).
+
+**Magnitude & operation stay the consumer's / engine's (boundary, verified).**
+There is **no `(min,max)` float pair** at any structural position in the affix
+record. For the bulk of stat affixes (CoreStat / Resistance / DamageReduction)
+the roll magnitude is **not in the record at all** — it is item-power-curve
+driven, keyed by the `idx16` formula GBID (the only in-record float is a
+constant `1.0` flag at the `+0x38` VLA `idx1`). Explicit in-record floats
+occur only as **single fixed scalars** (set/unique powers, never a stat's
+min/max): the reliable one is the `"Static Value N"` `float32` VLA whose
+descriptor is at fixed struct `+0xC0` (`count = size/4`, positional). The
+**operation** (additive / percent / multiplicative) has *no* structural
+discriminator either — additive-vs-multiplicative twins of the same stat
+(`252` vs `253`, `707` vs `708`, `736` vs `737`) are byte-identical in all 26
+slots except `idx4`; combine semantics are intrinsic to the AttributeId
+identity (the `Multiplicative_*` / `_Percent` attribute) plus the `Desc`
+format. Both are surfaced only implicitly (via `AttributeName` + `Description`)
+per the durable boundary (Appendix C). Surface: `AffixDefinition.Effects`
+(`IReadOnlyList<AffixEffect>`); each `AffixEffect` carries
+`AttributeId` / `ParamPlus12` / resolved `AttributeName`
+(`HasParam`, `IsDataDefinedAttribute`, `DataAttributeOrdinal`). Names are
+resolved by `ReadAffix` via the season-robust `GetAttributeName(int, uint,
+locale)`; byte-only `Parse` leaves them empty. Anchors: `2590254`
+(CriticalHitChance) → 1 effect attr `275` "Critical Strike Chance";
+`928841` (Resistance_Dual_ColdLightning) → 2 effects attr `74` param `3`/`2`;
+`1234184` (INHERENT_Thorns) → attr `373` "Thorns". CL-92.
+
 ### 11.4 `ItemDefinition` (group 73, `.itm`)
 
 Identity (`snoId@0`) + localized `Name`/`Flavor`/`TransmogName` from
@@ -2182,6 +2247,31 @@ armor, …). Structural — no name parsing.
 
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
+
+- **CL-92 — item/aspect affix effects: which attribute(s) an affix
+  modifies (LIB-3, `casc-fr#45`).** `AffixDefinition.Effects` decodes the
+  `arModifiers` `DT_VARIABLEARRAY` at payload `+0xB0` — an array of fixed
+  104-byte modifier records (`count = byteSize / 104`; verified exact across
+  all 5,867 authored arrays, 1–24 modifiers). Per record: `idx4` = the
+  modified `AttributeId`, `idx7` = its parameter (`ParamPlus12`);
+  `idx10/14/20/24` + the `idx16` GBID are family-shared magnitude-formula
+  slots (not stat identity). **A disproven first hypothesis was held off**:
+  `idx10` (`480`/`472`) is *not* the modified stat (the same value recurs
+  across unrelated stats); the real key is `idx4`, validated 1:1 across 1,220
+  single-modifier affixes against their `Desc` value-token (zero conflicts).
+  `idx4` unifies with the runtime `eAttribute` space `GetAttributeName`
+  resolves. **Two namespaces (verified):** positive `idx4` = engine attribute;
+  negative `idx4` = a `DataAttributes` (SNO 1907204) ordinal `idx4 &
+  0x7FFFFFFF` (ordinal 84 = `Barb_Berserking_AttackSpeed`) — disjoint, never
+  `abs()`. Sentinels `idx4 ∈ {0, -1}` skipped. **Magnitude/operation are not
+  in the record**: no `(min,max)` float pair exists at any position; standard
+  affixes are item-power-curve driven (keyed by `idx16`); operation has no
+  structural discriminator (additive/multiplicative twins `252`/`253`,
+  `707`/`708` are byte-identical but for `idx4`) — both stay implicit
+  (`AttributeName` + `Description`) per Appendix C. Surface: `AffixEffect`
+  (`AttributeId`/`ParamPlus12`/`AttributeName` + `HasParam`/
+  `IsDataDefinedAttribute`/`DataAttributeOrdinal`) on `AffixDefinition.Effects`;
+  names via `ReadAffix` → `GetAttributeName`. §11.3.
 
 - **CL-91 — install auto-detection for `Diablo4Storage.Open()` (LIB-2).**
   No-arg `Open()` / `OpenAsync()` + `TryLocateInstall(out path)` resolve the
