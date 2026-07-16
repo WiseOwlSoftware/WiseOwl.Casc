@@ -13,6 +13,41 @@ The sections below this one ("Status (end of session 1)", the numbered
 "Next steps") are **historical** — accurate for their era but superseded
 by what follows. This block is the live state.
 
+### ⏭️ NEXT-SESSION PICKUP (2026-07-16 handoff) — start here
+
+Last session shipped **CL-89/90/91** (all merged to `main` + delivered;
+`main` tip **`73aacf0`**) and opened the **comprehensive-data-exposure**
+program ([[project_comprehensive-data-exposure]]): proactively expose the
+whole dataset via typed APIs, confidence-gated, as CASC-initiated `LIB-N`
+work items. **0 issues `awaiting:casc` from the Optimizer**; two CASC-owned
+threads are teed up. Pick **#1 or #2**:
+
+**#1 — Continue LIB-3 (affix effects, `casc-fr#45`, `awaiting:casc`).** The
+g104 affix effect *structure* is mapped (`SnoScan affixdump <sno>`): an
+8-byte-descriptor `DT_VARIABLEARRAY` at struct `+0xB0`, a 104-byte block of
+`(id,param)` records at idx 10/14/20/24 (params 2 & 12), ids shaped
+`X/X+4/X+16/X+20`. **DO NOT reuse the disproven first hypothesis** that idx10's
+id = the modified stat — the same ids (480, 472) recur across unrelated stats
+(Resource_MaxMana AND CoreStat_StrengthPercent both → 480), so 472–516 are
+**structural/formula slots, not stat identity**. Real per-affix key is likely
+record **idx4** (161/79/1228/4/13/17). Next: pin idx4's meaning, the slot
+semantics, and where the min/max value range lives; validate across many affix
+types before shipping. Progress recorded on `#45` (`#issuecomment-4996148446`).
+
+**#2 — Crack the base-attribute registry (unblocks #1 AND FR-C29).** The
+affix ids (472–516) and FR-C29's engine-coded coefficients both sit behind the
+**attribute-registry-name wall** (FR-C27: `DataAttributes` is the designer
+subset, not the full registry; `GetAttributeName` only covers ~40 curated +
+node-scannable ids). If a session can name the base attribute ids (the 470–520
+core-stat/resource/resistance space), affix effects become useful AND it may
+reveal the core-stat AttributeIds FR-C29 needs. This is the FR-C27/C29
+coefficient hunt's remaining frontier (owner believes the coefficients are
+data-driven; last session swept every config/global/attribute group without
+finding them — see [[project_fr-c29-character-stats]]).
+
+Recon tooling on `build/SnoScan` (all on `main`): `affixdump`, `itemtypes`,
+`classstats`, `locate`, `f32grep`, `hashgrep` + the earlier set.
+
 ### How work arrives now: the CASC⇄Optimizer FR loop (GitHub Issues)
 
 Feature requests + bugs no longer come from local backlog files — they
@@ -55,10 +90,10 @@ API diff, no CL/FR/SNO jargon). `PackageReleaseNotes` de-absolutized
 (was pinned to a stale `0.2.0-alpha`). Post-release: CA1861 test warning
 fixed (`#80`, `6313423`). **Release mechanics** (`publish.yml`): GitHub
 Release published → `nuget` env reviewer gate → OIDC push; the tag must
-equal `Directory.Build.props <Version>`. `main` tip: **`e4f7946`** (CL-89 FR-C29
-Phase 1 + CL-90 LIB-1 gear/item + CL-91 LIB-2 install-autodetect — all
-UNRELEASED, `[Unreleased]` in CHANGELOG); `<Version>` is still `0.4.0` (bump
-before the next release).
+equal `Directory.Build.props <Version>`. `main` tip: **`73aacf0`** (CL-89 FR-C29
+Phase 1 + CL-90 LIB-1 gear/item + CL-91 LIB-2 install-autodetect + LIB-3 recon —
+CLs all UNRELEASED, `[Unreleased]` in CHANGELOG); `<Version>` is still `0.4.0`
+(bump before the next release).
 
 ### Active threads (2026-07-16 — 0 awaiting:casc; 3 delivered this session)
 
