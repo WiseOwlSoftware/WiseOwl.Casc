@@ -61,6 +61,8 @@ internal static class AssetProviders
                 null, null, id => d4.ReadItem(id, loc)),
             new SnoProvider(AssetKind.Affix, false, SnoGroup.Affix, toc,
                 null, null, id => d4.ReadAffix(id, loc)),
+            new SnoProvider(AssetKind.ItemType, false, SnoGroup.ItemType, toc,
+                null, null, id => d4.ReadItemType(id)),
         ];
     }
 

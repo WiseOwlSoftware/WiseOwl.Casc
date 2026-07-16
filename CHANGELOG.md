@@ -8,6 +8,11 @@ Semantic Versioning once it reaches `1.0.0`.
 
 ### Added
 
+- **Gear/item taxonomy** — classify and enumerate items by category. Every item
+  now exposes its base type (weapon / armor / jewelry / charm / other), decoded
+  structurally from the game data; `EnumerateItems(ItemClass.Weapon)` lists every
+  weapon in the game, `EnumerateItemTypes()` the full base-type dictionary, and
+  the catalog gains an item-type `category` facet.
 - **Character stat model** — the per-class rules that turn core attributes
   (Strength / Intelligence / Willpower / Dexterity) into Character-Sheet stats.
   For any class, read which core feeds its Skill Damage, Critical Strike

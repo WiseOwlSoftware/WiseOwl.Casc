@@ -24,6 +24,7 @@ public enum AssetKind
 | AttributeFormulas | `11` | The attribute-formula table ([`AttributeFormulaTable`](./AttributeFormulaTable.md)); a singleton. |
 | Item | `12` | An item definition ([`ItemDefinition`](./ItemDefinition.md)) — weapons, armor, jewelry, … distinguished by [`Tags`](./AssetRef/Tags.md). |
 | Affix | `13` | An affix definition ([`AffixDefinition`](./AffixDefinition.md)). |
+| ItemType | `14` | An item base type (ItemType) — the weapon / armor / jewelry / charm dictionary; carries a `category` facet. |
 
 ## See Also
 

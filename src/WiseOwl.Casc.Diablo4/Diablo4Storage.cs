@@ -1139,6 +1139,60 @@ public sealed class Diablo4Storage : IDisposable
         return it;
     }
 
+    /// <summary>Read + decode an <see cref="ItemType"/> (item base type) by
+    /// SNO id (group <see cref="SnoGroup.ItemType"/> = 98) — the weapon /
+    /// armor / jewelry / charm classification, resolved structurally from the
+    /// record (§13 / LIB-1). Pass an item's
+    /// <see cref="ItemDefinition.ItemTypeSnoId"/> to classify that item.</summary>
+    /// <param name="id">The item-type SNO id.</param>
+    public ItemType ReadItemType(int id) =>
+        ItemType.Parse(id, CoreToc.GetName(SnoGroup.ItemType, id) ?? string.Empty,
+            ReadSno(SnoGroup.ItemType, id));
+
+    /// <summary>Enumerate every item base type (group
+    /// <see cref="SnoGroup.ItemType"/> = 98), each decoded + classified — the
+    /// dictionary a gear/item API filters (e.g. <c>.Where(t =&gt; t.Class ==
+    /// ItemClass.Weapon)</c>). Ordered as the CoreTOC lists the group;
+    /// unreadable records are skipped.</summary>
+    public IEnumerable<ItemType> EnumerateItemTypes()
+    {
+        foreach (var e in CoreToc.EntriesInGroup(SnoGroup.ItemType))
+        {
+            ItemType t;
+            try { t = ItemType.Parse(e.Id, e.Name, ReadSno(SnoGroup.ItemType, e.Id)); }
+            catch { continue; }
+            yield return t;
+        }
+    }
+
+    /// <summary>Enumerate every item (group <see cref="SnoGroup.Item"/> = 73)
+    /// whose base type falls in <paramref name="category"/> — e.g.
+    /// <c>EnumerateItems(ItemClass.Weapon)</c> for every weapon in the game,
+    /// or <c>ItemClass.Charm</c> for every charm (§13 / LIB-1). Yields identity
+    /// only (<see cref="ItemDefinition.SnoId"/> + <see cref="ItemDefinition.ItemTypeSnoId"/>);
+    /// call <see cref="ReadItem(int,string)"/> for localized text on a chosen
+    /// item. This is a full group scan (base-type classifications are memoized
+    /// across the enumeration).</summary>
+    /// <param name="category">The equipment category to filter to.</param>
+    public IEnumerable<ItemDefinition> EnumerateItems(ItemClass category)
+    {
+        var classOfType = new Dictionary<int, ItemClass>();
+        foreach (var e in CoreToc.EntriesInGroup(SnoGroup.Item))
+        {
+            ItemDefinition item;
+            try { item = ItemDefinition.Parse(ReadSno(SnoGroup.Item, e.Id)); }
+            catch { continue; }
+            if (item.ItemTypeSnoId == 0) continue;
+            if (!classOfType.TryGetValue(item.ItemTypeSnoId, out var cls))
+            {
+                try { cls = ReadItemType(item.ItemTypeSnoId).Class; }
+                catch { cls = ItemClass.Other; }
+                classOfType[item.ItemTypeSnoId] = cls;
+            }
+            if (cls == category) yield return item;
+        }
+    }
+
     /// <summary>
     /// FR-C16 — read the engine's per-node render program from the main
     /// paragon scene (657304): the ordered, z-sorted list of node

@@ -20,13 +20,21 @@ namespace WiseOwl.Casc.Diablo4;
 /// </remarks>
 public sealed class ItemDefinition
 {
-    private ItemDefinition(int snoId)
+    private ItemDefinition(int snoId, int itemTypeSnoId)
     {
         SnoId = snoId;
+        ItemTypeSnoId = itemTypeSnoId;
     }
 
     /// <summary>The item's own SNO id (== the CoreTOC id).</summary>
     public int SnoId { get; }
+
+    /// <summary>The item's base-type SNO id (payload <c>+0x0C</c>) — the
+    /// <see cref="ItemType"/> (group <see cref="SnoGroup.ItemType"/> = 98) that
+    /// classifies this item as a weapon / armor / jewelry / charm. Resolve it
+    /// with <see cref="Diablo4Storage.ReadItemType(int)"/>. <c>0</c> when the
+    /// record has none (§13 / LIB-1).</summary>
+    public int ItemTypeSnoId { get; }
 
     /// <summary>Localized item name (sibling label <c>Name</c>), or
     /// <see cref="string.Empty"/>.</summary>
@@ -43,8 +51,12 @@ public sealed class ItemDefinition
     /// <summary>Decode an Item from its raw SNO blob (identity only — the
     /// localized fields need <see cref="CoreToc"/>; use
     /// <see cref="Diablo4Storage.ReadItem(int,string)"/>).</summary>
-    public static ItemDefinition Parse(ReadOnlySpan<byte> blob) =>
-        new(new SnoRecord(blob).SnoId);
+    public static ItemDefinition Parse(ReadOnlySpan<byte> blob)
+    {
+        var r = new SnoRecord(blob);
+        int typeSno = blob.Length >= SnoRecord.DefaultPayloadBase + 0x0C + 4 ? r.I32(0x0C) : 0;
+        return new ItemDefinition(r.SnoId, typeSno);
+    }
 
     internal void SetStrings(string name, string flavor, string transmogName)
     {
