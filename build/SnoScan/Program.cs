@@ -1577,6 +1577,44 @@ switch (cmd)
         }
         return 0;
     }
+    case "itemtypes":
+    {
+        // LIB-1 recon: dump every g98 ItemType's candidate category/slot fields
+        // to find the taxonomy. Prints id, several early int32s, name.
+        var byCat = new SortedDictionary<int, List<string>>();
+        foreach (var e in toc.Entries)
+        {
+            if ((int)e.Group != 98) continue;
+            if (!d4.TryReadSno(98, e.Id, SnoFolder.Meta, out var b)) continue;
+            var r = new SnoRecord(b);
+            int f8 = b.Length >= 0x1C ? r.I32(8) : -1;    // candidate category enum
+            int f44 = b.Length >= 0x58 ? r.I32(0x44) : -1;
+            int f48 = b.Length >= 0x5C ? r.I32(0x48) : -1;
+            if (!byCat.TryGetValue(f8, out var l)) { l = new(); byCat[f8] = l; }
+            l.Add($"{e.Name}(len={b.Length},f44={f44},f48={f48})");
+        }
+        foreach (var kv in byCat)
+            Console.WriteLine($"cat@+8={kv.Key,3}: [{kv.Value.Count}] {string.Join(", ", kv.Value.Take(24))}");
+        // gear-only discriminators: for cat in {32,48}, print @+8, @+0xC, @+0x30(weaponSub), @+0x44
+        Console.WriteLine("\n== gear types (cat 32/48): name | c8 | cC | w30 | f44 ==");
+        var rows = new List<(int c8, int cc, int w30, int f44, string name)>();
+        foreach (var e in toc.Entries)
+        {
+            if ((int)e.Group != 98) continue;
+            if (!d4.TryReadSno(98, e.Id, SnoFolder.Meta, out var b)) continue;
+            var r = new SnoRecord(b);
+            if (b.Length < 0x60) continue;
+            int c8 = r.I32(8);
+            if (c8 is not (32 or 48)) continue;
+            rows.Add((c8, r.I32(0xC), r.I32(0x30), r.I32(0x44), e.Name));
+        }
+        foreach (var t in rows.OrderBy(t => t.c8).ThenBy(t => t.w30 < 0 ? 1 : 0).ThenBy(t => t.cc).ThenBy(t => t.name))
+            Console.WriteLine($"  {t.name,-20} c8={t.c8,2} cC={t.cc} w30={t.w30,3} f44={t.f44,2}");
+        Console.WriteLine("\n== API classification (Diablo4Storage.EnumerateItemTypes) ==");
+        foreach (var g in d4.EnumerateItemTypes().GroupBy(t => t.Class).OrderBy(g => g.Key))
+            Console.WriteLine($"{g.Key,-8}: [{g.Count()}] {string.Join(", ", g.Select(t => t.Name).OrderBy(n => n).Take(40))}");
+        return 0;
+    }
     case "classstats":
     {
         // FR-C29 validation: decode ReadPlayerClass for every real class and

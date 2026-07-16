@@ -630,6 +630,10 @@ public sealed class TypedReaderTests
     // array argument re-allocated on each call).
     private static readonly int[] ExpectedGlyphRadiusUpgradeLevels = [25, 50];
 
+    // LIB-1 expected gear-type membership (hoisted to satisfy CA1861).
+    private static readonly string[] ExpectedJewelryTypes = ["Amulet", "Ring"];
+    private static readonly string[] ExpectedArmorTypes = ["Boots", "ChestArmor", "Gloves", "Helm", "Legs"];
+
     [SkippableFact]
     public void Acceptance_matrix_against_live_install()
     {
@@ -1323,5 +1327,81 @@ public sealed class TypedReaderTests
             Assert.Equal(crit, pc.CriticalStrikeAttribute);
             Assert.Equal(resource, pc.ResourceGenerationAttribute);
         }
+    }
+
+    // --- LIB-1 gear/item taxonomy -----------------------------------------
+
+    /// <summary>
+    /// LIB-1 structural invariants: item base types classify into weapon /
+    /// armor / jewelry / charm from the record fields; the item→type link
+    /// resolves; and the category enumeration is self-consistent. Exact
+    /// per-category membership counts are the content-snapshot below.
+    /// </summary>
+    [SkippableFact]
+    public void LIB1_item_type_classification_is_structural()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+
+        // Known base types classify structurally (from the record, not the name).
+        Assert.Equal(ItemClass.Weapon, d4.ReadItemType(446796).Class);   // Sword
+        Assert.Equal(ItemClass.Weapon, d4.ReadItemType(446801).Class);   // Axe
+        Assert.Equal(ItemClass.Weapon, d4.ReadItemType(446823).Class);   // Bow
+        Assert.Equal(ItemClass.Armor, d4.ReadItemType(446829).Class);    // ChestArmor
+        Assert.Equal(ItemClass.Armor, d4.ReadItemType(446830).Class);    // Helm
+        Assert.Equal(ItemClass.Jewelry, d4.ReadItemType(446837).Class);  // Amulet
+        Assert.Equal(ItemClass.Jewelry, d4.ReadItemType(446836).Class);  // Ring
+        Assert.Equal(ItemClass.Charm, d4.ReadItemType(2288901).Class);   // Charm
+        Assert.Equal(ItemClass.Other, d4.ReadItemType(446845).Class);    // HealthPotion
+        Assert.Equal(ItemClass.Other, d4.ReadItemType(446846).Class);    // Gold
+
+        var sword = d4.ReadItemType(446796);
+        Assert.Equal("Sword", sword.Name);
+        Assert.True(sword.IsEquippable);
+        Assert.True(sword.WeaponFamily >= 0);
+        Assert.Equal(-1, d4.ReadItemType(446837).WeaponFamily);          // Amulet: not a weapon
+
+        // Enumeration invariants.
+        var types = d4.EnumerateItemTypes().ToList();
+        Assert.True(types.Count > 100);
+        Assert.All(types.Where(t => t.Class != ItemClass.Other), t => Assert.True(t.IsEquippable));
+        var jewelry = types.Where(t => t.Class == ItemClass.Jewelry).Select(t => t.Name).OrderBy(n => n);
+        Assert.Equal(ExpectedJewelryTypes, jewelry);
+        var armor = types.Where(t => t.Class == ItemClass.Armor).Select(t => t.Name).ToList();
+        foreach (var a in ExpectedArmorTypes)
+            Assert.Contains(a, armor);
+
+        // Item→type link + classifying a real item.
+        var chest = d4.ReadItem(52095);                                  // Chest_Normal_Generic_001
+        Assert.Equal(446829, chest.ItemTypeSnoId);
+        Assert.Equal(ItemClass.Armor, d4.ReadItemType(chest.ItemTypeSnoId).Class);
+        Assert.Equal(446796, d4.ReadItem(591450).ItemTypeSnoId);         // 1HSword_Legendary → Sword
+
+        // EnumerateItems(category): the first weapon really resolves to a weapon.
+        var firstWeapon = d4.EnumerateItems(ItemClass.Weapon).FirstOrDefault();
+        Assert.NotNull(firstWeapon);
+        Assert.Equal(ItemClass.Weapon, d4.ReadItemType(firstWeapon!.ItemTypeSnoId).Class);
+    }
+
+    /// <summary>
+    /// LIB-1 content anchors: exact per-category base-type counts. A count
+    /// change means Blizzard added/removed an item type — re-baseline, not a
+    /// decoder regression. Pinned to build 3.1.1.72836.
+    /// </summary>
+    [SkippableFact]
+    [Trait("kind", "content-snapshot")]
+    public void LIB1_item_type_category_counts_pinned_to_build_3_1_1()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+
+        var byClass = d4.EnumerateItemTypes().GroupBy(t => t.Class)
+            .ToDictionary(g => g.Key, g => g.Count());
+        Assert.Equal(28, byClass[ItemClass.Weapon]);
+        Assert.Equal(5, byClass[ItemClass.Armor]);
+        Assert.Equal(2, byClass[ItemClass.Jewelry]);
+        Assert.Equal(1, byClass[ItemClass.Charm]);
     }
 }

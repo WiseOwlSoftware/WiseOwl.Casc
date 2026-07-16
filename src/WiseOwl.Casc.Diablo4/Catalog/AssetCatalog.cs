@@ -57,6 +57,9 @@ public enum AssetKind
     Item,
     /// <summary>An affix definition (<see cref="AffixDefinition"/>).</summary>
     Affix,
+    /// <summary>An item base type (<see cref="ItemType"/>) — the weapon /
+    /// armor / jewelry / charm dictionary; carries a <c>category</c> facet.</summary>
+    ItemType,
 }
 
 /// <summary>
@@ -392,6 +395,11 @@ public sealed class Catalog
                     list.Add(new Facet("class", conv.Class, FacetSource.NameConvention));
                 break;
             }
+            case AssetKind.ItemType when TryGet<ItemType>(asset, out var it):
+                // Structural category (weapon/armor/jewelry/charm/other) — the
+                // decoded classification, not a name convention.
+                list.Add(new Facet("category", it.Class.ToString().ToLowerInvariant(), FacetSource.Decoded));
+                break;
         }
         return list;
     }

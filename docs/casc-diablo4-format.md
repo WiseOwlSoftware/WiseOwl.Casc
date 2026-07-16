@@ -2128,10 +2128,73 @@ multipliers (Phase 4) are engine-coded — the honest boundary (devlog
 0084; `DifficultyTiers` 1973217 is a per-monster-level curve, not the
 Torment-tier table).
 
+## 13. Item base-type taxonomy (LIB-1)
+
+Every item (`ItemDefinition`, group 73) references a **base type** — an entry
+in the item-type dictionary (group 98, `GearItem`; the engine's `eItemType`
+enum: `Sword`, `Amulet`, `Helm`, `Charm`, `HealthPotion`, … — ~153 entries).
+The base type is what classifies an item as a weapon / armor / jewelry / charm.
+
+### 13.1 The item→type link
+
+An item record stores its base-type SNO id at **payload `+0x0C`**
+(`ItemDefinition.ItemTypeSnoId`; e.g. `Chest_Normal_Generic_001` → `ChestArmor`
+446829, `1HSword_Legendary_Generic_001` → `Sword` 446796). Resolve it with
+`Diablo4Storage.ReadItemType`.
+
+### 13.2 The ItemType record (group 98) and classification
+
+Payload base `0x10`; `snoId` at payload `0`. The classification fields
+(payload-relative): a **kind** word at `+0x08` (`32`/`48` ⇒ equippable gear;
+smaller values ⇒ non-gear), a **sub-kind** at `+0x0C` (`5` ⇒ Charm), a
+**weapon-family** enum at `+0x30` (`≥ 0` ⇒ a weapon-slot item — a coarse family
+shared across related weapons, e.g. Axe/Sword/Mace = 1; `-1` ⇒ not a weapon), an
+**armor-value scalar** (float) at `+0x3C` (`0` ⇒ jewelry, `> 0` ⇒ body armor),
+and a **slot** word at `+0x44` (`> 0` for armor/jewelry). `ItemClass` is derived:
+
+| Class | Rule |
+|---|---|
+| Charm | sub-kind `+0x0C == 5` |
+| Weapon | weapon-family `+0x30 ≥ 0` (incl. off-hands: shield, focus, totem) |
+| Armor | `+0x30 == -1`, slot `+0x44 > 0`, armor-scalar `+0x3C > 0` |
+| Jewelry | `+0x30 == -1`, slot `+0x44 > 0`, armor-scalar `+0x3C == 0` |
+| Other | non-equippable (kind `+0x08 ∉ {32,48}`), or an unslotted equippable (e.g. Essence) |
+
+Verified across the full g98 set on build 3.1.1.72836: **Weapon 28** (all
+melee/ranged weapons + off-hands), **Armor 5** (ChestArmor/Helm/Legs/Gloves/
+Boots), **Jewelry 2** (Amulet/Ring), **Charm 1**, **Other 117** (consumables,
+currency, gems/runes, quest items, caches, keys, essences, mount/companion
+armor, …). Structural — no name parsing.
+
+### 13.3 API
+
+- `Diablo4Storage.ReadItemType(int)` → `ItemType` (`SnoId`, `Name`, `Class`,
+  `IsEquippable`, `WeaponFamily`).
+- `Diablo4Storage.EnumerateItemTypes()` → the classified type dictionary
+  (`.Where(t => t.Class == ItemClass.Weapon)` for every weapon type).
+- `Diablo4Storage.EnumerateItems(ItemClass)` → every item of a category (every
+  weapon / charm / … in the game); identity only, `ReadItem` for localized text.
+- `ItemDefinition.ItemTypeSnoId` — the item→type link.
+- Catalog: `AssetKind.ItemType` (via `Catalog.OfKind`) with a decoded
+  `category` facet.
+
 ## Appendix A — correction log (Diablo IV errata)
 
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
+
+- **CL-90 — item base-type taxonomy: weapon/armor/jewelry/charm
+  classification + enumeration (LIB-1, §13).** First proactive
+  comprehensive-data-exposure work item. Group 98 (`GearItem`) is the
+  `eItemType` dictionary (~153 types); an item (group 73) names its base type
+  at payload `+0x0C`. Decoded structurally (no name parsing): kind `+0x08`
+  (32/48 = gear), sub-kind `+0x0C` (5 = Charm), weapon-family `+0x30` (≥0 =
+  weapon-slot, -1 = not), armor-scalar `+0x3C` (0 = jewelry, >0 = armor), slot
+  `+0x44`. Ships `ItemType`/`ItemClass`, `Diablo4Storage.ReadItemType` /
+  `EnumerateItemTypes` / `EnumerateItems(ItemClass)`,
+  `ItemDefinition.ItemTypeSnoId`, and `AssetKind.ItemType` with a decoded
+  `category` facet. Verified counts (build 3.1.1.72836): Weapon 28 / Armor 5 /
+  Jewelry 2 / Charm 1 / Other 117.
 
 - **CL-89 — Character-Sheet stat model: universal coefficients +
   structural per-class core→bonus map (FR-C29 Phase 1, §12).** The

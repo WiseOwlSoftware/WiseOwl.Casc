@@ -12,6 +12,7 @@ public sealed class ItemDefinition
 | --- | --- |
 | static [Parse](ItemDefinition/Parse.md)(…) | Decode an Item from its raw SNO blob (identity only — the localized fields need [`CoreToc`](./CoreToc.md); use [`ReadItem`](./Diablo4Storage/ReadItem.md)). |
 | [Flavor](ItemDefinition/Flavor.md) { get; } | Localized flavor text (sibling label `Flavor`), or Empty. |
+| [ItemTypeSnoId](ItemDefinition/ItemTypeSnoId.md) { get; } | The item's base-type SNO id (payload `+0x0C`) — the [`ItemType`](./ItemType.md) (group ItemType = 98) that classifies this item as a weapon / armor / jewelry / charm. Resolve it with [`ReadItemType`](./Diablo4Storage/ReadItemType.md). `0` when the record has none (§13 / LIB-1). |
 | [Name](ItemDefinition/Name.md) { get; } | Localized item name (sibling label `Name`), or Empty. |
 | [SnoId](ItemDefinition/SnoId.md) { get; } | The item's own SNO id (== the CoreTOC id). |
 | [TransmogName](ItemDefinition/TransmogName.md) { get; } | Localized transmog name (sibling label `TransmogName`; present mainly for uniques), or Empty. |
