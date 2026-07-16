@@ -1460,7 +1460,8 @@ switch (cmd)
         }
         else
         {
-            Console.WriteLine($"  {id} -> {d4.GetAttributeName(id) ?? "(null)"}");
+            string data = d4.TryGetDataAttributeName(id, out var dn) ? $"  [DataAttr: {dn}]" : "";
+            Console.WriteLine($"  {id} -> {d4.GetAttributeName(id) ?? "(null)"}{data}");
         }
         return 0;
     }

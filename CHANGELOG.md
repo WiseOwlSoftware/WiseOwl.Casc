@@ -31,6 +31,20 @@ Semantic Versioning once it reaches `1.0.0`.
   does — including multi-stat affixes like a dual-element resistance. Roll
   values and additive-vs-multiplicative operation remain the game's
   item-power-scaled domain (not stored on the affix).
+- **Conditional-attribute names** — `Diablo4Storage.TryGetDataAttributeName`
+  resolves the conditional/seasonal attributes (Berserking, Shadowform,
+  Demonform, Volatile, kill-streak, per-power bonuses) that some nodes, glyph
+  affixes, and item affixes reference through a separate designer table. These
+  carry a high-bit flag on their attribute id; the new method reads their name
+  where `GetAttributeName` (the engine-attribute resolver) returns null.
+
+### Fixed
+
+- **Wrong attribute names** — `GetAttributeName` no longer returns a stale,
+  confidently-wrong name for an attribute id the game has renumbered across
+  seasons (e.g. a damage-while-Healthy affix resolving to "Barrier
+  Generation"). Renumbered ids now resolve to the correct current name or an
+  honest null, never a wrong one. Its documentation is refreshed to match.
 
 ## [0.4.0] — 2026-07-15
 

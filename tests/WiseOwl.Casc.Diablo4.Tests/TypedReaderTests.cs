@@ -399,6 +399,66 @@ public sealed class TypedReaderTests
         Assert.Equal(expected, d4.GetAttributeName(attributeId));
     }
 
+    /// <summary>FR-C31 (CL-93) — a shifted (drift-range) AttributeId that live
+    /// data still references must resolve to the <b>correct</b> name or
+    /// <see langword="null"/>, never a stale wrong name. The pre-Season-14 ids
+    /// (481/950/1120/1124) return <see langword="null"/> (the drift-prone tail
+    /// is out of the by-id fallback); their current successors resolve via the
+    /// runtime token scan. Regression guard for the "1124 → Barrier Generation
+    /// on a damage-while-Healthy affix" defect. content-snapshot: the exact ids
+    /// are per-build (3.1.1.72836 / Season 14).</summary>
+    [SkippableTheory]
+    [Trait("kind", "content-snapshot")]
+    [InlineData(481, null)]          // stale Armor (current is 482) — was wrongly "Armor"
+    [InlineData(950, null)]          // stale Damage-to-Elites (current 953)
+    [InlineData(1124, null)]         // stale Barrier id live glyph-affixes reference — was wrongly "Barrier Generation"
+    [InlineData(482, "Armor")]       // current id resolves via the token scan
+    [InlineData(953, "Damage to Elites")]
+    [InlineData(1123, "Damage while Healthy")]
+    public void GetAttributeName_returns_null_not_stale_name_for_shifted_ids(
+        int attributeId, string? expected)
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+        Assert.Equal(expected, d4.GetAttributeName(attributeId));
+    }
+
+    /// <summary>FR-C32 (CL-93) — flag-namespaced (negative, high-bit
+    /// <c>0x80000000</c>) AttributeIds are <c>DataAttributes</c> refs, a
+    /// disjoint namespace: <see cref="Diablo4Storage.GetAttributeName(int, string)"/>
+    /// returns <see langword="null"/> for them, and
+    /// <see cref="Diablo4Storage.TryGetDataAttributeName(int, out string)"/>
+    /// resolves them by ordinal (<c>id &amp; 0x7FFFFFFF</c>). Positive ids and
+    /// the <c>-1</c> sentinel are not table refs. content-snapshot: the exact
+    /// ordinals/names are per-build.</summary>
+    [SkippableFact]
+    [Trait("kind", "content-snapshot")]
+    public void TryGetDataAttributeName_resolves_flagged_refs()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+
+        // Flagged ref (0x80000054, ordinal 84) → the DataAttributes token;
+        // GetAttributeName (engine namespace) returns null for it.
+        int flagged = unchecked((int)0x80000054);
+        Assert.True(d4.TryGetDataAttributeName(flagged, out var name));
+        Assert.Equal("Barb_Berserking_AttackSpeed", name);
+        Assert.Null(d4.GetAttributeName(flagged));
+
+        // The additive/multiplicative Volatile pair (ordinals 253/254).
+        Assert.True(d4.TryGetDataAttributeName(unchecked((int)0x800000FD), out var add));
+        Assert.Equal("Damage_Percent_Bonus_While_Volatile", add);
+        Assert.True(d4.TryGetDataAttributeName(unchecked((int)0x800000FE), out var mult));
+        Assert.Equal("Multiplicative_Damage_Percent_Bonus_While_Volatile", mult);
+
+        // A positive engine id and the -1 sentinel are not DataAttributes refs.
+        Assert.False(d4.TryGetDataAttributeName(482, out var none1));
+        Assert.Equal(string.Empty, none1);
+        Assert.False(d4.TryGetDataAttributeName(-1, out _));
+    }
+
     /// <summary>FR-C27 (CL-88) — the season-robust guarantee: every
     /// <c>AttributeId</c> a live <c>Generic_&lt;Rarity&gt;_&lt;Token&gt;</c>
     /// node carries resolves through <see cref="Diablo4Storage.GetAttributeName(int, string)"/>

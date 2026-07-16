@@ -14,38 +14,47 @@ namespace WiseOwl.Casc.Diablo4;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>Pipeline.</b> AttributeId → label key (clean-room curated
-/// map, see <see cref="LabelByAttributeId"/>) → templated body in
-/// sno <c>4080</c> via the existing per-locale StringList machinery
-/// → stripped name (templates removed, color tags removed,
-/// whitespace normalised; <see cref="StripTemplate"/>). Examples
-/// (build <c>3.0.2.71886</c>):
+/// <b>Pipeline (CL-88, season-robust).</b> The raw <c>AttributeId</c>
+/// is a registry ordinal the engine renumbers every build, so it is
+/// not a durable key. Resolution is: runtime <c>id → node-name
+/// token</c> scan of the live <c>Generic_</c> nodes →
+/// <see cref="LabelByToken"/> (the season-stable primary) → templated
+/// body in sno <c>4080</c> via the per-locale StringList machinery →
+/// stripped name (templates / color tags removed, whitespace
+/// normalised; <see cref="StripTemplate"/>). The
+/// <see cref="LabelByAttributeId"/> by-id map is a defensive fallback
+/// restricted to the stable low range
+/// (<see cref="StableAttributeIdRangeExclusiveMax"/>). Examples
+/// (build <c>3.1.1.72836</c>, Season 14):
 /// </para>
 /// <list type="table">
-///   <listheader><term>AttributeId</term><description>Label
+///   <listheader><term>AttributeId</term><description>token / label
 ///     <c>→</c> Template <c>→</c> Stripped name</description></listheader>
 ///   <item><term>9</term><description><c>Strength → "[{VALUE}|~|] Strength" → "Strength"</c></description></item>
 ///   <item><term>133</term><description><c>Hitpoints_Max_Bonus → "[{VALUE}|~|] Maximum Life" → "Maximum Life"</c></description></item>
-///   <item><term>481</term><description><c>Armor_Bonus → "+[{VALUE}] Armor" → "Armor"</c></description></item>
-///   <item><term>950</term><description><c>Damage_Percent_Bonus_Vs_Elites → "+[{VALUE}*100|1%|] Damage to Elites" → "Damage to Elites"</c></description></item>
+///   <item><term>482</term><description><c>token "Armor" → "+[{VALUE}] Armor" → "Armor"</c> (was 481 pre-S14)</description></item>
+///   <item><term>953</term><description><c>token "DamageToElite" → "+[{VALUE}*100|1%|] Damage to Elites" → "Damage to Elites"</c> (was 950 pre-S14)</description></item>
 /// </list>
 /// <para>
-/// <b>Coverage.</b> <see cref="LabelByAttributeId"/> covers every
-/// <c>AttributeId</c> the Optimizer surfaced in their FR-C21 / FR-C25
-/// probes plus the long-tail set observed via the
-/// <c>Generic_&lt;Rarity&gt;_&lt;Token&gt;</c> node-name convention
-/// (<c>SnoScan attrmap</c>; the empirical first-party observation).
-/// AttributeIds not in the map return <see langword="null"/> from
-/// <see cref="Diablo4Storage.GetAttributeName(int, string)"/> — honest sentinel
-/// (consumer falls back to <c>"Attribute &lt;id&gt;"</c>); future
-/// builds adding new attributes can extend the map without API
-/// changes.
+/// <b>Coverage.</b> The runtime token scan covers every
+/// <c>AttributeId</c> a live <c>Generic_&lt;Rarity&gt;_&lt;Token&gt;</c>
+/// node carries whose token is in <see cref="LabelByToken"/> — and it
+/// tracks the per-build renumbering automatically. AttributeIds the
+/// scan can't reach (and outside the stable-range by-id fallback)
+/// return <see langword="null"/> from
+/// <see cref="Diablo4Storage.GetAttributeName(int, string)"/> — honest
+/// sentinel (consumer falls back to <c>"Attribute &lt;id&gt;"</c>).
+/// A <b>flag-namespaced (negative) id</b> — a <c>DataAttributes</c>
+/// designer-table ref, high bit <c>0x80000000</c> — is a disjoint
+/// namespace resolved by
+/// <see cref="Diablo4Storage.TryGetDataAttributeName(int, out string)"/>,
+/// not this pipeline.
 /// </para>
 /// <para>
 /// <b>Ambiguity.</b> Some <c>AttributeId</c> values are
 /// power-budget categories shared by multiple distinct stats (e.g.
-/// <c>481</c> covers Armor / ArmorPercent / DamageReduction* — the
-/// CL-66 finding). The map returns the <i>primary</i> name
+/// <c>482</c> on build 3.1.1.72836 covers Armor / ArmorPercent /
+/// DamageReduction* — the CL-66 finding). The map returns the <i>primary</i> name
 /// ("Armor"); the per-node disambiguation lives on
 /// <see cref="ParagonNodeStat.StatName"/> via the
 /// <see cref="ParagonNodeInfoBuilder"/> token fallback (the budget-
@@ -103,39 +112,27 @@ public static class AttributeNames
             { 361, "CC_Duration_Reduction" },
             { 373, "Thorns_Flat" },
 
-            // Budget category — Armor is the canonical primary name; the
-            // ArmorPercent / DamageReductionFrom* / DamageReductionWhile*
-            // siblings disambiguate via the node-name token on
-            // ParagonNodeStat.StatName (CL-69 / CL-76).
-            { 481, "Armor_Bonus" },
-
-            // DoT damage taken/dealt.
-            { 706, "DOT_DPS_Bonus_Percent_Per_Damage_Type" },
-            { 708, "DOT_DPS_Bonus_Percent_Per_Damage_Type" },
-
-            // Damage-to-* (Vulnerable / Near / Far / Low / High / etc.).
-            { 735,  "Vulnerable_Health_Damage_Bonus" },
-            { 1102, "Damage_Bonus_To_Near" },
-            { 1104, "Damage_Bonus_To_Far" },
-            { 1114, "Damage_Bonus_To_Low_Health" },
-            { 1116, "Damage_Bonus_To_HIgh_Health" },
-            { 1120, "Damage_Bonus_At_High_Health" },
-
-            // Damage-on-* / Damage-while-* / Damage-to-CC.
-            { 925, "Movement_Speed_Bonus_On_Elite_Kill" },
-            { 926, "Damage_Bonus_On_Elite_Kill_Combined" },
-            { 950, "Damage_Percent_Bonus_Vs_Elites" },
-            { 954, "Damage_Percent_Bonus_Vs_CC_All" },
-            { 956, "Damage_Percent_Bonus_Vs_CC_All" },
-            { 959, "Damage_Percent_Bonus_Vs_CC_All" },
-
-            // Fortify.
-            { 746, "Fortified_Health_Application_Bonus" },
-            { 747, "Damage_Percent_Bonus_When_Fortified" },
-
-            // Barriers.
-            { 1124, "Barrier_Bonus_Percent" },
+            // NOTE (FR-C31 / CL-93): the drift-prone tail (ids ≥ 481 — Armor,
+            // Damage-to-Elites, the Damage-while/Damage-to conditional family,
+            // Fortify, Barriers, …) is **deliberately not** in this by-id map.
+            // Those ids renumber every season (Armor 481→482, Elites 950→953,
+            // high-health 1120→1123, Barrier 1124→1127, …); a fixed id→label
+            // entry there goes stale and returns a *wrong* name for whatever
+            // attribute now holds the old id (e.g. live glyph-affix refs to the
+            // pre-shift id 1124 were resolving to "Barrier Generation" on a
+            // damage-while-Healthy affix). Those attributes resolve season-
+            // robustly through the runtime id→token node scan → LabelByToken
+            // instead; an id in the drift range that the scan can't reach
+            // returns an honest null (never a wrong name). Only the stable
+            // low range (< 481, unmoved through Season 14) stays here.
         };
+
+    /// <summary>The exclusive upper bound of the season-stable
+    /// <c>AttributeId</c> low range. Ids at or above this drift (renumber)
+    /// each build, so <see cref="LabelByAttributeId"/> intentionally does not
+    /// map them (a stale by-id entry there returns a wrong name — FR-C31 /
+    /// CL-93); they resolve via the runtime id→token node scan instead.</summary>
+    public const int StableAttributeIdRangeExclusiveMax = 481;
 
     /// <summary>
     /// FR-C27 (CL-88) — the <b>season-stable</b> mapping from a

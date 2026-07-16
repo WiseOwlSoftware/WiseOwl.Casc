@@ -1,6 +1,6 @@
 # Diablo4Storage.GetAttributeName method (1 of 2)
 
-FR-C25 — resolve an `AttributeId` (the raw `eAttribute` int on a [`NodeAttribute`](../NodeAttribute.md) / [`AffectedRarity`](../ParagonGlyphAffixDefinition/AffectedRarity.md)'s attribute references) to its in-game localized display name via the `AttributeDescriptions` StringList (sno `4080`). The same source the tooltip renderer uses. Returns `null` when the id isn't in the curated label map ([`LabelByAttributeId`](../AttributeNames/LabelByAttributeId.md)), when the AttributeDescriptions bundle is missing for the requested locale, or when the label isn't present in the table (honest sentinel — consumer falls back to `"Attribute <id>"`).
+FR-C25 / FR-C27 — resolve an engine `AttributeId` (the raw `eAttribute` int on a [`NodeAttribute`](../NodeAttribute.md) / [`GlyphAffixAttributeRef`](../GlyphAffixAttributeRef.md) / [`AffixEffect`](../AffixEffect.md)) to its in-game localized display name via the `AttributeDescriptions` StringList (sno `4080`) — the same source the tooltip renderer uses.
 
 ```csharp
 public string? GetAttributeName(int attributeId, string locale = "enUS")
@@ -13,7 +13,15 @@ public string? GetAttributeName(int attributeId, string locale = "enUS")
 
 ## Return Value
 
-The stripped display name (templates / placeholders / color tags removed) — e.g. `"Strength"` for id 9, `"Maximum Life"` for 133, `"Armor"` for 481, `"Damage to Elites"` for 950. `null` on any of the unresolved cases above.
+The stripped display name (templates / placeholders / color tags removed) — e.g. `"Strength"` for id 9, `"Maximum Life"` for 133, `"Armor"` for 482, `"Damage to Elites"` for 953 (the current-build ids; stale predecessors 481/950 resolve to `null`). `null` on any of the unresolved cases above.
+
+## Remarks
+
+Pipeline (CL-88, season-robust). The raw `AttributeId` is a registry ordinal the engine renumbers every build (Armor `481→482`, Damage-to-Elites `950→953`, high-health `1120→1123`, Barrier `1124→1127`, …), so it is not a durable key. Resolution is therefore (1) a runtime `id → node-name token` scan of the live `Generic_` nodes → [`LabelByToken`](../AttributeNames/LabelByToken.md) (the season-stable primary, auto-tracking each build's renumbering); then (2) the curated [`LabelByAttributeId`](../AttributeNames/LabelByAttributeId.md) fallback, restricted to the stable low range ([`StableAttributeIdRangeExclusiveMax`](../AttributeNames/StableAttributeIdRangeExclusiveMax.md)) — the drift-prone tail is intentionally absent so a shifted id returns an honest `null` rather than a stale wrong name (FR-C31 / CL-93); then (3) the compound base-id map.
+
+Flag-namespaced (negative) ids are out of scope here. A negative `attributeId` (high bit `0x80000000` set) is a `DataAttributes` designer-table reference, a disjoint namespace — this method returns `null` for it (never `abs()` it into the engine table); resolve it via [`TryGetDataAttributeName`](./TryGetDataAttributeName.md). The `-1` "no attribute" sentinel also returns `null`.
+
+Returns `null` when the id resolves to no label, when the `AttributeDescriptions` bundle is missing for the locale, or when the label isn't in the table (honest sentinel — the consumer composes its own `"Attribute <id>"` fallback).
 
 ## See Also
 

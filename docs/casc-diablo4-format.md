@@ -1990,9 +1990,29 @@ into the data-defined **`DataAttributes`** designer table (SNO `1907204`) by
 AttackSpeed`, `82 = Barb_Berserking_DamageReduction`, `86 = …MovementSpeed`).
 The two namespaces are **disjoint** — never `abs()` the id (negative-208 is a
 different attribute from positive-208). `AffixEffect.IsDataDefinedAttribute` /
-`.DataAttributeOrdinal` expose the split; data-defined names are the FR-C27
-registry frontier (left empty in this slice; the raw token is on the affix's
-own `Desc`).
+`.DataAttributeOrdinal` expose the split; the data-defined name resolves via
+`Diablo4Storage.TryGetDataAttributeName(id, out token)` (CL-93 — reads the
+`DataAttributes` table szName by ordinal). The same flag appears on
+`NodeAttribute` / `GlyphAffixAttributeRef` AttributeIds (node/glyph
+conditional-damage refs — Shadowform/Demonform/Volatile/Overpower/kill-streak,
+verified: ordinal `251 = Warlock_Demonform_Damage_Bonus`,
+`252 = Multiplicative_…`), so the resolver is namespace-agnostic across all
+three record families.
+
+**`DataAttributes` table + namespace-aware `GetAttributeName` (CL-93).** The
+`DataAttributes` record (SNO `1907204`, group 20 `GameBalance`) is an array of
+360-byte entries (ASCII szName@+0, gbid@+256) behind a VLA descriptor at
+payload `+80`/`+84`; a flagged AttributeId indexes it by ordinal. `GetAttributeName`
+is the **engine** `eAttribute` resolver only — it returns `null` for a flagged
+(negative) id and for the `-1` "no attribute" sentinel, routing DataAttributes
+resolution to `TryGetDataAttributeName`. Its engine-side pipeline is
+season-robust (runtime `id→token` node scan → `LabelByToken` → sno-4080), and
+its by-id `LabelByAttributeId` fallback is **restricted to the stable low range**
+(`< 481`): the drift-prone tail renumbers every build (Armor 481→482, Elites
+950→953, Barrier 1124→1127), so a stale by-id entry there is intentionally
+absent — a shifted id returns an honest `null` rather than a wrong name (the
+CL-93 FR-C31 fix: live glyph-affix refs to pre-shift id `1124` had resolved to
+`"Barrier Generation"` on a damage-while-Healthy affix).
 
 **Magnitude & operation stay the consumer's / engine's (boundary, verified).**
 There is **no `(min,max)` float pair** at any structural position in the affix
@@ -2247,6 +2267,27 @@ armor, …). Structural — no name parsing.
 
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
+
+- **CL-93 — namespace-aware `GetAttributeName` + `DataAttributes`
+  resolution; stop stale wrong-names (FR-C31/C32 + LIB-4,
+  `casc-fr#46`/`#47`/`#48`).** Three coupled fixes on the attribute-name
+  surface. **(1) FR-C32 — bit 31 on `AttributeId`** is a namespace flag, not a
+  sign: a negative id references the `DataAttributes` designer table (SNO
+  1907204) by ordinal `id & 0x7FFFFFFF` — a *disjoint* namespace from the engine
+  `eAttribute` registry (never `abs()`; engine-254 ≠ DataAttributes-254). New
+  `Diablo4Storage.TryGetDataAttributeName(int, out string)` resolves it
+  (verified against nodes/glyph-affixes/item-affixes: ordinal 84 =
+  `Barb_Berserking_AttackSpeed`, 251 = `Warlock_Demonform_Damage_Bonus`, 252 =
+  `Multiplicative_…`). `AttributeId == -1` confirmed as the "no attribute"
+  sentinel. **(2) FR-C31 — stale wrong-names**: the by-id `LabelByAttributeId`
+  fallback returned a stale pre-shift name (id `1124 → "Barrier Generation"` on a
+  damage-while-Healthy glyph affix). Fix: the fallback is now restricted to the
+  season-stable low range (`< 481`, `AttributeNames.StableAttributeIdRangeExclusiveMax`);
+  the drift-prone tail resolves via the runtime token scan or returns honest
+  `null` — never a wrong name. `GetAttributeName` also returns `null` for flagged
+  (negative) ids (a disjoint namespace). **(3) LIB-4** — the `GetAttributeName` /
+  `AttributeNames` XML docs regenerated: CL-88 token-scan pipeline described as
+  primary, examples use current ids (482/953, not stale 481/950). §11.3.
 
 - **CL-92 — item/aspect affix effects: which attribute(s) an affix
   modifies (LIB-3, `casc-fr#45`).** `AffixDefinition.Effects` decodes the

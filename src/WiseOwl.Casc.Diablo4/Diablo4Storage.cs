@@ -724,28 +724,48 @@ public sealed class Diablo4Storage : IDisposable
     private const string ParagonNodeStringTablePrefix = "ParagonNode_";
 
     /// <summary>
-    /// FR-C25 — resolve an <c>AttributeId</c> (the raw
+    /// FR-C25 / FR-C27 — resolve an engine <c>AttributeId</c> (the raw
     /// <c>eAttribute</c> int on a <see cref="NodeAttribute"/> /
-    /// <see cref="ParagonGlyphAffixDefinition.AffectedRarity"/>'s
-    /// attribute references) to its in-game localized display name
-    /// via the <c>AttributeDescriptions</c> StringList (sno
-    /// <c>4080</c>). The same source the tooltip renderer uses.
-    /// Returns <see langword="null"/> when the id isn't in the
-    /// curated label map (<see cref="AttributeNames.LabelByAttributeId"/>),
-    /// when the AttributeDescriptions bundle is missing for the
-    /// requested locale, or when the label isn't present in the
-    /// table (honest sentinel — consumer falls back to
-    /// <c>"Attribute &lt;id&gt;"</c>).
+    /// <see cref="GlyphAffixAttributeRef"/> / <see cref="AffixEffect"/>) to its
+    /// in-game localized display name via the <c>AttributeDescriptions</c>
+    /// StringList (sno <c>4080</c>) — the same source the tooltip renderer uses.
     /// </summary>
+    /// <remarks>
+    /// <para><b>Pipeline (CL-88, season-robust).</b> The raw
+    /// <c>AttributeId</c> is a registry ordinal the engine <b>renumbers every
+    /// build</b> (Armor <c>481→482</c>, Damage-to-Elites <c>950→953</c>,
+    /// high-health <c>1120→1123</c>, Barrier <c>1124→1127</c>, …), so it is not
+    /// a durable key. Resolution is therefore (1) a runtime <c>id → node-name
+    /// token</c> scan of the live <c>Generic_</c> nodes →
+    /// <see cref="AttributeNames.LabelByToken"/> (the season-stable primary,
+    /// auto-tracking each build's renumbering); then (2) the curated
+    /// <see cref="AttributeNames.LabelByAttributeId"/> fallback, restricted to
+    /// the <b>stable low range</b> (<see cref="AttributeNames.StableAttributeIdRangeExclusiveMax"/>)
+    /// — the drift-prone tail is intentionally absent so a shifted id returns
+    /// an honest <see langword="null"/> rather than a stale wrong name
+    /// (FR-C31 / CL-93); then (3) the compound base-id map.</para>
+    /// <para><b>Flag-namespaced (negative) ids are out of scope here.</b> A
+    /// negative <c>attributeId</c> (high bit <c>0x80000000</c> set) is a
+    /// <c>DataAttributes</c> designer-table reference, a <b>disjoint</b>
+    /// namespace — this method returns <see langword="null"/> for it (never
+    /// <c>abs()</c> it into the engine table); resolve it via
+    /// <see cref="TryGetDataAttributeName(int, out string)"/>. The <c>-1</c>
+    /// "no attribute" sentinel also returns <see langword="null"/>.</para>
+    /// <para>Returns <see langword="null"/> when the id resolves to no label,
+    /// when the <c>AttributeDescriptions</c> bundle is missing for the locale,
+    /// or when the label isn't in the table (honest sentinel — the consumer
+    /// composes its own <c>"Attribute &lt;id&gt;"</c> fallback).</para>
+    /// </remarks>
     /// <param name="attributeId">The raw <c>eAttribute</c> int.</param>
     /// <param name="locale">Locale (default
     /// <see cref="DefaultLocale"/>); routes through the per-locale
     /// StringList bundle via <see cref="GetStrings"/>.</param>
     /// <returns>The stripped display name (templates / placeholders
     /// / color tags removed) — e.g. <c>"Strength"</c> for id 9,
-    /// <c>"Maximum Life"</c> for 133, <c>"Armor"</c> for 481,
-    /// <c>"Damage to Elites"</c> for 950. <see langword="null"/> on
-    /// any of the unresolved cases above.</returns>
+    /// <c>"Maximum Life"</c> for 133, <c>"Armor"</c> for 482,
+    /// <c>"Damage to Elites"</c> for 953 (the current-build ids;
+    /// stale predecessors 481/950 resolve to <see langword="null"/>).
+    /// <see langword="null"/> on any of the unresolved cases above.</returns>
     public string? GetAttributeName(int attributeId, string locale = DefaultLocale)
     {
         if (!TryResolveBaseLabel(attributeId, out var label))
@@ -822,6 +842,57 @@ public sealed class Diablo4Storage : IDisposable
         return GetAttributeName(attributeId, locale);
     }
 
+    /// <summary>
+    /// FR-C32 (CL-93) — resolve a <b>flag-namespaced</b> <c>AttributeId</c>
+    /// (a negative id, high bit <c>0x80000000</c> set) to its
+    /// <c>DataAttributes</c> designer-table name. These refs — carried on
+    /// paragon nodes, glyph affixes, and item affixes for
+    /// conditional/seasonal/per-power bonuses (Berserking, Shadowform,
+    /// Demonform, Volatile, kill-streak, …) — are <b>not</b> engine
+    /// <c>eAttribute</c> ids and do not resolve through
+    /// <see cref="GetAttributeName(int, string)"/> (a disjoint namespace);
+    /// this method reads them from the data-defined <c>DataAttributes</c>
+    /// table (SNO <c>1907204</c>) by ordinal <c>attributeId &amp; 0x7FFFFFFF</c>.
+    /// </summary>
+    /// <remarks>
+    /// <para>The returned <paramref name="name"/> is the table's authored
+    /// token (e.g. <c>"Warlock_Demonform_Damage_Bonus"</c>,
+    /// <c>"Multiplicative_Damage_Percent_Bonus_While_Volatile"</c>,
+    /// <c>"Barb_Berserking_AttackSpeed"</c>) — the first-party designer name,
+    /// not a localized display string (these conditional attributes have no
+    /// standalone tooltip label; the consumer owns any humanization). The
+    /// additive/multiplicative split is in the token (a
+    /// <c>Multiplicative_</c> prefix distinguishes the pair member).</para>
+    /// <para>Returns <see langword="false"/> — with <paramref name="name"/>
+    /// set to <see cref="string.Empty"/> — for a non-flagged (positive)
+    /// engine id, the <c>-1</c> "no attribute" sentinel, an ordinal outside
+    /// the table, or when the <c>DataAttributes</c> record is unreadable.
+    /// Verified: item-affix ordinal <c>84 = Barb_Berserking_AttackSpeed</c>;
+    /// node/glyph ordinal <c>251 = Warlock_Demonform_Damage_Bonus</c>,
+    /// <c>252 = Multiplicative_Warlock_Demonform_Damage_Bonus</c> — see
+    /// <c>casc-diablo4-format.md §11.3</c>.</para>
+    /// </remarks>
+    /// <param name="attributeId">The raw (possibly flag-namespaced)
+    /// <c>eAttribute</c> int, exactly as carried on
+    /// <see cref="NodeAttribute.AttributeId"/> /
+    /// <see cref="GlyphAffixAttributeRef.AttributeId"/> /
+    /// <see cref="AffixEffect.AttributeId"/>.</param>
+    /// <param name="name">The resolved <c>DataAttributes</c> token, or
+    /// <see cref="string.Empty"/>.</param>
+    /// <returns><see langword="true"/> iff <paramref name="attributeId"/> is a
+    /// flagged ref that resolved to a table entry.</returns>
+    public bool TryGetDataAttributeName(int attributeId, out string name)
+    {
+        name = string.Empty;
+        if (attributeId >= 0) return false;                 // engine id, not flagged
+        int ordinal = attributeId & 0x7FFFFFFF;             // strip the namespace flag
+        var names = DataAttributeNames();
+        if (ordinal < 0 || ordinal >= names.Length) return false;   // -1 sentinel lands here too
+        if (names[ordinal].Length == 0) return false;
+        name = names[ordinal];
+        return true;
+    }
+
     // FR-C27 (CL-88) — season-robust AttributeId → name resolution. The raw
     // AttributeId is a registry ordinal the engine renumbers each build, so
     // it can't be a durable key; the node-name token is. Scan the live
@@ -859,6 +930,48 @@ public sealed class Diablo4Storage : IDisposable
         return _attributeTokens = map;
     }
 
+    // FR-C32 (CL-93) — the DataAttributes (SNO 1907204, group 20) designer
+    // table, read once and cached as an ordinal-indexed name array. A flagged
+    // (negative) AttributeId references it by ordinal (id & 0x7FFFFFFF); see
+    // TryGetDataAttributeName. Layout (verified 3.1.1.72836): the entry array
+    // is a VLA whose descriptor is at payload +80 (dataOff) / +84 (byteSize);
+    // each entry is a fixed 360-byte record with the ASCII szName at +0.
+    private string[]? _dataAttributeNames;
+    private const int DataAttributesSno = 1907204;
+    private const int DataAttributesDescriptorOffset = 80;
+    private const int DataAttributesEntryStride = 360;
+    private const int DataAttributesNameMaxLength = 256;
+
+    private string[] DataAttributeNames()
+    {
+        if (_dataAttributeNames is not null) return _dataAttributeNames;
+        byte[] b;
+        try { b = ReadSno(SnoGroup.GameBalance, DataAttributesSno); }
+        catch (CascException) { return _dataAttributeNames = []; }
+
+        const int pbase = SnoRecord.DefaultPayloadBase;
+        if (b.Length < pbase + DataAttributesDescriptorOffset + 8)
+            return _dataAttributeNames = [];
+        int dataOff = BitConverter.ToInt32(b, pbase + DataAttributesDescriptorOffset);
+        int byteSize = BitConverter.ToInt32(b, pbase + DataAttributesDescriptorOffset + 4);
+        if (dataOff <= 0 || byteSize <= 0 || pbase + dataOff + byteSize > b.Length)
+            return _dataAttributeNames = [];
+
+        int count = byteSize / DataAttributesEntryStride;
+        var names = new string[count];
+        int start = pbase + dataOff;
+        for (int i = 0; i < count; i++)
+        {
+            int entry = start + i * DataAttributesEntryStride;
+            int len = 0;
+            while (len < DataAttributesNameMaxLength
+                   && entry + len < b.Length && b[entry + len] != 0)
+                len++;
+            names[i] = System.Text.Encoding.ASCII.GetString(b, entry, len);
+        }
+        return _dataAttributeNames = names;
+    }
+
     /// <summary>Resolve an <c>AttributeId</c> to its season-stable
     /// <c>AttributeDescriptions</c> base label. Cascade: (1) the runtime
     /// id→token scan → <see cref="AttributeNames.LabelByToken"/> (tracks the
@@ -875,7 +988,11 @@ public sealed class Diablo4Storage : IDisposable
                     label = byToken;
                     return true;
                 }
-        if (AttributeNames.LabelByAttributeId.TryGetValue(attributeId, out var legacy))
+        // Defensive by-id fallback — restricted to the stable low range; the
+        // drift-prone tail (≥ 481) is season-fragile and must resolve via the
+        // token scan above or return null, never a stale by-id name (FR-C31).
+        if (attributeId < AttributeNames.StableAttributeIdRangeExclusiveMax &&
+            AttributeNames.LabelByAttributeId.TryGetValue(attributeId, out var legacy))
         {
             label = legacy;
             return true;
