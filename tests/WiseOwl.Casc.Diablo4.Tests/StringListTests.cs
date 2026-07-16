@@ -104,10 +104,14 @@ public sealed class StringListTests
         Assert.True(cat.TableCount > 50_000,
             $"expected tens of thousands of tables, got {cat.TableCount}");
 
-        // Table 4080 = AttributeDescriptions (646 strings, RE-verified).
+        // Table 4080 = AttributeDescriptions. Structural: the table resolves
+        // by name and parses to a sane size. The exact entry count is a
+        // content snapshot (grows most seasons) — pinned in
+        // TypedReaderTests.Season_content_anchors_pinned_to_build_3_1_1.
         var attr = cat.Table(4080)!;
         Assert.Equal("AttributeDescriptions", attr.Name);
-        Assert.Equal(646, attr.Entries.Count);
+        Assert.True(attr.Entries.Count >= 600,
+            $"AttributeDescriptions parsed only {attr.Entries.Count} entries.");
 
         // Table 4087 = Bnet_Chat; a stable known label/value.
         Assert.True(d4.TryGetString(4087, "ChatLink_WhisperedTo", out var w));

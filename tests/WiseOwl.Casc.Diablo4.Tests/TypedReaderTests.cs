@@ -10,8 +10,14 @@ namespace WiseOwl.Casc.Diablo4.Tests;
 
 /// <summary>
 /// B1–B6 typed record readers. Synthetic tests (CI-safe, no game bytes)
-/// prove the layout walks; the live test enforces the converged §7
-/// acceptance matrix verbatim against build 3.0.2.71886.
+/// prove the layout walks; the live acceptance tests assert the decode's
+/// <b>structure and invariants</b> against the live install (robust to
+/// game-content churn). Exact game-authored values that change per build
+/// (registry sizes, atlas frame counts, registry-ordinal AttributeIds)
+/// are isolated in <see cref="Season_content_anchors_pinned_to_build_3_1_1"/>
+/// (<c>Trait kind=content-snapshot</c>) so a season bump surfaces as one
+/// obvious, filterable re-baseline cluster — not scattered acceptance
+/// failures. Current live build: 3.1.1.72836 / Season 14.
 /// </summary>
 public sealed class TypedReaderTests
 {
@@ -592,10 +598,13 @@ public sealed class TypedReaderTests
         Assert.Equal(0, node.RarityOverride);          // Generic_Normal_* = Common
         Assert.NotEmpty(node.Attributes);
 
-        // GameBalance 201912 AttributeFormulas — §7 acceptance.
+        // GameBalance 201912 AttributeFormulas — §7 acceptance. Structural:
+        // the registry parses to a sane size (the exact count is a content
+        // snapshot — see Season_content_anchors_pinned_to_build_3_1_1).
         var gb = d4.ReadAttributeFormulas();
         Assert.Equal(201912, gb.SnoId);
-        Assert.Equal(1038, gb.Entries.Count);
+        Assert.True(gb.Entries.Count >= 1000,
+            $"AttributeFormulas parsed only {gb.Entries.Count} entries (expected ≥1000).");
         Assert.True(gb.TryGetFormulaText("ParagonNodeCoreStat_Normal", out var t1));
         Assert.Equal("5", t1.Trim());
         Assert.True(gb.TryGetFormulaText("ParagonNodeCoreStat_Magic", out var t2));
@@ -944,10 +953,14 @@ public sealed class TypedReaderTests
         Assert.Null(affix.LinkedPowerSnoId);
         Assert.Null(affix.AffectedRarityKind);
         Assert.Equal(2, affix.AffectedAttributes.Count);
-        // First entry = AttributeId 1120 (no tag); second = 10 (no tag).
-        Assert.Equal(1120, affix.AffectedAttributes[0].AttributeId);
+        // Structural: first entry carries no tag param, both ids decode as
+        // valid registry indices. The exact AttributeIds are a content
+        // snapshot — they are registry-ordinal and shift as DataAttributes
+        // grows (1120 → 1123 in Season 14) — asserted in
+        // Season_content_anchors_pinned_to_build_3_1_1 (see FR-C27).
         Assert.False(affix.AffectedAttributes[0].HasParam);
-        Assert.Equal(10, affix.AffectedAttributes[1].AttributeId);
+        Assert.True(affix.AffectedAttributes[0].AttributeId >= 0);
+        Assert.True(affix.AffectedAttributes[1].AttributeId >= 0);
         Assert.Equal(3, affix.Tags.Count);
         // The trailing entry is the universal "ParagonGlyphAffix root"
         // anchor 0xD4A1BC54 that appears on every Op-2 affix.
@@ -1064,7 +1077,10 @@ public sealed class TypedReaderTests
         Assert.Equal("2DUI_Tooltip_Icons", chrome.SkillIconAtlas.Name);
         Assert.True(d4.Catalog.TryGet<TextureDefinition>(
             chrome.SkillIconAtlas, out var skillIconTd));
-        Assert.Equal(61, skillIconTd.Frames.Count);
+        // Structural: the atlas decodes a non-trivial frame set. The exact
+        // frame count is a content snapshot (Season_content_anchors...).
+        Assert.True(skillIconTd.Frames.Count >= 50,
+            $"SkillIconAtlas decoded only {skillIconTd.Frames.Count} frames.");
 
         // CL-82 — the Center_Divider_White divider TiledStyle (the
         // Optimizer-validated structural pick on #38).
@@ -1113,5 +1129,42 @@ public sealed class TypedReaderTests
         // Cache identity — repeat call returns the same reference (the
         // Optimizer hot path).
         Assert.Same(chrome, d4.Catalog.GetParagonTooltipChrome());
+    }
+
+    /// <summary>
+    /// Season-versioned CONTENT anchors — exact values Blizzard authors and
+    /// re-authors each game build (registry sizes, atlas frame counts,
+    /// registry-ordinal AttributeIds). A failure here is <b>expected</b> on
+    /// a game update and means "content drifted → byte-verify, then
+    /// re-baseline", NOT a decoder regression: the structural decode is
+    /// covered by the invariant assertions in the acceptance tests. Grouped
+    /// under <c>Trait kind=content-snapshot</c> (filter with
+    /// <c>--filter kind=content-snapshot</c>) so a season bump surfaces as
+    /// one obvious cluster. Pinned to build 3.1.1.72836 / Season 14.
+    /// </summary>
+    [SkippableFact]
+    [Trait("kind", "content-snapshot")]
+    public void Season_content_anchors_pinned_to_build_3_1_1()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+
+        // Registry sizes (grow as the engine adds attributes/formulas).
+        Assert.Equal(650, d4.GetStrings().Table(4080)!.Entries.Count);   // AttributeDescriptions
+        Assert.Equal(1040, d4.ReadAttributeFormulas().Entries.Count);    // AttributeFormulas
+
+        // Tooltip skill-tag icon atlas frame count.
+        var chrome = d4.Catalog.GetParagonTooltipChrome();
+        Assert.True(d4.Catalog.TryGet<TextureDefinition>(chrome.SkillIconAtlas, out var iconTd));
+        Assert.Equal(62, iconTd.Frames.Count);
+
+        // Glyph-affix 1068542 (DamageWhileHealthy_Intelligence_Side)
+        // AffectedAttributes ids — AttributeId is registry-ordinal, so the
+        // high id shifts as DataAttributes grows (1120 → 1123 in Season 14;
+        // FR-C27's registry decode is what fixes that instability).
+        var affix = d4.ReadParagonGlyphAffix(1068542);
+        Assert.Equal(1123, affix.AffectedAttributes[0].AttributeId);
+        Assert.Equal(10, affix.AffectedAttributes[1].AttributeId);
     }
 }
