@@ -626,6 +626,10 @@ public sealed class TypedReaderTests
         return File.Exists(Path.Combine(d4, ".build.info")) ? d4 : null;
     }
 
+    // Hoisted out of the assertion below to satisfy CA1861 (no constant
+    // array argument re-allocated on each call).
+    private static readonly int[] ExpectedGlyphRadiusUpgradeLevels = [25, 50];
+
     [SkippableFact]
     public void Acceptance_matrix_against_live_install()
     {
@@ -957,7 +961,7 @@ public sealed class TypedReaderTests
         // Optimizer's Warlock-21 oracle).
         var anyGlyph = d4.ReadParagonGlyph(1023194);
         Assert.Equal(3, anyGlyph.BaseRadius);
-        Assert.Equal(new[] { 25, 50 }, anyGlyph.RadiusUpgradeLevels);
+        Assert.Equal(ExpectedGlyphRadiusUpgradeLevels, anyGlyph.RadiusUpgradeLevels);
         Assert.Equal(150, anyGlyph.MaxLevel);
 
         // CL-79 / CL-86 / FR-C24 — ParagonGlyphDefinition.LocalizedTitle
