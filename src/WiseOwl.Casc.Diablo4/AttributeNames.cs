@@ -137,6 +137,112 @@ public static class AttributeNames
             { 1124, "Barrier_Bonus_Percent" },
         };
 
+    /// <summary>
+    /// FR-C27 (CL-88) — the <b>season-stable</b> mapping from a
+    /// <c>ParagonNode</c> name <b>token</b> (the
+    /// <c>Generic_&lt;Rarity&gt;_&lt;Token&gt;</c> suffix) to its
+    /// <c>AttributeDescriptions</c> label. This is the durable half of the
+    /// resolver: the raw <c>AttributeId</c> is a <b>registry ordinal</b> that
+    /// the engine renumbers whenever it inserts attributes (Season 14 moved
+    /// <c>Armor</c> 481→482, <c>Damage_Bonus_At_High_Health</c> 1120→1123,
+    /// <c>Barrier</c> 1124→1127, …), so the id is worthless as a durable key —
+    /// but the node-name <b>token</b> never changes. <see cref="Diablo4Storage"/>
+    /// scans the live <c>Generic_</c> nodes at runtime to learn the
+    /// <c>id → token</c> map for the current build, then this table turns the
+    /// token into a label the existing <c>AttributeDescriptions</c> (sno 4080)
+    /// pipeline localizes. The result auto-tracks every season's id shifts
+    /// with no code change. <see cref="LabelByAttributeId"/> is retained only
+    /// as a defensive fallback for ids whose token isn't scannable.
+    /// </summary>
+    /// <remarks>Several node tokens fold to one display label — every
+    /// <c>Resistance&lt;Element&gt;</c> token resolves to <c>"Resistance"</c>
+    /// (the element rides in the attribute's NParam). Tokens whose label is
+    /// ambiguous or absent from the live scan are omitted (honest
+    /// <see langword="null"/> over a wrong name).</remarks>
+    public static IReadOnlyDictionary<string, string> LabelByToken { get; }
+        = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            // Core stats.
+            ["Str"] = "Strength",
+            ["Int"] = "Intelligence",
+            ["Will"] = "Willpower",
+            ["Dex"] = "Dexterity",
+
+            // Element resistance (element variant folds through NParam).
+            ["ResistanceCold"] = "Resistance",
+            ["ResistanceFire"] = "Resistance",
+            ["ResistanceLightning"] = "Resistance",
+            ["ResistancePoison"] = "Resistance",
+            ["ResistanceShadow"] = "Resistance",
+            ["ResistanceAll"] = "Resistance",
+
+            // Life.
+            ["HPFlat"] = "Hitpoints_Max_Bonus",
+            ["HPPercent"] = "Hitpoints_Max_Percent_Bonus",
+            ["HPRegen"] = "Hitpoints_Regen_Per_Second",
+
+            // Resources.
+            ["ResourceCostReduction"] = "Resource_Cost_Reduction_Percent_All",
+            ["ResourceGain"] = "Resource_Gain_Bonus_Percent",
+
+            // Speed / cooldown.
+            ["MoveSpeed"] = "Movement_Bonus_Run_Speed",
+            ["AttackSpeed"] = "Attack_Speed_Percent_Bonus",
+            ["CDR"] = "Power_Cooldown_Reduction_Percent_All",
+
+            // Damage (general + crit).
+            ["Damage"] = "Damage_Percent_All_From_Skills",
+            ["CriticalChance"] = "Crit_Percent_Bonus",
+            ["CriticalDamage"] = "Crit_Damage_Percent",
+
+            // Defense.
+            ["BlockChance"] = "Block_Chance",   // the AttributeDescriptions key (the legacy id-map's "Block_Chance_Bonus" is absent from sno 4080)
+            ["DodgeChance"] = "Dodge_Chance_Bonus",
+            ["CCDurationReduction"] = "CC_Duration_Reduction",
+            ["Thorns"] = "Thorns_Flat",
+            ["Armor"] = "Armor_Bonus",
+
+            // Conditional damage — the season-shifting tail the curated
+            // id-map can't track (all carry clean Generic_ node tokens).
+            ["DamageToVulnerable"] = "Vulnerable_Health_Damage_Bonus",
+            ["DamageToElite"] = "Damage_Percent_Bonus_Vs_Elites",
+            ["DamageToCC"] = "Damage_Percent_Bonus_Vs_CC_All",
+            ["DamageToNear"] = "Damage_Bonus_To_Near",
+            ["DamageToFar"] = "Damage_Bonus_To_Far",
+            ["DamageToLow"] = "Damage_Bonus_To_Low_Health",
+            ["DamageToHigh"] = "Damage_Bonus_To_HIgh_Health",
+            ["DamageWhileHealthy"] = "Damage_Bonus_At_High_Health",
+
+            // Fortify.
+            ["BonusFortify"] = "Fortified_Health_Application_Bonus",
+            ["DamageWhileFortified"] = "Damage_Percent_Bonus_When_Fortified",
+
+            // Elite-kill on-kill bonuses.
+            ["MoveSpeedEliteKill"] = "Movement_Speed_Bonus_On_Elite_Kill",
+        };
+
+    /// <summary>
+    /// FR-C27 (CL-88) — the base <c>AttributeDescriptions</c> label for each
+    /// compound (tag/element/resource-conditional) base <c>AttributeId</c>.
+    /// These ids sit in the engine's <b>stable low range</b> (all &lt; 481;
+    /// unmoved through Season 14, unlike the shifting single-id tail), so the
+    /// compound resolver anchors them by id: it resolves the incoming id to
+    /// its base label here, then keys <see cref="NameByCompoundLabelKey"/> on
+    /// <c>(label, ParamPlus12)</c> — the label + the stable tag/element GBID
+    /// are both season-durable, retiring the id from the compound key.
+    /// </summary>
+    public static IReadOnlyDictionary<int, string> CompoundBaseLabelById { get; }
+        = new Dictionary<int, string>
+        {
+            { 161, "Resource_Max_Bonus" },
+            { 223, "Attack_Speed_Percent_Bonus_Per_Skill_Tag" },
+            { 238, "Skill_Tag_Cooldown_Reduction_Percent" },
+            { 254, "Damage_Type_Percent_Bonus" },
+            { 258, "Damage_Percent_Bonus_To_Targets_Affected_By_Skill_Tag" },
+            { 259, "Damage_Percent_Bonus_Per_Skill_Tag" },
+            { 290, "Crit_Damage_Percent_Per_Skill_Tag" },
+        };
+
     /// <summary>FR-C28 (CL-85) — compound-key map resolving the
     /// tag-conditional attribute names where the same
     /// <see cref="LabelByAttributeId"/> entry can't disambiguate
@@ -335,6 +441,29 @@ public static class AttributeNames
         // === AttributeId 1037 (DustDevil size bonus or similar) ===
         m[(1037, 0x000FBDC9U)] = "Dust Devil Size";         // 1031113 — Barbarian DustDevil
 
+        return m;
+    }
+
+    /// <summary>
+    /// FR-C27 (CL-88) — the season-robust re-key of
+    /// <see cref="LabelByCompoundKey"/> onto <c>(baseLabel, ParamPlus12)</c>.
+    /// Derived at load from <see cref="LabelByCompoundKey"/> (the source of
+    /// the enUS strings) + <see cref="CompoundBaseLabelById"/> (the base id →
+    /// label anchor): every <c>(id, param) → name</c> entry whose base id has
+    /// a known label becomes <c>(label, param) → name</c>. The compound
+    /// resolver keys on this so a base-id renumber (a future season shifting
+    /// e.g. 259) doesn't strand the tag-conditional names — the label + the
+    /// tag/element GBID are both durable.
+    /// </summary>
+    public static IReadOnlyDictionary<(string BaseLabel, uint ParamPlus12), string>
+        NameByCompoundLabelKey { get; } = BuildCompoundLabelMap();
+
+    private static Dictionary<(string, uint), string> BuildCompoundLabelMap()
+    {
+        var m = new Dictionary<(string, uint), string>();
+        foreach (var ((id, param), name) in LabelByCompoundKey)
+            if (CompoundBaseLabelById.TryGetValue(id, out var label))
+                m[(label, param)] = name;
         return m;
     }
 
