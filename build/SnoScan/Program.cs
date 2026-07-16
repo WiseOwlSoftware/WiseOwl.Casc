@@ -1619,6 +1619,193 @@ switch (cmd)
         }
         return 0;
     }
+    case "affixcorpus":
+    {
+        // LIB-3 corpus: for each g104 affix matching <substr> (ALL = every),
+        // emit a compact machine-readable block: struct fields (int|float),
+        // every VLA (idx:int|float|hex), and the localized Name/Desc. This is
+        // the RE corpus for cracking the item-affix effect layout.
+        //   affixcorpus <substr|ALL> [max=80] [structbytes=0x100]
+        if (argv.Count < 2) { Console.Error.WriteLine("affixcorpus <substr|ALL> [max] [structbytes]"); return 2; }
+        string sub = argv[1] == "ALL" ? "" : argv[1];
+        int max = argv.Count > 2 ? int.Parse(argv[2]) : 80;
+        int structBytes = argv.Count > 3 ? Convert.ToInt32(argv[3], 16) : 0x100;
+        int pb = SnoRecord.DefaultPayloadBase;
+        var picks = toc.Entries.Where(e => (int)e.Group == 104
+                        && e.Name.Contains(sub, StringComparison.OrdinalIgnoreCase))
+                    .OrderBy(e => e.Name).Take(max).ToList();
+        Console.WriteLine($"# affixcorpus substr='{sub}' count={picks.Count}");
+        foreach (var e in picks)
+        {
+            if (!d4.TryReadSno(104, e.Id, SnoFolder.Meta, out var b)) continue;
+            var r = new SnoRecord(b);
+            int len = b.Length;
+            string name = "", desc = "";
+            try { var a = d4.ReadAffix(e.Id); name = a.Name; desc = a.Description; } catch { }
+            Console.WriteLine($"## {e.Id} {e.Name} len={len}");
+            if (name.Length > 0) Console.WriteLine($"   NAME: {name}");
+            if (desc.Length > 0) Console.WriteLine($"   DESC: {desc.Replace("\r", " ").Replace("\n", " ")}");
+            // Every plausible non-int float (min/max magnitude candidates), with payload offset.
+            var flb = new System.Text.StringBuilder();
+            for (int p = 0; pb + p + 4 <= len; p += 4)
+            {
+                float f = BitConverter.ToSingle(b, pb + p); uint u = BitConverter.ToUInt32(b, pb + p);
+                bool intLike = u < 100000 && f == (int)f;
+                if (!float.IsNaN(f) && !float.IsInfinity(f) && Math.Abs(f) is > 0.0001f and < 1e6f && !intLike)
+                    flb.Append($" +{p:X2}={f:0.####}");
+            }
+            if (flb.Length > 0) Console.WriteLine($"   F:{flb}");
+            var fsb = new System.Text.StringBuilder();
+            for (int o = 0; o < structBytes && pb + o + 4 <= len; o += 4)
+            {
+                uint u = r.U32(o); float f = r.F32(o);
+                if (u == 0) continue;
+                string fs = (Math.Abs(f) is > 1e-3f and < 1e7f) ? $"|{f:0.###}" : (u >= 0x10000 ? $"|x{u:X}" : "");
+                fsb.Append($" +{o:X2}={(int)u}{fs}");
+            }
+            Console.WriteLine($"   S:{fsb}");
+            for (int o = 0; o + 8 <= structBytes && pb + o + 8 <= len; o += 4)
+            {
+                int d0 = r.I32(o), d1 = r.I32(o + 4);
+                if (!(d0 >= structBytes && d0 < len - pb && d1 > 0 && d1 % 4 == 0 && pb + d0 + d1 <= len)) continue;
+                var vb = new System.Text.StringBuilder();
+                for (int k = 0; k < d1 / 4 && k < 60; k++)
+                {
+                    uint u = r.U32(d0 + k * 4); float f = r.F32(d0 + k * 4);
+                    string fv = u == 0 ? "" : (Math.Abs(f) is > 1e-3f and < 1e7f) ? $"|{f:0.##}" : (u >= 0x10000 ? $"|x{u:X}" : "");
+                    vb.Append($"{k}:{(int)u}{fv} ");
+                }
+                Console.WriteLine($"   V@+{o:X2}[off={d0:X},sz={d1}]: {vb.ToString().Trim()}");
+            }
+        }
+        return 0;
+    }
+    case "affixeffects":
+    {
+        // LIB-3: dogfood the shipped AffixDefinition.Effects API on live data.
+        //   affixeffects <sno...>
+        if (argv.Count < 2) { Console.Error.WriteLine("affixeffects <sno...>"); return 2; }
+        foreach (var s in argv.Skip(1))
+        {
+            int id = int.Parse(s);
+            AffixDefinition a;
+            try { a = d4.ReadAffix(id); } catch (Exception ex) { Console.WriteLine($"{id}: {ex.Message}"); continue; }
+            string nm = a.Name.Length > 0 ? a.Name : "(no name)";
+            Console.WriteLine($"{id} {nm}  [{a.Effects.Count} effect(s)]");
+            if (a.Description.Length > 0) Console.WriteLine($"    desc: {a.Description.Replace("\n", " ")}");
+            foreach (var e in a.Effects)
+            {
+                string pn = e.HasParam ? $" param=0x{e.ParamPlus12:X8}" : "";
+                string an = e.AttributeName.Length > 0 ? e.AttributeName : "(unresolved)";
+                Console.WriteLine($"    attr {e.AttributeId,5}{pn} -> {an}");
+            }
+        }
+        return 0;
+    }
+    case "affixattrmap":
+    {
+        // LIB-3 validation + FR-C27 bonus: for every SINGLE-modifier g104 affix
+        // (+0xB0 VLA size==104) that carries a Desc placeholder [Token...], pair
+        // its modifier AttributeId (idx4) with the leading Desc value-token, and
+        // aggregate idx4 -> {tokens}. A clean 1:1 map validates "idx4 = the
+        // modified attribute" AND yields an AttributeId->name registry.
+        //   affixattrmap [minlen=3]
+        int pb = SnoRecord.DefaultPayloadBase;
+        var map = new SortedDictionary<int, Dictionary<string, int>>();  // idx4 -> token -> count
+        var paramMap = new SortedDictionary<int, HashSet<int>>();        // idx4 -> {idx7 params}
+        int scanned = 0, withDesc = 0, single = 0;
+        foreach (var e in toc.Entries)
+        {
+            if ((int)e.Group != 104) continue;
+            if (!d4.TryReadSno(104, e.Id, SnoFolder.Meta, out var b)) continue;
+            var r = new SnoRecord(b); scanned++;
+            // locate the +0xB0 effect VLA
+            int descOff = 0xB0;
+            if (pb + descOff + 8 > b.Length) continue;
+            int dataOff = r.I32(descOff), size = r.I32(descOff + 4);
+            if (dataOff <= 0 || size <= 0 || size % 104 != 0 || pb + dataOff + size > b.Length) continue;
+            if (size != 104) continue;   // single modifier only, for a clean correlation
+            single++;
+            int attrId = r.I32(dataOff + 16);   // idx4
+            int param = r.I32(dataOff + 28);    // idx7
+            if (!paramMap.TryGetValue(attrId, out var ps)) { ps = new(); paramMap[attrId] = ps; }
+            ps.Add(param);
+            string desc = "";
+            try { desc = d4.ReadAffix(e.Id).Description; } catch { }
+            if (desc.Length == 0) continue;
+            int lb = desc.IndexOf('[');
+            if (lb < 0) continue;
+            // leading identifier token inside the first bracket
+            int j = lb + 1; while (j < desc.Length && (desc[j] == ' ')) j++;
+            int st = j; while (j < desc.Length && (char.IsLetterOrDigit(desc[j]) || desc[j] == '_')) j++;
+            string tok = desc.Substring(st, j - st);
+            if (tok.Length < 3 || char.IsDigit(tok[0])) continue;
+            withDesc++;
+            if (!map.TryGetValue(attrId, out var d)) { d = new(); map[attrId] = d; }
+            d[tok] = d.GetValueOrDefault(tok) + 1;
+        }
+        Console.WriteLine($"# affixattrmap: {scanned} g104, {single} single-modifier, {withDesc} with Desc token");
+        int conflicts = 0;
+        Console.WriteLine("# AttributeId -> token(s) [count]   (params seen)");
+        foreach (var kv in map)
+        {
+            var toks = kv.Value.OrderByDescending(t => t.Value).ToList();
+            if (toks.Count > 1) conflicts++;
+            string ts = string.Join(" | ", toks.Select(t => $"{t.Key}[{t.Value}]"));
+            string ps = paramMap.TryGetValue(kv.Key, out var s) ? string.Join(",", s.OrderBy(x => x)) : "";
+            Console.WriteLine($"  {kv.Key,4} -> {ts}   (p:{ps})");
+        }
+        Console.WriteLine($"# {map.Count} distinct AttributeIds mapped; {conflicts} with >1 token (conflicts)");
+        return 0;
+    }
+    case "affixfloatscan":
+    {
+        // LIB-3: across EVERY g104 affix, find every plausible float
+        // (0.0001<|f|<1e6, excluding tiny-int aliases) and aggregate by
+        // payload offset — a min/max value field shows as an offset present
+        // in most affixes with widely-varying values. Reports per-offset
+        // coverage + sample values, and per-affix max float count.
+        //   affixfloatscan [maxsamples=8]
+        int maxSamples = argv.Count > 1 ? int.Parse(argv[1]) : 8;
+        int pb = SnoRecord.DefaultPayloadBase;
+        var byOff = new SortedDictionary<int, List<float>>();
+        int scanned = 0, maxFloatsInOne = 0; string maxFloatsSno = "";
+        var histFloatCount = new SortedDictionary<int, int>();
+        foreach (var e in toc.Entries)
+        {
+            if ((int)e.Group != 104) continue;
+            if (!d4.TryReadSno(104, e.Id, SnoFolder.Meta, out var b)) continue;
+            scanned++;
+            int inThis = 0;
+            for (int p = 0; pb + p + 4 <= b.Length; p += 4)
+            {
+                float f = BitConverter.ToSingle(b, pb + p);
+                uint u = BitConverter.ToUInt32(b, pb + p);
+                // plausible non-integer magnitude (exclude small ints / exact 1.0 which is the known flag)
+                bool intLike = u < 100000 && f == (int)f;
+                if (float.IsNaN(f) || float.IsInfinity(f)) continue;
+                if (Math.Abs(f) is > 0.0001f and < 1e6f && !intLike)
+                {
+                    if (!byOff.TryGetValue(p, out var l)) { l = new(); byOff[p] = l; }
+                    l.Add(f); inThis++;
+                }
+            }
+            histFloatCount[inThis] = histFloatCount.GetValueOrDefault(inThis) + 1;
+            if (inThis > maxFloatsInOne) { maxFloatsInOne = inThis; maxFloatsSno = e.Name; }
+        }
+        Console.WriteLine($"# affixfloatscan over {scanned} g104 affixes");
+        Console.WriteLine($"# per-affix non-int-float count histogram (count -> #affixes):");
+        foreach (var kv in histFloatCount) Console.WriteLine($"   {kv.Key} floats -> {kv.Value} affixes");
+        Console.WriteLine($"# max floats in one affix: {maxFloatsInOne} ({maxFloatsSno})");
+        Console.WriteLine($"# per-offset coverage (offset: nAffixes | distinct-sample-values):");
+        foreach (var kv in byOff.OrderByDescending(k => k.Value.Count))
+        {
+            var distinct = kv.Value.Distinct().OrderBy(x => x).ToList();
+            var sample = string.Join(",", distinct.Take(maxSamples).Select(x => x.ToString("0.####")));
+            Console.WriteLine($"   +0x{kv.Key:X2}: {kv.Value.Count,5} affixes | {distinct.Count} distinct | [{sample}{(distinct.Count > maxSamples ? ",…" : "")}]");
+        }
+        return 0;
+    }
     case "locate":
     {
         // LIB-2: exercise the install auto-detector.

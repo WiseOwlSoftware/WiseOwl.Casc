@@ -1,6 +1,6 @@
 # AffixDefinition class
 
-A decoded Diablo IV `AffixDefinition` (`.aff`, SNO group Affix = 104) — an item/charm affix. Identity + localized name and description only; affix magnitude/operation modeling stays the consumer's (the glyph-affix magnitudes are [`ParagonGlyphAffixDefinition`](./ParagonGlyphAffixDefinition.md); general item-affix stat-effect modeling is a consumer domain spec — Appendix C).
+A decoded Diablo IV `AffixDefinition` (`.aff`, SNO group Affix = 104) — an item/aspect/charm affix. Identity, localized [`Name`](./AffixDefinition/Name.md)/[`Description`](./AffixDefinition/Description.md), and the [`Effects`](./AffixDefinition/Effects.md) — the attribute(s) the affix modifies. The rolled magnitude (min/max value range) and the additive-vs-multiplicative operation are not literal fields of the record for the bulk of stat affixes (they are item-power-curve driven by the engine); modeling those stays the consumer's domain per `casc-diablo4-format.md` Appendix C.
 
 ```csharp
 public sealed class AffixDefinition
@@ -10,14 +10,17 @@ public sealed class AffixDefinition
 
 | name | description |
 | --- | --- |
-| static [Parse](AffixDefinition/Parse.md)(…) | Decode an Affix from its raw SNO blob (identity only — the localized field needs [`CoreToc`](./CoreToc.md); use [`ReadAffix`](./Diablo4Storage/ReadAffix.md)). |
+| static [Parse](AffixDefinition/Parse.md)(…) | Decode an Affix from its raw SNO blob (identity + the structural [`Effects`](./AffixDefinition/Effects.md); the localized fields need [`CoreToc`](./CoreToc.md) — use [`ReadAffix`](./Diablo4Storage/ReadAffix.md)). On the byte-only path each effect's [`AttributeName`](./AffixEffect/AttributeName.md) is Empty. |
 | [Description](AffixDefinition/Description.md) { get; } | Localized affix description (sibling label `Desc`; raw D4 markup intact), or Empty. |
+| [Effects](AffixDefinition/Effects.md) { get; } | CL-92 (LIB-3) — the attribute(s) this affix modifies, one [`AffixEffect`](./AffixEffect.md) per `arModifiers` entry (a single-stat affix has one; a dual affix such as a two-element resistance has one per element). Each carries the `eAttribute` id + parameter and, after a full [`ReadAffix`](./Diablo4Storage/ReadAffix.md), the resolved localized [`AttributeName`](./AffixEffect/AttributeName.md). Empty (never `null`) when the affix authors no modifier array or the descriptor is malformed. See [`AffixEffect`](./AffixEffect.md) for the byte layout and the magnitude/operation boundary. |
 | [Name](AffixDefinition/Name.md) { get; } | Localized affix display name (sibling label `Name`; the raw authored fragment, e.g. `"Bear Clan Berserker's"`, `"of Limitless Rage"`, `"Devilish"`), or Empty when the affix has no sibling `Name` (system/internal affixes). The consumer owns any `"Aspect …"` composition. |
 | [SnoId](AffixDefinition/SnoId.md) { get; } | The affix's own SNO id (== the CoreTOC id). |
 
 ## Remarks
 
 [`SnoId`](./AffixDefinition/SnoId.md) is the binary field (payload `0`). The localized [`Name`](./AffixDefinition/Name.md) and [`Description`](./AffixDefinition/Description.md) are both resolved from the affix's sibling StringList table (`docs/casc-diablo4-format.md §11.3`, Appendix A CL-87 / CL-22 / CL-20): group-42 SNO `"Affix_" + snoName`, labels `Name` (the display name, e.g. `"of Limitless Rage"`) and `Desc` (the rules text, carrying D4 markup like `[Affix_Value_1|%|]`). Each field is Empty (honest sentinel) when decoded byte-only, when there is no sibling table, or when that specific label is absent — many system/internal affixes carry a `Desc` but no `Name`. The consumer owns any fallback and any `"Aspect"` composition around the raw display name.
+
+Effects (CL-92).[`Effects`](./AffixDefinition/Effects.md) is decoded from the `arModifiers``DT_VARIABLEARRAY` at payload `+0xB0` — an array of fixed 104-byte modifier records (see [`AffixEffect`](./AffixEffect.md) for the per-record layout). Each element names one modified attribute ([`AttributeId`](./AffixEffect/AttributeId.md) + [`ParamPlus12`](./AffixEffect/ParamPlus12.md)); the resolved [`AttributeName`](./AffixEffect/AttributeName.md) is populated by [`ReadAffix`](./Diablo4Storage/ReadAffix.md) and empty on the byte-only [`Parse`](./AffixDefinition/Parse.md). Empty (never `null`) when the modifier array is absent or malformed (confidence-gated: the descriptor must be well-formed and its byte size an exact multiple of the 104-byte stride).
 
 ## See Also
 

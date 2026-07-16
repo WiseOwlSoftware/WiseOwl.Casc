@@ -790,6 +790,113 @@ public sealed class Diablo4StorageIntegrationTests
             warlock.SnoId);
     }
 
+    /// <summary>LIB-3 (CL-92) — the item/aspect affix <b>effect</b> decode:
+    /// <see cref="AffixDefinition.Effects"/> is the <c>arModifiers</c> array
+    /// at payload <c>+0xB0</c> (fixed 104-byte modifier records; count =
+    /// byteSize / 104), each naming one modified attribute
+    /// (<see cref="AffixEffect.AttributeId"/> + <see cref="AffixEffect.ParamPlus12"/>).
+    /// This asserts the build-robust <i>structure</i> — modifier count,
+    /// parameter presence, the byte-only/localized split — not the
+    /// game-authored ids/names (those are the content-snapshot below).</summary>
+    [SkippableFact]
+    public void ReadAffix_decodes_effect_modifier_list()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+
+        // Single-stat affix (base, stable) → exactly one modifier, no
+        // parameter (the NoParam sentinel).
+        var str = d4.ReadAffix(583632);   // CoreStat_Strength
+        var one = Assert.Single(str.Effects);
+        Assert.False(one.HasParam);
+        Assert.Equal(AffixEffect.NoParam, one.ParamPlus12);
+
+        // Dual-element resistance → the multi-modifier array decodes to more
+        // than one effect, each with a distinct parameter (exercises the
+        // 104-byte stride + count = byteSize / 104).
+        var dual = d4.ReadAffix(928841);  // INHERENT_Resistance_Dual_ColdLightning
+        Assert.True(dual.Effects.Count >= 2);
+        Assert.All(dual.Effects, e => Assert.True(e.HasParam));
+        Assert.NotEqual(dual.Effects[0].ParamPlus12, dual.Effects[1].ParamPlus12);
+
+        // Effects is always a materialized list (empty, never null).
+        Assert.NotNull(dual.Effects);
+
+        // Byte-only Parse decodes the same structural ids/params but never
+        // resolves the localized name (needs CoreTOC) — honest empty sentinel.
+        var raw = AffixDefinition.Parse(d4.ReadSno(SnoGroup.Affix, 583632));
+        var rawOne = Assert.Single(raw.Effects);
+        Assert.Equal(one.AttributeId, rawOne.AttributeId);
+        Assert.Equal(one.ParamPlus12, rawOne.ParamPlus12);
+        Assert.Equal(string.Empty, rawOne.AttributeName);
+    }
+
+    /// <summary>LIB-3 (CL-92) — exact affix effect ids / element params /
+    /// resolved names on the live build. content-snapshot: the
+    /// <c>eAttribute</c> ids are per-build registry ordinals (they renumber
+    /// each season) and the resolved names are game-authored, so a failure
+    /// after a game update is expected content drift (byte-verify, then
+    /// re-baseline), not a decoder bug. Structure is exercised by
+    /// <see cref="ReadAffix_decodes_effect_modifier_list"/>. Pinned to build
+    /// 3.1.1.72836 / Season 14.</summary>
+    [SkippableFact]
+    [Trait("kind", "content-snapshot")]
+    public void ReadAffix_resolves_effect_attributes_on_live_build()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+
+        // Flat vs percent core-stat carry distinct attribute ids.
+        Assert.Equal(4, Assert.Single(d4.ReadAffix(583632).Effects).AttributeId);   // CoreStat_Strength
+        Assert.Equal(13, Assert.Single(d4.ReadAffix(1083197).Effects).AttributeId); // CoreStat_StrengthPercent
+
+        // Dual-element resistance → same attribute, cold (3) + lightning (2).
+        var dual = d4.ReadAffix(928841);   // INHERENT_Resistance_Dual_ColdLightning
+        Assert.Equal(2, dual.Effects.Count);
+        Assert.Equal(74, dual.Effects[0].AttributeId);
+        Assert.Equal(74, dual.Effects[1].AttributeId);
+        Assert.Equal(3u, dual.Effects[0].ParamPlus12);   // cold
+        Assert.Equal(2u, dual.Effects[1].ParamPlus12);   // lightning
+
+        // Named-attribute affix → the effect resolves its localized name via
+        // the same GetAttributeName pipeline the nodes/glyph-affixes use.
+        var thorns = Assert.Single(d4.ReadAffix(1234184).Effects);   // INHERENT_Thorns
+        Assert.Equal(373, thorns.AttributeId);
+        Assert.Equal("Thorns", thorns.AttributeName);
+    }
+
+    /// <summary>LIB-3 (CL-92) — the <see cref="AffixEffect"/> two-namespace
+    /// helpers. Pure logic (no live data): a positive
+    /// <see cref="AffixEffect.AttributeId"/> is an engine attribute; a
+    /// high-bit-set (negative) id is a <c>DataAttributes</c> reference whose
+    /// table ordinal is <c>id &amp; 0x7FFFFFFF</c>. Guards the "never
+    /// <c>abs()</c> the id" contract (the two namespaces overlap
+    /// numerically).</summary>
+    [Fact]
+    public void AffixEffect_distinguishes_engine_and_data_defined_namespaces()
+    {
+        // Engine attribute (positive): ordinal == the id itself.
+        var engine = new AffixEffect(482, AffixEffect.NoParam, "Armor");
+        Assert.False(engine.IsDataDefinedAttribute);
+        Assert.Equal(482, engine.DataAttributeOrdinal);
+        Assert.False(engine.HasParam);
+
+        // DataAttributes reference (high bit 0x80000000): ordinal 84 =
+        // Barb_Berserking_AttackSpeed (verified against SNO 1907204).
+        var dataDefined = new AffixEffect(unchecked((int)0x80000054), AffixEffect.NoParam, "");
+        Assert.True(dataDefined.IsDataDefinedAttribute);
+        Assert.Equal(84, dataDefined.DataAttributeOrdinal);
+        // The two namespaces are disjoint — same ordinal, different attribute.
+        Assert.NotEqual(engine.AttributeId, dataDefined.AttributeId);
+
+        // A real parameter (skill-tag GBID / element) flips HasParam.
+        var tagged = new AffixEffect(259, 0x32ABA6FB, "");
+        Assert.True(tagged.HasParam);
+        Assert.Equal(0x32ABA6FBu, tagged.ParamPlus12);
+    }
+
     /// <summary>FR-C13 Phase 1 — Power Script Formula slot table decode.
     /// For each of the 9 Warlock Legendary anchor powers, assert the
     /// decoded slot table matches the engine SF_N values established by
