@@ -1447,6 +1447,100 @@ switch (cmd)
         }
         return 0;
     }
+    case "attrname":
+    {
+        // FR-C27: probe Diablo4Storage.GetAttributeName(id[,param]) — the
+        // runtime resolver. attrname <id> [param]
+        if (argv.Count < 2) { Console.Error.WriteLine("attrname <id> [param]"); return 2; }
+        int id = int.Parse(argv[1]);
+        if (argv.Count > 2)
+        {
+            uint p = argv[2].StartsWith("0x") ? Convert.ToUInt32(argv[2], 16) : uint.Parse(argv[2]);
+            Console.WriteLine($"  {id} (param 0x{p:X8}) -> {d4.GetAttributeName(id, p) ?? "(null)"}");
+        }
+        else
+        {
+            Console.WriteLine($"  {id} -> {d4.GetAttributeName(id) ?? "(null)"}");
+        }
+        return 0;
+    }
+    case "attrcover":
+    {
+        // FR-C27 coverage validation: build AttributeId -> name-token by
+        // scanning live records (season-robust source): ParagonNode
+        // Generic_<Rarity>_<Token> names + ParagonGlyphAffix names via their
+        // AffectedAttributes. Prints id -> tokens (top 3). Recon only.
+        var map = new SortedDictionary<int, Dictionary<string,int>>();
+        void Add(int id, string tok)
+        {
+            if (string.IsNullOrEmpty(tok)) return;
+            if (!map.TryGetValue(id, out var d)) { d = new(); map[id] = d; }
+            d.TryGetValue(tok, out int c); d[tok] = c + 1;
+        }
+        int nodes = 0, affixes = 0;
+        foreach (var e in toc.Entries)
+        {
+            if ((int)e.Group != 106) continue;
+            ParagonNodeDefinition n; try { n = d4.ReadParagonNode(e.Id); } catch { continue; }
+            if (!e.Name.StartsWith("Generic_", StringComparison.Ordinal)) continue;
+            var parts = e.Name.Split('_');
+            if (parts.Length < 3) continue;
+            string tok = string.Join("_", parts.Skip(2));   // after Generic_<Rarity>_
+            nodes++;
+            foreach (var a in n.Attributes) Add(a.AttributeId, tok);
+        }
+        foreach (var e in toc.Entries)
+        {
+            if ((int)e.Group != 112) continue;
+            ParagonGlyphAffixDefinition gx; try { gx = d4.ReadParagonGlyphAffix(e.Id); } catch { continue; }
+            affixes++;
+            foreach (var ar in gx.AffectedAttributes) Add(ar.AttributeId, "affix:" + e.Name);
+        }
+        Console.WriteLine($"scanned {nodes} Generic_ nodes + {affixes} glyph affixes; {map.Count} distinct AttributeIds:");
+        foreach (var kv in map)
+            Console.WriteLine($"  attr {kv.Key,4} -> {string.Join(" | ", kv.Value.OrderByDescending(p => p.Value).Take(3).Select(p => p.Key))}");
+        return 0;
+    }
+    case "dataattrs":
+    {
+        // FR-C27 recon: dump DataAttributes (sno 1907204) entries. Header at
+        // payload+80/+84 = VLA (dataOff, dataSize); entries are `stride`-byte
+        // records: szName@+0 (ASCII), gbid@+256, ~100 bytes aux @+260..+360.
+        // With a filter substring, dumps every int32 @+256..+356 for matches
+        // (to correlate the AttributeId field offset against known ids).
+        //   dataattrs [namefilter] [stride=360]
+        string filt = argv.Count > 1 ? argv[1] : "";
+        int stride = argv.Count > 2 ? int.Parse(argv[2]) : 360;
+        if (!d4.TryReadSno((SnoGroup)20, 1907204, SnoFolder.Meta, out var b)) { Console.Error.WriteLine("not found"); return 1; }
+        int pbase = 0x10;
+        int dataOff = BitConverter.ToInt32(b, pbase + 80);
+        int dataSize = BitConverter.ToInt32(b, pbase + 84);
+        int count = dataSize / stride;
+        int start = pbase + dataOff;
+        Console.WriteLine($"entries={count} stride={stride} start=0x{start:X} (dataOff={dataOff} dataSize={dataSize})");
+        for (int i = 0; i < count; i++)
+        {
+            int e = start + i * stride;
+            if (e + stride > b.Length) break;
+            int n = 0; while (n < 256 && b[e + n] != 0) n++;
+            string name = System.Text.Encoding.ASCII.GetString(b, e, n);
+            if (filt.Length > 0 && !name.Contains(filt, StringComparison.OrdinalIgnoreCase)) continue;
+            uint gbid = BitConverter.ToUInt32(b, e + 256);
+            if (filt.Length == 0)
+            {
+                Console.WriteLine($"[{i,3}] gbid=0x{gbid:X8}  {name}");
+            }
+            else
+            {
+                var sb = new System.Text.StringBuilder();
+                for (int o = 256; o + 4 <= stride; o += 4)
+                    sb.Append($"+{o}={BitConverter.ToInt32(b, e + o)} ");
+                Console.WriteLine($"[idx {i,3}] {name}  gbid=0x{gbid:X8}");
+                Console.WriteLine($"    {sb}");
+            }
+        }
+        return 0;
+    }
     case "powersf":
     {
         // Recon: dump a Power's decoded ScriptFormulas + ResolvedFormulas.

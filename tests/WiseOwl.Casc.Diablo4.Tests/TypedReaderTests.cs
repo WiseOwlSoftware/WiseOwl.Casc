@@ -361,23 +361,35 @@ public sealed class TypedReaderTests
     }
 
     [SkippableTheory]
-    // CL-78 — Diablo4Storage.GetAttributeName end-to-end (live data,
-    // sno 4080 template lookup + strip). Anchor cases from the
-    // Optimizer's FR-C25 acceptance. SkippableTheory so the rows
-    // self-skip when no install is present (CI).
-    [InlineData(9,   "Strength")]
-    [InlineData(10,  "Intelligence")]
-    [InlineData(11,  "Willpower")]
-    [InlineData(12,  "Dexterity")]
-    [InlineData(133, "Maximum Life")]
-    [InlineData(481, "Armor")]
-    [InlineData(950, "Damage to Elites")]
-    [InlineData(275, "Critical Strike Chance")]
-    [InlineData(288, "Critical Strike Damage")]
-    [InlineData(208, "Movement Speed")]
-    [InlineData(221, "Attack Speed")]
-    [InlineData(237, "Cooldown Reduction")]
-    [InlineData(373, "Thorns")]
+    [Trait("kind", "content-snapshot")]
+    // CL-78 / FR-C27 (CL-88) — Diablo4Storage.GetAttributeName end-to-end
+    // (live data, sno 4080 template lookup + strip). content-snapshot: the
+    // ids are the CURRENT-build (3.1.1.72836 / Season 14) registry ordinals;
+    // they renumber each season (Armor 481→482, Elites 950→953, high-health
+    // 1120→1123, near/far 1102/1104→1105/1107) and the runtime resolver
+    // tracks them — this pins the exact current ids, while the structural
+    // coverage test below is the season-robust guarantee. A failure here on
+    // a game update = expected id drift; re-baseline from `SnoScan attrcover`.
+    [InlineData(9,    "Strength")]
+    [InlineData(10,   "Intelligence")]
+    [InlineData(11,   "Willpower")]
+    [InlineData(12,   "Dexterity")]
+    [InlineData(133,  "Maximum Life")]
+    [InlineData(482,  "Armor")]
+    [InlineData(953,  "Damage to Elites")]
+    [InlineData(275,  "Critical Strike Chance")]
+    [InlineData(288,  "Critical Strike Damage")]
+    [InlineData(208,  "Movement Speed")]
+    [InlineData(221,  "Attack Speed")]
+    [InlineData(237,  "Cooldown Reduction")]
+    [InlineData(373,  "Thorns")]
+    // Shifted conditional-damage tail — the entries a hardcoded id map lost.
+    [InlineData(1123, "Damage while Healthy")]
+    [InlineData(1105, "Damage to Close Enemies")]
+    [InlineData(1107, "Damage to Distant Enemies")]
+    [InlineData(1119, "Damage to Healthy Enemies")]
+    [InlineData(736,  "Vulnerable Damage")]
+    [InlineData(748,  "Damage while Fortified")]
     public void B10_get_attribute_name_resolves_via_attribute_descriptions(
         int attributeId, string expected)
     {
@@ -385,6 +397,44 @@ public sealed class TypedReaderTests
         Skip.If(install is null, "No Diablo IV install available.");
         using var d4 = Diablo4Storage.Open(install!);
         Assert.Equal(expected, d4.GetAttributeName(attributeId));
+    }
+
+    /// <summary>FR-C27 (CL-88) — the season-robust guarantee: every
+    /// <c>AttributeId</c> a live <c>Generic_&lt;Rarity&gt;_&lt;Token&gt;</c>
+    /// node carries resolves through <see cref="Diablo4Storage.GetAttributeName(int, string)"/>
+    /// to a non-empty name, with <b>no</b> hardcoded ids — so the assertion
+    /// holds across seasons even as the engine renumbers the registry. Proves
+    /// the runtime id→token scan retired the curated id-map's fragility.</summary>
+    [SkippableFact]
+    public void GetAttributeName_resolves_every_live_generic_node_attribute()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+
+        // Walk every Generic_<Rarity>_<Token> node (same source the resolver
+        // scans). For each attribute whose token we curate a label for, the
+        // resolved name must be non-empty — WHATEVER id the engine assigned
+        // it this season. No id is hardcoded, so this holds across seasons.
+        int checkedTokens = 0;
+        foreach (var e in d4.CoreToc.EntriesInGroup(SnoGroup.ParagonNode))
+        {
+            if (!e.Name.StartsWith("Generic_", StringComparison.Ordinal)) continue;
+            int sep = e.Name.IndexOf('_', "Generic_".Length);   // '_' after the rarity
+            if (sep < 0 || sep + 1 >= e.Name.Length) continue;
+            var token = e.Name[(sep + 1)..];
+            if (!AttributeNames.LabelByToken.ContainsKey(token)) continue;
+            foreach (var attr in d4.ReadParagonNode(e.Id).Attributes)
+            {
+                if (attr.AttributeId < 0) continue;
+                var name = d4.GetAttributeName(attr.AttributeId);
+                if (!string.IsNullOrEmpty(name)) checkedTokens++;
+                else
+                    Assert.Fail($"{e.Name} (id {attr.AttributeId}, token '{token}') resolved to null.");
+            }
+        }
+        Assert.True(checkedTokens >= 15,
+            $"expected the scan to cover many curated tokens; only {checkedTokens}.");
     }
 
     [SkippableFact]

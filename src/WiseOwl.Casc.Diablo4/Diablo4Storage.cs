@@ -618,7 +618,7 @@ public sealed class Diablo4Storage : IDisposable
     /// any of the unresolved cases above.</returns>
     public string? GetAttributeName(int attributeId, string locale = DefaultLocale)
     {
-        if (!AttributeNames.LabelByAttributeId.TryGetValue(attributeId, out var label))
+        if (!TryResolveBaseLabel(attributeId, out var label))
             return null;
         StringListCatalog stringList;
         try { stringList = GetStrings(locale); }
@@ -677,11 +677,86 @@ public sealed class Diablo4Storage : IDisposable
         if (paramPlus12 == GlyphAffixAttributeRef.NoParam)
             return GetAttributeName(attributeId, locale);
 
+        // Season-robust primary: resolve the base id to its label, then key
+        // the compound map on (baseLabel, paramPlus12) — both durable.
+        if (TryResolveBaseLabel(attributeId, out var baseLabel) &&
+            AttributeNames.NameByCompoundLabelKey.TryGetValue(
+                (baseLabel, paramPlus12), out var byLabel))
+            return byLabel;
+
+        // Legacy id-keyed compound fallback, then the single-id resolution.
         if (AttributeNames.LabelByCompoundKey.TryGetValue(
                 (attributeId, paramPlus12), out var compound))
             return compound;
 
         return GetAttributeName(attributeId, locale);
+    }
+
+    // FR-C27 (CL-88) — season-robust AttributeId → name resolution. The raw
+    // AttributeId is a registry ordinal the engine renumbers each build, so
+    // it can't be a durable key; the node-name token is. Scan the live
+    // Generic_ nodes once for the current build's id→token map, then map the
+    // token to a label via the season-stable AttributeNames.LabelByToken.
+    private Dictionary<int, HashSet<string>>? _attributeTokens;
+
+    /// <summary>Build (once, cached) the runtime
+    /// <c>AttributeId → node-name token(s)</c> map by scanning every live
+    /// <c>Generic_&lt;Rarity&gt;_&lt;Token&gt;</c> ParagonNode (group 106) and
+    /// recording each of its attributes' name token. Because the engine's
+    /// per-build AttributeId renumbering carries the tokens along, this map
+    /// always reflects the current install.</summary>
+    private Dictionary<int, HashSet<string>> AttributeTokens()
+    {
+        if (_attributeTokens is not null) return _attributeTokens;
+        var map = new Dictionary<int, HashSet<string>>();
+        foreach (var e in CoreToc.EntriesInGroup(SnoGroup.ParagonNode))
+        {
+            if (!e.Name.StartsWith("Generic_", StringComparison.Ordinal)) continue;
+            int sep = e.Name.IndexOf('_', "Generic_".Length);   // '_' after the rarity
+            if (sep < 0 || sep + 1 >= e.Name.Length) continue;
+            var token = e.Name[(sep + 1)..];
+            ParagonNodeDefinition node;
+            try { node = ReadParagonNode(e.Id); }
+            catch (CascException) { continue; }
+            foreach (var a in node.Attributes)
+            {
+                if (a.AttributeId < 0) continue;   // 0x8000_0000-flagged variants — not registry ids
+                if (!map.TryGetValue(a.AttributeId, out var set))
+                    map[a.AttributeId] = set = new HashSet<string>(StringComparer.Ordinal);
+                set.Add(token);
+            }
+        }
+        return _attributeTokens = map;
+    }
+
+    /// <summary>Resolve an <c>AttributeId</c> to its season-stable
+    /// <c>AttributeDescriptions</c> base label. Cascade: (1) the runtime
+    /// id→token scan → <see cref="AttributeNames.LabelByToken"/> (tracks the
+    /// engine's per-build renumbering); (2) the curated
+    /// <see cref="AttributeNames.LabelByAttributeId"/> fallback (ids without a
+    /// scannable token); (3) <see cref="AttributeNames.CompoundBaseLabelById"/>
+    /// (the tag/element/resource base ids).</summary>
+    private bool TryResolveBaseLabel(int attributeId, out string label)
+    {
+        if (AttributeTokens().TryGetValue(attributeId, out var tokens))
+            foreach (var token in tokens)
+                if (AttributeNames.LabelByToken.TryGetValue(token, out var byToken))
+                {
+                    label = byToken;
+                    return true;
+                }
+        if (AttributeNames.LabelByAttributeId.TryGetValue(attributeId, out var legacy))
+        {
+            label = legacy;
+            return true;
+        }
+        if (AttributeNames.CompoundBaseLabelById.TryGetValue(attributeId, out var compoundBase))
+        {
+            label = compoundBase;
+            return true;
+        }
+        label = string.Empty;
+        return false;
     }
 
     /// <summary>The canonical SNO id of the

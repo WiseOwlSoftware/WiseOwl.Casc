@@ -2046,6 +2046,36 @@ derived from FR-C14 R8's `snoTiledStyle` crack and R10's variant
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
 
+- **CL-88 — season-robust `GetAttributeName` via runtime `id→token`
+  resolution; retires the fragile curated `AttributeId` map (FR-C27 on
+  `casc-fr#39`).** FR-C27 was filed on the premise that `DataAttributes`
+  (sno `1907204`) is the engine's full `AttributeId` registry whose
+  offset just needed pinning. **That premise is wrong:** `DataAttributes`
+  is the *designer/season-extensible* attribute table (281 entries on
+  `3.1.1.72836` — skill consumes `Flurry_Consume_2`, socketables, class
+  forms, seasonal `S14_Mythic_*` appended at the tail), all `gbid =
+  0xFFFFFFFF`; it does **not** contain the core attributes (`Strength`,
+  `Armor`, the conditional-damage family) the name map covers. The real
+  finding: the raw `AttributeId` is a **registry ordinal the engine
+  renumbers every build** — Season 14 moved `Armor` 481→482,
+  `Damage_Bonus_At_High_Health` 1120→1123, `Damage_Bonus_To_Near`
+  1102→1105, `Barrier` 1124→1127 — so any hardcoded `id→name` map (the
+  CL-78 `LabelByAttributeId`) silently rots each season. The durable key
+  is the `Generic_<Rarity>_<Token>` **node-name token**, which never
+  changes. CL-88 makes `Diablo4Storage.GetAttributeName` scan the live
+  `Generic_` nodes once (cached) for the current build's `id→token` map,
+  then maps token → `AttributeDescriptions` label via the season-stable
+  `AttributeNames.LabelByToken`, reusing the existing sno-4080
+  localization. The FR-C28 compound (tag-conditional) map is likewise
+  re-keyed onto `(baseLabel, ParamPlus12)` via
+  `AttributeNames.CompoundBaseLabelById` /
+  `NameByCompoundLabelKey`, so a base-id renumber no longer strands the
+  tag names. `LabelByAttributeId` is retained only as a defensive
+  fallback. Also corrected a latent curation bug the new coverage test
+  surfaced: `BlockChance`'s label is `Block_Chance`, not the absent
+  `Block_Chance_Bonus`. 135/135 green on `3.1.1.72836`; the resolver
+  tracks every season's id shift with no code change. Devlog 0083.
+
 - **CL-87 — `AffixDefinition.Name` + `Diablo4Storage.TryReadAffixName`
   (FR-C30 on `casc-fr#42`).** The §11.3 affix reader already resolved
   the sibling `Affix_<snoName>` table's `Desc` label; the same table
