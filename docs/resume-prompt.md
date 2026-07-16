@@ -37,20 +37,32 @@ public repo; never commit it). Read CLAUDE.md before any FR action.
   CI checks pass, run `gh pr merge --squash --delete-branch`; no need
   to wait for owner to merge manually.
 
-### Active threads (2026-07-15, FR-C30 delivered — 2 awaiting:casc, both RE-heavy)
+### 🚀 0.4.0 release — DRAFTED, awaiting owner publish (2026-07-15)
 
-**2 awaiting:casc** open as the new-session start point (both open-ended RE, no quick surface):
+**First stable release** (drops `-alpha`). `<Version>0.4.0` is on `main`
+(`d6d7188`); `dotnet pack -c Release` verified (both nupkg+snupkg).
+A **draft** GitHub Release `v0.4.0` exists (humanized CHANGELOG notes) —
+**owner must click "Publish release"**, which fires `publish.yml` →
+pauses at the `nuget` environment's **required-reviewer gate** → owner
+approves → OIDC NuGet push. Nothing ships until both clicks. The publish
+workflow verifies the release tag == `Directory.Build.props <Version>`.
+
+### Active threads (2026-07-15, FR-C27+C30 delivered — 1 awaiting:casc)
+
+**1 awaiting:casc** (`#41` FR-C29 — the big open RE):
 
 | # | FR | What's needed |
 |---|---|---|
-| 41 | FR-C29 — per-class character-stat derivation formulae | `fr:accepted`. Big multi-phase (per-class core→bonus coefficients, base/level scaling, composites, Torment multipliers). Owner relayed 2026-05-24: **search all non-identified data sources** — leads `LevelScaling` (206158), `DataAttributes` (1907204 = FR-C27, bundle if scalars co-located), `SimpleScalarFormulas` (2536879), `DamageMitigation` (1846727). Owner-suggested **name-hash-grep** short-circuit (DJB2 the in-game stat names → grep unidentified SNOs). If coefficients prove engine-coded, honest boundary → consumer hard-codes. Phase 1 first; Phase 2 (`LevelScaling`) / Phase 4 (`MonsterLevelCurves`) are incremental slices. |
-| 39 | FR-C27 — `DataAttributes` (sno 1907204) full registry RE | `fr:proposed`. Deferred from CL-78 honesty note. 278 entries × 360 stride; entry layout `szName[256]@+0` + `gbid@+256` + ~104 bytes auxiliary; **AttributeId field offset within an entry not yet pinned**. First 40 entries are skill-keyed (`Flurry_Consume_*` / `BSK_Bonus_Int`) — find basic-stat entries (Strength etc.) to correlate the offset empirically. Would retire CL-78's curated `AttributeNames.LabelByAttributeId` map. Coupled with FR-C29 (bundle if per-attr scalars co-located). |
+| 41 | FR-C29 — per-class character-stat derivation formulae | `fr:accepted`. Big multi-phase (per-class core→bonus coefficients, base/level scaling, composites, Torment multipliers). Owner relayed 2026-05-24: **search all non-identified data sources** — leads `LevelScaling` (206158), `SimpleScalarFormulas` (2536879), `DamageMitigation` (1846727). Owner-suggested **name-hash-grep** short-circuit (DJB2 the in-game stat names → grep unidentified SNOs). **NOTE: `DataAttributes` (1907204) is ruled out** — CL-88 proved it's the designer/season-attribute subset, not a scalar registry. If coefficients prove engine-coded, honest boundary → consumer hard-codes. Phase 1 first; Phase 2 (`LevelScaling`) / Phase 4 (`MonsterLevelCurves`) are incremental slices. |
 
-FR-C30 (`#42`) delivered this session (CL-87, `awaiting:optimizer`). FR-C24 (`#36`)/FR-C28 (`#40`) closed rounds, `awaiting:optimizer`. All other FRs are `awaiting:optimizer` or `needs:owner` — see "Open casc-fr issues" further down.
+FR-C30 (`#42`, CL-87) + FR-C27 (`#39`, CL-88) delivered this session,
+`awaiting:optimizer`. FR-C24 (`#36`)/FR-C28 (`#40`) closed rounds,
+`awaiting:optimizer`. Others `awaiting:optimizer`/`needs:owner`.
 
 ### Recent CL trajectory (2026-05-22 → 2026-07-15)
 
-All on `main`, all `unreleased` (no nupkg cut since `0.3.0-alpha`). Auto-merge after CI green is the new pattern; PRs are open ~minutes.
+CL-42..CL-88 all on `main`; **shipping in the 0.4.0 release** (drafted).
+Auto-merge after CI green is the pattern; PRs open ~minutes.
 
 | CL | SHA | PR | FR / slice |
 |---|---|---|---|
@@ -73,8 +85,10 @@ All on `main`, all `unreleased` (no nupkg cut since `0.3.0-alpha`). Auto-merge a
 | 85 | `b226adb` | #74 | FR-C28 — tag-conditional `(AttributeId, ParamPlus12)` resolution; `AttributeNames.LabelByCompoundKey` (100+ entries / 17 attrs) + `GetAttributeName(int, uint, locale)`; 19 `Skill_<Tag>` GBIDs cracked. Closes FR-C28. |
 | 86 | `95e1150` | #75 | FR-C24 Headhunter counter-round — `ParagonGlyph_<SnoName>` sibling-StringList (non-`Item_`-prefixed) for `LocalizedTitle`; `Rare_<Stat>_Generic` shape now resolves (`Rare_Will_Generic` → "Headhunter"). |
 | 87 | `35649fe` | #76 | FR-C30 — `AffixDefinition.Name` + `Diablo4Storage.TryReadAffixName` (sibling `Affix_<sno>` StringList, label `Name`); mirror of `Desc`/`TryReadParagonBoardName`. Sole first-party source for aspect display names. 1,464/6,145 affixes named; honest empty otherwise. Pure sibling-label surface, no byte-layout change. |
+| — | `9f8784f` | #77 | Season-14 re-baseline + **isolate content-snapshots** — exact game-authored values (registry counts, Power SF_N, affix AttributeIds) drift per build; acceptance tests now assert decode *structure/invariants*, exact values quarantined under `[Trait("kind","content-snapshot")]` (`--filter kind=content-snapshot`). All byte-verified as content drift, not regressions. |
+| 88 | `acc7d95` | #78 | FR-C27 — **season-robust `GetAttributeName`**. `DataAttributes` is NOT the registry (designer/season subset); `AttributeId` is a per-build ordinal (Armor 481→482, high-health 1120→1123, Barrier 1124→1127). Now scans live `Generic_` nodes for `id→token` (cached) → `AttributeNames.LabelByToken` (season-stable) → sno-4080 localize; auto-tracks id shifts. Compound map re-keyed on `(baseLabel, ParamPlus12)`. Legacy id-map = fallback. Fixed `BlockChance` label bug. |
 
-**Test count:** 123/127 green on the **live `3.1.1.72836` (Season 14)** install. ⚠️ **4 pre-existing failures are build-drift from the `3.0.2.71886 → 3.1.1.72836` season update, NOT regressions** — hardcoded exact-count / owner-oracle anchors that moved with the patch: `Acceptance_matrix_against_live_install` (`AttributeFormulas` 1038→**1040**), `StringListTests.Resolves_real_enUS_strings` (`AttributeDescriptions` 646→**650**), and the two `PowerDefinition_*_script_formulas` SF_N oracle tests. Count re-baselines are mechanical; the Power SF_N values were owner-confirmed and need owner re-validation before their anchors move → **open task: a Season-14 test re-baseline round.** All are `[SkippableFact]` integration tests → they *skip* in CI (no live install there), so CI stays green and auto-merge is unaffected. The FR-C30 affix assertions pass on the live build.
+**Test count:** **135/135 green** on the live `3.1.1.72836` (Season 14) install (was 127 pre-refactor; +the new FR-C27 coverage test + content-snapshot rows). Season-14 drift was resolved in CL-#77 (re-baseline) — the earlier "4 build-drift failures" note is now closed. Exact-value anchors live under the `content-snapshot` trait; a future season bump surfaces there as one filterable cluster.
 
 ### FR-C21 — full node-info API (DELIVERED 2026-05-23)
 
