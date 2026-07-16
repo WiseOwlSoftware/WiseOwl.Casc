@@ -1221,4 +1221,107 @@ public sealed class TypedReaderTests
         Assert.Equal(1123, affix.AffectedAttributes[0].AttributeId);
         Assert.Equal(10, affix.AffectedAttributes[1].AttributeId);
     }
+
+    // --- FR-C29 per-class Character-Sheet stat model ----------------------
+
+    /// <summary>
+    /// FR-C29 structural invariants: every real class decodes to a valid
+    /// core→bonus map (a primary/crit/resource core) and exactly seven
+    /// conversions — the four universal signatures on their fixed cores plus
+    /// the three mobile bonuses on the decoded per-class cores, each carrying
+    /// its universal coefficient. Placeholder records carry no map. This does
+    /// not assert any class's <em>specific</em> mapping (that's the
+    /// content-snapshot below), so a class redesign surfaces there, not here.
+    /// </summary>
+    [SkippableFact]
+    public void FR_C29_class_stat_conversion_map_is_structural()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+
+        var classes = d4.ReadCharacterClasses();
+        Assert.True(classes.Count >= 5, $"expected the class roster, got {classes.Count}");
+
+        foreach (var c in classes)
+        {
+            var pc = d4.ReadPlayerClass(c.SnoId);
+
+            Assert.NotNull(pc.PrimaryAttribute);
+            Assert.NotNull(pc.CriticalStrikeAttribute);
+            Assert.NotNull(pc.ResourceGenerationAttribute);
+            Assert.Equal(7, pc.StatConversions.Count);
+
+            // Four universal signatures on their fixed cores.
+            AssertConversion(pc, CoreStat.Strength, DerivedStat.Armor,
+                CharacterStatModel.ArmorPerStrength, ConversionUnit.Flat);
+            AssertConversion(pc, CoreStat.Intelligence, DerivedStat.ResistanceAllElements,
+                CharacterStatModel.ResistanceAllElementsPerIntelligence, ConversionUnit.Flat);
+            AssertConversion(pc, CoreStat.Willpower, DerivedStat.HealingReceived,
+                CharacterStatModel.HealingReceivedPercentPerWillpower, ConversionUnit.Percent);
+            AssertConversion(pc, CoreStat.Dexterity, DerivedStat.DodgeChance,
+                CharacterStatModel.DodgeChancePercentPerDexterity, ConversionUnit.Percent);
+
+            // Three mobile bonuses on the decoded per-class cores.
+            AssertConversion(pc, pc.PrimaryAttribute!.Value, DerivedStat.SkillDamage,
+                CharacterStatModel.SkillDamagePercentPerPrimary, ConversionUnit.Percent);
+            AssertConversion(pc, pc.CriticalStrikeAttribute!.Value, DerivedStat.CriticalStrikeChance,
+                CharacterStatModel.CriticalStrikeChancePercentPerPoint, ConversionUnit.Percent);
+            AssertConversion(pc, pc.ResourceGenerationAttribute!.Value, DerivedStat.ResourceGeneration,
+                CharacterStatModel.ResourceGenerationPercentPerPoint, ConversionUnit.Percent);
+        }
+
+        // Placeholder "Axe Bad Data" record carries no valid map.
+        var junk = d4.ReadPlayerClass(159433);
+        Assert.Null(junk.PrimaryAttribute);
+        Assert.Empty(junk.StatConversions);
+
+        static void AssertConversion(PlayerClassDefinition pc, CoreStat core,
+            DerivedStat stat, double perPoint, ConversionUnit unit)
+        {
+            var cv = Assert.Single(pc.StatConversions, x => x.Stat == stat);
+            Assert.Equal(core, cv.Core);
+            Assert.Equal(perPoint, cv.PerPoint);
+            Assert.Equal(unit, cv.Unit);
+        }
+    }
+
+    /// <summary>
+    /// FR-C29 content anchors (owner core-stat tooltips, 2026-07). The exact
+    /// per-class core→bonus maps for the four primary-attribute archetypes,
+    /// plus coefficient round-trips against the observed values (naked +
+    /// high-Paragon Warlock). A class rebalance or a rate change surfaces here.
+    /// </summary>
+    [SkippableFact]
+    [Trait("kind", "content-snapshot")]
+    public void FR_C29_class_maps_and_coefficients_pinned_to_build_3_1_1()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+
+        // One class per primary-attribute archetype (owner-oracle validated).
+        AssertMap(d4, 2207749, CoreStat.Willpower, CoreStat.Strength, CoreStat.Intelligence);   // Warlock
+        AssertMap(d4, 199275, CoreStat.Dexterity, CoreStat.Intelligence, CoreStat.Strength);    // Rogue
+        AssertMap(d4, 199277, CoreStat.Intelligence, CoreStat.Dexterity, CoreStat.Willpower);   // Necromancer
+        AssertMap(d4, 169776, CoreStat.Strength, CoreStat.Dexterity, CoreStat.Willpower);       // Barbarian
+
+        // Coefficients reproduce the owner oracles (display rounds to 1 dp).
+        Assert.Equal(152.0, CharacterStatModel.ArmorPerStrength * 76, 3);                  // Str 76 → Armor 152
+        Assert.Equal(372.0, CharacterStatModel.ResistanceAllElementsPerIntelligence * 930, 3); // Int 930 → 372
+        Assert.InRange(CharacterStatModel.SkillDamagePercentPerPrimary * 79, 9.8, 9.95);   // Will 79 → 9.9
+        Assert.InRange(CharacterStatModel.SkillDamagePercentPerPrimary * 1876, 234.0, 235.0); // Paragon Will 1876 → 234.6
+        Assert.InRange(CharacterStatModel.DodgeChancePercentPerDexterity * 616, 3.6, 3.8); // Dex 616 → 3.7
+        Assert.InRange(CharacterStatModel.CriticalStrikeChancePercentPerPoint * 801, 1.9, 2.1); // Str 801 → 2.0
+        Assert.InRange(CharacterStatModel.ResourceGenerationPercentPerPoint * 930, 4.5, 4.8); // Int 930 → 4.7
+
+        static void AssertMap(Diablo4Storage d4, int sno,
+            CoreStat primary, CoreStat crit, CoreStat resource)
+        {
+            var pc = d4.ReadPlayerClass(sno);
+            Assert.Equal(primary, pc.PrimaryAttribute);
+            Assert.Equal(crit, pc.CriticalStrikeAttribute);
+            Assert.Equal(resource, pc.ResourceGenerationAttribute);
+        }
+    }
 }

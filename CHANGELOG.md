@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project uses
 Semantic Versioning once it reaches `1.0.0`.
 
+## [Unreleased]
+
+### Added
+
+- **Character stat model** — the per-class rules that turn core attributes
+  (Strength / Intelligence / Willpower / Dexterity) into Character-Sheet stats.
+  For any class, read which core feeds its Skill Damage, Critical Strike
+  Chance, and Resource Generation, plus the universal per-point conversion
+  rates (Armor, Resistances, Dodge, Healing, …) and the inherent base stats —
+  the inputs a build planner needs to compute a character's derived stats.
+
 ## [0.4.0] — 2026-07-15
 
 First stable release. Adds a full Diablo IV Paragon data layer on top of the
