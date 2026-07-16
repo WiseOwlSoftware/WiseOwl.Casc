@@ -867,6 +867,45 @@ public sealed class Diablo4StorageIntegrationTests
         Assert.Equal("Thorns", thorns.AttributeName);
     }
 
+    /// <summary>LIB-3 R2 (CL-94) — the affix <b>value</b> surface: each effect's
+    /// <see cref="AffixEffect.FormulaGbid"/> resolves through the
+    /// <c>AttributeFormulas</c> table (<see cref="AttributeFormulaTable.TryGetByGbid"/>)
+    /// to its per-item-power roll formula; set/unique affixes expose their fixed
+    /// <see cref="AffixDefinition.StaticValues"/> scalars; and a flag-namespaced
+    /// (negative-id) effect resolves its <c>DataAttributes</c> name.
+    /// content-snapshot: the formula names/text and static values are
+    /// game-authored / per-build (3.1.1.72836 / Season 14).</summary>
+    [SkippableFact]
+    [Trait("kind", "content-snapshot")]
+    public void ReadAffix_exposes_value_formula_and_static_values()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+        var formulas = d4.ReadAttributeFormulas();
+
+        // A gear crit affix → its FormulaGbid resolves to the item-power roll
+        // curve (the value range lives in the formula text; the consumer
+        // evaluates it, per the magnitude boundary).
+        var crit = Assert.Single(d4.ReadAffix(2590254).Effects);   // ...CriticalHitChance
+        Assert.NotEqual(AffixEffect.NoFormula, crit.FormulaGbid);
+        Assert.True(formulas.TryGetByGbid(crit.FormulaGbid, out var critFormula));
+        Assert.Equal("GearAffix_CritChance", critFormula.Name);
+        Assert.NotEmpty(critFormula.Ranges);
+        Assert.Contains("FloatRandomRangeWithInterval", critFormula.PrimaryText);
+
+        // A set-power affix → its fixed "Static Value N" scalars, positionally
+        // matching the Desc's [Affix."Static Value N"] placeholders.
+        var setPower = d4.ReadAffix(2292505);   // Talisman_SetPower_Barb01_01
+        Assert.Equal(new[] { 100f, 50f, 20f, 120f }, setPower.StaticValues);
+
+        // Flag-namespaced (DataAttributes) effect → AttributeName is now the
+        // designer token (CL-94 wired TryGetDataAttributeName into ReadAffix).
+        var berserk = Assert.Single(d4.ReadAffix(2568382).Effects);   // ...BerserkAttackSpeed
+        Assert.True(berserk.IsDataDefinedAttribute);
+        Assert.Equal("Barb_Berserking_AttackSpeed", berserk.AttributeName);
+    }
+
     /// <summary>LIB-3 (CL-92) — the <see cref="AffixEffect"/> two-namespace
     /// helpers. Pure logic (no live data): a positive
     /// <see cref="AffixEffect.AttributeId"/> is an engine attribute; a
@@ -878,21 +917,22 @@ public sealed class Diablo4StorageIntegrationTests
     public void AffixEffect_distinguishes_engine_and_data_defined_namespaces()
     {
         // Engine attribute (positive): ordinal == the id itself.
-        var engine = new AffixEffect(482, AffixEffect.NoParam, "Armor");
+        var engine = new AffixEffect(482, AffixEffect.NoParam, AffixEffect.NoFormula, "Armor");
         Assert.False(engine.IsDataDefinedAttribute);
         Assert.Equal(482, engine.DataAttributeOrdinal);
         Assert.False(engine.HasParam);
 
         // DataAttributes reference (high bit 0x80000000): ordinal 84 =
         // Barb_Berserking_AttackSpeed (verified against SNO 1907204).
-        var dataDefined = new AffixEffect(unchecked((int)0x80000054), AffixEffect.NoParam, "");
+        var dataDefined = new AffixEffect(
+            unchecked((int)0x80000054), AffixEffect.NoParam, AffixEffect.NoFormula, "");
         Assert.True(dataDefined.IsDataDefinedAttribute);
         Assert.Equal(84, dataDefined.DataAttributeOrdinal);
         // The two namespaces are disjoint — same ordinal, different attribute.
         Assert.NotEqual(engine.AttributeId, dataDefined.AttributeId);
 
         // A real parameter (skill-tag GBID / element) flips HasParam.
-        var tagged = new AffixEffect(259, 0x32ABA6FB, "");
+        var tagged = new AffixEffect(259, 0x32ABA6FB, AffixEffect.NoFormula, "");
         Assert.True(tagged.HasParam);
         Assert.Equal(0x32ABA6FBu, tagged.ParamPlus12);
     }

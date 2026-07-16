@@ -28,9 +28,15 @@ Semantic Versioning once it reaches `1.0.0`.
   attribute(s) it modifies. `AffixDefinition.Effects` lists each modified
   attribute with its resolved display name and any parameter (a resistance's
   element, a skill tag), so a build planner can see what an aspect actually
-  does — including multi-stat affixes like a dual-element resistance. Roll
-  values and additive-vs-multiplicative operation remain the game's
-  item-power-scaled domain (not stored on the affix).
+  does — including multi-stat affixes like a dual-element resistance.
+- **Affix values** — each affix effect exposes the formula that determines its
+  rolled magnitude by item power: `AffixEffect.FormulaGbid` resolves through the
+  game's `AttributeFormulas` table (`AttributeFormulaTable.TryGetByGbid`) to the
+  per-item-power roll expression (e.g. a critical-chance affix's
+  `FloatRandomRangeWithInterval(1,3,3.5)/100` at high item power). Set, mythic,
+  and unique powers additionally expose their fixed numbers via
+  `AffixDefinition.StaticValues`. Evaluating a formula stays the consumer's, as
+  for paragon magnitudes.
 - **Conditional-attribute names** — `Diablo4Storage.TryGetDataAttributeName`
   resolves the conditional/seasonal attributes (Berserking, Shadowform,
   Demonform, Volatile, kill-streak, per-power bonuses) that some nodes, glyph

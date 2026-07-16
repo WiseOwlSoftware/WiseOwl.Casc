@@ -65,18 +65,42 @@ namespace WiseOwl.Casc.Diablo4;
 /// <c>AttributeId 259 = Damage per Skill Tag</c>). Resolve the tag-specific
 /// name via <see cref="Diablo4Storage.GetAttributeName(int, uint, string)"/>
 /// and filter unset slots with <see cref="HasParam"/>.</param>
-/// <param name="AttributeName">The resolved localized attribute display name
-/// (via <see cref="Diablo4Storage.GetAttributeName(int, uint, string)"/>), or
-/// <see cref="string.Empty"/> when the id is unresolved or the affix was
-/// decoded byte-only via <see cref="AffixDefinition.Parse(System.ReadOnlySpan{byte})"/>.</param>
+/// <param name="FormulaGbid">CL-94 — the <c>GBID</c> of this modifier's
+/// <b>value formula</b> (slot <c>idx16</c>, byte <c>+64</c>): the key into the
+/// <c>AttributeFormulas</c> table (SNO <c>201912</c>) that defines the affix's
+/// <b>rolled magnitude by item power</b>. Resolve it with
+/// <see cref="AttributeFormulaTable.TryGetByGbid(uint, out AttributeFormula)"/>
+/// (from <see cref="Diablo4Storage.ReadAttributeFormulas(int)"/>) to get the
+/// per-<c>ItemPowerRangeStart</c> <see cref="AttributeFormula.Ranges"/> — each
+/// carries the <c>DT_STRING_FORMULA</c> source text the game rolls the value
+/// from (e.g. <c>GearAffix_CritChance → "FloatRandomRangeWithInterval(1,3,3.5)/100"</c>
+/// at high item power). The library exposes the raw formula text; evaluating it
+/// (and thus the min/max a UI prints) stays the consumer's, matching the paragon
+/// magnitude boundary. <see cref="NoFormula"/> (<c>0</c>) when the modifier
+/// carries no value formula (e.g. set/unique power modifiers whose numbers are
+/// on <see cref="AffixDefinition.StaticValues"/> instead), or an id that isn't
+/// an <c>AttributeFormulas</c> entry — filter with
+/// <see cref="AttributeFormulaTable.TryGetByGbid(uint, out AttributeFormula)"/>.</param>
+/// <param name="AttributeName">The resolved attribute display name — the
+/// localized engine name (via
+/// <see cref="Diablo4Storage.GetAttributeName(int, uint, string)"/>) for a
+/// positive id, or the <c>DataAttributes</c> designer token (via
+/// <see cref="Diablo4Storage.TryGetDataAttributeName(int, out string)"/>, flagged
+/// by <see cref="IsDataDefinedAttribute"/>) for a negative id — or
+/// <see cref="string.Empty"/> when unresolved or the affix was decoded byte-only
+/// via <see cref="AffixDefinition.Parse(System.ReadOnlySpan{byte})"/>.</param>
 [SuppressMessage("Naming", "CA1711:Identifiers should not have incorrect suffix",
     Justification = "\"Attribute\" is the established Diablo IV domain term " +
         "(the serialized eAttribute field). This is a data record struct, not " +
         "a System.Attribute; renaming would diverge the code from the canonical " +
         "byte-format vocabulary.")]
 public readonly record struct AffixEffect(
-    int AttributeId, uint ParamPlus12, string AttributeName)
+    int AttributeId, uint ParamPlus12, uint FormulaGbid, string AttributeName)
 {
+    /// <summary>The <see cref="FormulaGbid"/> value meaning "no value
+    /// formula on this modifier".</summary>
+    public const uint NoFormula = 0;
+
     /// <summary>The <see cref="ParamPlus12"/> sentinel meaning "no
     /// associated parameter / skill-tag".</summary>
     public const uint NoParam = 0xFFFFFFFF;
