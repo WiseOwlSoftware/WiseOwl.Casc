@@ -31,16 +31,34 @@ the Optimizer consumes together).
   the stable low range (`< 481`) so stale ids return null not wrong names
   (1124→null, was "Barrier Generation"). Docs regenerated. Devlog 0089.
 
-**CL-94 (LIB-3 R2, PR #86, `main` tip `ec7a03e`) DELIVERED** — the affix value
-range: **`idx16` = `AffixEffect.FormulaGbid`** is the `GbidHash` of an
-`AttributeFormulas` (SNO 201912) entry → new `AttributeFormulaTable.TryGetByGbid`
-resolves the per-item-power roll formula (crit → `GearAffix_CritChance`
-`"FloatRandomRangeWithInterval(1,0.5,1)/100"`). Data-driven, not engine-coded;
-library exposes raw formula text (consumer evaluates, paragon boundary). Also:
-`AffixDefinition.StaticValues` (+0xC0 set/unique scalars) + `AffixEffect.AttributeName`
-now resolves negative ids via `TryGetDataAttributeName`. #45 `awaiting:optimizer`
-(consume gated on owner's 0.5.0 cut). Devlog 0090; Appendix A CL-94. **Full LIB-3
-title answered: AttributeId + value range + operation.**
+**★ 0.5.0 PUBLISHED to NuGet (2026-07-16)** — both `WiseOwl.Casc` +
+`WiseOwl.Casc.Diablo4` `0.5.0` live/validated on nuget.org. Batch: CL-89/90/91
+(FR-C29 Ph1, LIB-1, LIB-2) + CL-92/93/94 (affix effects/values, attribute-name
+fixes). `main` tip **`3fdf3a9`**; `<Version>` = 0.5.0. Release mechanics per
+`docs/RELEASING.md` (GitHub Release → `nuget` env reviewer gate → OIDC). The env
+gate is approvable via API: `gh api .../actions/runs/<id>/pending_deployments`
+(owner-authed CLI, `current_user_can_approve`). NuGet CDN lags ~min; validation
+(registration endpoint) a few more — cache-bust the flat-container to check.
+
+**CL-92/94 (LIB-3) + CL-95 (R3) DELIVERED** — affix effects + value range fully
+answered. `AffixEffect.FormulaGbid` (idx16) → `AttributeFormulaTable.TryGetByGbid`
+→ per-item-power roll formula; `AffixDefinition.StaticValues` (+0xC0 scalars).
+**CL-95 §8.1** records the formula function contracts: `FloatRandomRangeWithInterval(g,min,max)`
+args 2/3 = roll bounds (g=granularity); `RandomInt(lo,hi)` inclusive; `RangeValue1/2`
+= output CLAMPS not spread. #45/#46 `awaiting:optimizer`, `released:v0.5.0`.
+Devlog 0090/0091; Appendix A CL-94/95.
+
+**Verified finding (mult=additive+1):** the multiplicative-variant AttributeId =
+additive id **+1** in the same engine namespace (40/44 `Mult*` glyph affixes;
+matches DataAttributes `Multiplicative_` pairs). NOT shipped as a blind `id-1`
+fallback (over-applies: 162 truncated, 253/255/260 compound-base). The 3
+CL-93-lost ids (954/1120/1124, live glyph-affix refs) resolve via the **#39
+affix-Desc source** (`SnoScan multcheck`).
+
+**Optimizer offered follow-up:** `ParagonMagnitudeFormula.Evaluate` returns
+silent `NaN` for unsupported functions (FloatRandomRangeWithInterval etc.) — a
+`TryEvaluate` that distinguishes "unsupported" from "legit NaN" is the right
+shape; CASC agreed to take it if filed.
 
 **2 issues `awaiting:casc` — deep, strategic:**
 
