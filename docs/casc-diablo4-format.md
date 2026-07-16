@@ -867,6 +867,44 @@ Verified build: SNO 201912 has 1038 entries;
 `ParagonNodeCoreStat_Normal` → text `"5"`,
 `ParagonNodeCoreStat_Magic` → `"7"`.
 
+### 8.1 Formula function contracts + the min/max derivation (CL-95)
+
+The library never evaluates the formula text (boundary, Appendix C), but the
+value **range** a UI prints is derivable without an evaluator, from the roll
+functions' argument contracts. The functions are engine-defined C++; their
+contracts (established by structural cross-validation over the 1038-entry table
+— e.g. the `GearAffix_CritChance` per-item-power ladder whose per-band bounds
+match its args exactly) are:
+
+| function | contract | roll min / max |
+|---|---|---|
+| `FloatRandomRangeWithInterval(g, min, max)` | a random value in **`[min, max]`** (args 2, 3) quantized to `g` evenly-spaced steps. `g` (arg 1) is the granularity only — it changes *which* discrete values can roll, **not** the range. | `min` / `max` |
+| `RandomInt(lo, hi)` | a uniform integer, **inclusive** of both bounds. (Confirmed by the `RandomInt(1, 8 + ROUND(…))` forms whose upper bound grows with item power.) | `lo` / `hi` |
+| `RandomFloat(lo, hi)`, `SharedRandomFloat(…)`, `FloatRangeWithInterval(g, lo, hi)` | uniform in `[lo, hi]` (the `Shared*` variant correlates rolls across a group; irrelevant to the per-affix range). | `lo` / `hi` |
+| `IPower()` | the item's **item power** at evaluation. Not clamped here — the applicable range row is the one whose `nItemPowerRangeStart` is the greatest `≤ IPower()`; the top row covers all higher item powers. | deterministic |
+| `ROUND(x)` / `Round(x)` | round to nearest integer. **Tie-breaking (banker's vs away-from-zero) is engine-defined and not recoverable from the SNO data** — but it affects a term by at most 1 and only at an exact half-integer argument (rare given the fractional `(k/denom)*(IPower()-start)` terms). | deterministic |
+| `Max(a, b)`, `Pin(x, lo, hi)`, `Pow(a, b)` | larger-of; clamp `x` to `[lo, hi]`; `a` to the power `b`. | deterministic |
+| `ParagonPowerBudgetMultiplier*()`, `GetTotalAffixBonus()`, `CurrentLegendaryRank()` | engine intrinsics / cross-references (the 6 calibrated budget multipliers per §7.2/CL-68; total-of-a-stat; the item's legendary/aspect rank). | deterministic |
+
+**Min/max rule.** Evaluate the row's `FormulaText` twice — with **every** roll
+function replaced by its low argument for the minimum and its high argument for
+the maximum (deterministic functions identical in both) — then **clamp both to
+`[RangeValue1, RangeValue2]`**. Worked: `GearAffix_CritChance` @ item power 850
+`"FloatRandomRangeWithInterval(3,3.5,5)/100"` → min `3.5/100`, max `5/100` =
+**3.5 %–5 %**; `AffixCoreStat1x` @ item power 900 `"(71 + RandomInt(1,15)) - 2"`
+→ **70–84**.
+
+**`RangeValue1` / `RangeValue2` are output CLAMPS, not the roll spread** —
+verified: across 2580 ranges they collapse to a handful of round,
+formula-independent bounds (`(0, 100)` for percentages ×493, `(1, 9999)` for
+core stat, `(0, 99999)` for large stats ×547, per-row bounds like
+`(0.025, 99.975)` on the inverse-percentage curves). A consumer that mistakes
+them for the min/max is wrong; apply them as the final `Clamp`.
+
+The residual uncertainties (`g`'s exact step count, `ROUND` tie-breaking) do
+**not** affect the printed range — the range is fully determined by the roll
+functions' `[min, max]` args and the clamps.
+
 ## 9. Read path (Diablo IV)
 
 ```
@@ -2274,6 +2312,30 @@ armor, …). Structural — no name parsing.
 
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
+
+- **CL-95 — formula function contracts (LIB-3 R3, `casc-fr#45`) + a CL-93
+  coverage correction (FR-C31 R2, `casc-fr#46`).** *(a)* Recorded the
+  `AttributeFormulas` roll-function contracts and the min/max derivation rule
+  (§8.1): `FloatRandomRangeWithInterval(g, min, max)` → args 2/3 are the roll
+  bounds (`g` = granularity only — proven by the `GearAffix_CritChance` ladder),
+  `RandomInt(lo, hi)` inclusive, `IPower()` range-selected, `ROUND` nearest
+  (tie-break engine-defined, ≤1 effect); and confirmed `RangeValue1/2` are
+  output **clamps**, not the roll spread (2580 ranges collapse to round
+  formula-independent bounds). The residual engine-uncertainties don't affect
+  the printed range. `FormulaRange` XML clarified. *(b)* **The CL-93 claim "no
+  current coverage is lost" was wrong.** Three ids — `954`, `1120`, `1124` —
+  are live-referenced by group-112 glyph affixes, are **not** node-scannable,
+  and now return `null` (a small, accepted loss). Root cause is not stale rot
+  but **reassigned ordinals**: the multiplicative-variant id is the additive id
+  **+1** in the same engine namespace (verified — 40/44 `Mult*` glyph-affix ids
+  resolve via `id-1` to their exact stat: `1124→1123` "Damage while Healthy",
+  `954→953` "Damage to Elites", `1120→1119` "Damage to Healthy Enemies"; the
+  same additive-at-N / `Multiplicative_`-at-N+1 convention seen in the
+  `DataAttributes` pairs). Deliberately **not** shipped as a blind `id-1`
+  fallback — it over-applies (`162→161` "Maximum" truncated; `253/255/260` are
+  FR-C28 compound-base whose bare label needs `ParamPlus12`). The proper
+  resolution for these live-but-unresolved glyph-affix ids is the affix-`Desc`
+  name source (FR-C27 / `#39`). §8.1, §11.3.
 
 - **CL-94 — affix value range: `idx16` → the item-power roll formula (LIB-3
   R2, `casc-fr#45`).** The modifier `idx16` GBID (`AffixEffect.FormulaGbid`,

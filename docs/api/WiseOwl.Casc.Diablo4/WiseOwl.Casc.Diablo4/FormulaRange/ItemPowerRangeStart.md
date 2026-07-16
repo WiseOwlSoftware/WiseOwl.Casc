@@ -1,6 +1,6 @@
 # FormulaRange.ItemPowerRangeStart property
 
-`nItemPowerRangeStart` (`+0`).
+`nItemPowerRangeStart` (`+0`) — the row applies when the item's item power is `≥` this and below the next row's start (the last row covers all higher item powers).
 
 ```csharp
 public int ItemPowerRangeStart { get; set; }

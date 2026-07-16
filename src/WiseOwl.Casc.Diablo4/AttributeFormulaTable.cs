@@ -3,15 +3,27 @@ using System.Collections.Generic;
 
 namespace WiseOwl.Casc.Diablo4;
 
-/// <summary>One <c>arRanges</c> row of an <see cref="AttributeFormula"/>:
-/// a power-range start, its two range values, and the formula source text.
-/// Raw decoded fields — the library never evaluates the text.</summary>
-/// <param name="ItemPowerRangeStart"><c>nItemPowerRangeStart</c> (<c>+0</c>).</param>
-/// <param name="RangeValue1">First range value (<c>+4</c>, float).</param>
-/// <param name="RangeValue2">Second range value (<c>+8</c>, float).</param>
-/// <param name="FormulaText">The <c>DT_STRING_FORMULA</c> source text
-/// (e.g. <c>"5"</c>, <c>"2 * ParagonPowerBudgetMultiplierNodeMagicOffensive()"</c>).
-/// </param>
+/// <summary>One <c>arRanges</c> row of an <see cref="AttributeFormula"/>: the
+/// item-power band this row applies to, its output clamps, and the formula
+/// source text. Raw decoded fields — the library never evaluates the text.</summary>
+/// <param name="ItemPowerRangeStart"><c>nItemPowerRangeStart</c> (<c>+0</c>) —
+/// the row applies when the item's item power is <c>≥</c> this and below the
+/// next row's start (the last row covers all higher item powers).</param>
+/// <param name="RangeValue1">CL-95 — the output <b>lower clamp</b> (<c>+4</c>),
+/// <b>not</b> the roll minimum. The evaluated value is pinned to
+/// <c>[RangeValue1, RangeValue2]</c> — across the table these are round,
+/// formula-independent bounds (e.g. <c>0</c>/<c>100</c> for a percent,
+/// <c>1</c>/<c>9999</c> for a core stat). The roll min/max come from the roll
+/// functions' arguments inside <see cref="FormulaText"/>, not from these — see
+/// <c>casc-diablo4-format.md §8.1</c>.</param>
+/// <param name="RangeValue2">CL-95 — the output <b>upper clamp</b> (<c>+8</c>);
+/// see <see cref="RangeValue1"/>.</param>
+/// <param name="FormulaText">The <c>DT_STRING_FORMULA</c> source text (e.g.
+/// <c>"5"</c>, <c>"FloatRandomRangeWithInterval(1,3,3.5)/100"</c>,
+/// <c>"2 * ParagonPowerBudgetMultiplierNodeMagicOffensive()"</c>). The value
+/// range is <c>[eval with each roll fn at its low arg, eval at its high arg]</c>
+/// clamped to <c>[RangeValue1, RangeValue2]</c>; the function contracts are in
+/// <c>casc-diablo4-format.md §8.1</c>.</param>
 public readonly record struct FormulaRange(
     int ItemPowerRangeStart, float RangeValue1, float RangeValue2, string FormulaText);
 

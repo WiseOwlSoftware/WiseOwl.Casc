@@ -1,6 +1,6 @@
 # FormulaRange.RangeValue2 property
 
-Second range value (`+8`, float).
+CL-95 — the output upper clamp (`+8`); see [`RangeValue1`](./RangeValue1.md).
 
 ```csharp
 public float RangeValue2 { get; set; }

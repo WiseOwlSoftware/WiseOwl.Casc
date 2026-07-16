@@ -1,6 +1,6 @@
 # FormulaRange.FormulaText property
 
-The `DT_STRING_FORMULA` source text (e.g. `"5"`, `"2 * ParagonPowerBudgetMultiplierNodeMagicOffensive()"`).
+The `DT_STRING_FORMULA` source text (e.g. `"5"`, `"FloatRandomRangeWithInterval(1,3,3.5)/100"`, `"2 * ParagonPowerBudgetMultiplierNodeMagicOffensive()"`). The value range is `[eval with each roll fn at its low arg, eval at its high arg]` clamped to `[RangeValue1, RangeValue2]`; the function contracts are in `casc-diablo4-format.md §8.1`.
 
 ```csharp
 public string FormulaText { get; set; }
