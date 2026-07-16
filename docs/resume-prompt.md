@@ -13,40 +13,47 @@ The sections below this one ("Status (end of session 1)", the numbered
 "Next steps") are **historical** — accurate for their era but superseded
 by what follows. This block is the live state.
 
-### ⏭️ NEXT-SESSION PICKUP (2026-07-16 handoff) — start here
+### ⏭️ NEXT-SESSION PICKUP (2026-07-16 handoff #2) — start here
 
-Last session shipped **CL-89/90/91** (all merged to `main` + delivered;
-`main` tip **`73aacf0`**) and opened the **comprehensive-data-exposure**
-program ([[project_comprehensive-data-exposure]]): proactively expose the
-whole dataset via typed APIs, confidence-gated, as CASC-initiated `LIB-N`
-work items. **0 issues `awaiting:casc` from the Optimizer**; two CASC-owned
-threads are teed up. Pick **#1 or #2**:
+Last session shipped **CL-92 (LIB-3 affix effects)** — merged to `main`
+(**`main` tip `f04d6aa`**, PR #84) + delivered on `casc-fr#45`
+(`fr:delivered`/`awaiting:optimizer`). LIB-3 = **which attribute(s) each item/
+aspect affix modifies**: `AffixDefinition.Effects` → `IReadOnlyList<AffixEffect>`
+(the `arModifiers` VLA at payload `+0xB0`, array of fixed 104-byte modifier
+records; `idx4`=AttributeId, `idx7`=ParamPlus12). idx4 validated 1:1 across
+1,220 single-modifier affixes vs their `Desc` value-token. **The old idx10
+hypothesis was disproven and held off.** Spec §11.3; devlog 0088; Appendix A.
 
-**#1 — Continue LIB-3 (affix effects, `casc-fr#45`, `awaiting:casc`).** The
-g104 affix effect *structure* is mapped (`SnoScan affixdump <sno>`): an
-8-byte-descriptor `DT_VARIABLEARRAY` at struct `+0xB0`, a 104-byte block of
-`(id,param)` records at idx 10/14/20/24 (params 2 & 12), ids shaped
-`X/X+4/X+16/X+20`. **DO NOT reuse the disproven first hypothesis** that idx10's
-id = the modified stat — the same ids (480, 472) recur across unrelated stats
-(Resource_MaxMana AND CoreStat_StrengthPercent both → 480), so 472–516 are
-**structural/formula slots, not stat identity**. Real per-affix key is likely
-record **idx4** (161/79/1228/4/13/17). Next: pin idx4's meaning, the slot
-semantics, and where the min/max value range lives; validate across many affix
-types before shipping. Progress recorded on `#45` (`#issuecomment-4996148446`).
+**5 issues now `awaiting:casc`** (the Optimizer queued a cluster during the
+session). Priority order:
 
-**#2 — Crack the base-attribute registry (unblocks #1 AND FR-C29).** The
-affix ids (472–516) and FR-C29's engine-coded coefficients both sit behind the
-**attribute-registry-name wall** (FR-C27: `DataAttributes` is the designer
-subset, not the full registry; `GetAttributeName` only covers ~40 curated +
-node-scannable ids). If a session can name the base attribute ids (the 470–520
-core-stat/resource/resistance space), affix effects become useful AND it may
-reveal the core-stat AttributeIds FR-C29 needs. This is the FR-C27/C29
-coefficient hunt's remaining frontier (owner believes the coefficients are
-data-driven; last session swept every config/global/attribute group without
-finding them — see [[project_fr-c29-character-stats]]).
+**#47 FR-C32 — decode bit 31 on AttributeId (`0x800000xx`) + confirm the `-1`
+sentinel. ALREADY SOLVED by CL-92** — bit 31 = the `DataAttributes` (SNO
+1907204) namespace flag; ordinal = `id & 0x7FFFFFFF` (verified: 84 =
+`Barb_Berserking_AttackSpeed`); `-1` = the "no attribute" sentinel. Just
+respond with the finding (`AffixEffect.IsDataDefinedAttribute`/
+`DataAttributeOrdinal` already ship it) + decide whether to add the same
+flag-decode to `GetAttributeName`/node attrs. **Fast win — start here.**
 
-Recon tooling on `build/SnoScan` (all on `main`): `affixdump`, `itemtypes`,
-`classstats`, `locate`, `f32grep`, `hashgrep` + the earlier set.
+**#46 FR-C31 / #48 LIB-4 — `GetAttributeName` returns a WRONG (stale) name,
+not null, for live-referenced ids; the API doc page shows stale examples
+(481/950).** Directly helped by the LIB-3 finding: **affix `Desc` placeholders
+are a rich season-robust first-party AttributeId→token source** (~86 positive
+engine attrs — many the node scan misses: 1125/1157/483/484 — PLUS the
+DataAttributes ordinals). Consider feeding that source into `GetAttributeName`
+to fix the stale/wrong-name cases + regen the API doc page.
+
+**#39 FR-C27 (DataAttributes full registry RE)** and **#41 FR-C29 (per-class
+stat formulae)** — the strategic threads; LIB-3 advanced both (the affix layer
+names attribute ids the node layer could not; negative idx4 = DataAttributes
+ordinal is a concrete breach of the registry wall). See
+[[project_comprehensive-data-exposure]], [[project_attributeid-registry-ordinal]].
+
+Recon tooling on `build/SnoScan` (all on `main`): `affixcorpus`, `affixattrmap`,
+`affixfloatscan`, `affixeffects` (LIB-3), `dataattrs`, `attrname`, `attrmap`,
+`affixdump`, `itemtypes`, `classstats`, `locate`, `f32grep`, `hashgrep`.
+Session corpus in scratchpad: `affix-corpus-full.txt` (all 6,145),
+`affix-attrmap.txt` (idx4→token map), `affix-floatscan.txt`.
 
 ### How work arrives now: the CASC⇄Optimizer FR loop (GitHub Issues)
 
