@@ -897,7 +897,11 @@ public sealed class Diablo4StorageIntegrationTests
         // A set-power affix → its fixed "Static Value N" scalars, positionally
         // matching the Desc's [Affix."Static Value N"] placeholders.
         var setPower = d4.ReadAffix(2292505);   // Talisman_SetPower_Barb01_01
-        Assert.Equal(new[] { 100f, 50f, 20f, 120f }, setPower.StaticValues);
+        Assert.Equal(4, setPower.StaticValues.Count);
+        Assert.Equal(100f, setPower.StaticValues[0]);
+        Assert.Equal(50f, setPower.StaticValues[1]);
+        Assert.Equal(20f, setPower.StaticValues[2]);
+        Assert.Equal(120f, setPower.StaticValues[3]);
 
         // Flag-namespaced (DataAttributes) effect → AttributeName is now the
         // designer token (CL-94 wired TryGetDataAttributeName into ReadAffix).

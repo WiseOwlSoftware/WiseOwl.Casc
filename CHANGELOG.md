@@ -6,6 +6,14 @@ Semantic Versioning once it reaches `1.0.0`.
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-07-16
+
+Adds the item and aspect **affix** data layer — what each affix does, and the
+formula behind its rolled value — plus gear/item taxonomy, the Character-Sheet
+stat inputs, no-argument install auto-detection, and names for the game's
+conditional attributes. Continues to track the live game through Season 14
+(build `3.1.1.72836`).
+
 ### Added
 
 - **Install auto-detection** — `Diablo4Storage.Open()` (no arguments) now finds
