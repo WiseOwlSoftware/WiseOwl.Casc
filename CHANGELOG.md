@@ -4,6 +4,31 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project uses
 Semantic Versioning once it reaches `1.0.0`.
 
+## [0.4.0] — 2026-07-15
+
+First stable release. Adds a full Diablo IV Paragon data layer on top of the
+raw decoders and keeps up with the live game through Season 14 (build
+`3.1.1.72836`).
+
+### Added
+
+- **Paragon nodes** — read a node's name, localized title, icon, passive
+  power, and full stat list (each stat's value, unit, and magnitude formula)
+  in one call, plus a whole-board lookup for build planners.
+- **Paragon glyphs** — glyph and glyph-affix display names, descriptions, and
+  structured affix effects.
+- **Tooltip chrome** — the panel, frame, divider, and skill-icon artwork the
+  game composes behind a Paragon tooltip.
+- **Attribute names** — resolve a stat's display name in any locale. The
+  lookup follows the live game data, so it keeps working across seasons as the
+  game renumbers its attributes.
+- **Affix names** — the localized display name of any item or aspect affix.
+- **Power formulas** — the resolved values behind a legendary power's tooltip.
+
+### Changed
+
+- Verified against Diablo IV Season 14 (`3.1.1.72836`).
+
 ## [0.3.0-alpha] — 2026-05-21
 
 Adds the paragon-board render model, the power script-formula reader,
