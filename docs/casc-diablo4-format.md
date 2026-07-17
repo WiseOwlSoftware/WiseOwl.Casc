@@ -2334,6 +2334,22 @@ armor, …). Structural — no name parsing.
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
 
+- **CL-97 — read-not-curated attribute names from item-affix Desc (FR-C27 R2,
+  `casc-fr#39`).** CL-88 made `GetAttributeName` season-*durable* (tokens
+  survive renumbering) but not more *covering* — it still resolves only the ~40
+  curated `LabelByToken` tokens, so ~half of live-referenced ids returned
+  `null`. New source: an item-affix `Desc` placeholder (`[Crit_Percent_Bonus *
+  100|%|]`) names the affix's modified attribute with a token that **is itself a
+  sno-4080 key**, keyed by the current-build `AttributeId` — a read-not-curated
+  `id → label` map, built once from a full g104 scan and cached, consulted after
+  the node path. **Measured:** over the 85 live positive attribute ids that
+  nodes (g106) + glyph affixes (g112) reference, `GetAttributeName` coverage
+  rose **48.2% → 68.2%** (17 ids rescued, e.g. `707 → "Damage Over Time"`,
+  `1207 → "Lucky Hit Chance"`). **It does not fully close the gap:** ~32%
+  (node/glyph-only ids no affix references, e.g. `256`, `322`) still return
+  `null` — the honest residual, not a wrong name. Fully closing needs either a
+  node-side read source (not yet located) or curation for the tail. §11.3.
+
 - **CL-96 — inline value formulas for unique/legendary power rolls (LIB-3 R5,
   `casc-fr#45`) + a CL-94 sentinel fix.** The CL-94 delivery claim that the
   `idx16`→`AttributeFormulas` chain gives "305 uniques" a value source was an

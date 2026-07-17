@@ -738,12 +738,19 @@ public sealed class Diablo4Storage : IDisposable
     /// a durable key. Resolution is therefore (1) a runtime <c>id → node-name
     /// token</c> scan of the live <c>Generic_</c> nodes →
     /// <see cref="AttributeNames.LabelByToken"/> (the season-stable primary,
-    /// auto-tracking each build's renumbering); then (2) the curated
+    /// auto-tracking each build's renumbering); then (2) a second
+    /// <b>read-not-curated</b> source — the item-affix <c>Desc</c> placeholder
+    /// token, which is itself a sno-4080 key, keyed by the current-build
+    /// <c>AttributeId</c> (FR-C27 R2 / CL-97; resolves many ids the curated node
+    /// path misses, e.g. <c>707 → "Damage Over Time"</c>); then (3) the curated
     /// <see cref="AttributeNames.LabelByAttributeId"/> fallback, restricted to
     /// the <b>stable low range</b> (<see cref="AttributeNames.StableAttributeIdRangeExclusiveMax"/>)
     /// — the drift-prone tail is intentionally absent so a shifted id returns
     /// an honest <see langword="null"/> rather than a stale wrong name
-    /// (FR-C31 / CL-93); then (3) the compound base-id map.</para>
+    /// (FR-C31 / CL-93); then (4) the compound base-id map. Ids no affix or
+    /// curated token names (node/glyph-only stats) return
+    /// <see langword="null"/> — the honest residual, never a wrong name. The
+    /// affix source is built by a one-time full-affix scan on first use, cached.</para>
     /// <para><b>Flag-namespaced (negative) ids are out of scope here.</b> A
     /// negative <c>attributeId</c> (high bit <c>0x80000000</c> set) is a
     /// <c>DataAttributes</c> designer-table reference, a <b>disjoint</b>
@@ -930,6 +937,54 @@ public sealed class Diablo4Storage : IDisposable
         return _attributeTokens = map;
     }
 
+    // FR-C27 R2 (CL-97) — a second, read-not-curated id→label source: item-affix
+    // Desc placeholders. Each single-modifier affix's Desc names its modified
+    // attribute with a token (e.g. "[Crit_Percent_Bonus * 100|%|]") that IS an
+    // AttributeDescriptions (sno 4080) key, keyed by the current-build effect
+    // AttributeId — so it resolves ids the Generic_ node scan misses, with no
+    // curation. Built once (a full g104 scan) and cached.
+    private Dictionary<int, string>? _affixAttributeTokens;
+
+    /// <summary>Build (once, cached) the runtime
+    /// <c>AttributeId → AttributeDescriptions label</c> map from item-affix
+    /// <c>Desc</c> placeholders — the read-not-curated FR-C27 source (CL-97).
+    /// Each single-modifier group-104 affix pairs its effect
+    /// <see cref="AffixEffect.AttributeId"/> with the leading value token of its
+    /// localized <c>Desc</c>, which is a season-stable sno-4080 key. Covers many
+    /// ids the <see cref="AttributeTokens"/> node scan doesn't reach.</summary>
+    private Dictionary<int, string> AffixAttributeTokens()
+    {
+        if (_affixAttributeTokens is not null) return _affixAttributeTokens;
+        // Set the cache to an empty map first so any re-entrant lookup during
+        // the build (there is none on this path, but be defensive) short-circuits
+        // rather than recursing — and use the byte-only Parse + a direct sibling
+        // Desc read, NOT ReadAffix (which resolves names via GetAttributeName and
+        // would recurse into this scan).
+        var map = new Dictionary<int, string>();
+        _affixAttributeTokens = map;
+        foreach (var e in CoreToc.EntriesInGroup(SnoGroup.Affix))
+        {
+            AffixDefinition a;
+            try { a = AffixDefinition.Parse(ReadSno(SnoGroup.Affix, e.Id)); }
+            catch (CascException) { continue; }
+            if (a.Effects.Count != 1) continue;             // single-modifier → clean id↔token
+            int id = a.Effects[0].AttributeId;
+            if (id <= 0 || map.ContainsKey(id)) continue;
+            if (!TryReadSiblingString(SnoGroup.Affix, e.Id, "Affix_", "Desc", DefaultLocale, out var desc))
+                continue;
+            int lb = desc.IndexOf('[');
+            if (lb < 0) continue;
+            int j = lb + 1;
+            while (j < desc.Length && desc[j] == ' ') j++;
+            int start = j;
+            while (j < desc.Length && (char.IsLetterOrDigit(desc[j]) || desc[j] == '_')) j++;
+            var token = desc[start..j];
+            if (token.Length < 3 || char.IsDigit(token[0])) continue;
+            map[id] = token;
+        }
+        return _affixAttributeTokens = map;
+    }
+
     // FR-C32 (CL-93) — the DataAttributes (SNO 1907204, group 20) designer
     // table, read once and cached as an ordinal-indexed name array. A flagged
     // (negative) AttributeId references it by ordinal (id & 0x7FFFFFFF); see
@@ -988,6 +1043,16 @@ public sealed class Diablo4Storage : IDisposable
                     label = byToken;
                     return true;
                 }
+        // CL-97 (FR-C27 R2) — read-not-curated: an item-affix Desc placeholder
+        // token IS a sno-4080 label, keyed by the current-build AttributeId, so
+        // it resolves ids the curated LabelByToken node path misses (no
+        // hand-curation, auto-tracks renumbering). One-time affix scan on first
+        // miss, cached.
+        if (AffixAttributeTokens().TryGetValue(attributeId, out var affixLabel))
+        {
+            label = affixLabel;
+            return true;
+        }
         // Defensive by-id fallback — restricted to the stable low range; the
         // drift-prone tail (≥ 481) is season-fragile and must resolve via the
         // token scan above or return null, never a stale by-id name (FR-C31).

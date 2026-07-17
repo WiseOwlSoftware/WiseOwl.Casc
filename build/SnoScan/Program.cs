@@ -1523,6 +1523,58 @@ switch (cmd)
         }
         return 0;
     }
+    case "coverfix":
+    {
+        // FR-C27 R2: measure the affix-Desc source's coverage contribution.
+        // Build idx4 -> Desc-token from single-modifier g104 affixes; for every
+        // live positive attribute id referenced by nodes (g106 Generic_) +
+        // glyph affixes (g112), report resolves-now (GetAttributeName) vs
+        // resolves-via-affix-Desc (idx4 -> token -> sno-4080 localize).
+        int pb = SnoRecord.DefaultPayloadBase;
+        var affixToken = new Dictionary<int, string>();
+        foreach (var e in toc.Entries)
+        {
+            if ((int)e.Group != 104) continue;
+            if (!d4.TryReadSno(104, e.Id, SnoFolder.Meta, out var b)) continue;
+            var r = new SnoRecord(b);
+            if (pb + 0xB0 + 8 > b.Length) continue;
+            int mo = r.I32(0xB0), ms = r.I32(0xB4);
+            if (mo <= 0 || ms != 104 || pb + mo + ms > b.Length) continue;   // single-modifier only
+            int attr = r.I32(mo + 16);
+            if (attr <= 0) continue;
+            string desc = ""; try { desc = d4.ReadAffix(e.Id).Description; } catch { }
+            int lb = desc.IndexOf('[');
+            if (lb < 0) continue;
+            int j = lb + 1; while (j < desc.Length && desc[j] == ' ') j++;
+            int st = j; while (j < desc.Length && (char.IsLetterOrDigit(desc[j]) || desc[j] == '_')) j++;
+            string tok = desc.Substring(st, j - st);
+            if (tok.Length < 3 || char.IsDigit(tok[0])) continue;
+            affixToken.TryAdd(attr, tok);
+        }
+        var sl = d4.GetStrings();
+        string Loc(string tok) => sl.TryGet(4080, tok, out var t) ? AttributeNames.StripTemplate(t) : "";
+        // enumerate live positive attr ids from nodes + glyph affixes
+        var ids = new HashSet<int>();
+        foreach (var e in toc.Entries)
+        {
+            if ((int)e.Group == 106 && e.Name.StartsWith("Generic_", StringComparison.Ordinal))
+            { try { foreach (var a in d4.ReadParagonNode(e.Id).Attributes) if (a.AttributeId > 0) ids.Add(a.AttributeId); } catch { } }
+            else if ((int)e.Group == 112)
+            { try { foreach (var a in d4.ReadParagonGlyphAffix(e.Id).AffectedAttributes) if (a.AttributeId > 0) ids.Add(a.AttributeId); } catch { } }
+        }
+        int now = 0, viaAffix = 0, combined = 0, affixOnly = 0;
+        foreach (var id in ids)
+        {
+            bool rn = d4.GetAttributeName(id) != null;
+            bool va = affixToken.TryGetValue(id, out var tk) && Loc(tk).Length > 0;
+            if (rn) now++; if (va) viaAffix++;
+            if (rn || va) combined++;
+            if (!rn && va) { affixOnly++; if (affixOnly <= 20) Console.WriteLine($"  +{id} -> {Loc(affixToken[id])}  (affix token {affixToken[id]})"); }
+        }
+        Console.WriteLine($"-- live positive attr ids (node+glyph): {ids.Count} | resolves now: {now} ({100.0*now/ids.Count:0.#}%) | affix-Desc alone: {viaAffix} | COMBINED: {combined} ({100.0*combined/ids.Count:0.#}%) | affix-Desc rescues {affixOnly} the node scan misses --");
+        Console.WriteLine($"-- affix-Desc id->token map size: {affixToken.Count} --");
+        return 0;
+    }
     case "attrname":
     {
         // FR-C27: probe Diablo4Storage.GetAttributeName(id[,param]) — the
