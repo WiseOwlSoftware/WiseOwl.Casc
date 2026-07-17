@@ -20,8 +20,9 @@ load-bearing "don't re-discover" facts.
 ### ⏭️ NEXT-SESSION PICKUP (2026-07-17) — start here
 
 **Published: `WiseOwl.Casc` + `WiseOwl.Casc.Diablo4` `0.6.0` live on NuGet.**
-`main` tip **`dcf473c`**; `<Version>` = 0.6.0; working tree clean. The FR-loop
-counter-round marathon (CL-92 → CL-99) is shipped and released. Release
+`main` tip **`11ba44f`**; `<Version>` = 0.6.0; working tree clean. The FR-loop
+counter-round marathon (CL-92 → CL-99) shipped in 0.6.0; **CL-100 (LIB-3 R7) is
+unreleased on `main`**. Release
 mechanics: `docs/RELEASING.md` (GitHub Release → `nuget` env gate → OIDC). **The
 env gate is approvable via API with the owner-authed CLI** (`gh api
 repos/.../actions/runs/<id>/pending_deployments` → `current_user_can_approve`;
@@ -29,31 +30,28 @@ POST `{environment_ids:[<id>],state:"approved"}`). NuGet CDN + validation lag a
 few min after a successful run — cache-bust the flat-container and poll the
 registration endpoint (`registration5-gz-semver2/<pkg>/<ver>.json` → 200).
 
-**ONE open CASC turn: `casc-fr#45` R7** (`awaiting:casc`). `casc-fr#39` was
-disposed **`fr:by-design`** on 2026-07-17 (owner call — §11.3 structural ceiling
-recorded as the terminal outcome; now `awaiting:optimizer` to acknowledge +
-close). The queue is live and the Optimizer counter-rounds within minutes —
-**re-poll `awaiting:casc` before acting.**
+**0 open CASC turns** (queue clear 2026-07-17). Both recent turns are disposed
+and now `awaiting:optimizer`: `casc-fr#45` R7 **delivered CL-100**
+(`WiseOwl.Casc@11ba44f`, unreleased) and `casc-fr#39` was disposed
+**`fr:by-design`** (owner call). The queue is live and the Optimizer
+counter-rounds within minutes — **re-poll `awaiting:casc` before assuming idle.**
 
-**#45 R7 — LIB-3's affix value decode is done** (effects + `FormulaGbid` item-power
-curves + `InlineFormula` unique/legendary rolls); the Optimizer's R7 lists the
-remaining blockers for the ~741 aspects that still can't print a number:
-- **`CurrentLegendaryRank()` (597 aspects)** — **not rolls**; rank-scaled
-  deterministic (`19 + CurrentLegendaryRank()*0.5`). Ask: **is the max
-  legendary/aspect rank in the data?** If so, expose it so the value is a
-  `[rank 0 … max]` span. Highest-value item.
-- **`PowerTag.<X>."Script Formula N"` (83)** — cross-ref into another power's
-  script formula. Ask: resolvable through `ReadPower`/§7.2 today? what's the lookup?
-- **Grammar gap (2, `Chest_Unique_Paladin_001`)** — §8.1's *function* table can't
-  express what the Optimizer found: a **ternary `cond ? a : b` + comparison `>`**,
-  and **`S14_Mythic_UniquePotency` used as a bare variable** (= `DataAttributes[280]`;
-  `[279]`=`S14_Mythic_CooldownReductionCDR` — formulas reference the designer-attr
-  namespace by NAME, tying #47's work to the evaluator). Branch ⇒ the printed range
-  is runtime-conditional (Mythic? → two ranges). **Ask: document §8.1 as a GRAMMAR
-  (operators, precedence, variable refs), not just a function list.** Don't guess
-  ternary/comparison semantics ("looks conventional" is what R4 warned against).
-Plus a promised follow-up: **chase the 32 residual** affixes (rollable `Desc`, no
-decodable inline formula) — report the count, don't imply coverage.
+**#45 R7 — DELIVERED (CL-100, `11ba44f`).** Max legendary rank = **10**, a
+**universal engine constant** — every one of the 699 `legendary_*` powers carries
+an identical `("10",10.0)` script-formula-tail sentinel (0 exceptions,
+`3.1.1.72836`; owner-confirmed FR-C13 R2), and it is **not** a per-aspect field.
+Surfaced `PowerDefinition.MaxRank` (decoded from the sentinel) +
+`PowerDefinition.MaxLegendaryRank` (const) for the affix path; rank is **1-based**
+(dominant `…(CurrentLegendaryRank()-1)…` shape) → aspect span
+`[formula(1) … formula(10)]` (630 g104 affixes). §8.1 rewritten as a **grammar**
+(ternary/comparison, `DataAttributes` bare-var refs, `PowerTag` cross-refs).
+`PowerTag.S10ChaosTuningPerClass."Script Formula N"` (86) = **identifiable but not
+numerically resolved** (referent needs the deferred FR-C13 binary-AST decode — a
+real follow-up if the Optimizer wants the per-class values). 32 residual = **21
+GBID-backed** (computable via existing path) + **11 genuine** non-roll (Skill-Rank
+grants / `Owner.*` set powers / a test affix). Spec §8.1/§11.2/§11.3, Appendix A
+CL-100, devlog 0094. Residual to flag: the rank *floor* (0 vs 1) is inferred from
+the `-1` convention, not oracled — the Optimizer can pin it with one in-game min.
 
 **#39 FR-C27 — RESOLVED `fr:by-design` (2026-07-17, owner call; now
 `awaiting:optimizer`).** The Optimizer verified CL-97 on published 0.6.0
@@ -82,9 +80,13 @@ source, if one ever surfaces, is a fresh FR — not a re-open.
 `.StaticValues`; `Diablo4Storage.TryGetDataAttributeName`;
 `AttributeFormulaTable.TryGetByGbid`; `ParagonMagnitudeFormula.TryEvaluate`;
 `Diablo4Storage.ReadLevelScaling()` → `LevelScalingTable` (`HpScalar`/`BaseLife`/
-`BaseHitpointsMax`/`MaxCharacterLevel`). Spec §8.1 (formula-function contracts),
+`BaseHitpointsMax`/`MaxCharacterLevel`). Spec §8.1 (formula grammar),
 §8.2 (LevelScaling base Life), §11.3 (affix effects + `GetAttributeName`
 ceiling); Appendix A CL-92..CL-99; devlogs 0088–0093.
+**Unreleased (CL-100, `main`):** `PowerDefinition.MaxRank` +
+`.MaxLegendaryRank` (max legendary rank = 10, universal); §8.1 rewritten as a
+grammar (ternary/comparison, `DataAttributes` bare-var refs, `PowerTag`
+cross-refs); Appendix A CL-100; devlog 0094.
 
 **★ DISCIPLINE — session meta-lesson ([[feedback_calibrate-claims-to-evidence]]):**
 the decodes were excellent but three closing claims overreached this session
@@ -106,8 +108,11 @@ commit straight to `main`.
 `affixattrmap`, `affixfloatscan`, `affixeffects`, `inlineformula`, `multcheck`;
 attribute — `attrname` (+DataAttr), `attrmap`, `coverfix`, `dataattrs`; formula —
 `formulafind`, `formula`, `formulagbid`, `formuladump`; raw — `rawhex`, `snoid`,
-`listgroup`. Session scratchpad corpus: `affix-corpus-full.txt`,
-`affix-attrmap.txt`, `affix-floatscan.txt`.
+`listgroup`. **R7 (CL-100):** `inlinedump` (all g104 inline formulas),
+`affixstr` (per-modifier string slots), `ranksentinel` (max-rank sentinel scan,
+proved 699/699 = 10), `rollableresidual` (the 32-residual split), `powersf`.
+Session scratchpad corpus: `affix-corpus-full.txt`, `affix-attrmap.txt`,
+`affix-floatscan.txt`, `inline-corpus.tsv`.
 
 ### How work arrives now: the CASC⇄Optimizer FR loop (GitHub Issues)
 
