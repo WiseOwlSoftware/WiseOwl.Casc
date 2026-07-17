@@ -790,6 +790,37 @@ public sealed class Diablo4StorageIntegrationTests
             warlock.SnoId);
     }
 
+    /// <summary>FR-C29 Phase 2 (CL-99) — the class-independent base Max Life
+    /// projection from the <c>LevelScaling</c> curve (SNO 206158):
+    /// <c>round(50 × hpScalar[level])</c>. The 200-row table (200 = character
+    /// levels 1..70 + monster/content 71..200) and the row-column layout are
+    /// structural; the exact Life values are the game-authored curve.
+    /// content-snapshot: hpScalar / Life are per-build (3.1.1.72836).</summary>
+    [SkippableFact]
+    [Trait("kind", "content-snapshot")]
+    public void ReadLevelScaling_projects_class_independent_base_life()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+        var scaling = d4.ReadLevelScaling();
+
+        // 200 rows; hpScalar 1.0 at level 1.
+        Assert.Equal(200, scaling.LevelCount);
+        Assert.Equal(1.0f, scaling.HpScalar(1), precision: 4);
+
+        // Base Life = round(50 × hpScalar), round-half-away-from-zero.
+        Assert.Equal(50, scaling.BaseLife(1));
+        Assert.Equal(52, scaling.BaseLife(2));    // 50 × 1.03 = 51.5 → 52 (the exact-.5 case)
+        Assert.Equal(53, scaling.BaseLife(3));
+        Assert.Equal(860, scaling.BaseLife(60));  // owner anchor
+        Assert.Equal(1526, scaling.BaseLife(70)); // owner anchor (a rounded product; not stored)
+
+        // Level 70 is the character cap; higher rows exist but aren't characters.
+        Assert.Equal(70, LevelScalingTable.MaxCharacterLevel);
+        Assert.Throws<System.ArgumentOutOfRangeException>(() => scaling.BaseLife(71));
+    }
+
     /// <summary>LIB-3 (CL-92) — the item/aspect affix <b>effect</b> decode:
     /// <see cref="AffixDefinition.Effects"/> is the <c>arModifiers</c> array
     /// at payload <c>+0xB0</c> (fixed 104-byte modifier records; count =
