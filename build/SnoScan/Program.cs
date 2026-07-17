@@ -1696,6 +1696,60 @@ switch (cmd)
         }
         return 0;
     }
+    case "inlineformula":
+    {
+        // LIB-3 R5: does the affix record carry an INLINE formula string
+        // (DT_STRING_FORMULA) for the roll, when idx16 is NoGbid? Scan every
+        // matching g104 affix for a printable ASCII run that looks like a
+        // formula (contains '(' and a digit), report it, and measure coverage
+        // over affixes whose Desc carries a rollable [Affix_Value_N].
+        //   inlineformula <substr|ALL> [max=8000]
+        string sub = argv.Count > 1 && argv[1] != "ALL" ? argv[1] : "";
+        int max = argv.Count > 2 ? int.Parse(argv[2]) : 8000;
+        int pb = SnoRecord.DefaultPayloadBase;
+        int withValueToken = 0, withInline = 0, printed = 0, bothCount = 0;
+        foreach (var e in toc.Entries.Where(e => (int)e.Group == 104
+                     && e.Name.Contains(sub, StringComparison.OrdinalIgnoreCase)).Take(max))
+        {
+            if (!d4.TryReadSno(104, e.Id, SnoFolder.Meta, out var b)) continue;
+            string desc = ""; try { desc = d4.ReadAffix(e.Id).Description; } catch { }
+            bool hasValueToken = desc.Contains("[Affix_Value", StringComparison.Ordinal);
+            if (hasValueToken) withValueToken++;
+            // Principled: read the +0xB0 modifier array; for each modifier with
+            // idx16 == NoGbid, idx10 = inline formula string offset, idx11 = len.
+            var r = new SnoRecord(b); int len = b.Length;
+            string best = "";
+            if (pb + 0xB0 + 8 <= len)
+            {
+                int mOff = r.I32(0xB0), mSize = r.I32(0xB4);
+                if (mOff > 0 && mSize > 0 && mSize % 104 == 0 && pb + mOff + mSize <= len)
+                {
+                    for (int m = 0; m < mSize / 104; m++)
+                    {
+                        int mb = mOff + m * 104;
+                        uint gbid = r.U32(mb + 64);            // idx16
+                        if (gbid != 0xFFFFFFFF) continue;      // GBID-referenced, not inline
+                        int sOff = r.I32(mb + 40), sLen = r.I32(mb + 44);   // idx10, idx11
+                        if (sOff <= 0 || sLen <= 2 || sLen > 512 || pb + sOff + sLen > len) continue;
+                        // validate printable
+                        bool ok = true; for (int k = 0; k < sLen - 1 && ok; k++) if (b[pb + sOff + k] is < 0x20 or >= 0x7f) ok = false;
+                        if (!ok) continue;
+                        var s = System.Text.Encoding.ASCII.GetString(b, pb + sOff, sLen).TrimEnd('\0');
+                        if (s.Length > best.Length) best = s;
+                    }
+                }
+            }
+            if (best.Length > 0)
+            {
+                withInline++;
+                if (hasValueToken && printed < 30 && sub.Length > 0)
+                { Console.WriteLine($"{e.Id} {e.Name}: {best}"); printed++; }
+            }
+            if (hasValueToken && best.Length > 0) bothCount++;
+        }
+        Console.WriteLine($"-- {withValueToken} carry a rollable [Affix_Value_N] desc; {withInline} carry an inline formula (idx16=NoGbid → idx10/11); intersection (value-token AND inline) = {bothCount} --");
+        return 0;
+    }
     case "affixcorpus":
     {
         // LIB-3 corpus: for each g104 affix matching <substr> (ALL = every),
@@ -1779,7 +1833,7 @@ switch (cmd)
                     ? (gbf.TryGetByGbid(e.FormulaGbid, out var fm)
                         ? $"  formula={fm.Name} \"{fm.PrimaryText}\""
                         : $"  formula=0x{e.FormulaGbid:X8}(unresolved)")
-                    : "";
+                    : (e.InlineFormula.Length > 0 ? $"  inline=\"{e.InlineFormula}\"" : "");
                 Console.WriteLine($"    attr {e.AttributeId,5}{pn} -> {an}{fg}");
             }
             if (a.StaticValues.Count > 0)
