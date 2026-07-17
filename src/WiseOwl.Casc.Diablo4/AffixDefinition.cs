@@ -80,14 +80,22 @@ public sealed class AffixDefinition
     /// <c>byteSize@+0xC4</c>).</summary>
     private const int StaticValuesDescriptorOffset = 0xC0;
 
+    /// <summary>Payload offset of the <b>allowed item-type</b>
+    /// <c>DT_VARIABLEARRAY[int]</c> descriptor (<c>dataOff@+0x78</c> /
+    /// <c>byteSize@+0x7C</c>) — the affix's rollable-on-these-types list (#51).</summary>
+    private const int AllowedItemTypesDescriptorOffset = 0x78;
+
     private readonly AffixEffect[] _effects;
     private readonly float[] _staticValues;
+    private readonly int[] _allowedItemTypes;
 
-    private AffixDefinition(int snoId, AffixEffect[] effects, float[] staticValues)
+    private AffixDefinition(
+        int snoId, AffixEffect[] effects, float[] staticValues, int[] allowedItemTypes)
     {
         SnoId = snoId;
         _effects = effects;
         _staticValues = staticValues;
+        _allowedItemTypes = allowedItemTypes;
     }
 
     /// <summary>The affix's own SNO id (== the CoreTOC id).</summary>
@@ -131,16 +139,57 @@ public sealed class AffixDefinition
     /// <see cref="AffixEffect.FormulaGbid"/>).</summary>
     public IReadOnlyList<float> StaticValues => _staticValues;
 
+    /// <summary>
+    /// FR-C36… (#51, CL-106) — the <b>item types this affix is allowed to roll
+    /// on</b>: the affix pool from the item's side. A gear affix (magic / rare /
+    /// legendary) is rolled from a per-item-type pool; this is the affix's list
+    /// of eligible <c>eItemType</c> ids (decoded from the
+    /// <c>DT_VARIABLEARRAY[int]</c> at payload <c>+0x78</c>). Semantically
+    /// verified: <c>CoreStat_Strength</c> → armor/jewelry types,
+    /// <c>CoreStat_Strength_Weapon</c> → the weapon types, <c>Charm_Armor_Percent</c>
+    /// → <c>[71]</c>. Invert across all affixes for the "what can roll on this
+    /// type" query (<see cref="Diablo4Storage.RollableAffixes(int, string)"/>).
+    /// </summary>
+    /// <remarks>
+    /// The values are engine <c>eItemType</c> ordinals (the enum, <b>not</b>
+    /// group-98 <c>ItemType</c> SNOs). Names for these ordinals are not resolvable
+    /// from the SNO data alone (an oracle / EXE enum is needed) — the raw ids are
+    /// exposed as the byte-verified primitive; resolving them to item-type names
+    /// is a follow-up. Empty (never <see langword="null"/>) when the affix authors
+    /// no allowed-type list (e.g. unique/inline-formula affixes fixed to one item).
+    /// </remarks>
+    public IReadOnlyList<int> AllowedItemTypes => _allowedItemTypes;
+
     /// <summary>Decode an Affix from its raw SNO blob (identity + the
-    /// structural <see cref="Effects"/> + <see cref="StaticValues"/>; the
-    /// localized fields need <see cref="CoreToc"/> — use
+    /// structural <see cref="Effects"/> + <see cref="StaticValues"/> +
+    /// <see cref="AllowedItemTypes"/>; the localized fields need
+    /// <see cref="CoreToc"/> — use
     /// <see cref="Diablo4Storage.ReadAffix(int,string)"/>). On the byte-only
     /// path each effect's <see cref="AffixEffect.AttributeName"/> is
     /// <see cref="string.Empty"/>.</summary>
     public static AffixDefinition Parse(ReadOnlySpan<byte> blob)
     {
         var r = new SnoRecord(blob);
-        return new AffixDefinition(r.SnoId, ReadEffects(r), ReadStaticValues(r));
+        return new AffixDefinition(
+            r.SnoId, ReadEffects(r), ReadStaticValues(r), ReadAllowedItemTypes(r));
+    }
+
+    /// <summary>Decode the allowed-item-type id list from the <c>+0x78</c>
+    /// <c>DT_VARIABLEARRAY[int]</c> (#51). Empty on a missing/malformed
+    /// descriptor.</summary>
+    private static int[] ReadAllowedItemTypes(SnoRecord r)
+    {
+        if (r.PayloadBase + AllowedItemTypesDescriptorOffset + 8 > r.Length) return [];
+        int dataOff = r.I32(AllowedItemTypesDescriptorOffset);
+        int byteSize = r.I32(AllowedItemTypesDescriptorOffset + 4);
+        if (dataOff <= 0 || byteSize <= 0 || byteSize % 4 != 0 ||
+            r.PayloadBase + dataOff + byteSize > r.Length)
+            return [];
+        int count = byteSize / 4;
+        var ids = new int[count];
+        for (int i = 0; i < count; i++)
+            ids[i] = r.I32(dataOff + i * 4);
+        return ids;
     }
 
     private static AffixEffect[] ReadEffects(SnoRecord r)

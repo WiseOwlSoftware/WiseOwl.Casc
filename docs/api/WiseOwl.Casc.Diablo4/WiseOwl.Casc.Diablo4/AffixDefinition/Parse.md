@@ -1,6 +1,6 @@
 # AffixDefinition.Parse method
 
-Decode an Affix from its raw SNO blob (identity + the structural [`Effects`](./Effects.md) + [`StaticValues`](./StaticValues.md); the localized fields need [`CoreToc`](../CoreToc.md) — use [`ReadAffix`](../Diablo4Storage/ReadAffix.md)). On the byte-only path each effect's [`AttributeName`](../AffixEffect/AttributeName.md) is Empty.
+Decode an Affix from its raw SNO blob (identity + the structural [`Effects`](./Effects.md) + [`StaticValues`](./StaticValues.md) + [`AllowedItemTypes`](./AllowedItemTypes.md); the localized fields need [`CoreToc`](../CoreToc.md) — use [`ReadAffix`](../Diablo4Storage/ReadAffix.md)). On the byte-only path each effect's [`AttributeName`](../AffixEffect/AttributeName.md) is Empty.
 
 ```csharp
 public static AffixDefinition Parse(ReadOnlySpan<byte> blob)

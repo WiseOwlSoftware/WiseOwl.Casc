@@ -1150,6 +1150,33 @@ public sealed class Diablo4StorageIntegrationTests
         Assert.All(reg.Suffixes, f => Assert.Equal(MonsterNameKind.Suffix, f.Kind));
     }
 
+    /// <summary>#51 (CL-106) — the affix pool: per-affix
+    /// <see cref="AffixDefinition.AllowedItemTypes"/> (the +0x78 eItemType VLA) +
+    /// the inverted <see cref="Diablo4Storage.RollableAffixes(int)"/> query.
+    /// content-snapshot: the eItemType ordinals are game-authored (3.1.1.72836).</summary>
+    private static readonly int[] StrengthArmorTypes = [16, 17, 28, 30, 29, 23];
+    private static readonly int[] CritItemTypes = [70];
+
+    [SkippableFact]
+    [Trait("kind", "content-snapshot")]
+    public void AllowedItemTypes_and_RollableAffixes_expose_the_pool()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+
+        // Per-affix primitive: the +0x78 allowed-item-type VLA (order preserved).
+        Assert.Equal(StrengthArmorTypes,
+            d4.ReadAffix(583632).AllowedItemTypes);       // CoreStat_Strength (armor/jewelry)
+        var strengthWpn = d4.ReadAffix(1321867).AllowedItemTypes;  // CoreStat_Strength_Weapon
+        Assert.Equal(11, strengthWpn.Count);
+        Assert.Contains(46, strengthWpn);
+        Assert.Equal(CritItemTypes, d4.ReadAffix(2590254).AllowedItemTypes);  // CriticalHitChance
+
+        // Inverted convenience: eItemType 70 → the crit affix is in that pool.
+        Assert.Contains(d4.RollableAffixes(70), a => a.SnoId == 2590254);
+    }
+
     /// <summary>LIB-3 (CL-92) — the <see cref="AffixEffect"/> two-namespace
     /// helpers. Pure logic (no live data): a positive
     /// <see cref="AffixEffect.AttributeId"/> is an engine attribute; a
