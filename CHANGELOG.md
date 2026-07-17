@@ -8,6 +8,11 @@ Semantic Versioning once it reaches `1.0.0`.
 
 ### Added
 
+- **Wider attribute-name coverage** — `GetAttributeName` now also resolves
+  attribute ids from item-affix descriptions (a data-driven source needing no
+  hand-curation), raising coverage of the stats live nodes and glyph affixes
+  reference from ~48% to ~68%. Ids nothing in the data names still return null
+  (never a wrong name).
 - **Unique-power roll formulas** — a unique or legendary power's rolled value
   (the `[Affix_Value]` in its description) is now exposed via
   `AffixEffect.InlineFormula`: the roll formula stored inline in the affix

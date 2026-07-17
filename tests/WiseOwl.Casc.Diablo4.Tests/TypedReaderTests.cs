@@ -459,6 +459,31 @@ public sealed class TypedReaderTests
         Assert.False(d4.TryGetDataAttributeName(-1, out _));
     }
 
+    /// <summary>FR-C27 R2 (CL-97) — the read-not-curated item-affix `Desc`
+    /// source resolves AttributeIds the curated <c>Generic_</c>-node path
+    /// misses (no hand-curation), raising coverage. content-snapshot: the ids
+    /// and names are per-build (3.1.1.72836). Also pins the honest residual —
+    /// node/glyph-only ids that no affix names stay <see langword="null"/>.</summary>
+    [SkippableFact]
+    [Trait("kind", "content-snapshot")]
+    public void GetAttributeName_resolves_affix_desc_ids_the_node_scan_misses()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+
+        // These are referenced by live nodes/glyph-affixes but their token
+        // isn't in the curated map — the affix Desc placeholder (a sno-4080
+        // key) resolves them.
+        Assert.Equal("Damage Over Time", d4.GetAttributeName(707));
+        Assert.Equal("Lucky Hit Chance", d4.GetAttributeName(1207));
+        Assert.Equal("Maximum Resource", d4.GetAttributeName(162));
+
+        // Honest residual: a node-only id no affix references stays null
+        // (never a wrong name).
+        Assert.Null(d4.GetAttributeName(256));
+    }
+
     /// <summary>FR-C27 (CL-88) — the season-robust guarantee: every
     /// <c>AttributeId</c> a live <c>Generic_&lt;Rarity&gt;_&lt;Token&gt;</c>
     /// node carries resolves through <see cref="Diablo4Storage.GetAttributeName(int, string)"/>
