@@ -17,6 +17,15 @@ Semantic Versioning once it reaches `1.0.0`.
   documentation now spells out the formula grammar — rank scaling, conditional
   (ternary) values, and cross-references into other powers — so consumers can
   parse the remaining formula shapes.
+- **Per-monster-level scaling curve** — `Diablo4Storage.ReadDifficultyTiers()`
+  returns the `DifficultyTiers` table (150 monster levels) with per-level
+  monster HP/damage multipliers, the per-level XP value, and a candidate gold
+  column, plus the full raw coefficient row. This is the monster/content
+  analogue of the player-side level curve, and it is a separate, far steeper
+  curve — so monster HP does **not** come from the player `hpScalar` column
+  (the docs are corrected accordingly). Monster HP/damage labels are documented
+  as inferred (the game exposes no numeric monster-health readout to validate
+  against).
 
 ## [0.6.0] — 2026-07-17
 
