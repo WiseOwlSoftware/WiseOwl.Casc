@@ -2053,6 +2053,23 @@ absent — a shifted id returns an honest `null` rather than a wrong name (the
 CL-93 FR-C31 fix: live glyph-affix refs to pre-shift id `1124` had resolved to
 `"Barrier Generation"` on a damage-while-Healthy affix).
 
+**`GetAttributeName` coverage ceiling — a structural boundary, not a gap
+(CL-97, FR-C27 R2/R3).** `GetAttributeName(id)` is **context-free and
+localized**; a second read-not-curated source — the item-affix `Desc`
+placeholder token (itself a sno-4080 key, keyed by the current-build id) — lifts
+coverage of the ids live paragon nodes/glyph-affixes reference to **~68 % on
+3.1.1.72836** (48 % → 68 %; 17 rescued). The remaining ~32 % are **budget-
+category ids whose specific stat lives in the *node name*, not the
+`AttributeId`** (the CL-66/CL-76 finding) — e.g. `707` is Damage-Over-Time on a
+DOT node (and via the affix `Desc`) but Bleed on a bleed node: **the same id,
+different sub-stats.** A context-free resolver cannot name those correctly — it
+would have to pick one arbitrarily, i.e. re-introduce the FR-C31 wrong-name
+defect through a different door — so **a bare-id humanized fallback is
+deliberately not provided.** Those are named by `ParagonNodeStat.StatName`,
+which has the node context that makes them unambiguous. So ~68 % is the honest
+ceiling for the context-free localized resolver; the node-context remainder is
+`StatName`'s domain by construction, not an undiscovered source.
+
 **Value range — the `idx16` formula GBID → item-power roll curve (CL-94).**
 There is no literal `(min,max)` float pair anywhere in the affix record; the
 rolled magnitude is **item-power-curve driven**, and `idx16` (`AffixEffect.FormulaGbid`)
