@@ -18,6 +18,11 @@ Semantic Versioning once it reaches `1.0.0`.
   registry of localized name-affix fragments the game composes into elite/special
   monster names (token → text → prefix/suffix), so consumers can assemble a
   monster's shown name.
+- **Affix pool** — `AffixDefinition.AllowedItemTypes` exposes which item types an
+  affix can roll on, and `Diablo4Storage.RollableAffixes(itemType)` gives the
+  inverted "what can roll on this item type" query — the pool behind
+  magic/rare/legendary gear. (Item-type values are the game's internal type ids;
+  resolving them to type names is a follow-up.)
 
 ## [0.7.0] — 2026-07-17
 

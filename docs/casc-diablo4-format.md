@@ -2349,6 +2349,24 @@ These population figures are scoped to the g104-inline predicate and differ from
 a consumer's rollable-predicate population (e.g. the Optimizer's 597/83) — a
 population difference, not a reconciled single figure.
 
+**Affix pool — allowed item types (#51, CL-106).** For rolled rarities
+(magic/rare/legendary) an affix is drawn from a **per-item-type pool**. That pool
+is encoded **per affix**, not in a central table (`AffixFamilyList` 214106 is a
+family-*name* registry, mostly-empty records): each gear affix carries a
+`DT_VARIABLEARRAY[int]` at payload **`+0x78`** (`dataOff@+0x78` / `byteSize@+0x7C`)
+listing the `eItemType` ordinals it may roll on — semantically verified
+(`CoreStat_Strength` → armor/jewelry `[16,17,28,30,29,23]`;
+`CoreStat_Strength_Weapon` → the 11 weapon types; `Charm_Armor_Percent` → `[71]`;
+`CritHitChance` → `[70]`). Surface: `AffixDefinition.AllowedItemTypes` (the
+byte-verified primitive) + `Diablo4Storage.RollableAffixes(itemTypeId)` (the
+inverted "what rolls on this type" convenience, a lazy full pass over group 104).
+**The values are engine `eItemType` ordinals, NOT group-98 `ItemType` SNOs** —
+resolving them to type names needs an oracle / the EXE enum (not in g98; a
+correlation attempt failed), so raw ids ship as the primitive and a slot rollup
+is deferred until the enum is resolved. Tempering pools use the same per-affix
+mechanism (a temper-family-tagged subset); `TemperRecipeFamily` is likewise just
+a name registry.
+
 ### 11.4 `ItemDefinition` (group 73, `.itm`)
 
 Identity (`snoId@0`) + localized `Name`/`Flavor`/`TransmogName` from
@@ -2594,6 +2612,15 @@ name differs. (Wiring only — no new byte layout; joins the shipped `ReadItem` 
 
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
+
+- **CL-106 — affix pool: allowed item types (#51).** For rolled rarities an affix
+  is drawn from a per-item-type pool encoded **per affix** (not in `AffixFamilyList`,
+  a mere name registry): a `+0x78` `DT_VARIABLEARRAY[int]` of `eItemType` ordinals.
+  `AffixDefinition.AllowedItemTypes` (primitive) + `Diablo4Storage.RollableAffixes(itemTypeId)`
+  (inverted convenience). Verified: `CoreStat_Strength_Weapon` → the weapon types,
+  `CritHitChance` → `[70]`. The values are engine `eItemType` ordinals, **not**
+  g98 SNOs — names need an oracle/EXE (raw ids ship; slot rollup deferred). §11.3;
+  devlog 0100.
 
 - **CL-105 — `MonsterNames` registry (FR-C35) + `MonsterLevelCurves` finding
   (FR-C36).** `Diablo4Storage.ReadMonsterNames(locale)` → `MonsterNameRegistry`:

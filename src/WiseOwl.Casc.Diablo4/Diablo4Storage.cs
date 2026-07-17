@@ -1408,6 +1408,42 @@ public sealed class Diablo4Storage : IDisposable
                 ?? System.Array.Empty<System.Collections.Generic.KeyValuePair<string, string>>());
     }
 
+    /// <summary>
+    /// #51 (CL-106) — the inverted <b>affix pool</b> query: every gear affix that
+    /// can roll on the given <c>eItemType</c> ordinal (its
+    /// <see cref="AffixDefinition.AllowedItemTypes"/> contains
+    /// <paramref name="itemTypeId"/>). The convenience built on the per-affix
+    /// <see cref="AffixDefinition.AllowedItemTypes"/> primitive — "what can roll
+    /// on this item type."
+    /// </summary>
+    /// <remarks>Lazy; each yielded affix is decoded <b>byte-only</b> (identity +
+    /// <see cref="AffixDefinition.Effects"/> + <see cref="AffixDefinition.AllowedItemTypes"/>,
+    /// no localized <c>Name</c>/<c>Desc</c> — call
+    /// <see cref="ReadAffix(int, string)"/> with the affix's
+    /// <see cref="AffixDefinition.SnoId"/> for those). A full pass over the group-104
+    /// affix group; cache the result if you query many types (the pool is stable
+    /// per build).</remarks>
+    /// <param name="itemTypeId">The engine <c>eItemType</c> ordinal (as it appears
+    /// in <see cref="AffixDefinition.AllowedItemTypes"/>).</param>
+    public System.Collections.Generic.IEnumerable<AffixDefinition> RollableAffixes(int itemTypeId)
+    {
+        foreach (var e in CoreToc.Entries)
+        {
+            if ((int)e.Group != (int)SnoGroup.Affix) continue;
+            var affix = TryParseAffixByteOnly(e.Id);
+            if (affix is null) continue;
+            var types = affix.AllowedItemTypes;
+            for (int i = 0; i < types.Count; i++)
+                if (types[i] == itemTypeId) { yield return affix; break; }
+        }
+    }
+
+    private AffixDefinition? TryParseAffixByteOnly(int id)
+    {
+        try { return AffixDefinition.Parse(ReadSno(SnoGroup.Affix, id)); }
+        catch { return null; }
+    }
+
     // ----- C6 typed record readers (identity + localized text) ----------
     // Scope-unfrozen by owner 2026-05-17. Raw decoded data only; deep
     // gameplay modeling remains the consumer's domain (Appendix C). The
