@@ -13,100 +13,74 @@ The sections below this one ("Status (end of session 1)", the numbered
 "Next steps") are **historical** — accurate for their era but superseded
 by what follows. This block is the live state.
 
-### ⏭️ NEXT-SESSION PICKUP (2026-07-16 handoff #3) — start here
+### ⏭️ NEXT-SESSION PICKUP (2026-07-17) — start here
 
-Last session shipped **CL-92 (LIB-3 affix effects, PR #84)** + **CL-93
-(namespace-aware GetAttributeName + DataAttributes, PR #85)** — both merged to
-`main` (**`main` tip `234eb57`**). Delivered on **`casc-fr#45` (LIB-3),
-`#46`/`#47`/`#48`** (the GetAttributeName cluster). All UNRELEASED (`[Unreleased]`
-in CHANGELOG; owner cuts `0.5.0` once the batch — #41/#43/#44/#45 — is done, then
-the Optimizer consumes together).
+**Published: `WiseOwl.Casc` + `WiseOwl.Casc.Diablo4` `0.6.0` live on NuGet.**
+`main` tip **`df8aede`**; `<Version>` = 0.6.0; working tree clean. The FR-loop
+counter-round marathon (CL-92 → CL-99) is shipped and released. Release
+mechanics: `docs/RELEASING.md` (GitHub Release → `nuget` env gate → OIDC). **The
+env gate is approvable via API with the owner-authed CLI** (`gh api
+repos/.../actions/runs/<id>/pending_deployments` → `current_user_can_approve`;
+POST `{environment_ids:[<id>],state:"approved"}`). NuGet CDN + validation lag a
+few min after a successful run — cache-bust the flat-container and poll the
+registration endpoint (`registration5-gz-semver2/<pkg>/<ver>.json` → 200).
 
-- **CL-92 (LIB-3):** `AffixDefinition.Effects` → `IReadOnlyList<AffixEffect>`;
-  `idx4`=AttributeId (validated 1:1 across 1,220 affixes vs Desc token),
-  `idx7`=ParamPlus12. Old idx10 hypothesis disproven/held. Spec §11.3; devlog 0088.
-- **CL-93 (#46/47/48):** bit 31 on AttributeId = the `DataAttributes` (SNO
-  1907204) namespace flag → `Diablo4Storage.TryGetDataAttributeName(id, out token)`
-  (ordinal = `id & 0x7FFFFFFF`). `GetAttributeName` by-id fallback restricted to
-  the stable low range (`< 481`) so stale ids return null not wrong names
-  (1124→null, was "Barrier Generation"). Docs regenerated. Devlog 0089.
+**Only ONE open CASC turn: `casc-fr#45` R7 (`awaiting:casc`).** LIB-3's affix
+value decode is done (effects + `FormulaGbid` item-power curves + `InlineFormula`
+unique/legendary rolls); the Optimizer's R7 lists the remaining blockers for the
+~741 aspects that still can't print a number:
+- **`CurrentLegendaryRank()` (597 aspects)** — **not rolls**; rank-scaled
+  deterministic (`19 + CurrentLegendaryRank()*0.5`). Ask: **is the max
+  legendary/aspect rank in the data?** If so, expose it so the value is a
+  `[rank 0 … max]` span. Highest-value item.
+- **`PowerTag.<X>."Script Formula N"` (83)** — references another power's script formula.
+- **`S14_Mythic_UniquePotency` (2)**.
+Plus a promised follow-up: **chase the 32 residual** affixes (rollable `Desc`, no
+decodable inline formula) — report the count, don't imply coverage.
 
-**★ 0.5.0 PUBLISHED to NuGet (2026-07-16)** — both `WiseOwl.Casc` +
-`WiseOwl.Casc.Diablo4` `0.5.0` live/validated on nuget.org. Batch: CL-89/90/91
-(FR-C29 Ph1, LIB-1, LIB-2) + CL-92/93/94 (affix effects/values, attribute-name
-fixes). `main` tip **`3fdf3a9`**; `<Version>` = 0.5.0. Release mechanics per
-`docs/RELEASING.md` (GitHub Release → `nuget` env reviewer gate → OIDC). The env
-gate is approvable via API: `gh api .../actions/runs/<id>/pending_deployments`
-(owner-authed CLI, `current_user_can_approve`). NuGet CDN lags ~min; validation
-(registration endpoint) a few more — cache-bust the flat-container to check.
+**Everything else is `awaiting:optimizer`** (consume-verify against 0.6.0):
+- **#39 FR-C27** — attribute-name coverage 48 %→68 % via read-not-curated
+  affix-`Desc` (CL-97); ~68 % is the **structural** ceiling (the rest are
+  budget-category ids named by `ParagonNodeStat.StatName` in node context — the
+  `707` case, spec §11.3). Optimizer accepted the boundary.
+- **#41 FR-C29** — Phase 1 (universal coeffs + per-class map, CL-89) + Phase 2
+  (base Max Life = `round(50 × hpScalar[level])` from `LevelScaling`, CL-99),
+  both shipped. Phase-4 difficulty ladder = `StringList 216612` (not CASC's).
+- **#49 FR-C33** — `ParagonMagnitudeFormula.TryEvaluate` (unsupported-fn vs
+  legit-NaN), CL-98. Older #43/#44/#46/#47/#48 consumed or awaiting-optimizer.
 
-**CL-92/94 (LIB-3) + CL-95 (R3) DELIVERED** — affix effects + value range fully
-answered. `AffixEffect.FormulaGbid` (idx16) → `AttributeFormulaTable.TryGetByGbid`
-→ per-item-power roll formula; `AffixDefinition.StaticValues` (+0xC0 scalars).
-**CL-95 §8.1** records the formula function contracts: `FloatRandomRangeWithInterval(g,min,max)`
-args 2/3 = roll bounds (g=granularity); `RandomInt(lo,hi)` inclusive; `RangeValue1/2`
-= output CLAMPS not spread. #45/#46 `awaiting:optimizer`, `released:v0.5.0`.
-Devlog 0090/0091; Appendix A CL-94/95.
+**Surfaces shipped this arc (0.5.0 + 0.6.0):** `AffixDefinition.Effects`
+(`AffixEffect`: `AttributeId`/`ParamPlus12`/`FormulaGbid`/`InlineFormula`/
+`AttributeName` + `HasParam`/`IsDataDefinedAttribute`/`DataAttributeOrdinal`) +
+`.StaticValues`; `Diablo4Storage.TryGetDataAttributeName`;
+`AttributeFormulaTable.TryGetByGbid`; `ParagonMagnitudeFormula.TryEvaluate`;
+`Diablo4Storage.ReadLevelScaling()` → `LevelScalingTable` (`HpScalar`/`BaseLife`/
+`BaseHitpointsMax`/`MaxCharacterLevel`). Spec §8.1 (formula-function contracts),
+§8.2 (LevelScaling base Life), §11.3 (affix effects + `GetAttributeName`
+ceiling); Appendix A CL-92..CL-99; devlogs 0088–0093.
 
-**Verified finding (mult=additive+1):** the multiplicative-variant AttributeId =
-additive id **+1** in the same engine namespace (40/44 `Mult*` glyph affixes;
-matches DataAttributes `Multiplicative_` pairs). NOT shipped as a blind `id-1`
-fallback (over-applies: 162 truncated, 253/255/260 compound-base). The 3
-CL-93-lost ids (954/1120/1124, live glyph-affix refs) resolve via the **#39
-affix-Desc source** (`SnoScan multcheck`).
+**★ DISCIPLINE — session meta-lesson ([[feedback_calibrate-claims-to-evidence]]):**
+the decodes were excellent but three closing claims overreached this session
+("#39 retires the map"→re-keyed; "#46 no coverage lost"→3 lost; "305 uniques"→
+verified only gear affixes). The Optimizer catches them by re-deriving before
+consuming. **Scope every summary sentence to exactly what was measured; a named
+residual / "not in the data" is a valid recorded answer.** Related #41 lesson
+(spec §8.2): a render-time value can exist nowhere — `1526` = `round(50 ×
+hpScalar)`; **search for the operands, not the result**; a lone matching number
+is weak evidence in big tables (both sides found a real `860`, reasoned about the
+wrong one).
 
-**CL-95/96/97 DELIVERED (`main` tip `61a0cf1`)** — the LIB-3/FR-C27 counter-round
-arc: **CL-95** formula function contracts (§8.1: `FloatRandomRangeWithInterval(g,min,max)`
-args 2/3=bounds; `RangeValue1/2`=clamps) + #46 R2 coverage correction + verified
-`mult=additive+1`. **CL-96** unique-power rolls live in an **inline `DT_STRING_FORMULA`**
-(`AffixEffect.InlineFormula`, from idx10/idx11 when idx16=NoGbid; 1,136/1,168
-covered) + fixed `AffixEffect.NoFormula` (was 0, must be 0xFFFFFFFF). **CL-97**
-read-not-curated attribute names from item-affix `Desc` (token IS a sno-4080
-key) → `GetAttributeName` 48%→68% over live node+glyph ids (17 rescued; residual
-27 node/glyph-only ids stay null). Devlogs 0091/0092/0093; Appendix A CL-95/96/97.
+**TODO next release:** modernize the package READMEs
+([[project_readme-update-next-release]]) — stale `CascStorage.OpenLocal`/`ReadPath`/
+hardcoded path → `Diablo4Storage.Open()` auto-detect + the typed D4 API. Docs
+commit straight to `main`.
 
-**★ DISCIPLINE (session meta-lesson, [[feedback_calibrate-claims-to-evidence]]):**
-the RE is excellent but three closing claims overreached this session ("#39
-retires the map"→re-keyed; "#46 no coverage lost"→3 lost; "305 uniques"→verified
-only gear affixes). The Optimizer catches them by re-deriving before consuming.
-**Scope every summary sentence to exactly what was measured; "not in the data"
-is a valid recorded answer.** Applied in CL-95/96/97 (measured coverage, named
-residuals).
-
-**★ 0.6.0 PUBLISHED to NuGet (2026-07-17)** — CL-95..CL-99 batch live+validated (base Max Life/LevelScaling=CL-99, `ReadLevelScaling`/`BaseLife`). #39/#41/#45/#49 `released:v0.6.0`. #41 Phase-2 shipped. **TODO next release: modernize package READMEs** (stale `CascStorage.OpenLocal`/`ReadPath` → `Diablo4Storage.Open()` + typed API — see [[project_readme-update-next-release]]). Still `awaiting:casc`: **#45 R7** (`CurrentLegendaryRank`/max-aspect-rank for 597 aspects).
-
-**★ SESSION END STATE (2026-07-16): queue CLEAR — 0 `awaiting:casc`.** Shipped
-this session: CL-92..CL-98 (7 CLs) + **published 0.5.0 to NuGet**. Delivered
-`casc-fr` #45 (×4 rounds), #46, #47, #48, #39 (R2), #49 — all `awaiting:optimizer`.
-**#49 (FR-C33)** `ParagonMagnitudeFormula.TryEvaluate` (unsupported-fn vs
-legit-NaN) delivered `CL-98` `e9a4b77`. **#41 (FR-C29) → `needs:owner`**: Phase-2
-`LevelScaling` (206158) decode is blocked on owner anchors — it's a GameBalance
-type-2 per-level table (~212-byte rows, multi-column); the 3 anchors don't pin
-the base-Life column (`860` sits in a ~88/level column, not the ~14/level curve;
-`1526` absent entirely), so I asked for L2–L5 base-Life + the L70=1526
-reconciliation rather than guess (Optimizer pre-authorized). Next session:
-re-poll; Phase-1/#43/#44 consume-verify follows the 0.5.0 publish (now live).
-
-**(historical — now cleared) prior `awaiting:casc`:**
-
-**#39 FR-C27 — feed the affix-Desc source in (Optimizer: "yes, emphatically").**
-`#39` is counter-rounded: **52% of live paragon AttributeIds (48/92) resolve to
-nothing** via CL-88's `Generic_`-node scan (curated-token-only). The LIB-3 affix
-`Desc` placeholders are a first-party in-data name source covering ids the node
-scan misses (1125/1157/483/484) AND the DataAttributes ordinals — could
-**retire** the curated `LabelByToken` map (read-it-don't-curate = #39 closing).
-Build an affix-Desc-derived id→name source and wire it into `GetAttributeName`.
-
-**#41 FR-C29 — per-class stat formulae** (open-ended; Phase-1 shipped CL-89; the
-universal-coefficient data source still unlocated). See
-[[project_fr-c29-character-stats]], [[project_attributeid-registry-ordinal]],
-[[project_comprehensive-data-exposure]].
-
-Recon tooling on `build/SnoScan` (all on `main`): `affixcorpus`, `affixattrmap`,
-`affixfloatscan`, `affixeffects` (LIB-3), `dataattrs`, `attrname` (+DataAttr),
-`attrmap`, `affixdump`, `itemtypes`, `classstats`, `f32grep`, `hashgrep`.
-Session corpus in scratchpad: `affix-corpus-full.txt` (all 6,145),
-`affix-attrmap.txt` (idx4→token), `affix-floatscan.txt`.
+**Recon tooling on `build/SnoScan`** (all on `main`): affix — `affixcorpus`,
+`affixattrmap`, `affixfloatscan`, `affixeffects`, `inlineformula`, `multcheck`;
+attribute — `attrname` (+DataAttr), `attrmap`, `coverfix`, `dataattrs`; formula —
+`formulafind`, `formula`, `formulagbid`, `formuladump`; raw — `rawhex`, `snoid`,
+`listgroup`. Session scratchpad corpus: `affix-corpus-full.txt`,
+`affix-attrmap.txt`, `affix-floatscan.txt`.
 
 ### How work arrives now: the CASC⇄Optimizer FR loop (GitHub Issues)
 
