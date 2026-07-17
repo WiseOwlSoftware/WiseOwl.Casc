@@ -1802,6 +1802,170 @@ switch (cmd)
         Console.WriteLine($"-- {withValueToken} carry a rollable [Affix_Value_N] desc; {withInline} carry an inline formula (idx16=NoGbid → idx10/11); intersection (value-token AND inline) = {bothCount} --");
         return 0;
     }
+    case "inlinedump":
+    {
+        // R7 recon: dump EVERY g104 affix inline formula (idx16=NoGbid →
+        // idx10 offset / idx11 len string), one line per modifier, as
+        // id<TAB>name<TAB>formula. Unfiltered + uncapped so the corpus can be
+        // grepped/counted offline (CurrentLegendaryRank, PowerTag."Script
+        // Formula N", ternary/comparison, residual characterisation).
+        //   inlinedump [substr]
+        string sub = argv.Count > 1 ? argv[1] : "";
+        int pb = SnoRecord.DefaultPayloadBase;
+        int rows = 0, affixesWithInline = 0;
+        foreach (var e in toc.Entries.Where(e => (int)e.Group == 104
+                     && e.Name.Contains(sub, StringComparison.OrdinalIgnoreCase)))
+        {
+            if (!d4.TryReadSno(104, e.Id, SnoFolder.Meta, out var b)) continue;
+            var r = new SnoRecord(b); int len = b.Length;
+            if (pb + 0xB0 + 8 > len) continue;
+            int mOff = r.I32(0xB0), mSize = r.I32(0xB4);
+            if (!(mOff > 0 && mSize > 0 && mSize % 104 == 0 && pb + mOff + mSize <= len)) continue;
+            bool any = false;
+            for (int m = 0; m < mSize / 104; m++)
+            {
+                int mb = mOff + m * 104;
+                uint gbid = r.U32(mb + 64);                 // idx16
+                if (gbid != 0xFFFFFFFF) continue;            // GBID-referenced, not inline
+                int sOff = r.I32(mb + 40), sLen = r.I32(mb + 44);   // idx10, idx11
+                if (sOff <= 0 || sLen <= 2 || sLen > 512 || pb + sOff + sLen > len) continue;
+                bool ok = true; for (int k = 0; k < sLen - 1 && ok; k++) if (b[pb + sOff + k] is < 0x20 or >= 0x7f) ok = false;
+                if (!ok) continue;
+                var s = System.Text.Encoding.ASCII.GetString(b, pb + sOff, sLen).TrimEnd('\0');
+                if (s.Length == 0) continue;
+                Console.WriteLine($"{e.Id}\t{e.Name}\t{s}");
+                rows++; any = true;
+            }
+            if (any) affixesWithInline++;
+        }
+        Console.Error.WriteLine($"-- {rows} inline-formula modifier rows across {affixesWithInline} affixes --");
+        return 0;
+    }
+    case "ranksentinel":
+    {
+        // R7 verification: is the ("10",10.0) max-rank sentinel UNIVERSAL across
+        // legendary powers, or per-power? For every g29 power matching <substr>
+        // (default "legendary_"), scan the blob tail for the sentinel signature
+        // — a 2-digit ASCII run + type tag 0x06 + its IEEE-754 float, taken as
+        // the LAST such record before the ("0",0.0) terminator. Tally the
+        // distinct sentinel values; dump any that are NOT 10.0.
+        //   ranksentinel [substr]
+        string sub = argv.Count > 1 ? argv[1] : "legendary_";
+        int pb = SnoRecord.DefaultPayloadBase;
+        var tally = new SortedDictionary<string, int>(StringComparer.Ordinal);
+        int scanned = 0, noSentinel = 0, nonTen = 0;
+        foreach (var e in toc.Entries.Where(e => (int)e.Group == 29
+                     && e.Name.Contains(sub, StringComparison.OrdinalIgnoreCase)))
+        {
+            if (!d4.TryReadSno(29, e.Id, SnoFolder.Meta, out var b)) continue;
+            scanned++;
+            // Collect, in order, every (digit-ASCII, tag 0x06, float) record:
+            // a 1..3 digit run at a 4-byte cell, tag 0x06 in the next cell, float
+            // 8 bytes past the run start. The tail is [...slots...]("10",10.0)("0",0.0);
+            // the max-rank sentinel is the record BEFORE the ("0",0.0) terminator.
+            var recs = new List<(string A, float F)>();
+            for (int p = pb; p + 12 <= b.Length; p++)
+            {
+                if (b[p] is < (byte)'0' or > (byte)'9') continue;
+                int q = p; while (q < b.Length && b[q] is >= (byte)'0' and <= (byte)'9') q++;
+                int runLen = q - p;
+                if (runLen is < 1 or > 3) continue;
+                int tagOff = p + 4;
+                if (tagOff + 8 > b.Length) continue;
+                if (!(b[tagOff] == 0x06 && b[tagOff + 1] == 0 && b[tagOff + 2] == 0 && b[tagOff + 3] == 0)) continue;
+                recs.Add((System.Text.Encoding.ASCII.GetString(b, p, runLen), BitConverter.ToSingle(b, tagOff + 4)));
+                p = tagOff + 7;   // skip past this record
+            }
+            // Sentinel = pre-terminator record. If the last record is the
+            // ("0",0.0) terminator, take the one before it; else take the last.
+            (string A, float F)? sentinel = recs.Count switch
+            {
+                0 => null,
+                _ when recs[^1].A == "0" && Math.Abs(recs[^1].F) < 1e-6f && recs.Count >= 2 => recs[^2],
+                _ => recs[^1],
+            };
+            if (sentinel is null) { noSentinel++; continue; }
+            string key = $"{sentinel.Value.A}={sentinel.Value.F:0.###}";
+            tally.TryGetValue(key, out int c); tally[key] = c + 1;
+            if (!(Math.Abs(sentinel.Value.F - 10f) < 0.001f))
+            {
+                nonTen++;
+                if (nonTen <= 25) Console.WriteLine($"  NON-10: {e.Id} {e.Name}  sentinel {key}");
+            }
+        }
+        Console.WriteLine($"-- scanned {scanned} g29 '{sub}' powers; {noSentinel} had no trailing digit/float record; {nonTen} had a non-10 last sentinel --");
+        foreach (var kv in tally) Console.WriteLine($"   {kv.Value,5}  last-record {kv.Key}");
+        return 0;
+    }
+    case "rollableresidual":
+    {
+        // R7 item 4: characterise the residual — g104 affixes whose localized
+        // Desc carries a rollable [Affix_Value_N] but NO modifier has an inline
+        // formula. For each, report whether ANY modifier still has a real
+        // FormulaGbid (=> computable via the AttributeFormulas GBID path) vs
+        // neither (truly un-printable). Tallies the honest split.
+        //   rollableresidual [max=8000]
+        int pb = SnoRecord.DefaultPayloadBase;
+        int rollable = 0, noInline = 0, noInlineButGbid = 0, noInlineNoGbid = 0, listed = 0;
+        foreach (var e in toc.Entries.Where(e => (int)e.Group == 104))
+        {
+            if (!d4.TryReadSno(104, e.Id, SnoFolder.Meta, out var b)) continue;
+            string desc = ""; try { desc = d4.ReadAffix(e.Id).Description; } catch { }
+            if (!desc.Contains("[Affix_Value", StringComparison.Ordinal)) continue;
+            rollable++;
+            var r = new SnoRecord(b); int len = b.Length;
+            if (pb + 0xB0 + 8 > len) continue;
+            int mOff = r.I32(0xB0), mSize = r.I32(0xB4);
+            if (!(mOff > 0 && mSize > 0 && mSize % 104 == 0 && pb + mOff + mSize <= len)) continue;
+            bool hasInline = false, hasGbid = false;
+            for (int m = 0; m < mSize / 104; m++)
+            {
+                int mb = mOff + m * 104;
+                uint gbid = r.U32(mb + 64);
+                if (gbid != 0xFFFFFFFF) { hasGbid = true; continue; }
+                int sOff = r.I32(mb + 40), sLen = r.I32(mb + 44);
+                if (sOff <= 0 || sLen <= 2 || sLen > 512 || pb + sOff + sLen > len) continue;
+                bool ok = true; for (int k = 0; k < sLen - 1 && ok; k++) if (b[pb + sOff + k] is < 0x20 or >= 0x7f) ok = false;
+                if (ok) hasInline = true;
+            }
+            if (hasInline) continue;
+            noInline++;
+            if (hasGbid) noInlineButGbid++; else noInlineNoGbid++;
+            if (listed++ < 40)
+                Console.WriteLine($"  {e.Id} {e.Name}  gbidFormula={(hasGbid ? "yes" : "NO")}  desc=\"{desc.Replace("\r"," ").Replace("\n"," ").Trim()}\"");
+        }
+        Console.WriteLine($"-- rollable [Affix_Value] Desc={rollable}; of these NO inline formula={noInline} (GBID-formula backed={noInlineButGbid}, neither inline nor GBID={noInlineNoGbid}) --");
+        return 0;
+    }
+    case "affixstr":
+    {
+        // R7 recon: dump every printable ASCII run (>=2 chars) in a g104 affix
+        // payload with its payload offset, so the modifier's string slots
+        // (idx10 inline formula, idx14 companion, value tokens) are all visible.
+        //   affixstr <sno...>
+        if (argv.Count < 2) { Console.Error.WriteLine("affixstr <sno...>"); return 2; }
+        int pb = SnoRecord.DefaultPayloadBase;
+        foreach (var s in argv.Skip(1))
+        {
+            int id = int.Parse(s);
+            if (!d4.TryReadSno(104, id, SnoFolder.Meta, out var b)) { Console.WriteLine($"{id}: no content"); continue; }
+            Console.WriteLine($"## affix {id} len={b.Length}");
+            int i = pb;
+            while (i < b.Length)
+            {
+                if (b[i] is >= 0x20 and < 0x7f)
+                {
+                    int start = i;
+                    while (i < b.Length && b[i] is >= 0x20 and < 0x7f) i++;
+                    int n = i - start;
+                    if (n >= 2)
+                        Console.WriteLine($"   payload+{start - pb,-4} len={n,-3} \"{System.Text.Encoding.ASCII.GetString(b, start, n)}\"");
+                }
+                else i++;
+            }
+        }
+        return 0;
+    }
     case "affixcorpus":
     {
         // LIB-3 corpus: for each g104 affix matching <substr> (ALL = every),

@@ -6,6 +6,18 @@ Semantic Versioning once it reaches `1.0.0`.
 
 ## [Unreleased]
 
+### Added
+
+- **Legendary aspect rank cap** — the maximum legendary/aspect rank (10) is now
+  exposed as `PowerDefinition.MaxRank` (decoded per power) and the
+  `PowerDefinition.MaxLegendaryRank` constant. Many aspect values scale
+  deterministically with the item's rank instead of rolling randomly; with the
+  cap available, a build planner can present those as a `[rank 1 … 10]` value
+  span rather than an unresolved `[roll]`. The affix `InlineFormula`
+  documentation now spells out the formula grammar — rank scaling, conditional
+  (ternary) values, and cross-references into other powers — so consumers can
+  parse the remaining formula shapes.
+
 ## [0.6.0] — 2026-07-17
 
 Deepens the affix and character-stat data: unique/legendary power **roll

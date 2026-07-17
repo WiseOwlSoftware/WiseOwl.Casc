@@ -92,7 +92,26 @@ namespace WiseOwl.Casc.Diablo4;
 /// 60–80 roll (args 2, 3). This is the source of a power description's rollable
 /// <c>[Affix_Value_N]</c> value. <see cref="string.Empty"/> when the modifier
 /// has a GBID-referenced formula instead, no inline formula, or the affix was
-/// decoded byte-only.</param>
+/// decoded byte-only.
+/// <para><b>Rank-scaled aspects (LIB-3 R7, CL-100).</b> Many legendary/aspect
+/// inline formulas are <i>deterministic in the item's legendary rank</i>, not
+/// random — they call the engine intrinsic <c>CurrentLegendaryRank()</c> (e.g.
+/// <c>"19+CurrentLegendaryRank()*0.5"</c>, or the more common
+/// <c>"20+(CurrentLegendaryRank()-1)*k"</c> form whose <c>-1</c> pins the rank
+/// as <b>1-based</b>: the base is the value at rank 1). The rank runs
+/// <c>1 … <see cref="PowerDefinition.MaxLegendaryRank"/></c> (universally 10 —
+/// see that constant / <see cref="PowerDefinition.MaxRank"/>), so the printable
+/// value is the span <c>[formula(1) … formula(10)]</c>, not a roll range.</para>
+/// <para><b>Cross-references + conditionals (§8.1 grammar).</b> A minority of
+/// inline formulas reach beyond arithmetic: <c>PowerTag.&lt;Name&gt;."Script
+/// Formula N"</c> reads another power's script formula (identifiable —
+/// <c>CoreToc.TryGetId(SnoGroup.Power, Name)</c> → <see cref="PowerDefinition"/>
+/// — but its per-class value is <i>not</i> numerically decoded in this release,
+/// see §8.1); and a <c>cond ? a : b</c> ternary with a bare designer-attribute
+/// variable (e.g. <c>S14_Mythic_UniquePotency</c>, a <c>DataAttributes</c>
+/// token) makes the value <b>runtime-conditional</b> — two ranges, one per
+/// branch. See the §8.1 grammar for operators, precedence, and variable
+/// references before evaluating.</para></param>
 /// <param name="AttributeName">The resolved attribute display name — the
 /// localized engine name (via
 /// <see cref="Diablo4Storage.GetAttributeName(int, uint, string)"/>) for a

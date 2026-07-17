@@ -952,6 +952,58 @@ public sealed class Diablo4StorageIntegrationTests
         Assert.NotEqual(AffixEffect.NoFormula, crit.FormulaGbid);
     }
 
+    /// <summary>LIB-3 R7 (CL-100) — the max legendary/aspect rank is surfaced as
+    /// <see cref="PowerDefinition.MaxRank"/> (decoded from the power's
+    /// script-formula tail sentinel) and is UNIVERSAL: every <c>legendary_*</c>
+    /// power carries the identical cap, equal to the baked
+    /// <see cref="PowerDefinition.MaxLegendaryRank"/> constant. That cap is the
+    /// value the rank-scaled aspect affix formulas reach via
+    /// <c>CurrentLegendaryRank()</c>, so a consumer can print an aspect's
+    /// <c>[formula(1) … formula(MaxRank)]</c> span. content-snapshot: the cap
+    /// value (10) is a game-global that could rebalance per build (3.1.1.72836 /
+    /// Season 14) — a change surfaces here as the re-verify trigger for the
+    /// <see cref="PowerDefinition.MaxLegendaryRank"/> constant.</summary>
+    [SkippableFact]
+    [Trait("kind", "content-snapshot")]
+    public void PowerDefinition_MaxRank_is_the_universal_legendary_rank_cap()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+
+        // Anchor: a legendary aspect power carries the max-rank sentinel even
+        // when it exposes no SF_N slots of its own (its per-rank value lives on
+        // the paired g104 affix, cross-referenced by shared name). Decode via
+        // Parse (no localization) — MaxRank comes from the tail, not the name.
+        Assert.True(d4.TryReadSno(29, 340795, SnoFolder.Meta, out var barbBlob)); // legendary_barb_001
+        var barb001 = PowerDefinition.Parse(barbBlob);
+        Assert.Equal(10, barb001.MaxRank);
+        Assert.Equal(PowerDefinition.MaxLegendaryRank, barb001.MaxRank);
+        Assert.Empty(barb001.ScriptFormulas);   // sentinel present, zero SF slots
+
+        // The paired g104 aspect affix carries the rank-scaled inline formula
+        // that reaches CurrentLegendaryRank() up to that cap.
+        Assert.Contains(d4.ReadAffix(578699).Effects,   // legendary_barb_011
+            x => x.InlineFormula == "19+CurrentLegendaryRank()*0.5");
+
+        // Universality: EVERY legendary power reports the same cap — the
+        // 699/699 SnoScan `ranksentinel` finding, locked as a regression gate.
+        // Same cohort as the recon (case-insensitive "legendary_"): the item /
+        // aspect legendary powers, which is the population CurrentLegendaryRank
+        // ranges over.
+        int count = 0, bad = 0;
+        foreach (var e in d4.CoreToc.Entries.Where(
+            e => (int)e.Group == 29 &&
+                 e.Name.Contains("legendary_", System.StringComparison.OrdinalIgnoreCase)))
+        {
+            if (!d4.TryReadSno(29, e.Id, SnoFolder.Meta, out var blob)) continue;
+            if (PowerDefinition.Parse(blob).MaxRank != PowerDefinition.MaxLegendaryRank) bad++;
+            count++;
+        }
+        Assert.True(count >= 650, $"expected >=650 legendary powers, checked {count}");
+        Assert.Equal(0, bad);
+    }
+
     /// <summary>LIB-3 (CL-92) — the <see cref="AffixEffect"/> two-namespace
     /// helpers. Pure logic (no live data): a positive
     /// <see cref="AffixEffect.AttributeId"/> is an engine attribute; a

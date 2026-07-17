@@ -2,6 +2,10 @@
 
 CL-96 — the modifier's inline value formula (a `DT_STRING_FORMULA` stored directly in the affix record), used by unique/legendary power affixes instead of an `AttributeFormulas` GBID reference (their [`FormulaGbid`](./FormulaGbid.md) is [`NoFormula`](./NoFormula.md)). Same grammar and min/max derivation as the GBID-referenced formulas (`casc-diablo4-format.md §8.1`) — e.g. `"FloatRandomRangeWithIntervalUniqueAffixPityBonus(20, 60, 80)"` → a 60–80 roll (args 2, 3). This is the source of a power description's rollable `[Affix_Value_N]` value. Empty when the modifier has a GBID-referenced formula instead, no inline formula, or the affix was decoded byte-only.
 
+Rank-scaled aspects (LIB-3 R7, CL-100). Many legendary/aspect inline formulas are deterministic in the item's legendary rank, not random — they call the engine intrinsic `CurrentLegendaryRank()` (e.g. `"19+CurrentLegendaryRank()*0.5"`, or the more common `"20+(CurrentLegendaryRank()-1)*k"` form whose `-1` pins the rank as 1-based: the base is the value at rank 1). The rank runs `1 … ` (universally 10 — see that constant / [`MaxRank`](../PowerDefinition/MaxRank.md)), so the printable value is the span `[formula(1) … formula(10)]`, not a roll range.
+
+Cross-references + conditionals (§8.1 grammar). A minority of inline formulas reach beyond arithmetic: `PowerTag.<Name>."Script Formula N"` reads another power's script formula (identifiable — `CoreToc.TryGetId(SnoGroup.Power, Name)` → [`PowerDefinition`](../PowerDefinition.md) — but its per-class value is not numerically decoded in this release, see §8.1); and a `cond ? a : b` ternary with a bare designer-attribute variable (e.g. `S14_Mythic_UniquePotency`, a `DataAttributes` token) makes the value runtime-conditional — two ranges, one per branch. See the §8.1 grammar for operators, precedence, and variable references before evaluating.
+
 ```csharp
 public string InlineFormula { get; set; }
 ```
