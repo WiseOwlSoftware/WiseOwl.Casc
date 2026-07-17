@@ -6,6 +6,16 @@ Semantic Versioning once it reaches `1.0.0`.
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-07-17
+
+Adds legendary/aspect **rank spans** — deterministic rank-scaled affix values now
+resolve to a `[rank 1 … 10]` span instead of an unresolved `[roll]` — the
+per-**monster-level** scaling curve, a one-call lookup from a **unique item to
+the affix that is its power**, and raw access to the level-scaling coefficients.
+The affix **formula grammar** (rank scaling, conditional values, cross-references
+into other powers) is now documented for consumers parsing the remaining shapes.
+Continues to track the live game through Season 14 (build `3.1.1.72836`).
+
 ### Added
 
 - **Legendary aspect rank cap** — the maximum legendary/aspect rank (10) is now
