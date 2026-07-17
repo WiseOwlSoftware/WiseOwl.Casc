@@ -919,23 +919,36 @@ qualifiedRef    := "PowerTag." ident "." '"' "Script Formula" digit+ '"'
   binary-AST opcodes the FR-C13 decoder defers (§11.2, devlog 0035 §3) — so the
   reference is **identifiable but not numerically resolved** in this release.
 
-**`CurrentLegendaryRank()` — rank-scaled, deterministic (CL-100).** The
-intrinsic returns the item's legendary/aspect rank, an integer in **`[1 … 10]`**.
-The max is a **universal engine constant = 10**, not a per-aspect field: every
-one of the **699** `legendary_*` Power records terminates its script-formula
-tail with an identical `("10", 10.0)` max-rank sentinel (0 exceptions on
-`3.1.1.72836`; owner-confirmed as the max-tier/rank cap, FR-C13 R2), while an
-aspect *modifier* stores only its inline formula string. The cap is surfaced as
-`PowerDefinition.MaxRank` (decoded from the sentinel) and
-`PowerDefinition.MaxLegendaryRank` (the baked convenience for the affix path,
-which does not carry the sentinel). Rank is **1-based**: the dominant
-`base + (CurrentLegendaryRank()-1)*k` inline shape places the base at rank 1
-(the `-1` is meaningless for a 0-based rank). So a rank-scaled affix's printable
-value is the **span `[formula(1) … formula(10)]`**, *not* a roll range — e.g.
-`legendary_barb_011` `"19+CurrentLegendaryRank()*0.5"` → `19.5 … 24`. **630**
-g104 affixes (`3.1.1.72836`) are rank-scaled this way. (The one residual: whether
-the engine ever evaluates rank 0 is the detail an in-game oracle pins; the
-`-1` convention and `max = 10` are both data-evidenced.)
+**`CurrentLegendaryRank()` — rank-scaled, deterministic (CL-100; cap corrected
+FR-C38 CL-107).** The intrinsic returns the item's legendary/aspect rank, an
+integer in **`[1 … MaxRank]`** where **`MaxRank` is per-aspect**, read from the
+int32 at the g104 **affix** record's payload **`+0x94`** and surfaced as
+`AffixDefinition.MaxRank`. It is **not** a global constant: on `3.1.1.72836` the
+661 `legendary_*` aspect affixes cap at **21** (394), **11** (82), **16** (79),
+**6** (19), and a spread of others (all present + in a sane 1..200 range). Rank
+is **1-based**: the dominant `base + (CurrentLegendaryRank()-1)*k` inline shape
+places the base at rank 1 (the `-1` is meaningless for a 0-based rank). So a
+rank-scaled affix's printable value is the **span
+`[InlineFormula(1) … InlineFormula(MaxRank)]`**, *not* a roll range — owner
+Codex-of-Power oracle, 4 aspects, exact: Edgemaster's
+(`40+(CurrentLegendaryRank()-1)*1`, `MaxRank` 21) → `[40 … 60]`%; Conceited
+(same, 21) → `[40 … 60]`%; Aspect of Coagulation (`15+(rank-1)*1`, 6) →
+`[15 … 20]`%; Glynn's Anvil cap (`25+(rank-1)*1`, 16) → `[25 … 40]`%. **630**
+g104 affixes (`3.1.1.72836`) are rank-scaled this way.
+
+> **CL-100 correction (FR-C38).** The earlier claim that the cap was a *universal
+> `10`* (surfaced as `PowerDefinition.MaxRank` / `.MaxLegendaryRank`, both since
+> **removed**) was a misread: the `("10", 10.0)` record on every `legendary_*`
+> Power is a fixed **value-descriptor footer** (it follows the
+> `Affix_Value_N#… / 100` token — see the Power tail on `legendary_generic_063`),
+> universal *because it is not the rank cap*. The consuming check that "confirmed"
+> `10` was tautological (it re-read the library's own decode); the owner's in-game
+> oracle refuted the semantic. The footer is still stripped from
+> `PowerDefinition.ScriptFormulas` (it is not an SF_N); its value is no longer
+> surfaced. A multi-value aspect's shown range is not always `[f(1), f(MaxRank)]`
+> of one term (Glynn's per-Resolve bracket `[2.5–5.0]` ≠ `f(16)=4.0` — its cap is
+> a separate derived quantity), so the span rule holds per value-term, not per
+> tooltip line.
 
 The library never evaluates the formula text (boundary, Appendix C), but the
 value **range** a UI prints is derivable without an evaluator, from the roll
@@ -2024,9 +2037,11 @@ single-precision scalar for trivial-numeric slots (Phase 1 surface).
 
 The decoder walks the blob backward from the terminator record
 `("0", 0.0)` to collect the slot table, then strips the universal
-trailing `("10", 10.0)` sentinel (engine max-rank marker) — whose
-integer value is now surfaced as `PowerDefinition.MaxRank` (LIB-3 R7,
-CL-100; §8.1 `CurrentLegendaryRank()`). The
+trailing `("10", 10.0)` **value-descriptor footer** — a fixed footer,
+*not* the rank cap and *not* an SF_N (FR-C38 CL-107 corrected the CL-100
+"max-rank sentinel" reading; the per-aspect legendary cap is
+`AffixDefinition.MaxRank` at affix `+0x94`, §8.1 `CurrentLegendaryRank()`).
+Its value is no longer surfaced. The
 storage is positional vs the engine's SF_N indices — same as the
 format-string placeholders. Some powers' formats skip SF_N indices
 (Dynamism uses `SF_0`/`SF_2`/`SF_3`, skipping `SF_1`); the
@@ -2613,6 +2628,25 @@ name differs. (Wiring only — no new byte layout; joins the shipped `ReadItem` 
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
 
+- **CL-107 — legendary max rank is per-aspect, at affix `+0x94` (FR-C38, `casc-fr#55`;
+  corrects CL-100).** The rank cap `CurrentLegendaryRank()` reaches is **not** a
+  universal `10` — it is **per-aspect**, the int32 at the g104 **affix** record's
+  payload **`+0x94`**, surfaced as **`AffixDefinition.MaxRank`**. Owner
+  Codex-of-Power oracle (4 aspects, 3 distinct caps) validated it exactly:
+  Edgemaster's / Conceited `21`, Aspect of Coagulation `6`, Glynn's Anvil cap `16`
+  — each reproducing the game's shown span as `[InlineFormula(1) …
+  InlineFormula(MaxRank)]` (e.g. Edgemaster `40+(rank-1)*1` → `[40 … 60]`%).
+  Present + sane on **661/661** `legendary_*` aspect affixes (caps: 21×394, 11×82,
+  16×79, 6×19, …). The CL-100 `("10", 10.0)` "max-rank sentinel" was a misread —
+  it is a fixed **value-descriptor footer** on the *Power* record (follows the
+  `Affix_Value_N#… / 100` token), universal *because it is not the rank cap*; the
+  consuming "confirmation" of `10` was tautological, refuted by the owner oracle.
+  **Removed** `PowerDefinition.MaxRank` + `.MaxLegendaryRank`; the footer is still
+  stripped from `ScriptFormulas` (not an SF_N) but its value is no longer
+  surfaced. Caveat (Glynn's): a multi-value aspect's tooltip range is not always
+  `[f(1), f(MaxRank)]` of one term — the span rule holds per value-term. §8.1
+  (`CurrentLegendaryRank()`), §8.2. Recon: `SnoScan maxrankscan`. devlog 0101.
+
 - **CL-106 — affix pool: allowed item types (#51).** For rolled rarities an affix
   is drawn from a per-item-type pool encoded **per affix** (not in `AffixFamilyList`,
   a mere name registry): a `+0x78` `DT_VARIABLEARRAY[int]` of `eItemType` ordinals.
@@ -2684,17 +2718,17 @@ true value (the sections above already state the corrected truth).
   same boundary as the player base `50`. Recon: `SnoScan strdump`. §8.3; devlog 0095.
 
 - **CL-100 — max legendary rank + affix formula grammar (LIB-3 R7, `casc-fr#45`).**
-  Rank-scaled aspect affixes call `CurrentLegendaryRank()` (deterministic, not a
-  roll); their printable value is a rank *span*, which needs the max rank. Found:
-  the max legendary rank is a **universal engine constant = 10** — every one of
-  the **699** `legendary_*` Power records terminates its script-formula tail with
-  an identical `("10", 10.0)` sentinel (0 exceptions, `3.1.1.72836`;
-  owner-confirmed FR-C13 R2), and it is **not** a per-aspect field (an aspect
-  modifier stores only its formula string — verified via `affixstr`). Surfaced
-  the decoded value as **`PowerDefinition.MaxRank`** (from the sentinel the
-  FR-C13 decoder already stripped) + the baked **`PowerDefinition.MaxLegendaryRank`**
-  = 10 for the affix path; rank is 1-based (the dominant `…(CurrentLegendaryRank()-1)…`
-  shape), so the span is `[formula(1) … formula(10)]`. Also: rewrote **§8.1 as a
+  ⚠️ **The max-rank portion was WRONG — see CL-107.** Rank-scaled aspect affixes
+  call `CurrentLegendaryRank()` (deterministic, not a roll); their printable value
+  is a rank *span*, which needs the max rank. Claimed (incorrectly): the max
+  legendary rank is a **universal engine constant = 10** — every one of the
+  **699** `legendary_*` Power records terminates its script-formula tail with an
+  identical `("10", 10.0)` record. **This was a misread** (that record is a
+  value-descriptor footer, not the rank cap; the real cap is per-aspect at affix
+  `+0x94` — CL-107). The `PowerDefinition.MaxRank` / `.MaxLegendaryRank` members
+  shipped here were **removed**. Rank is 1-based (the dominant
+  `…(CurrentLegendaryRank()-1)…` shape), so the span is `[formula(1) …
+  formula(MaxRank)]`. Also (these stand): rewrote **§8.1 as a
   grammar** (ternary `?:`, relational `>`, variable references) — a bare
   identifier is a `DataAttributes` token by name (`S14_Mythic_UniquePotency` =
   `[280]`), and `PowerTag.<Name>."Script Formula N"` is a cross-reference,

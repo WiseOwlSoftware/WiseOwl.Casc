@@ -6,6 +6,17 @@ Semantic Versioning once it reaches `1.0.0`.
 
 ## [Unreleased]
 
+### Changed
+
+- **Legendary aspect rank cap is now per-aspect** — `AffixDefinition.MaxRank`
+  replaces the 0.7.0 `PowerDefinition.MaxRank` / `PowerDefinition.MaxLegendaryRank`
+  (both **removed**). The 0.7.0 "universal rank 10" was incorrect: the cap is
+  **per aspect** (commonly 21, but 11 / 16 / 6 / … depending on the aspect), read
+  from the affix record. So a rank-scaled aspect's value span is
+  `[InlineFormula(1) … InlineFormula(MaxRank)]` — e.g. Edgemaster's Aspect spans
+  40–60% (rank cap 21), not the 40–49% the old cap of 10 implied. Validated
+  against the in-game Codex of Power across multiple aspects.
+
 ### Added
 
 - **Skill modifiers** — `PowerDefinition.Modifiers` exposes a skill's selectable
