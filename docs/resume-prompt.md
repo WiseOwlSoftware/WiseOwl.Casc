@@ -72,12 +72,20 @@ name registry, no curve) → both `awaiting:optimizer`. **2 open `awaiting:casc`
   SAME value across classes (→ uniform `0.20`; fix the decoder + resolve them) or
   DIFFERENT (→ engine-runtime-injected, boundary)? `awaiting:optimizer`.
 
+- **`#55`** FR-C38 — **DELIVERED CL-107** (`WiseOwl.Casc@2d67bed`, PR #102, main /
+  **unreleased**). Optimizer's correction of CL-100: the legendary rank cap is
+  **per-aspect** (int32 at g104 affix `+0x94` = `AffixDefinition.MaxRank`), NOT the
+  universal `10`. The CL-100 `("10",10.0)` was a value-descriptor footer misread
+  (tautological "confirmation"); **removed** `PowerDefinition.MaxRank` +
+  `.MaxLegendaryRank` (breaking; 0.7.0 shipped them, owner-OK zero consumers).
+  4/4 owner oracles exact (21/21/6/16); 661/661 present+sane. `awaiting:optimizer`.
+
 **Queue now CLEAR (0 `awaiting:casc`).** All FRs delivered; everything
-`awaiting:optimizer` (consume-verify vs 0.7.0 + 2 oracle asks: #51 eItemType
-names, #54 uniform-vs-per-class). **Available owner-approved deferred work if
-idle:** the API redesign (decided direction — start with P0 docs + a `SnoTable<T>`
-prototype) OR phase-2 skill-tree structure (modifier groups / prereqs / category
-thresholds).
+`awaiting:optimizer` (consume-verify vs 0.7.0 + oracle asks: #51 eItemType names,
+#54 uniform-vs-per-class; #55 CL-107 unreleased). **Available owner-approved
+deferred work if idle:** the API redesign (decided direction — start with P0 docs
++ a `SnoTable<T>` prototype) OR phase-2 skill-tree structure (modifier groups /
+prereqs / category thresholds).
 `#45`/`#50`/`#39`/`#41`/`#49` all `awaiting:optimizer` (consume-verify vs 0.7.0);
 `#39` disposed `fr:by-design`. Re-poll before assuming idle.
 
@@ -105,14 +113,15 @@ stats** (g98 float scalars) — confirmed structural, not yet built. Note: rarit
 matters — uniques/mythics have a *fixed name-linked* affix (CL-103); magic/rare/
 legendary *roll from a pool* (the `#51` work).
 
-**#45 R7 — DELIVERED (CL-100, `11ba44f`).** Max legendary rank = **10**, a
-**universal engine constant** — every one of the 699 `legendary_*` powers carries
-an identical `("10",10.0)` script-formula-tail sentinel (0 exceptions,
-`3.1.1.72836`; owner-confirmed FR-C13 R2), and it is **not** a per-aspect field.
-Surfaced `PowerDefinition.MaxRank` (decoded from the sentinel) +
-`PowerDefinition.MaxLegendaryRank` (const) for the affix path; rank is **1-based**
-(dominant `…(CurrentLegendaryRank()-1)…` shape) → aspect span
-`[formula(1) … formula(10)]` (630 g104 affixes). §8.1 rewritten as a **grammar**
+**#45 R7 — DELIVERED (CL-100, `11ba44f`); max-rank portion CORRECTED by CL-107
+(#55) — see above.** ⚠️ CL-100 claimed max legendary rank = **10** universal from
+the `("10",10.0)` script-formula-tail record — **WRONG** (that's a value-descriptor
+footer, not the rank cap; the "confirmation" was tautological). The real cap is
+**per-aspect** at affix `+0x94` = `AffixDefinition.MaxRank` (21/11/16/6/…);
+`PowerDefinition.MaxRank`/`.MaxLegendaryRank` **removed** (CL-107). Rank is
+**1-based** (dominant `…(CurrentLegendaryRank()-1)…` shape) → aspect span
+`[formula(1) … formula(MaxRank)]` (630 g104 affixes). These #45 parts STAND: §8.1
+rewritten as a **grammar**
 (ternary/comparison, `DataAttributes` bare-var refs, `PowerTag` cross-refs).
 `PowerTag.S10ChaosTuningPerClass."Script Formula N"` (86) = **identifiable but not
 numerically resolved** (referent needs the deferred FR-C13 binary-AST decode — a
@@ -171,12 +180,15 @@ source, if one ever surfaces, is a fresh FR — not a re-open.
 `BaseHitpointsMax`/`MaxCharacterLevel`). Spec §8.1 (formula grammar),
 §8.2 (LevelScaling base Life), §11.3 (affix effects + `GetAttributeName`
 ceiling); Appendix A CL-92..CL-99; devlogs 0088–0093.
-**Unreleased (CL-100/101, `main`):** `PowerDefinition.MaxRank` +
-`.MaxLegendaryRank` (max legendary rank = 10, universal); §8.1 rewritten as a
-grammar (ternary/comparison, `DataAttributes` bare-var refs, `PowerTag`
-cross-refs); `Diablo4Storage.ReadDifficultyTiers()` → `DifficultyTiersTable`
-(per-monster-level curve; §8.2 reconciled — monsters use a separate steeper
-curve); Appendix A CL-100/101; devlogs 0094/0095.
+**Released in 0.7.0 (CL-100..103):** §8.1 grammar (ternary/comparison,
+`DataAttributes` bare-var refs, `PowerTag` cross-refs);
+`Diablo4Storage.ReadDifficultyTiers()` → `DifficultyTiersTable` (per-monster-level
+curve; §8.2 reconciled — monsters use a separate steeper curve). ⚠️ CL-100's
+`PowerDefinition.MaxRank`/`.MaxLegendaryRank` shipped in 0.7.0 but were **removed by
+CL-107** (unreleased, `main`) — replaced by per-aspect `AffixDefinition.MaxRank`.
+Appendix A CL-100/101; devlogs 0094/0095.
+**Unreleased on `main` (CL-104..107):** skill `Modifiers`, `MonsterNames`, affix
+`AllowedItemTypes`/`RollableAffixes`, and CL-107 `AffixDefinition.MaxRank`.
 
 **★ DISCIPLINE — session meta-lesson ([[feedback_calibrate-claims-to-evidence]]):**
 the decodes were excellent but three closing claims overreached this session
@@ -199,8 +211,10 @@ commit straight to `main`.
 attribute — `attrname` (+DataAttr), `attrmap`, `coverfix`, `dataattrs`; formula —
 `formulafind`, `formula`, `formulagbid`, `formuladump`; raw — `rawhex`, `snoid`,
 `listgroup`. **R7 (CL-100):** `inlinedump` (all g104 inline formulas),
-`affixstr` (per-modifier string slots), `ranksentinel` (max-rank sentinel scan,
-proved 699/699 = 10), `rollableresidual` (the 32-residual split), `powersf`;
+`affixstr` (per-modifier string slots), `ranksentinel` (scans the `("10",10.0)`
+footer — NOT the rank cap, CL-107), `rollableresidual` (the 32-residual split),
+`powersf`; **FR-C38 (CL-107):** `maxrankscan` (per-aspect `+0x94` cap validator —
+661/661 present, 21×394/11×82/16×79/6×19/…);
 **FR-C34 (CL-101):** `strdump` (generic per-SNO printable-string dump — for
 GameBalance / monster-table RE).
 Session scratchpad corpus: `affix-corpus-full.txt`, `affix-attrmap.txt`,
