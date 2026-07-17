@@ -23,7 +23,8 @@ load-bearing "don't re-discover" facts.
 (pushed 2026-07-17; flat-container live/installable, registration/search index
 lags a few min). `main` tip **`6fe580b`** (+ this doc commit); `<Version>` =
 0.7.0; working tree clean. **0.7.0 shipped CL-100 (LIB-3 R7) + CL-101 (FR-C34) +
-CL-102 (LevelScaling raw cols) + CL-103 (unique→affix wiring).** Release
+CL-102 (LevelScaling raw cols) + CL-103 (unique→affix wiring).** `main` tip
+**`5e65f22`**; **CL-104 (LIB-5 skill modifiers) is unreleased on `main`**. Release
 mechanics: `docs/RELEASING.md` (GitHub Release → `nuget` env gate → OIDC).
 **⚠️ IDENTITY:** release ops (release create + gate approval) MUST run as the
 **owner** (`BrentRector`), but this project's ambient `GH_TOKEN` is the **bot**
@@ -44,11 +45,22 @@ the afternoon deliveries await its return). **All CL-100..103 now RELEASED in
 requesting the Optimizer's query-API shape) is `awaiting:optimizer`. The queue
 moves fast when the Optimizer is active — **re-poll before assuming idle.**
 
-**Gear-depth arc (owner-directed roadmap exploration, 2026-07-17).** Two scoping
-spikes run: **skill trees = NO-GO** (the tree *graph* — nodes/connections/costs —
-is engine-controller-assembled, same wall as paragon UI binding; the `SkillTree`
-scene is chrome + `Testnode` placeholders; skills themselves are Powers, already
-typed via `ReadPower`). **Gear depth = GO**, three structural targets: (1)
+**Skill trees = DATA-DRIVEN — GO (CL-104 shipped; my earlier NO-GO was WRONG,
+retracted 2026-07-17).** ⚠️ I first called skill trees "engine-assembled" from a
+shallow look at the `SkillTree` UI scene (chrome + `Testnode` templates, 0 skill
+refs) WITHOUT decoding the data — a premature-boundary over-claim from ~15–20 of
+182 groups modeled; the owner caught it. The truth: skills = Powers (g29); a
+skill's **modifiers** (enhancement/upgrade nodes) are `Mod<N>_Name`/
+`Mod<N>_Description` labels in its sibling StringList `Power_<snoName>` — surfaced
+as **`PowerDefinition.Modifiers`** (CL-104), validated vs the in-game Rogue tree
+(Blade Shift's 7 mods exact). g99 `Class_*` = the *passive* clusters → typed
+Power refs. **Phase-2 (open, may be data OR engine — DON'T pre-declare):**
+modifier **groups** (one pick/group), modifier **prereq** (≥1 pt in skill),
+**category** point-thresholds. Content decoded; structural rules are next. §11.2;
+devlog 0098. **Lesson: never assert an engine boundary from partial coverage.**
+
+**Gear-depth arc (owner-directed roadmap exploration, 2026-07-17).** **Gear depth
+= GO**, three structural targets: (1)
 unique→affix — **SHIPPED CL-103**; (2) **affix pool** (item-type→rollable affixes)
 — spike GO, per-affix `+0x78` allowed-item-types VLA is the key (eItemType enum
 1–71 needs resolving; `AffixFamilyList` is just a name registry) → proposed as
