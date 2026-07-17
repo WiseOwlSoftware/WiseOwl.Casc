@@ -73,12 +73,19 @@ only gear affixes). The Optimizer catches them by re-deriving before consuming.
 is a valid recorded answer.** Applied in CL-95/96/97 (measured coverage, named
 residuals).
 
-**Committed follow-up — #49 (FR-C33):** `ParagonMagnitudeFormula.Evaluate`
-returns silent `NaN` for unsupported functions (FloatRandomRangeWithInterval
-etc.) — add a `TryEvaluate` distinguishing "unsupported function" from "legit
-NaN". **CASC agreed to take this** (small, well-scoped). `awaiting:casc`.
+**★ SESSION END STATE (2026-07-16): queue CLEAR — 0 `awaiting:casc`.** Shipped
+this session: CL-92..CL-98 (7 CLs) + **published 0.5.0 to NuGet**. Delivered
+`casc-fr` #45 (×4 rounds), #46, #47, #48, #39 (R2), #49 — all `awaiting:optimizer`.
+**#49 (FR-C33)** `ParagonMagnitudeFormula.TryEvaluate` (unsupported-fn vs
+legit-NaN) delivered `CL-98` `e9a4b77`. **#41 (FR-C29) → `needs:owner`**: Phase-2
+`LevelScaling` (206158) decode is blocked on owner anchors — it's a GameBalance
+type-2 per-level table (~212-byte rows, multi-column); the 3 anchors don't pin
+the base-Life column (`860` sits in a ~88/level column, not the ~14/level curve;
+`1526` absent entirely), so I asked for L2–L5 base-Life + the L70=1526
+reconciliation rather than guess (Optimizer pre-authorized). Next session:
+re-poll; Phase-1/#43/#44 consume-verify follows the 0.5.0 publish (now live).
 
-**`awaiting:casc` — deep/strategic:**
+**(historical — now cleared) prior `awaiting:casc`:**
 
 **#39 FR-C27 — feed the affix-Desc source in (Optimizer: "yes, emphatically").**
 `#39` is counter-rounded: **52% of live paragon AttributeIds (48/92) resolve to
