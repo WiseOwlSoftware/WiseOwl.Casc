@@ -197,6 +197,24 @@ public sealed class PowerDefinition
     public IReadOnlyList<PowerFunctionRef> FunctionRefs { get; private set; } =
         Array.Empty<PowerFunctionRef>();
 
+    /// <summary>
+    /// LIB-5 (CL-104) — the skill's selectable <b>modifiers</b> (the skill-tree
+    /// enhancement / upgrade nodes: each active skill offers several, chosen in
+    /// mutually-exclusive groups). Each carries its localized display
+    /// <see cref="PowerModifier.Name"/> and the full effect
+    /// <see cref="PowerModifier.Description"/> (with D4 markup/substitution
+    /// tokens, like <see cref="Description"/>). Decoded from the power's sibling
+    /// StringList (<c>Power_&lt;snoName&gt;</c>) <c>Mod&lt;N&gt;_Name</c> /
+    /// <c>Mod&lt;N&gt;_Description</c> labels (the generalized §6.7 sibling
+    /// convention). Ordered by the modifier index <see cref="PowerModifier.Index"/>
+    /// (which is sparse — the engine skips unused slots). Empty for powers with
+    /// no modifiers (passives, non-skill powers). The modifier <b>group</b>
+    /// assignment (which choices are mutually exclusive) is not yet decoded — a
+    /// follow-up; the names + effect text are complete.
+    /// </summary>
+    public IReadOnlyList<PowerModifier> Modifiers { get; private set; } =
+        Array.Empty<PowerModifier>();
+
     /// <summary>Decode a Power from its raw SNO blob. Identity +
     /// <see cref="ScriptFormulas"/> + <see cref="ResolvedFormulas"/>;
     /// the localized fields (and the <see cref="FunctionRefs"/> scan,
@@ -217,6 +235,9 @@ public sealed class PowerDefinition
         Description = description;
         FunctionRefs = ScanFunctionRefs(description, ResolvedFormulas);
     }
+
+    internal void SetModifiers(IReadOnlyList<PowerModifier> modifiers) =>
+        Modifiers = modifiers;
 
     /// <summary>
     /// FR-C13 Phase 2 — resolve the positional <see cref="ScriptFormulas"/>
@@ -754,6 +775,25 @@ public sealed class PowerDefinition
         return sb.ToString();
     }
 }
+
+/// <summary>
+/// LIB-5 (CL-104) — one selectable <b>modifier</b> of a skill
+/// (<see cref="PowerDefinition.Modifiers"/>): a skill-tree enhancement / upgrade
+/// node with its localized display name + full effect description.
+/// </summary>
+/// <param name="Index">The modifier's slot index (the <c>N</c> in the sibling
+/// StringList's <c>Mod&lt;N&gt;_Name</c> label). Sparse — the engine skips
+/// unused slots (e.g. Blade Shift uses 0,1,2,3,5,7,9). Stable per build; the
+/// slot's group membership (mutual exclusivity) is a separate, not-yet-decoded
+/// field.</param>
+/// <param name="Name">The modifier's localized display name (e.g.
+/// <c>"Grenade Shift"</c>), from label <c>Mod&lt;Index&gt;_Name</c>.</param>
+/// <param name="Description">The modifier's localized effect text, from label
+/// <c>Mod&lt;Index&gt;_Description</c> — carries D4 markup / substitution tokens
+/// (<c>{c_number}</c>, <c>{SF_n}</c>, <c>{payload:…}</c>, …), same as
+/// <see cref="PowerDefinition.Description"/>. <see cref="string.Empty"/> if the
+/// description label is absent.</param>
+public readonly record struct PowerModifier(int Index, string Name, string Description);
 
 /// <summary>
 /// FR-C13 Phase 1 — one slot of a Power's Script Formula table. Each

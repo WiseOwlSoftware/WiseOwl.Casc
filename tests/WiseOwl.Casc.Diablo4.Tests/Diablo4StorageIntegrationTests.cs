@@ -1088,6 +1088,44 @@ public sealed class Diablo4StorageIntegrationTests
         Assert.Null(none);
     }
 
+    /// <summary>LIB-5 (CL-104) — a skill's selectable <b>modifiers</b> (skill-tree
+    /// enhancement / upgrade nodes) decode from the power's sibling StringList
+    /// <c>Mod&lt;N&gt;_Name</c> / <c>Mod&lt;N&gt;_Description</c> labels. Validated
+    /// against the in-game Rogue tree: Blade Shift's 7 modifiers, and a second
+    /// skill (Puncture) generalizes it. content-snapshot: the modifier names +
+    /// effect text are game-authored (3.1.1.72836 / Season 14).</summary>
+    [SkippableFact]
+    [Trait("kind", "content-snapshot")]
+    public void ReadPower_exposes_skill_modifiers()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+
+        // Rogue_BladeShift (399111): 7 modifiers matching the game exactly.
+        var bladeShift = d4.ReadPower(399111);
+        Assert.Equal("Blade Shift", bladeShift.Name);
+        Assert.Equal(7, bladeShift.Modifiers.Count);
+        var names = bladeShift.Modifiers.Select(m => m.Name).ToHashSet();
+        foreach (var expected in new[]
+        {
+            "Grenade Shift", "Resistance", "Range of Motion", "Impossible Escape",
+            "Energy", "Overpower", "Resolve",
+        })
+            Assert.Contains(expected, names);
+
+        // Ordered by the sparse modifier index (Mod0 = Grenade Shift).
+        Assert.Equal(0, bladeShift.Modifiers[0].Index);
+        Assert.Equal("Grenade Shift", bladeShift.Modifiers[0].Name);
+        // Each modifier carries its full effect text.
+        var grenade = bladeShift.Modifiers.Single(m => m.Name == "Grenade Shift");
+        Assert.Contains("Stun Grenades", grenade.Description, System.StringComparison.Ordinal);
+
+        // Generalizes to another skill.
+        var puncture = d4.ReadPower(364877);   // Rogue_Puncture
+        Assert.Contains(puncture.Modifiers, m => m.Name == "Blight Burst");
+    }
+
     /// <summary>LIB-3 (CL-92) — the <see cref="AffixEffect"/> two-namespace
     /// helpers. Pure logic (no live data): a positive
     /// <see cref="AffixEffect.AttributeId"/> is an engine attribute; a

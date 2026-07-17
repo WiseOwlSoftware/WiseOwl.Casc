@@ -1961,6 +1961,29 @@ sibling table is the reliable name source, not that offset.)
 Anchor: power `2521393` → `name` `Fathomless`. Surface:
 `Diablo4Storage.ReadPower(int, locale)`. CL-22.
 
+**Skill modifiers + the skill tree (LIB-5, CL-104).** The class skill tree is
+**data-driven** (correcting an earlier premature "engine-assembled" read that was
+based only on the `SkillTree` UI scene — group 46 — which is chrome + `Testnode`
+templates with **zero** skill-Power references). The pieces:
+- **Skills = Powers** (g29), named `<Class>_<Skill>` (`Rogue_BladeShift` = 399111,
+  `Rogue_Puncture` = 364877).
+- **Skill modifiers** (the skill-tree enhancement/upgrade nodes) live in the
+  skill's **sibling StringList** `Power_<snoName>` as `Mod<N>_Name` /
+  `Mod<N>_Description` labels — the generalized §6.7 convention. Surfaced as
+  `PowerDefinition.Modifiers` (`PowerModifier{Index, Name, Description}`), ordered
+  by the sparse index. **Validated against the live game**: `Rogue_BladeShift`
+  decodes its 7 modifiers (Grenade Shift / Resistance / Range of Motion /
+  Impossible Escape / Energy / Overpower / Resolve at indices 0,1,2,3,5,7,9),
+  names + effect text matching in-game exactly; generalizes across skills.
+- **Passive clusters** are g99 `Class_<Class>_<Section>_<Cluster>` records that
+  list their skills as typed Power refs (`201, 1, 29=group, <PowerSNO>`; Barb
+  `…_Shouts` → War Cry / Challenging Shout / Rallying Cry).
+- **Open (phase-2 RE, may be data or engine):** the modifier **group** assignment
+  (one pick per group; mutual exclusivity), the modifier **prerequisite** (≥1
+  point in the parent skill), and the **category** point-threshold prerequisites
+  (a Core skill needs N points in Basic first). Located but not yet decoded — the
+  modifier *content* is complete; these structural rules are the follow-up.
+
 **Script Formula slot table (FR-C13 Phase 1).** Powers using the
 `DT_STRING_FORMULA` mechanism (every legendary node passive, plus
 many active skills and structural powers) carry a tail-data array
@@ -2546,6 +2569,20 @@ name differs. (Wiring only — no new byte layout; joins the shipped `ReadItem` 
 
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
+
+- **CL-104 — skill modifiers + the skill tree is data-driven (LIB-5, retraction).**
+  Retracts an earlier "skill trees are engine-assembled" boundary claim — it was
+  wrong, made from a shallow look at the `SkillTree` UI scene (chrome/templates,
+  0 skill refs) without decoding the actual data. The tree IS data: skills =
+  Powers (g29); a skill's selectable **modifiers** are `Mod<N>_Name` /
+  `Mod<N>_Description` labels in its sibling StringList `Power_<snoName>` (§6.7),
+  now surfaced as `PowerDefinition.Modifiers` (`PowerModifier`). Validated
+  against the in-game Rogue tree (Blade Shift's 7 modifiers, exact names + text).
+  Passive clusters are g99 `Class_*` records → typed Power refs. Open follow-up:
+  modifier groups / prerequisites / category thresholds (located, may be data or
+  engine — do not pre-declare). **Discipline: don't assert an engine boundary
+  from partial coverage** (~15–20 of 182 groups were modeled); the owner caught
+  this the way the Optimizer catches over-claims. §11.2; devlog 0098.
 
 - **CL-103 — unique item → fixed aspect affix wiring (LIB-4, proactive).** A
   unique item's power is the same-name `AffixDefinition` (the item record refs
