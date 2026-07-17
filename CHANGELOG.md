@@ -14,6 +14,10 @@ Semantic Versioning once it reaches `1.0.0`.
   table; validated against the live game (e.g. Blade Shift's 7 modifiers match
   exactly). The modifier *content* is complete; the group / prerequisite
   structure is a follow-up.
+- **Monster name fragments** — `Diablo4Storage.ReadMonsterNames()` returns the
+  registry of localized name-affix fragments the game composes into elite/special
+  monster names (token → text → prefix/suffix), so consumers can assemble a
+  monster's shown name.
 
 ## [0.7.0] — 2026-07-17
 

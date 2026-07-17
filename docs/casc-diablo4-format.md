@@ -1063,6 +1063,31 @@ located), monster HP is engine-assembled from base attributes × this
 per-level *scaling* is now typed, the per-monster *base* is not in the data as a
 number.
 
+### 8.4 `MonsterNames` registry + `MonsterLevelCurves` (FR-C35/C36, CL-105)
+
+**`MonsterNames` (FR-C35).** The localized name-affix fragments the game composes
+into elite/special monster display names. The GameBalance registry (SNO `44325`)
+holds the tokens; the localized text lives in the **`MonsterNames` StringList**
+(group 42, name-matched), `1,277` labels: token → fragment
+(`FrozenSuffix004` → "Frostburn", `ElectricLanceSuffix001` → "Boltrend"). A
+consumer composes a full elite name from a base monster name + a prefix and/or
+suffix fragment — the same "fragments the game composes" pattern as affix/aspect
+display names (§11.3 / FR-C30). Surface: `Diablo4Storage.ReadMonsterNames(locale)`
+→ `MonsterNameRegistry` (`Fragments` [`MonsterNameFragment{Token, Text, Kind}`],
+`Prefixes`, `Suffixes`). **Prefix/suffix is inferred from the token spelling**
+(honest — the exact composition rule is engine-side); token + text are
+byte-verified.
+
+**`MonsterLevelCurves` (FR-C36) — a name registry, NOT a curve.** RE finding: the
+table (SNO `1610053`) is a **6-entry name registry** (`Raid_Tier_0..5`, VLA @
+payload `+0x50` → 6 × 320 B) whose records are **near-empty** — just the tier
+name + placeholder `1.0` floats, identical across `Tier_0` and `Tier_5`. It does
+**not** contain per-level scaling curves; the per-monster-level scaling is
+`DifficultyTiers` (§8.3). So there is nothing meaningful to type beyond the six
+tier names — recorded as an evidence-backed "not in the data" (like
+`AffixFamilyList` / `TemperRecipeFamily`, which are also name registries). No
+reader shipped; the finding is the deliverable.
+
 ## 9. Read path (Diablo IV)
 
 ```
@@ -2569,6 +2594,17 @@ name differs. (Wiring only — no new byte layout; joins the shipped `ReadItem` 
 
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
+
+- **CL-105 — `MonsterNames` registry (FR-C35) + `MonsterLevelCurves` finding
+  (FR-C36).** `Diablo4Storage.ReadMonsterNames(locale)` → `MonsterNameRegistry`:
+  the elite-monster name-affix fragments (token → localized text → prefix/suffix
+  kind), from the `MonsterNames` StringList (group 42, 1,277 labels;
+  `FrozenSuffix004` → "Frostburn"). Prefix/suffix inferred from the token
+  spelling (honest). FR-C36 (`MonsterLevelCurves` 1610053) resolved as a
+  **finding, not a reader**: the table is a 6-entry name registry
+  (`Raid_Tier_0..5`) with near-empty records (placeholder `1.0`s, identical
+  across tiers) — no per-level curve; the scaling is `DifficultyTiers` (§8.3).
+  §8.4; devlog 0099.
 
 - **CL-104 — skill modifiers + the skill tree is data-driven (LIB-5, retraction).**
   Retracts an earlier "skill trees are engine-assembled" boundary claim — it was
