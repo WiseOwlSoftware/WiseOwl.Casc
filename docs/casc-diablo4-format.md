@@ -867,7 +867,75 @@ Verified build: SNO 201912 has 1038 entries;
 `ParagonNodeCoreStat_Normal` → text `"5"`,
 `ParagonNodeCoreStat_Magic` → `"7"`.
 
-### 8.1 Formula function contracts + the min/max derivation (CL-95)
+### 8.1 Formula grammar, function contracts + the min/max derivation (CL-95, CL-100)
+
+**Grammar.** The formula DSL — shared by the `AttributeFormulas` GBID curves
+(`FormulaText`) and the affix `InlineFormula` (§11.3) — is a small expression
+language. Recorded shape (LIB-3 R7; operators in *ascending* precedence):
+
+```
+expr            := ternary
+ternary         := comparison ( "?" expr ":" expr )?
+comparison      := additive ( ( ">" | "<" | ">=" | "<=" | "==" ) additive )?
+additive        := multiplicative ( ( "+" | "-" ) multiplicative )*
+multiplicative  := unary ( ( "*" | "/" ) unary )*
+unary           := "-" unary | primary
+primary         := number | varRef | call | "(" expr ")"
+call            := ident "(" ( expr ( "," expr )* )? ")"
+varRef          := "SF_" digit+ | ident | qualifiedRef        ; see below
+qualifiedRef    := "PowerTag." ident "." '"' "Script Formula" digit+ '"'
+```
+
+- **Arithmetic** (`+ - * /`, unary `-`, parentheses) is the common case — the
+  entire GBID-formula table and the vast majority of inline formulas. The
+  library's `ParagonMagnitudeFormula` / `PowerScriptFormulaEvaluator` implement
+  exactly this subset (plus the zero-arg intrinsics below); they do **not**
+  parse the `?`/`:`/relational productions.
+- **Comparison + ternary** (`cond ? a : b` with a relational `>`) appear on a
+  small number of unique affixes (**2** on `3.1.1.72836` — e.g.
+  `Chest_Unique_Paladin_001`). The semantics are the conventional C-style ones
+  (a relational yields a boolean; the ternary selects a branch), but the engine
+  operator table is **not** independently oracle-confirmed — so treat the two
+  ternary arms as **two candidate ranges**: the printed value is
+  runtime-conditional (below), not a single span.
+
+**Variable references.** A `varRef` resolves in one of four namespaces:
+
+- **`SF_N`** — a script-formula slot of the enclosing power (§11.2), positional.
+- **Engine intrinsics** — zero-arg calls resolved by the engine, not the data:
+  the 6 budget multipliers (§7.2/CL-68), `IPower()`, `GetTotalAffixBonus()`,
+  and `CurrentLegendaryRank()` (below).
+- **Designer-attribute tokens** — a bare identifier that is *not* an intrinsic
+  is a `DataAttributes` (SNO `1907204`) token referenced **by name**:
+  `S14_Mythic_UniquePotency` = `DataAttributes[280]`,
+  `S14_Mythic_CooldownReductionCDR` = `[279]` (byte-verified). This ties the
+  evaluator to the DataAttributes namespace (FR-C27); the tokens are
+  seasonal/conditional (Mythic potency, kill-streak, …).
+- **Power cross-references** — `PowerTag.<Name>."Script Formula N"` reads
+  another power's *N*-th script formula. The referent power is resolvable
+  (`CoreToc.TryGetId(SnoGroup.Power, Name)` → `ReadPower`), but on `3.1.1.72836`
+  **all 86** such references target one power, `S10ChaosTuningPerClass`
+  (SNO `2434194`), whose per-class script-formula values are encoded in the
+  binary-AST opcodes the FR-C13 decoder defers (§11.2, devlog 0035 §3) — so the
+  reference is **identifiable but not numerically resolved** in this release.
+
+**`CurrentLegendaryRank()` — rank-scaled, deterministic (CL-100).** The
+intrinsic returns the item's legendary/aspect rank, an integer in **`[1 … 10]`**.
+The max is a **universal engine constant = 10**, not a per-aspect field: every
+one of the **699** `legendary_*` Power records terminates its script-formula
+tail with an identical `("10", 10.0)` max-rank sentinel (0 exceptions on
+`3.1.1.72836`; owner-confirmed as the max-tier/rank cap, FR-C13 R2), while an
+aspect *modifier* stores only its inline formula string. The cap is surfaced as
+`PowerDefinition.MaxRank` (decoded from the sentinel) and
+`PowerDefinition.MaxLegendaryRank` (the baked convenience for the affix path,
+which does not carry the sentinel). Rank is **1-based**: the dominant
+`base + (CurrentLegendaryRank()-1)*k` inline shape places the base at rank 1
+(the `-1` is meaningless for a 0-based rank). So a rank-scaled affix's printable
+value is the **span `[formula(1) … formula(10)]`**, *not* a roll range — e.g.
+`legendary_barb_011` `"19+CurrentLegendaryRank()*0.5"` → `19.5 … 24`. **630**
+g104 affixes (`3.1.1.72836`) are rank-scaled this way. (The one residual: whether
+the engine ever evaluates rank 0 is the detail an in-game oracle pins; the
+`-1` convention and `max = 10` are both data-evidenced.)
 
 The library never evaluates the formula text (boundary, Appendix C), but the
 value **range** a UI prints is derivable without an evaluator, from the roll
@@ -1844,7 +1912,9 @@ single-precision scalar for trivial-numeric slots (Phase 1 surface).
 
 The decoder walks the blob backward from the terminator record
 `("0", 0.0)` to collect the slot table, then strips the universal
-trailing `("10", 10.0)` sentinel (engine max-rank marker). The
+trailing `("10", 10.0)` sentinel (engine max-rank marker) — whose
+integer value is now surfaced as `PowerDefinition.MaxRank` (LIB-3 R7,
+CL-100; §8.1 `CurrentLegendaryRank()`). The
 storage is positional vs the engine's SF_N indices — same as the
 format-string placeholders. Some powers' formats skip SF_N indices
 (Dynamism uses `SF_0`/`SF_2`/`SF_3`, skipping `SF_1`); the
@@ -2147,6 +2217,26 @@ else `InlineFormula` if non-empty → evaluate directly; else no roll (its numbe
 if any, are on `StaticValues`). The `[Affix."Static Value N"]` placeholder is a
 *separate* token from `[Affix_Value_N]` and resolves to `StaticValues`.
 
+**Inline-formula blockers (LIB-3 R7, CL-100; live `3.1.1.72836`).** Of the
+**2,590** g104 affixes carrying an inline formula, the ones that don't compute a
+plain `[min,max]` break down as: **630 rank-scaled** (the formula calls
+`CurrentLegendaryRank()` — deterministic, now printable as the span
+`[formula(1) … formula(10)]` via the exposed max rank, §8.1); **86 power
+cross-references** (`PowerTag.S10ChaosTuningPerClass."Script Formula N"` —
+identifiable but not numerically resolved this release, §8.1/§11.2); and **2
+conditional** (the Mythic-potency ternary — two runtime-conditional ranges,
+§8.1). The remainder are pure roll functions that compute directly. **The 32
+residual** (rollable `Desc`, no inline formula) resolves into **21 that are
+`FormulaGbid`-backed** (computable via the `AttributeFormulas` GBID path —
+`Boost_Legendary_*` + Season set-seal `Talisman_SealAffix_Set_*`) and **11 with
+neither inline nor GBID formula** — the genuine residual: Skill-Rank *integer
+grants* (`legendary_druid_108/109`), set-powers whose value references `Owner.*`
+runtime state or `Affix."Static Value N"` (`Talisman_SetPower_*`), a mount-armor
+unique, and one test affix (`S12_KillStreak_Feast_Test`); none is a decode gap.
+These population figures are scoped to the g104-inline predicate and differ from
+a consumer's rollable-predicate population (e.g. the Optimizer's 597/83) — a
+population difference, not a reconciled single figure.
+
 ### 11.4 `ItemDefinition` (group 73, `.itm`)
 
 Identity (`snoId@0`) + localized `Name`/`Flavor`/`TransmogName` from
@@ -2375,6 +2465,28 @@ armor, …). Structural — no name parsing.
 
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
+
+- **CL-100 — max legendary rank + affix formula grammar (LIB-3 R7, `casc-fr#45`).**
+  Rank-scaled aspect affixes call `CurrentLegendaryRank()` (deterministic, not a
+  roll); their printable value is a rank *span*, which needs the max rank. Found:
+  the max legendary rank is a **universal engine constant = 10** — every one of
+  the **699** `legendary_*` Power records terminates its script-formula tail with
+  an identical `("10", 10.0)` sentinel (0 exceptions, `3.1.1.72836`;
+  owner-confirmed FR-C13 R2), and it is **not** a per-aspect field (an aspect
+  modifier stores only its formula string — verified via `affixstr`). Surfaced
+  the decoded value as **`PowerDefinition.MaxRank`** (from the sentinel the
+  FR-C13 decoder already stripped) + the baked **`PowerDefinition.MaxLegendaryRank`**
+  = 10 for the affix path; rank is 1-based (the dominant `…(CurrentLegendaryRank()-1)…`
+  shape), so the span is `[formula(1) … formula(10)]`. Also: rewrote **§8.1 as a
+  grammar** (ternary `?:`, relational `>`, variable references) — a bare
+  identifier is a `DataAttributes` token by name (`S14_Mythic_UniquePotency` =
+  `[280]`), and `PowerTag.<Name>."Script Formula N"` is a cross-reference,
+  identifiable but not numerically resolved (its referent `S10ChaosTuningPerClass`
+  needs the deferred binary-AST decode). Residual: of 32 rollable-Desc affixes
+  with no inline formula, **21 are GBID-backed** (already computable) and **11**
+  are genuine non-roll residuals (Skill-Rank grants / `Owner.*` set powers / a
+  test affix). §8.1, §11.2, §11.3. Recon: `SnoScan inlinedump` / `affixstr` /
+  `ranksentinel` / `rollableresidual`.
 
 - **CL-99 — base Max Life from `LevelScaling` (FR-C29 Phase 2, `casc-fr#41`).**
   `Diablo4Storage.ReadLevelScaling()` → `LevelScalingTable`: the per-level
