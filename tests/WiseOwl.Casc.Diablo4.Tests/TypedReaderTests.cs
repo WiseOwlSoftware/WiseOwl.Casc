@@ -276,6 +276,32 @@ public sealed class TypedReaderTests
         Assert.True(double.IsNaN(v));
     }
 
+    /// <summary>FR-C33 (CL-98) — TryEvaluate distinguishes an unsupported
+    /// engine function from a genuine value, where Evaluate returns a silent
+    /// NaN for both.</summary>
+    [Fact]
+    public void FR_C33_try_evaluate_distinguishes_unsupported_function_from_value()
+    {
+        // Pure arithmetic → true + the value.
+        Assert.True(ParagonMagnitudeFormula.TryEvaluate("2 + 3", out var a));
+        Assert.Equal(5.0, a, precision: 10);
+
+        // A supported budget-multiplier intrinsic → true (value computed).
+        Assert.True(ParagonMagnitudeFormula.TryEvaluate(
+            "5 * ParagonPowerBudgetMultiplierNodeRareMajorOffensive()", out var b));
+        Assert.False(double.IsNaN(b));
+
+        // An unsupported engine function (an affix roll fn) → false + NaN,
+        // so a consumer branches deliberately instead of printing a silent NaN.
+        Assert.False(ParagonMagnitudeFormula.TryEvaluate(
+            "FloatRandomRangeWithInterval(1,0.5,1)/100", out var c));
+        Assert.True(double.IsNaN(c));
+
+        // An unknown budget multiplier is also unsupported → false.
+        Assert.False(ParagonMagnitudeFormula.TryEvaluate(
+            "1 * ParagonPowerBudgetMultiplierNodeNotARealOne()", out _));
+    }
+
     [Fact]
     public void B8_power_budget_tryget_round_trips_all_six()
     {

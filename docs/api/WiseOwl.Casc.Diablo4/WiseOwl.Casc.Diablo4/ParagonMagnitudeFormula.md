@@ -11,6 +11,7 @@ public static class ParagonMagnitudeFormula
 | name | description |
 | --- | --- |
 | static [Evaluate](ParagonMagnitudeFormula/Evaluate.md)(…) | Evaluate *formulaText* as a paragon magnitude formula and return the displayed numeric value. Returns NaN when the expression references an unknown budget-multiplier intrinsic; throws when the expression is syntactically invalid. |
+| static [TryEvaluate](ParagonMagnitudeFormula/TryEvaluate.md)(…) | FR-C33 (CL-98) — evaluate *formulaText* and distinguish an unsupported engine function from a value that legitimately computes to NaN (the gap [`Evaluate`](./ParagonMagnitudeFormula/Evaluate.md) can't express — it returns a silent NaN for both). |
 
 ## Remarks
 

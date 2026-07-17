@@ -8,6 +8,11 @@ Semantic Versioning once it reaches `1.0.0`.
 
 ### Added
 
+- **Formula evaluator: unsupported-vs-NaN** — `ParagonMagnitudeFormula.TryEvaluate`
+  distinguishes a formula that references an engine function the library doesn't
+  implement (returns `false`) from one that legitimately computes to `NaN`,
+  where `Evaluate` returns a silent `NaN` for both — so a consumer can branch
+  deliberately (e.g. render the raw formula text) instead of printing a NaN.
 - **Wider attribute-name coverage** — `GetAttributeName` now also resolves
   attribute ids from item-affix descriptions (a data-driven source needing no
   hand-curation), raising coverage of the stats live nodes and glyph affixes

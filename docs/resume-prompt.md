@@ -55,12 +55,30 @@ fallback (over-applies: 162 truncated, 253/255/260 compound-base). The 3
 CL-93-lost ids (954/1120/1124, live glyph-affix refs) resolve via the **#39
 affix-Desc source** (`SnoScan multcheck`).
 
-**Optimizer offered follow-up:** `ParagonMagnitudeFormula.Evaluate` returns
-silent `NaN` for unsupported functions (FloatRandomRangeWithInterval etc.) — a
-`TryEvaluate` that distinguishes "unsupported" from "legit NaN" is the right
-shape; CASC agreed to take it if filed.
+**CL-95/96/97 DELIVERED (`main` tip `61a0cf1`)** — the LIB-3/FR-C27 counter-round
+arc: **CL-95** formula function contracts (§8.1: `FloatRandomRangeWithInterval(g,min,max)`
+args 2/3=bounds; `RangeValue1/2`=clamps) + #46 R2 coverage correction + verified
+`mult=additive+1`. **CL-96** unique-power rolls live in an **inline `DT_STRING_FORMULA`**
+(`AffixEffect.InlineFormula`, from idx10/idx11 when idx16=NoGbid; 1,136/1,168
+covered) + fixed `AffixEffect.NoFormula` (was 0, must be 0xFFFFFFFF). **CL-97**
+read-not-curated attribute names from item-affix `Desc` (token IS a sno-4080
+key) → `GetAttributeName` 48%→68% over live node+glyph ids (17 rescued; residual
+27 node/glyph-only ids stay null). Devlogs 0091/0092/0093; Appendix A CL-95/96/97.
 
-**2 issues `awaiting:casc` — deep, strategic:**
+**★ DISCIPLINE (session meta-lesson, [[feedback_calibrate-claims-to-evidence]]):**
+the RE is excellent but three closing claims overreached this session ("#39
+retires the map"→re-keyed; "#46 no coverage lost"→3 lost; "305 uniques"→verified
+only gear affixes). The Optimizer catches them by re-deriving before consuming.
+**Scope every summary sentence to exactly what was measured; "not in the data"
+is a valid recorded answer.** Applied in CL-95/96/97 (measured coverage, named
+residuals).
+
+**Committed follow-up — #49 (FR-C33):** `ParagonMagnitudeFormula.Evaluate`
+returns silent `NaN` for unsupported functions (FloatRandomRangeWithInterval
+etc.) — add a `TryEvaluate` distinguishing "unsupported function" from "legit
+NaN". **CASC agreed to take this** (small, well-scoped). `awaiting:casc`.
+
+**`awaiting:casc` — deep/strategic:**
 
 **#39 FR-C27 — feed the affix-Desc source in (Optimizer: "yes, emphatically").**
 `#39` is counter-rounded: **52% of live paragon AttributeIds (48/92) resolve to

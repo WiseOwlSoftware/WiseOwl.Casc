@@ -2334,6 +2334,16 @@ armor, …). Structural — no name parsing.
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
 
+- **CL-98 — `ParagonMagnitudeFormula.TryEvaluate` (FR-C33, `casc-fr#49`).**
+  `Evaluate` returns a silent `double.NaN` both for a genuinely-NaN result and
+  for a formula that references an engine function the library doesn't implement
+  (the six budget-multipliers are the only supported calls) — a consumer can't
+  tell them apart and propagates the NaN into a displayed number. New
+  `TryEvaluate(text, out value)` returns `false` (value `NaN`) when any function
+  ref is unsupported (re-checked against `ResolveBudgetMultiplier`), `true` with
+  the computed value otherwise. Consistent with the honest-sentinel principle
+  applied elsewhere (FR-C31 `null` over a wrong name).
+
 - **CL-97 — read-not-curated attribute names from item-affix Desc (FR-C27 R2,
   `casc-fr#39`).** CL-88 made `GetAttributeName` season-*durable* (tokens
   survive renumbering) but not more *covering* — it still resolves only the ~40
