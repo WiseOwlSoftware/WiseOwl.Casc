@@ -6,6 +6,15 @@ Semantic Versioning once it reaches `1.0.0`.
 
 ## [Unreleased]
 
+### Added
+
+- **Skill modifiers** — `PowerDefinition.Modifiers` exposes a skill's selectable
+  skill-tree modifiers (the enhancement / upgrade nodes), each with its display
+  name and full effect description. Decoded from the skill's sibling string
+  table; validated against the live game (e.g. Blade Shift's 7 modifiers match
+  exactly). The modifier *content* is complete; the group / prerequisite
+  structure is a follow-up.
+
 ## [0.7.0] — 2026-07-17
 
 Adds legendary/aspect **rank spans** — deterministic rank-scaled affix values now

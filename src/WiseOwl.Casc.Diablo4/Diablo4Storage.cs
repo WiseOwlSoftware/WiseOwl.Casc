@@ -1413,7 +1413,40 @@ public sealed class Diablo4Storage : IDisposable
         TryReadSiblingString(SnoGroup.Power, id, "Power_", "name", locale, out var n);
         TryReadSiblingString(SnoGroup.Power, id, "Power_", "desc", locale, out var d);
         p.SetStrings(n, d);
+        p.SetModifiers(ReadPowerModifiers(id, locale));
         return p;
+    }
+
+    /// <summary>LIB-5 (CL-104) — decode a skill's selectable modifiers (skill-tree
+    /// enhancement / upgrade nodes) from its sibling StringList
+    /// (<c>Power_&lt;snoName&gt;</c>) <c>Mod&lt;N&gt;_Name</c> /
+    /// <c>Mod&lt;N&gt;_Description</c> labels, ordered by the sparse modifier
+    /// index. Empty when the power has no sibling table or no modifier labels
+    /// (passives / non-skill powers).</summary>
+    private IReadOnlyList<PowerModifier> ReadPowerModifiers(int powerId, string locale)
+    {
+        if (!CoreToc.TryGetName(SnoGroup.Power, powerId, out var name) ||
+            !CoreToc.TryGetId(SnoGroup.StringList, "Power_" + name, out var tableSno))
+            return System.Array.Empty<PowerModifier>();
+        var table = GetStrings(locale).Table(tableSno);
+        if (table is null) return System.Array.Empty<PowerModifier>();
+
+        List<PowerModifier>? mods = null;
+        foreach (var (label, value) in table.Entries)
+        {
+            // Labels are shaped "Mod<N>_Name"; pair each with "Mod<N>_Description".
+            if (!label.StartsWith("Mod", System.StringComparison.Ordinal) ||
+                !label.EndsWith("_Name", System.StringComparison.Ordinal))
+                continue;
+            var digits = label.AsSpan(3, label.Length - 3 - "_Name".Length);
+            if (digits.Length == 0 || !int.TryParse(digits, out var idx)) continue;
+            table.TryGet("Mod" + idx.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                + "_Description", out var desc);
+            (mods ??= new List<PowerModifier>()).Add(new PowerModifier(idx, value, desc));
+        }
+        if (mods is null) return System.Array.Empty<PowerModifier>();
+        mods.Sort((a, b) => a.Index.CompareTo(b.Index));
+        return mods;
     }
 
     /// <summary>Read + decode an <see cref="AffixDefinition"/> by SNO id
