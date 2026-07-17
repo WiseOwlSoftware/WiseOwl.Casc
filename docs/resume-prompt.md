@@ -63,10 +63,21 @@ name registry, no curve) → both `awaiting:optimizer`. **2 open `awaiting:casc`
   `RollableAffixes` inverted). `awaiting:optimizer`. **Open sub-task: eItemType
   enum → item-type names needs ONE owner oracle** (which types are `70`/`71` +
   2–3 weapon values) or the EXE enum — then the slot rollup follows.
-- **`#54`** FR-C37 (**the only open `awaiting:casc`**) — resolve
-  `PowerTag.S10ChaosTuningPerClass."Script Formula N"` (86 affixes) — the deferred
-  FR-C13 **binary-AST opcode** decode; the hard one, a genuine deep-RE effort
-  (may partially resolve or hit the encrypted boundary — don't pre-declare).
+- **`#54`** FR-C37 — **DELIVERED as a finding** (thoroughly verified, not a
+  premature boundary): `S10ChaosTuningPerClass` has 7 degenerate `SF_0+0.0`
+  formula slots + one `"0.20"` literal; **no per-class matrix in the data**
+  (whole-record scan clean + no variant powers + no referenced table). The
+  FR-C13 decoder DROPS the `"0.20"` (backward-walk stops after 1 slot — a fixable
+  gap). **Fork needs an in-game oracle:** does one of the 86 affixes read the
+  SAME value across classes (→ uniform `0.20`; fix the decoder + resolve them) or
+  DIFFERENT (→ engine-runtime-injected, boundary)? `awaiting:optimizer`.
+
+**Queue now CLEAR (0 `awaiting:casc`).** All FRs delivered; everything
+`awaiting:optimizer` (consume-verify vs 0.7.0 + 2 oracle asks: #51 eItemType
+names, #54 uniform-vs-per-class). **Available owner-approved deferred work if
+idle:** the API redesign (decided direction — start with P0 docs + a `SnoTable<T>`
+prototype) OR phase-2 skill-tree structure (modifier groups / prereqs / category
+thresholds).
 `#45`/`#50`/`#39`/`#41`/`#49` all `awaiting:optimizer` (consume-verify vs 0.7.0);
 `#39` disposed `fr:by-design`. Re-poll before assuming idle.
 
