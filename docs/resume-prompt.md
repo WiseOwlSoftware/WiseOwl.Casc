@@ -16,7 +16,7 @@ by what follows. This block is the live state.
 ### ⏭️ NEXT-SESSION PICKUP (2026-07-17) — start here
 
 **Published: `WiseOwl.Casc` + `WiseOwl.Casc.Diablo4` `0.6.0` live on NuGet.**
-`main` tip **`df8aede`**; `<Version>` = 0.6.0; working tree clean. The FR-loop
+`main` tip **`82cecd6`**; `<Version>` = 0.6.0; working tree clean. The FR-loop
 counter-round marathon (CL-92 → CL-99) is shipped and released. Release
 mechanics: `docs/RELEASING.md` (GitHub Release → `nuget` env gate → OIDC). **The
 env gate is approvable via API with the owner-authed CLI** (`gh api
@@ -25,7 +25,12 @@ POST `{environment_ids:[<id>],state:"approved"}`). NuGet CDN + validation lag a
 few min after a successful run — cache-bust the flat-container and poll the
 registration endpoint (`registration5-gz-semver2/<pkg>/<ver>.json` → 200).
 
-**Only ONE open CASC turn: `casc-fr#45` R7 (`awaiting:casc`).** LIB-3's affix
+**TWO open CASC turns: `casc-fr#45` R7 and `casc-fr#39` (both `awaiting:casc`
+as of 2026-07-17 06:47Z — #39 was bounced back AFTER the earlier snapshot that
+said "only #45"; the queue is live and the Optimizer counter-rounds within
+minutes).**
+
+**#45 R7 — LIB-3's affix** value decode is done (effects + `FormulaGbid` item-power
 value decode is done (effects + `FormulaGbid` item-power curves + `InlineFormula`
 unique/legendary rolls); the Optimizer's R7 lists the remaining blockers for the
 ~741 aspects that still can't print a number:
@@ -33,16 +38,41 @@ unique/legendary rolls); the Optimizer's R7 lists the remaining blockers for the
   deterministic (`19 + CurrentLegendaryRank()*0.5`). Ask: **is the max
   legendary/aspect rank in the data?** If so, expose it so the value is a
   `[rank 0 … max]` span. Highest-value item.
-- **`PowerTag.<X>."Script Formula N"` (83)** — references another power's script formula.
-- **`S14_Mythic_UniquePotency` (2)**.
+- **`PowerTag.<X>."Script Formula N"` (83)** — cross-ref into another power's
+  script formula. Ask: resolvable through `ReadPower`/§7.2 today? what's the lookup?
+- **Grammar gap (2, `Chest_Unique_Paladin_001`)** — §8.1's *function* table can't
+  express what the Optimizer found: a **ternary `cond ? a : b` + comparison `>`**,
+  and **`S14_Mythic_UniquePotency` used as a bare variable** (= `DataAttributes[280]`;
+  `[279]`=`S14_Mythic_CooldownReductionCDR` — formulas reference the designer-attr
+  namespace by NAME, tying #47's work to the evaluator). Branch ⇒ the printed range
+  is runtime-conditional (Mythic? → two ranges). **Ask: document §8.1 as a GRAMMAR
+  (operators, precedence, variable refs), not just a function list.** Don't guess
+  ternary/comparison semantics ("looks conventional" is what R4 warned against).
 Plus a promised follow-up: **chase the 32 residual** affixes (rollable `Desc`, no
 decodable inline formula) — report the count, don't imply coverage.
 
+**#39 FR-C27 — a DECISION is being asked of CASC, not more RE.** The Optimizer
+verified CL-97 on published 0.6.0 (measures **60/92 = 65.2 %** on its looser
+predicate vs the 68 % on CASC's 85-id population — flagged as a population
+difference, not reconciled into one figure), confirmed the `707`/`1207` rescues
+and zero regressions, and **accepts the §11.3 structural-ceiling argument**. But
+it will **not** mark `fr:consumed`: the original acceptance criteria were *100 %
+resolution + retire the curated map*, and at 65 % with **32 ids still null** and
+`LabelByToken` still curated, neither is met ("closing it would be marking my own
+ask satisfied because the answer was hard"). It offers two options and says the
+call is **CASC's to set**:
+1. **`fr:by-design`** (it leans this) — record the §11.3 ceiling as the terminal
+   outcome (protocol §5: "a recorded decision, never a silent drop"); it takes the
+   residual consumer-side via `ParagonNodeStat.StatName`.
+2. **Leave open** as the standing home for the coverage question if a node-side
+   read source ever surfaces.
+→ Next session: make this call with the owner. `fr:by-design` is well-supported
+(§11.3 already records the ceiling with evidence; residual is genuinely
+node-context-dependent — `707`=DOT on one node, Bleed on another). Not done tonight
+(owner shutting down); it is a terminal disposition, worth a deliberate owner-aware
+call rather than a hasty shutdown-moment label change.
+
 **Everything else is `awaiting:optimizer`** (consume-verify against 0.6.0):
-- **#39 FR-C27** — attribute-name coverage 48 %→68 % via read-not-curated
-  affix-`Desc` (CL-97); ~68 % is the **structural** ceiling (the rest are
-  budget-category ids named by `ParagonNodeStat.StatName` in node context — the
-  `707` case, spec §11.3). Optimizer accepted the boundary.
 - **#41 FR-C29** — Phase 1 (universal coeffs + per-class map, CL-89) + Phase 2
   (base Max Life = `round(50 × hpScalar[level])` from `LevelScaling`, CL-99),
   both shipped. Phase-4 difficulty ladder = `StringList 216612` (not CASC's).
