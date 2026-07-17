@@ -20,9 +20,9 @@ load-bearing "don't re-discover" facts.
 ### ⏭️ NEXT-SESSION PICKUP (2026-07-17) — start here
 
 **Published: `WiseOwl.Casc` + `WiseOwl.Casc.Diablo4` `0.6.0` live on NuGet.**
-`main` tip **`11ba44f`**; `<Version>` = 0.6.0; working tree clean. The FR-loop
-counter-round marathon (CL-92 → CL-99) shipped in 0.6.0; **CL-100 (LIB-3 R7) is
-unreleased on `main`**. Release
+`main` tip **`dfabf35`**; `<Version>` = 0.6.0; working tree clean. The FR-loop
+counter-round marathon (CL-92 → CL-99) shipped in 0.6.0; **CL-100 (LIB-3 R7) +
+CL-101 (FR-C34) are unreleased on `main`**. Release
 mechanics: `docs/RELEASING.md` (GitHub Release → `nuget` env gate → OIDC). **The
 env gate is approvable via API with the owner-authed CLI** (`gh api
 repos/.../actions/runs/<id>/pending_deployments` → `current_user_can_approve`;
@@ -30,10 +30,10 @@ POST `{environment_ids:[<id>],state:"approved"}`). NuGet CDN + validation lag a
 few min after a successful run — cache-bust the flat-container and poll the
 registration endpoint (`registration5-gz-semver2/<pkg>/<ver>.json` → 200).
 
-**0 open CASC turns** (queue clear 2026-07-17). Both recent turns are disposed
-and now `awaiting:optimizer`: `casc-fr#45` R7 **delivered CL-100**
-(`WiseOwl.Casc@11ba44f`, unreleased) and `casc-fr#39` was disposed
-**`fr:by-design`** (owner call). The queue is live and the Optimizer
+**0 open CASC turns** (queue clear 2026-07-17, re-polled). Recently disposed, all
+now `awaiting:optimizer`: `casc-fr#50` FR-C34 **delivered CL-101**
+(`WiseOwl.Casc@dfabf35`), `casc-fr#45` R7 **delivered CL-100** (`11ba44f`), and
+`casc-fr#39` disposed **`fr:by-design`**. The queue is live and the Optimizer
 counter-rounds within minutes — **re-poll `awaiting:casc` before assuming idle.**
 
 **#45 R7 — DELIVERED (CL-100, `11ba44f`).** Max legendary rank = **10**, a
@@ -52,6 +52,21 @@ GBID-backed** (computable via existing path) + **11 genuine** non-roll (Skill-Ra
 grants / `Owner.*` set powers / a test affix). Spec §8.1/§11.2/§11.3, Appendix A
 CL-100, devlog 0094. Residual to flag: the rank *floor* (0 vs 1) is inferred from
 the `-1` convention, not oracled — the Optimizer can pin it with one in-game min.
+
+**#50 FR-C34 — DELIVERED (CL-101, `dfabf35`).** Typed `DifficultyTiers` (1973217)
+= the per-**monster-level** scaling curve: `Diablo4Storage.ReadDifficultyTiers()`
+→ `DifficultyTiersTable` (150 rows; `MonsterHpScalar`/`MonsterDamageScalar` =
+**inferred** labels, no oracle per AC-3; `PerLevelXpValue` L40=8/L70=11 is the
+row-layout lock; raw 32-col row on `.Columns`). **Reconciled §8.2** — monster HP
+scales off this far steeper curve (×101,051 vs hpScalar ×30.5 @ L70), NOT
+`LevelScaling` rows 71–200. **Monster-data RE (owner ask):** monsters = Actor
+SNOs (g1, ~61k; `.acr` = identity+appearance/anim, no base-HP field); base HP is
+engine-assembled, not a flat field (same boundary as player base `50`); mapped
+`MonsterLevelCurves` (`Raid_Tier_0..5`) / `MonsterNames` / `MonsterAffixCategories`
+/ `MonsterTags` (typeable on request). Spec §8.3, Appendix A CL-101, devlog 0095.
+**PENDING fast-follow (owner + Optimizer requested):** type `LevelScaling`'s 5
+remaining monster columns (`monsterDr`/`powerBase`/`powerDelta`/`powerItem`/
+`xpScalar`) — `powerItem` may supply `IPower()` for the §8.1 affix evaluator (#45).
 
 **#39 FR-C27 — RESOLVED `fr:by-design` (2026-07-17, owner call; now
 `awaiting:optimizer`).** The Optimizer verified CL-97 on published 0.6.0
@@ -83,10 +98,12 @@ source, if one ever surfaces, is a fresh FR — not a re-open.
 `BaseHitpointsMax`/`MaxCharacterLevel`). Spec §8.1 (formula grammar),
 §8.2 (LevelScaling base Life), §11.3 (affix effects + `GetAttributeName`
 ceiling); Appendix A CL-92..CL-99; devlogs 0088–0093.
-**Unreleased (CL-100, `main`):** `PowerDefinition.MaxRank` +
+**Unreleased (CL-100/101, `main`):** `PowerDefinition.MaxRank` +
 `.MaxLegendaryRank` (max legendary rank = 10, universal); §8.1 rewritten as a
 grammar (ternary/comparison, `DataAttributes` bare-var refs, `PowerTag`
-cross-refs); Appendix A CL-100; devlog 0094.
+cross-refs); `Diablo4Storage.ReadDifficultyTiers()` → `DifficultyTiersTable`
+(per-monster-level curve; §8.2 reconciled — monsters use a separate steeper
+curve); Appendix A CL-100/101; devlogs 0094/0095.
 
 **★ DISCIPLINE — session meta-lesson ([[feedback_calibrate-claims-to-evidence]]):**
 the decodes were excellent but three closing claims overreached this session
@@ -110,7 +127,9 @@ attribute — `attrname` (+DataAttr), `attrmap`, `coverfix`, `dataattrs`; formul
 `formulafind`, `formula`, `formulagbid`, `formuladump`; raw — `rawhex`, `snoid`,
 `listgroup`. **R7 (CL-100):** `inlinedump` (all g104 inline formulas),
 `affixstr` (per-modifier string slots), `ranksentinel` (max-rank sentinel scan,
-proved 699/699 = 10), `rollableresidual` (the 32-residual split), `powersf`.
+proved 699/699 = 10), `rollableresidual` (the 32-residual split), `powersf`;
+**FR-C34 (CL-101):** `strdump` (generic per-SNO printable-string dump — for
+GameBalance / monster-table RE).
 Session scratchpad corpus: `affix-corpus-full.txt`, `affix-attrmap.txt`,
 `affix-floatscan.txt`, `inline-corpus.tsv`.
 
