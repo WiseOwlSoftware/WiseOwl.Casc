@@ -1442,6 +1442,45 @@ public sealed class Diablo4Storage : IDisposable
         return a;
     }
 
+    /// <summary>
+    /// LIB-4 (CL-103) — resolve a unique/legendary item's fixed <b>aspect
+    /// affix</b>: the <see cref="AffixDefinition"/> that <i>is</i> the item's
+    /// power (its <see cref="AffixDefinition.Effects"/> /
+    /// <see cref="AffixEffect.InlineFormula"/> / localized <c>Name</c>).
+    /// </summary>
+    /// <remarks>
+    /// A unique item (group <see cref="SnoGroup.Item"/> = 73, e.g.
+    /// <c>1HAxe_Unique_Druid_100</c>) shares its SNO name <b>verbatim</b> with an
+    /// affix definition (group <see cref="SnoGroup.Affix"/> = 104) of the same
+    /// name — the generalized §6.7 sibling convention (as with the localized
+    /// sibling-StringList tables, CL-20). The item record itself references only
+    /// its model actor and base-item template, not the affix, so the affix is
+    /// reached by that shared name. This wires the two already-decoded readers
+    /// (<see cref="ReadItem"/> + <see cref="ReadAffix"/>): pass a unique item's
+    /// SNO id and get its power's decoded affix. Name-verified across the unique
+    /// roster; returns <see langword="false"/> when the item has no same-name
+    /// affix (a non-unique item, or a seasonal <c>S<i>NN</i>_</c>-prefixed
+    /// variant whose affix name differs).
+    /// </remarks>
+    /// <param name="itemSnoId">The unique item's SNO id (group 73).</param>
+    /// <param name="affix">On success, the decoded sibling affix; otherwise
+    /// <see langword="null"/>.</param>
+    /// <param name="locale">Locale for the affix's localized text (default
+    /// <see cref="DefaultLocale"/>).</param>
+    /// <returns><see langword="true"/> iff a same-name affix was found and
+    /// decoded.</returns>
+    public bool TryReadUniqueAffix(
+        int itemSnoId, out AffixDefinition? affix, string locale = DefaultLocale)
+    {
+        affix = null;
+        if (!CoreToc.TryGetName(SnoGroup.Item, itemSnoId, out var name))
+            return false;
+        if (!CoreToc.TryGetId(SnoGroup.Affix, name, out var affixSnoId))
+            return false;
+        affix = ReadAffix(affixSnoId, locale);
+        return true;
+    }
+
     /// <summary>Resolve an affix's localized <b>display name</b> without a
     /// full <see cref="ReadAffix(int,string)"/> decode — the affix analogue
     /// of <see cref="TryReadParagonBoardName"/>. The name lives in the

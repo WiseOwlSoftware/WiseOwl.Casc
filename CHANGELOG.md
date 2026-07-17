@@ -32,6 +32,11 @@ Semantic Versioning once it reaches `1.0.0`.
   Only `hpScalar` is labeled — the other columns ship raw and unnamed because
   their meanings can't be verified from the data (documented, with each column's
   observed per-level behavior).
+- **Unique item → its aspect affix** — `Diablo4Storage.TryReadUniqueAffix(itemSnoId)`
+  returns the affix that *is* a unique/legendary item's power (its effects,
+  roll formula, and name), resolving the item↔affix link by their shared name.
+  Turns "list uniques" into "here's what each unique does" by joining the
+  existing item and affix readers.
 
 ## [0.6.0] — 2026-07-17
 
