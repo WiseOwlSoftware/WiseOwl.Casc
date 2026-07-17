@@ -12,9 +12,11 @@ public sealed class LevelScalingTable
 | --- | --- |
 | static [Parse](LevelScalingTable/Parse.md)(…) | Decode a `LevelScaling` table from its raw SNO blob (the `.gam` for SNO 206158). |
 | [LevelCount](LevelScalingTable/LevelCount.md) { get; } | Number of rows (levels) the table defines (200 — characters 1..70, monsters/content 71..200). |
+| [Rows](LevelScalingTable/Rows.md) { get; } | All rows, ordered by level (index 0 = level 1). |
 | [SnoId](LevelScalingTable/SnoId.md) { get; } | The table's SNO id (206158). |
 | [BaseLife](LevelScalingTable/BaseLife.md)(…) | The character's base Max Life at *level* — `round( × (level))`, round-half-away-from-zero, class-independent (FR-C29 Phase 2). Defined for character levels `1..`. |
 | [HpScalar](LevelScalingTable/HpScalar.md)(…) | The `hpScalar` at *level* (row column `+4`) — the multiplier applied to [`BaseHitpointsMax`](./LevelScalingTable/BaseHitpointsMax.md). `1.0` at level 1. |
+| [Row](LevelScalingTable/Row.md)(…) | The row for *level* (1-based) — the labeled [`HpScalar`](./LevelScalingRow/HpScalar.md) plus the full raw column vector for the unlabeled columns (CL-102). |
 | const [BaseHitpointsMax](LevelScalingTable/BaseHitpointsMax.md) | The class-independent base `Hitpoints_Max` that the per-level [`HpScalar`](./LevelScalingTable/HpScalar.md) scales (CL-99). Cross-validated 15/15 against owner oracles; fitted, not yet located as a readable field in the data — baked as a constant per the engine-constants pattern (a future build re-verifies via [`BaseLife`](./LevelScalingTable/BaseLife.md)). |
 | const [MaxCharacterLevel](LevelScalingTable/MaxCharacterLevel.md) | The maximum character level (`heroDetails` id 279 on build `3.1.1.72836`). Table indices above this are monster / content levels, not characters. |
 
@@ -22,7 +24,7 @@ public sealed class LevelScalingTable
 
 Base Life (FR-C29 Phase 2, CL-99). A character's base Max Life is class-independent — every class reads the same value: [`BaseLife`](./LevelScalingTable/BaseLife.md)`= round( × (level))`, round-half-away-from-zero. The `1526` a Level-70 tooltip shows is that rounded product — it exists nowhere in the data; the operands (`50` and the scalar) do (`round(50 × 30.526) = 1526`; `round(50 × 17.200) = 860` at L60; `round(50 × 1.03) = 52` at L2 — the sole exact-`.5` case, which pins the rounding mode). Cross-validated 15/15 against owner oracles including out-of-sample L11–L14.
 
-Byte layout (verified `3.1.1.72836`; `docs/casc-diablo4-format.md §8.2`): a `DT_VARIABLEARRAY` descriptor at payload `+0x50` (`dataOffset@+0` / `byteSize@+4`) → 200 rows × 212 bytes; row index = `level − 1`; `hpScalar` ([`HpScalar`](./LevelScalingTable/HpScalar.md)) is the `float` at row column `+4`. Other columns (`monsterDr`, `powerBase/Delta/Item`, `xpScalar`) exist but are not modeled here — this reader surfaces only the byte-verified `hpScalar` and the base-Life projection it feeds.
+Byte layout (verified `3.1.1.72836`; `docs/casc-diablo4-format.md §8.2`): a `DT_VARIABLEARRAY` descriptor at payload `+0x50` (`dataOffset@+0` / `byteSize@+4`) → 200 rows × 212 bytes; row index = `level − 1`; `hpScalar` ([`HpScalar`](./LevelScalingTable/HpScalar.md)) is the `float` at row column `+4`. The remaining columns are now exposed raw on [`Columns`](./LevelScalingRow/Columns.md) (CL-102) — the Maxroll dump names some (`monsterDr`, `powerBase/Delta/Item`, `xpScalar`) but those names are not asserted: only `hpScalar` is oracle-anchored; the rest cannot be verified from the blob (no anchor, no in-game readout), so they ship unlabeled with their per-level behavior characterised in §8.2.
 
 ## See Also
 

@@ -1001,8 +1001,22 @@ render-time value can exist nowhere in the data — `1526` is not stored; the
 operands (`50` and the scalar) are. Search for the operands, not the result.**
 Surface: `Diablo4Storage.ReadLevelScaling()` → `LevelScalingTable`
 (`HpScalar(level)`, `BaseLife(level)`, `BaseHitpointsMax`, `MaxCharacterLevel`).
-Other columns (`monsterDr` / `powerBase/Delta/Item` / `xpScalar`) exist but are
-not modeled — only the byte-verified `hpScalar` + base-Life projection ship.
+**Remaining columns (CL-102) — exposed raw, not named.** The 212-byte row has
+~10 non-zero columns; `LevelScalingRow.Columns` now exposes all 53 (indexed by
+`+4·c`) so nothing is hidden, but **only `+4` `hpScalar` is a labeled, verified
+column**. The Maxroll dump names some of the others (`monsterDr` / `powerBase` /
+`powerDelta` / `powerItem` / `xpScalar`), but — unlike `DifficultyTiers`'s XP
+column (§8.3), which has an *independent* anchor — **none can be verified from
+the blob** (no anchor, no in-game readout to oracle against), so the library does
+**not** assert those names. Observed per-level behavior (`3.1.1.72836`; col at
+L1/L70/L200): `+8` grows `0.85 → 7.84 → 10.17`; `+32` *decreases*
+`1.2 → 0.147 → 0.5`; `+36` decreases `1.0 → 0.033 → 0.5`; `+20`/`+24`/`+28` are
+constants (`0.002` / `0.015` / `0.5`); `+40` is `0.8` then `2.25` at L200; col
+`+0` reads `0` (level is implied by row order, not stored). Confidently mapping
+the Maxroll names to these offsets needs either the d4data GameBalance
+column-order schema (community intel to verify per
+[[feedback_third-party-re-as-intel]]) or one owner in-game oracle per column
+(e.g. the item power at a known level would pin `powerItem` for `IPower()`).
 
 ### 8.3 `DifficultyTiers` → per-monster-level curve (SNO 1973217; FR-C34, CL-101)
 
@@ -2515,6 +2529,19 @@ armor, …). Structural — no name parsing.
 
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
+
+- **CL-102 — `LevelScaling` remaining columns exposed raw (companion to FR-C34,
+  `casc-fr#50`).** `LevelScalingRow` / `LevelScalingTable.Row(level)` /
+  `.Rows` now expose all 53 columns of the row (`.Columns`), so no column is
+  hidden — but **only `hpScalar` (col `+4`) is named** (it is oracle-anchored via
+  base Life, §8.2). The Optimizer's companion ask was to type `monsterDr` /
+  `powerBase` / `powerDelta` / `powerItem` / `xpScalar` ("on your terms, not
+  Maxroll's"). RE finding: **those names cannot be verified from the blob** —
+  unlike `DifficultyTiers`'s XP anchor there is no anchor or in-game oracle, so
+  asserting them would repeat the FR-C31 wrong-name defect. Shipped the raw
+  exposure + a per-level behavioral characterisation (§8.2) instead; naming is
+  blocked pending the d4data column-order schema or an owner oracle. Honest
+  boundary, not a guess. Recon: `SnoScan rawhex`.
 
 - **CL-101 — `DifficultyTiers` per-monster-level curve + §8.2 reconciliation
   (FR-C34, `casc-fr#50`).** Typed the monster/content scaling table (SNO

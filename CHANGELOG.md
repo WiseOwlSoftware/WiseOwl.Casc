@@ -26,6 +26,12 @@ Semantic Versioning once it reaches `1.0.0`.
   (the docs are corrected accordingly). Monster HP/damage labels are documented
   as inferred (the game exposes no numeric monster-health readout to validate
   against).
+- **Level-scaling raw columns** — `LevelScalingTable.Row(level)` /
+  `LevelScalingRow.Columns` expose every column of the level-scaling row, not
+  just `hpScalar`, so consumers can read the remaining per-level coefficients.
+  Only `hpScalar` is labeled — the other columns ship raw and unnamed because
+  their meanings can't be verified from the data (documented, with each column's
+  observed per-level behavior).
 
 ## [0.6.0] — 2026-07-17
 

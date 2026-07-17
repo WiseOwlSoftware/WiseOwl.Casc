@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace WiseOwl.Casc.Diablo4;
 
@@ -25,10 +26,13 @@ namespace WiseOwl.Casc.Diablo4;
 /// §8.2</c>): a <c>DT_VARIABLEARRAY</c> descriptor at payload <c>+0x50</c>
 /// (<c>dataOffset@+0</c> / <c>byteSize@+4</c>) → <b>200 rows × 212 bytes</b>;
 /// row index = <c>level − 1</c>; <c>hpScalar</c> (<see cref="HpScalar(int)"/>)
-/// is the <c>float</c> at row column <c>+4</c>. Other columns
-/// (<c>monsterDr</c>, <c>powerBase/Delta/Item</c>, <c>xpScalar</c>) exist but
-/// are not modeled here — this reader surfaces only the byte-verified
-/// <c>hpScalar</c> and the base-Life projection it feeds.</para>
+/// is the <c>float</c> at row column <c>+4</c>. The remaining columns are now
+/// exposed <b>raw</b> on <see cref="LevelScalingRow.Columns"/> (CL-102) — the
+/// Maxroll dump names some (<c>monsterDr</c>, <c>powerBase/Delta/Item</c>,
+/// <c>xpScalar</c>) but those names are <b>not</b> asserted: only <c>hpScalar</c>
+/// is oracle-anchored; the rest cannot be verified from the blob (no anchor, no
+/// in-game readout), so they ship unlabeled with their per-level behavior
+/// characterised in §8.2.</para>
 /// </remarks>
 public sealed class LevelScalingTable
 {
@@ -48,12 +52,12 @@ public sealed class LevelScalingTable
     private const int RowStride = 212;
     private const int HpScalarColumn = 4;
 
-    private readonly float[] _hpScalar;   // indexed by (level - 1)
+    private readonly LevelScalingRow[] _rows;   // indexed by (level - 1)
 
-    private LevelScalingTable(int snoId, float[] hpScalar)
+    private LevelScalingTable(int snoId, LevelScalingRow[] rows)
     {
         SnoId = snoId;
-        _hpScalar = hpScalar;
+        _rows = rows;
     }
 
     /// <summary>The table's SNO id (206158).</summary>
@@ -61,7 +65,23 @@ public sealed class LevelScalingTable
 
     /// <summary>Number of rows (levels) the table defines (200 — characters
     /// 1..70, monsters/content 71..200).</summary>
-    public int LevelCount => _hpScalar.Length;
+    public int LevelCount => _rows.Length;
+
+    /// <summary>All rows, ordered by level (index 0 = level 1).</summary>
+    public IReadOnlyList<LevelScalingRow> Rows => _rows;
+
+    /// <summary>The row for <paramref name="level"/> (1-based) — the labeled
+    /// <see cref="LevelScalingRow.HpScalar"/> plus the full raw column vector
+    /// for the unlabeled columns (CL-102).</summary>
+    /// <param name="level">1-based level (1..<see cref="LevelCount"/>).</param>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="level"/> is
+    /// outside <c>1..<see cref="LevelCount"/></c>.</exception>
+    public LevelScalingRow Row(int level)
+    {
+        if (level < 1 || level > _rows.Length)
+            throw new ArgumentOutOfRangeException(nameof(level));
+        return _rows[level - 1];
+    }
 
     /// <summary>The <c>hpScalar</c> at <paramref name="level"/> (row column
     /// <c>+4</c>) — the multiplier applied to <see cref="BaseHitpointsMax"/>.
@@ -69,12 +89,7 @@ public sealed class LevelScalingTable
     /// <param name="level">1-based level (1..<see cref="LevelCount"/>).</param>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="level"/> is
     /// outside <c>1..<see cref="LevelCount"/></c>.</exception>
-    public float HpScalar(int level)
-    {
-        if (level < 1 || level > _hpScalar.Length)
-            throw new ArgumentOutOfRangeException(nameof(level));
-        return _hpScalar[level - 1];
-    }
+    public float HpScalar(int level) => Row(level).HpScalar;
 
     /// <summary>The character's <b>base Max Life</b> at
     /// <paramref name="level"/> — <c>round(<see cref="BaseHitpointsMax"/> ×
@@ -113,9 +128,63 @@ public sealed class LevelScalingTable
                 $"(dataOffset={dataOff}, byteSize={byteSize}, stride={RowStride}).");
 
         int rows = byteSize / RowStride;
-        var hpScalar = new float[rows];
+        int cols = RowStride / 4;
+        var result = new LevelScalingRow[rows];
         for (int i = 0; i < rows; i++)
-            hpScalar[i] = r.F32(dataOff + i * RowStride + HpScalarColumn);
-        return new LevelScalingTable(snoId, hpScalar);
+        {
+            int rowOff = dataOff + i * RowStride;
+            var words = new float[cols];
+            for (int c = 0; c < cols; c++)
+                words[c] = r.F32(rowOff + c * 4);
+            result[i] = new LevelScalingRow(i + 1, words);   // level = row index + 1
+        }
+        return new LevelScalingTable(snoId, result);
     }
+}
+
+/// <summary>
+/// One <see cref="LevelScalingTable"/> row — a level's scaling coefficients
+/// (CL-102). Carries the verified <see cref="HpScalar"/> plus the full raw
+/// column vector for the remaining, unlabeled columns.
+/// </summary>
+/// <remarks>
+/// <b>Unlabeled columns are exposed raw, not renamed.</b> The 212-byte row has
+/// ~10 non-zero columns, but only <c>+4</c> (<see cref="HpScalar"/>) is
+/// oracle-anchored (it drives base Max Life, §8.2). The Maxroll dump names the
+/// others <c>monsterDr</c> / <c>powerBase</c> / <c>powerDelta</c> /
+/// <c>powerItem</c> / <c>xpScalar</c>, but — unlike <c>DifficultyTiers</c>'s XP
+/// column (§8.3), which has an independent anchor — <b>none of these can be
+/// verified from the blob</b> (no anchor, no in-game oracle), so this library
+/// does <b>not</b> assert those names. Their per-level behavior is characterised
+/// in §8.2; they are exposed by byte offset on <see cref="Columns"/> so consumers
+/// have every column without a label that can't be stood behind.
+/// </remarks>
+public sealed class LevelScalingRow
+{
+    private readonly float[] _columns;
+
+    internal LevelScalingRow(int level, float[] columns)
+    {
+        Level = level;
+        _columns = columns;
+    }
+
+    /// <summary>The 1-based level this row describes (row index + 1). Character
+    /// levels are <c>1..70</c>; <c>71..200</c> are content levels.</summary>
+    public int Level { get; }
+
+    /// <summary>The verified <c>hpScalar</c> (col <c>+4</c>) — the multiplier on
+    /// <see cref="LevelScalingTable.BaseHitpointsMax"/> that yields base Max Life
+    /// (§8.2). <c>1.0</c> at level 1.</summary>
+    public float HpScalar => _columns[1];
+
+    /// <summary>Every column of the 212-byte row reinterpreted as
+    /// <see cref="float"/> (53 entries; index <i>c</i> = byte column
+    /// <c>+4·c</c>). Only <c>Columns[1]</c> (<see cref="HpScalar"/>) is a labeled,
+    /// verified column; the rest are unlabeled per-level coefficients (see the
+    /// type remarks — the Maxroll names are <b>not</b> asserted). Column 0 reads
+    /// <c>0</c> in this table (the level is <i>not</i> stored per row — it is
+    /// implied by row order; use <see cref="Level"/>); many trailing columns are
+    /// <c>0</c> too.</summary>
+    public IReadOnlyList<float> Columns => _columns;
 }
