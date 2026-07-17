@@ -819,6 +819,14 @@ public sealed class Diablo4StorageIntegrationTests
         // Level 70 is the character cap; higher rows exist but aren't characters.
         Assert.Equal(70, LevelScalingTable.MaxCharacterLevel);
         Assert.Throws<System.ArgumentOutOfRangeException>(() => scaling.BaseLife(71));
+
+        // CL-102 — the full raw row is exposed (all 53 columns); HpScalar is the
+        // one labeled column and Columns[1] mirrors it; Level tracks row order.
+        Assert.Equal(200, scaling.Rows.Count);
+        Assert.Equal(53, scaling.Row(1).Columns.Count);          // 212 / 4
+        Assert.Equal(70, scaling.Row(70).Level);
+        Assert.Equal(scaling.HpScalar(70), scaling.Row(70).HpScalar);
+        Assert.Equal(scaling.HpScalar(70), scaling.Row(70).Columns[1]);
     }
 
     /// <summary>LIB-3 (CL-92) — the item/aspect affix <b>effect</b> decode:
