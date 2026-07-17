@@ -6,6 +6,21 @@ Semantic Versioning once it reaches `1.0.0`.
 
 ## [Unreleased]
 
+### Added
+
+- **Unique-power roll formulas** — a unique or legendary power's rolled value
+  (the `[Affix_Value]` in its description) is now exposed via
+  `AffixEffect.InlineFormula`: the roll formula stored inline in the affix
+  record, for the affixes that don't use the shared item-power curve table.
+  Same grammar as the gear-affix formulas (the value min/max is the roll
+  function's arguments; evaluating stays the consumer's).
+
+### Fixed
+
+- **Affix formula sentinel** — `AffixEffect.NoFormula` is now the correct
+  `0xFFFFFFFF` (was `0`), so "has no shared value curve" is detected correctly;
+  such affixes' rolls are on `AffixEffect.InlineFormula` instead.
+
 ## [0.5.0] — 2026-07-16
 
 Adds the item and aspect **affix** data layer — what each affix does, and the

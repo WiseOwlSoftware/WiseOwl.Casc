@@ -76,11 +76,23 @@ namespace WiseOwl.Casc.Diablo4;
 /// from (e.g. <c>GearAffix_CritChance → "FloatRandomRangeWithInterval(1,3,3.5)/100"</c>
 /// at high item power). The library exposes the raw formula text; evaluating it
 /// (and thus the min/max a UI prints) stays the consumer's, matching the paragon
-/// magnitude boundary. <see cref="NoFormula"/> (<c>0</c>) when the modifier
-/// carries no value formula (e.g. set/unique power modifiers whose numbers are
-/// on <see cref="AffixDefinition.StaticValues"/> instead), or an id that isn't
-/// an <c>AttributeFormulas</c> entry — filter with
+/// magnitude boundary. <see cref="NoFormula"/> (<c>0xFFFFFFFF</c>, the NoGbid
+/// sentinel) when the modifier has no <c>AttributeFormulas</c>-referenced curve
+/// — in which case its rolled value formula is on <see cref="InlineFormula"/>
+/// instead (unique/legendary powers) or it has no roll (its numbers are on
+/// <see cref="AffixDefinition.StaticValues"/>). Filter with
 /// <see cref="AttributeFormulaTable.TryGetByGbid(uint, out AttributeFormula)"/>.</param>
+/// <param name="InlineFormula">CL-96 — the modifier's <b>inline</b> value formula
+/// (a <c>DT_STRING_FORMULA</c> stored directly in the affix record), used by
+/// unique/legendary power affixes instead of an <c>AttributeFormulas</c> GBID
+/// reference (their <see cref="FormulaGbid"/> is <see cref="NoFormula"/>). Same
+/// grammar and min/max derivation as the GBID-referenced formulas
+/// (<c>casc-diablo4-format.md §8.1</c>) — e.g.
+/// <c>"FloatRandomRangeWithIntervalUniqueAffixPityBonus(20, 60, 80)"</c> → a
+/// 60–80 roll (args 2, 3). This is the source of a power description's rollable
+/// <c>[Affix_Value_N]</c> value. <see cref="string.Empty"/> when the modifier
+/// has a GBID-referenced formula instead, no inline formula, or the affix was
+/// decoded byte-only.</param>
 /// <param name="AttributeName">The resolved attribute display name — the
 /// localized engine name (via
 /// <see cref="Diablo4Storage.GetAttributeName(int, uint, string)"/>) for a
@@ -95,11 +107,14 @@ namespace WiseOwl.Casc.Diablo4;
         "a System.Attribute; renaming would diverge the code from the canonical " +
         "byte-format vocabulary.")]
 public readonly record struct AffixEffect(
-    int AttributeId, uint ParamPlus12, uint FormulaGbid, string AttributeName)
+    int AttributeId, uint ParamPlus12, uint FormulaGbid,
+    string InlineFormula, string AttributeName)
 {
-    /// <summary>The <see cref="FormulaGbid"/> value meaning "no value
-    /// formula on this modifier".</summary>
-    public const uint NoFormula = 0;
+    /// <summary>The <see cref="FormulaGbid"/> value meaning "no
+    /// <c>AttributeFormulas</c>-referenced curve" (the <c>NoGbid</c> sentinel,
+    /// <c>0xFFFFFFFF</c>). Such a modifier's roll formula, if any, is on
+    /// <see cref="InlineFormula"/>.</summary>
+    public const uint NoFormula = 0xFFFFFFFF;
 
     /// <summary>The <see cref="ParamPlus12"/> sentinel meaning "no
     /// associated parameter / skill-tag".</summary>

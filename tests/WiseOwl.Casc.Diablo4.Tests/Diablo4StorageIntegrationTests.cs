@@ -908,6 +908,17 @@ public sealed class Diablo4StorageIntegrationTests
         var berserk = Assert.Single(d4.ReadAffix(2568382).Effects);   // ...BerserkAttackSpeed
         Assert.True(berserk.IsDataDefinedAttribute);
         Assert.Equal("Barb_Berserking_AttackSpeed", berserk.AttributeName);
+
+        // CL-96 — a unique-power affix's roll lives in an INLINE formula
+        // (NoGbid FormulaGbid; the source of its [Affix_Value_N] roll), same
+        // grammar as the GBID-referenced curves (§8.1).
+        var unique = Assert.Single(d4.ReadAffix(578726).Effects);   // 2HMace_Unique_Barb_100
+        Assert.Equal(AffixEffect.NoFormula, unique.FormulaGbid);
+        Assert.Equal("FloatRandomRangeWithIntervalUniqueAffixPityBonus(20, 60, 80)",
+            unique.InlineFormula);
+        // A gear affix uses the GBID reference, not an inline formula.
+        Assert.Equal(string.Empty, crit.InlineFormula);
+        Assert.NotEqual(AffixEffect.NoFormula, crit.FormulaGbid);
     }
 
     /// <summary>LIB-3 (CL-92) — the <see cref="AffixEffect"/> two-namespace
@@ -921,7 +932,7 @@ public sealed class Diablo4StorageIntegrationTests
     public void AffixEffect_distinguishes_engine_and_data_defined_namespaces()
     {
         // Engine attribute (positive): ordinal == the id itself.
-        var engine = new AffixEffect(482, AffixEffect.NoParam, AffixEffect.NoFormula, "Armor");
+        var engine = new AffixEffect(482, AffixEffect.NoParam, AffixEffect.NoFormula, "", "Armor");
         Assert.False(engine.IsDataDefinedAttribute);
         Assert.Equal(482, engine.DataAttributeOrdinal);
         Assert.False(engine.HasParam);
@@ -929,16 +940,19 @@ public sealed class Diablo4StorageIntegrationTests
         // DataAttributes reference (high bit 0x80000000): ordinal 84 =
         // Barb_Berserking_AttackSpeed (verified against SNO 1907204).
         var dataDefined = new AffixEffect(
-            unchecked((int)0x80000054), AffixEffect.NoParam, AffixEffect.NoFormula, "");
+            unchecked((int)0x80000054), AffixEffect.NoParam, AffixEffect.NoFormula, "", "");
         Assert.True(dataDefined.IsDataDefinedAttribute);
         Assert.Equal(84, dataDefined.DataAttributeOrdinal);
         // The two namespaces are disjoint — same ordinal, different attribute.
         Assert.NotEqual(engine.AttributeId, dataDefined.AttributeId);
 
         // A real parameter (skill-tag GBID / element) flips HasParam.
-        var tagged = new AffixEffect(259, 0x32ABA6FB, AffixEffect.NoFormula, "");
+        var tagged = new AffixEffect(259, 0x32ABA6FB, AffixEffect.NoFormula, "", "");
         Assert.True(tagged.HasParam);
         Assert.Equal(0x32ABA6FBu, tagged.ParamPlus12);
+
+        // NoFormula is the NoGbid sentinel (0xFFFFFFFF), not 0.
+        Assert.Equal(0xFFFFFFFFu, AffixEffect.NoFormula);
     }
 
     /// <summary>FR-C13 Phase 1 — Power Script Formula slot table decode.

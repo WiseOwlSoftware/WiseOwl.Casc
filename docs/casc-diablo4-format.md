@@ -879,6 +879,7 @@ match its args exactly) are:
 | function | contract | roll min / max |
 |---|---|---|
 | `FloatRandomRangeWithInterval(g, min, max)` | a random value in **`[min, max]`** (args 2, 3) quantized to `g` evenly-spaced steps. `g` (arg 1) is the granularity only — it changes *which* discrete values can roll, **not** the range. | `min` / `max` |
+| `FloatRandomRangeWithIntervalUniqueAffixPityBonus(g, min, max)` / `FloatRangeWithIntervalUniqueAffixPityBonus(rand, g, min, max)` | as above, on unique/legendary power inline formulas (§11.3, CL-96); the `PityBonus` variant adds an **engine-defined pity floor** (repeated rolls bias upward) that does **not** change `[min, max]`. | `min` / `max` |
 | `RandomInt(lo, hi)` | a uniform integer, **inclusive** of both bounds. (Confirmed by the `RandomInt(1, 8 + ROUND(…))` forms whose upper bound grows with item power.) | `lo` / `hi` |
 | `RandomFloat(lo, hi)`, `SharedRandomFloat(…)`, `FloatRangeWithInterval(g, lo, hi)` | uniform in `[lo, hi]` (the `Shared*` variant correlates rolls across a group; irrelevant to the per-affix range). | `lo` / `hi` |
 | `IPower()` | the item's **item power** at evaluation. Not clamped here — the applicable range row is the one whose `nItemPowerRangeStart` is the greatest `≤ IPower()`; the top row covers all higher item powers. | deterministic |
@@ -2084,6 +2085,26 @@ semantics are intrinsic to the AttributeId identity (the `Multiplicative_*` /
 (Resistance_Dual_ColdLightning) → 2 effects attr `74` param `3`/`2`; `2292505`
 (SetPower_Barb01_01) → `StaticValues [100,50,20,120]`. CL-92, CL-94.
 
+**Inline value formulas — unique/legendary power rolls (CL-96).** A
+**unique/legendary power** affix does not reference an `AttributeFormulas` GBID:
+its `idx16` is the **NoGbid sentinel `0xFFFFFFFF`** (`AffixEffect.NoFormula` —
+corrected from the erroneous `0` in CL-94). Its rolled value formula is instead
+stored **inline** in the record as a `DT_STRING_FORMULA` located by the same
+modifier's `idx10` (payload offset) / `idx11` (length), exposed as
+`AffixEffect.InlineFormula` — e.g. `2HMace_Unique_Barb_100` →
+`"FloatRandomRangeWithIntervalUniqueAffixPityBonus(20, 60, 80)"` (→ 60–80 per
+§8.1 args 2/3), the source of that power `Desc`'s rollable `[Affix_Value_1]`
+token. Same grammar/derivation as the GBID-referenced formulas (§8.1); the
+`*UniqueAffixPityBonus` variants add an engine-defined pity floor that does not
+change the `[min,max]` bounds. **Coverage (measured): 1,136 of the 1,168
+affixes whose `Desc` carries a rollable `[Affix_Value_N]` carry a decodable
+inline formula; the remaining 32 do not** (a residual — a different or absent
+in-record value source; recorded, not papered over). A consumer resolves a
+modifier's value as: `FormulaGbid != NoFormula` → the `AttributeFormulas` curve;
+else `InlineFormula` if non-empty → evaluate directly; else no roll (its numbers,
+if any, are on `StaticValues`). The `[Affix."Static Value N"]` placeholder is a
+*separate* token from `[Affix_Value_N]` and resolves to `StaticValues`.
+
 ### 11.4 `ItemDefinition` (group 73, `.itm`)
 
 Identity (`snoId@0`) + localized `Name`/`Flavor`/`TransmogName` from
@@ -2312,6 +2333,22 @@ armor, …). Structural — no name parsing.
 
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
+
+- **CL-96 — inline value formulas for unique/legendary power rolls (LIB-3 R5,
+  `casc-fr#45`) + a CL-94 sentinel fix.** The CL-94 delivery claim that the
+  `idx16`→`AttributeFormulas` chain gives "305 uniques" a value source was an
+  **overreach** — it resolves *gear* stat affixes; a unique/legendary power's
+  `idx16` is the NoGbid sentinel `0xFFFFFFFF`, so the GBID chain returns nothing.
+  Its rolled value formula is **inline** in the record: a `DT_STRING_FORMULA`
+  located by the modifier's `idx10` (offset) / `idx11` (length), now exposed as
+  `AffixEffect.InlineFormula` (e.g. `2HMace_Unique_Barb_100` →
+  `"FloatRandomRangeWithIntervalUniqueAffixPityBonus(20, 60, 80)"`). Measured
+  coverage: **1,136 of 1,168** affixes with a rollable `[Affix_Value_N]` desc
+  carry a decodable inline formula (32 residual, recorded). Also **fixed
+  `AffixEffect.NoFormula`**: it was `0` in CL-94, but `idx16` is *never* `0` —
+  the real NoGbid sentinel is `0xFFFFFFFF` (a consumer testing
+  `FormulaGbid != NoFormula` was wrongly treating every unique's `0xFFFFFFFF`
+  as a resolvable GBID). §8.1, §11.3.
 
 - **CL-95 — formula function contracts (LIB-3 R3, `casc-fr#45`) + a CL-93
   coverage correction (FR-C31 R2, `casc-fr#46`).** *(a)* Recorded the

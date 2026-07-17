@@ -1,6 +1,6 @@
 # AffixEffect.NoFormula field
 
-The [`FormulaGbid`](./FormulaGbid.md) value meaning "no value formula on this modifier".
+The [`FormulaGbid`](./FormulaGbid.md) value meaning "no `AttributeFormulas`-referenced curve" (the `NoGbid` sentinel, `0xFFFFFFFF`). Such a modifier's roll formula, if any, is on [`InlineFormula`](./InlineFormula.md).
 
 ```csharp
 public const uint NoFormula;

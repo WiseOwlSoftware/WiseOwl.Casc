@@ -60,6 +60,21 @@ public sealed class AffixDefinition
     /// within a modifier record.</summary>
     private const int ModifierFormulaGbidOffset = 64;
 
+    /// <summary>Byte offset of the inline formula string's payload offset
+    /// (slot <c>idx10</c>) within a modifier record. Meaningful only when
+    /// <see cref="ModifierFormulaGbidOffset"/> holds <see cref="AffixEffect.NoFormula"/>
+    /// (NoGbid) — then <c>idx10</c>/<c>idx11</c> locate the inline
+    /// <c>DT_STRING_FORMULA</c> text.</summary>
+    private const int ModifierInlineFormulaOffset = 40;
+
+    /// <summary>Byte offset of the inline formula string's length (slot
+    /// <c>idx11</c>) within a modifier record.</summary>
+    private const int ModifierInlineFormulaLengthOffset = 44;
+
+    /// <summary>Maximum sane inline formula length (guards a mis-decoded
+    /// descriptor).</summary>
+    private const int MaxInlineFormulaLength = 512;
+
     /// <summary>Payload offset of the <c>"Static Value N"</c>
     /// <c>DT_VARIABLEARRAY[float]</c> descriptor (<c>dataOff@+0xC0</c> /
     /// <c>byteSize@+0xC4</c>).</summary>
@@ -150,9 +165,30 @@ public sealed class AffixDefinition
             if (attributeId is 0 or -1) continue;
             uint param = r.U32(baseOff + ModifierParamOffset);
             uint formulaGbid = r.U32(baseOff + ModifierFormulaGbidOffset);
-            effects.Add(new AffixEffect(attributeId, param, formulaGbid, string.Empty));
+            // When there's no AttributeFormulas-referenced curve (NoGbid), the
+            // roll formula — if any — is inline in the record (idx10 = payload
+            // offset, idx11 = length): unique/legendary power affixes.
+            string inlineFormula = formulaGbid == AffixEffect.NoFormula
+                ? ReadInlineFormula(r, baseOff)
+                : string.Empty;
+            effects.Add(new AffixEffect(attributeId, param, formulaGbid, inlineFormula, string.Empty));
         }
         return effects.Count == 0 ? [] : effects.ToArray();
+    }
+
+    private static string ReadInlineFormula(SnoRecord r, int modifierBaseOff)
+    {
+        int sOff = r.I32(modifierBaseOff + ModifierInlineFormulaOffset);
+        int sLen = r.I32(modifierBaseOff + ModifierInlineFormulaLengthOffset);
+        if (sOff <= 0 || sLen <= 2 || sLen > MaxInlineFormulaLength) return string.Empty;
+        if (r.PayloadBase + sOff + sLen > r.Length) return string.Empty;
+        var s = r.Ascii(sOff, sLen).Trim();
+        // A value formula is a call, so it contains '('. Guard against a
+        // NoGbid modifier whose idx10/idx11 point to non-formula bytes.
+        if (s.Length == 0 || !s.Contains('(')) return string.Empty;
+        foreach (char c in s)
+            if (c is < ' ' or > '~') return string.Empty;
+        return s;
     }
 
     private static float[] ReadStaticValues(SnoRecord r)
