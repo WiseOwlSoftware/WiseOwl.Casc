@@ -37,55 +37,23 @@ public sealed class PowerDefinition
         IReadOnlyList<PowerScriptFormula> scriptFormulas,
         IReadOnlyDictionary<string, double> resolvedFormulas,
         IReadOnlyDictionary<string, double> compiledFormulas,
-        IReadOnlyDictionary<int, IReadOnlyList<float>> embeddedLiteralsBySlot,
-        int maxRank)
+        IReadOnlyDictionary<int, IReadOnlyList<float>> embeddedLiteralsBySlot)
     {
         SnoId = snoId;
         ScriptFormulas = scriptFormulas;
         ResolvedFormulas = resolvedFormulas;
         CompiledFormulas = compiledFormulas;
         _embeddedLiteralsBySlot = embeddedLiteralsBySlot;
-        MaxRank = maxRank;
     }
 
-    /// <summary>
-    /// The universal maximum legendary/aspect rank (LIB-3 R7, CL-100) — the
-    /// engine-global cap that <c>CurrentLegendaryRank()</c> reaches in the
-    /// rank-scaled value formulas of legendary/unique item aspects (see
-    /// <see cref="AffixEffect.InlineFormula"/>). <b>10</b> on the live build
-    /// (<c>3.1.1.72836</c>, Season 14) and verified <b>universal</b> — every
-    /// one of the 699 <c>legendary_*</c> Power records carries an identical
-    /// <c>("10", 10.0)</c> max-rank sentinel in its script-formula tail, with
-    /// zero exceptions (owner-confirmed as the max-tier/rank cap, FR-C13 R2).
-    /// <br/><br/>
-    /// It is a constant rather than a per-aspect field because the max rank is
-    /// <i>not</i> stored on the affix record — an aspect modifier carries only
-    /// its inline value formula, and the rank cap is an engine global. The
-    /// live-decoded backing is <see cref="MaxRank"/> (the value read from the
-    /// sentinel on any legendary Power); this constant equals that decode and
-    /// exists so consumers computing an aspect's rank span
-    /// (<c>[formula(1) … formula(MaxLegendaryRank)]</c>) need not read a Power.
-    /// Per the engine-constants pattern (<c>casc-diablo4-format.md</c>
-    /// Appendix D) it carries a seasonal re-verify trigger: a build bump
-    /// re-runs <c>SnoScan ranksentinel</c> and updates this if the cap ever
-    /// changes.
-    /// </summary>
-    public const int MaxLegendaryRank = 10;
-
-    /// <summary>
-    /// LIB-3 R7 (CL-100) — the power's decoded <b>max-rank sentinel</b>: the
-    /// integer value of the trailing <c>("N", N.0)</c> record that terminates
-    /// this power's script-formula tail (the engine's max-tier/rank marker,
-    /// FR-C13). For every <c>legendary_*</c> Power this is <b>10</b> — the cap
-    /// <c>CurrentLegendaryRank()</c> reaches — so an aspect's rank-scaled affix
-    /// value (<see cref="AffixEffect.InlineFormula"/>) spans
-    /// <c>[formula(1) … formula(MaxRank)]</c>. <b>0</b> when the power has no
-    /// script-formula tail / no sentinel (most active skills). Universally
-    /// equal to <see cref="MaxLegendaryRank"/> for ranked legendaries; this
-    /// property is the data-driven read (the constant is the convenience for
-    /// the affix path, which does not carry the sentinel itself).
-    /// </summary>
-    public int MaxRank { get; }
+    // NOTE (FR-C38, CL-107): the legendary/aspect max rank is NOT on the Power
+    // record. It is the int32 at payload +0x94 of the AFFIX record and is
+    // per-aspect (21/11/16/6/…) — see AffixDefinition.MaxRank. The earlier
+    // PowerDefinition.MaxRank / MaxLegendaryRank=10 (CL-100) were a misread: the
+    // ("10", 10.0) they surfaced is a fixed value-descriptor footer literal
+    // (present after the "Affix_Value_N#… / 100" token on every legendary
+    // Power), not the rank cap. Those members were removed; the footer is still
+    // stripped from ScriptFormulas (it is not an SF_N).
 
     private readonly IReadOnlyDictionary<int, IReadOnlyList<float>> _embeddedLiteralsBySlot;
 
@@ -116,11 +84,13 @@ public sealed class PowerDefinition
     /// Empty when the power has no script formulas (most active skills
     /// and many structural / informational powers fall here). Non-empty
     /// for the 72 legendary node powers + others using the
-    /// <c>DT_STRING_FORMULA</c> mechanism. The trailing sentinel value
-    /// (<c>"10"</c> / 10.0 followed by <c>"0"</c> / 0.0 in every
-    /// anchored legendary) is stripped from this list — it is an
-    /// engine-internal max-rank marker, not an SF_N value — but its
-    /// integer value is surfaced as <see cref="MaxRank"/> (LIB-3 R7).
+    /// <c>DT_STRING_FORMULA</c> mechanism. The trailing footer records
+    /// (<c>"10"</c> / 10.0 followed by <c>"0"</c> / 0.0 on every anchored
+    /// legendary) are stripped from this list — they are a fixed
+    /// value-descriptor footer, <i>not</i> SF_N values and <i>not</i> the rank
+    /// cap (FR-C38 corrected the CL-100 misread; the per-aspect max rank is
+    /// <see cref="AffixDefinition.MaxRank"/>, the int32 at affix payload
+    /// <c>+0x94</c>).
     /// </summary>
     public IReadOnlyList<PowerScriptFormula> ScriptFormulas { get; }
 
@@ -223,10 +193,10 @@ public sealed class PowerDefinition
     public static PowerDefinition Parse(ReadOnlySpan<byte> blob)
     {
         var snoId = new SnoRecord(blob).SnoId;
-        var (formulas, embeddedLits, maxRank) = DecodeScriptFormulas(blob);
+        var (formulas, embeddedLits) = DecodeScriptFormulas(blob);
         var resolved = ResolveScriptFormulas(formulas);
         var compiled = ResolveCompiledFormulas(formulas, embeddedLits);
-        return new PowerDefinition(snoId, formulas, resolved, compiled, embeddedLits, maxRank);
+        return new PowerDefinition(snoId, formulas, resolved, compiled, embeddedLits);
     }
 
     internal void SetStrings(string name, string description)
@@ -504,13 +474,12 @@ public sealed class PowerDefinition
     /// <br/><br/>
     /// The slot table is the LAST contiguous run of 16-byte slot records
     /// in the blob, terminated by a <c>("0", 0.0)</c> record. The
-    /// trailing <c>"10"</c> sentinel (engine max-rank marker, present
-    /// identically on every anchored legendary) is stripped from the
-    /// returned list.
+    /// trailing <c>"10"</c> footer literal (a fixed value-descriptor footer,
+    /// present identically on every anchored legendary — <i>not</i> the rank
+    /// cap; FR-C38) is stripped from the returned list.
     /// </summary>
     private static (PowerScriptFormula[] Slots,
-        IReadOnlyDictionary<int, IReadOnlyList<float>> EmbeddedLiterals,
-        int MaxRank) DecodeScriptFormulas(
+        IReadOnlyDictionary<int, IReadOnlyList<float>> EmbeddedLiterals) DecodeScriptFormulas(
         ReadOnlySpan<byte> blob)
     {
         // Anchor on the ("0", 0.0) terminator record (Layout A: a clean
@@ -530,7 +499,7 @@ public sealed class PowerDefinition
             }
         }
         if (terminatorOff is null)
-            return (Array.Empty<PowerScriptFormula>(), EmptyEmbeddedLiterals, 0);
+            return (Array.Empty<PowerScriptFormula>(), EmptyEmbeddedLiterals);
 
         // Walk BACKWARD decoding each record. Each step accepts a
         // literal record (16 or 20 bytes) OR a Phase 3 expression
@@ -573,21 +542,17 @@ public sealed class PowerDefinition
         records.Reverse();
 
         // Strip the trailing ("0", 0.0) terminator + ALL trailing
-        // ("10", 10.0) sentinels (every anchored legendary has at least
-        // one "10" sentinel; some — like Greater Hex — repeat it; powers
-        // without these just lose the trim). Capture the sentinel's value
-        // as the power's max rank (LIB-3 R7 / CL-100) — read from the data,
-        // not hard-coded (the constant PowerDefinition.MaxLegendaryRank is
-        // the universal-cap convenience cross-validated against this decode).
+        // ("10", 10.0) footer literals (every anchored legendary has at least
+        // one; some — like Greater Hex — repeat it; powers without these just
+        // lose the trim). This is a fixed value-descriptor footer, NOT the rank
+        // cap (FR-C38 corrected CL-100's misread; the per-aspect max rank is
+        // AffixDefinition.MaxRank at affix +0x94). Stripped because it is not an
+        // SF_N value; its own value is not surfaced.
         int end = records.Count;
-        int maxRank = 0;
         if (end >= 1 && records[end - 1].Text == "0" && records[end - 1].Value == 0.0f)
             end--;
         while (end >= 1 && records[end - 1].Text == "10" && records[end - 1].Value == 10.0f)
-        {
-            maxRank = (int)records[end - 1].Value;   // engine max-rank sentinel (universally 10)
             end--;
-        }
 
         var result = new PowerScriptFormula[end];
         Dictionary<int, IReadOnlyList<float>>? embDict = null;
@@ -600,7 +565,7 @@ public sealed class PowerDefinition
                 embDict[i] = records[i].Embedded;
             }
         }
-        return (result, embDict ?? EmptyEmbeddedLiterals, maxRank);
+        return (result, embDict ?? EmptyEmbeddedLiterals);
     }
 
     private static readonly IReadOnlyDictionary<int, IReadOnlyList<float>> EmptyEmbeddedLiterals =

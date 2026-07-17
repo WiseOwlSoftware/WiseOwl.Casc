@@ -960,56 +960,59 @@ public sealed class Diablo4StorageIntegrationTests
         Assert.NotEqual(AffixEffect.NoFormula, crit.FormulaGbid);
     }
 
-    /// <summary>LIB-3 R7 (CL-100) — the max legendary/aspect rank is surfaced as
-    /// <see cref="PowerDefinition.MaxRank"/> (decoded from the power's
-    /// script-formula tail sentinel) and is UNIVERSAL: every <c>legendary_*</c>
-    /// power carries the identical cap, equal to the baked
-    /// <see cref="PowerDefinition.MaxLegendaryRank"/> constant. That cap is the
-    /// value the rank-scaled aspect affix formulas reach via
-    /// <c>CurrentLegendaryRank()</c>, so a consumer can print an aspect's
-    /// <c>[formula(1) … formula(MaxRank)]</c> span. content-snapshot: the cap
-    /// value (10) is a game-global that could rebalance per build (3.1.1.72836 /
-    /// Season 14) — a change surfaces here as the re-verify trigger for the
-    /// <see cref="PowerDefinition.MaxLegendaryRank"/> constant.</summary>
+    /// <summary>FR-C38 (#55, CL-107) — the legendary/aspect max rank is
+    /// <b>per-aspect</b> and lives on the g104 <b>affix</b> record at payload
+    /// <c>+0x94</c> (<see cref="AffixDefinition.MaxRank"/>), <i>not</i> a global
+    /// constant and <i>not</i> the Power-record <c>("10",10.0)</c> footer the
+    /// removed CL-100 <c>PowerDefinition.MaxRank</c> misread. Owner Codex-of-Power
+    /// oracle: 4 aspects with 3 distinct caps (21/21/6/16), each reproducing the
+    /// game's shown value span as <c>[InlineFormula(1) … InlineFormula(MaxRank)]</c>.
+    /// content-snapshot: the caps are season-drift-prone (a build may re-tune
+    /// them); locked on 3.1.1.72836 / Season 14 (SnoScan <c>maxrankscan</c>).</summary>
     [SkippableFact]
     [Trait("kind", "content-snapshot")]
-    public void PowerDefinition_MaxRank_is_the_universal_legendary_rank_cap()
+    public void AffixDefinition_MaxRank_is_the_per_aspect_legendary_rank_cap()
     {
         var install = Install();
         Skip.If(install is null, "No Diablo IV install available.");
         using var d4 = Diablo4Storage.Open(install!);
 
-        // Anchor: a legendary aspect power carries the max-rank sentinel even
-        // when it exposes no SF_N slots of its own (its per-rank value lives on
-        // the paired g104 affix, cross-referenced by shared name). Decode via
-        // Parse (no localization) — MaxRank comes from the tail, not the name.
-        Assert.True(d4.TryReadSno(29, 340795, SnoFolder.Meta, out var barbBlob)); // legendary_barb_001
-        var barb001 = PowerDefinition.Parse(barbBlob);
-        Assert.Equal(10, barb001.MaxRank);
-        Assert.Equal(PowerDefinition.MaxLegendaryRank, barb001.MaxRank);
-        Assert.Empty(barb001.ScriptFormulas);   // sentinel present, zero SF slots
+        // The four owner oracles: (affix sno, expected MaxRank, min, expected max).
+        // Edgemaster/Conceited cap at 21, Coagulation at 6, Glynn at 16 — three
+        // distinct caps prove +0x94 is per-aspect, not a coincidental constant.
+        Assert.Equal(21, d4.ReadAffix(578875).MaxRank);   // legendary_generic_063 (Edgemaster's)
+        Assert.Equal(21, d4.ReadAffix(578845).MaxRank);   // legendary_generic_027 (Conceited)
+        Assert.Equal(6,  d4.ReadAffix(2591186).MaxRank);  // legendary_necro_023_x2 (Coagulation)
+        Assert.Equal(16, d4.ReadAffix(2445175).MaxRank);  // legendary_paladin_031 (Glynn's Anvil cap)
 
-        // The paired g104 aspect affix carries the rank-scaled inline formula
-        // that reaches CurrentLegendaryRank() up to that cap.
-        Assert.Contains(d4.ReadAffix(578699).Effects,   // legendary_barb_011
-            x => x.InlineFormula == "19+CurrentLegendaryRank()*0.5");
+        // Span reconstruction: for a linear base+(rank-1)*step aspect the value
+        // span is [f(1), f(MaxRank)]. Edgemaster "40+(CurrentLegendaryRank()-1)*1"
+        // → [40, 60] at cap 21; Coagulation "15+(rank-1)*1" → [15, 20] at cap 6.
+        var edge = d4.ReadAffix(578875);
+        Assert.Contains(edge.Effects, e => e.InlineFormula == "40+(CurrentLegendaryRank()-1)*1");
+        Assert.Equal(60, 40 + (edge.MaxRank - 1) * 1);    // f(21) = the shown range max
+        var coag = d4.ReadAffix(2591186);
+        Assert.Contains(coag.Effects, e => e.InlineFormula.Contains("CurrentLegendaryRank"));
+        Assert.Equal(20, 15 + (coag.MaxRank - 1) * 1);    // f(6) = the shown range max
 
-        // Universality: EVERY legendary power reports the same cap — the
-        // 699/699 SnoScan `ranksentinel` finding, locked as a regression gate.
-        // Same cohort as the recon (case-insensitive "legendary_"): the item /
-        // aspect legendary powers, which is the population CurrentLegendaryRank
-        // ranges over.
-        int count = 0, bad = 0;
+        // Population: every legendary aspect affix carries +0x94 in a sane rank
+        // range (the 661/661 maxrankscan finding), with 21 the dominant cap.
+        int total = 0, present = 0, sane = 0, capped21 = 0;
         foreach (var e in d4.CoreToc.Entries.Where(
-            e => (int)e.Group == 29 &&
+            e => (int)e.Group == 104 &&
                  e.Name.Contains("legendary_", System.StringComparison.OrdinalIgnoreCase)))
         {
-            if (!d4.TryReadSno(29, e.Id, SnoFolder.Meta, out var blob)) continue;
-            if (PowerDefinition.Parse(blob).MaxRank != PowerDefinition.MaxLegendaryRank) bad++;
-            count++;
+            if (!d4.TryReadSno(104, e.Id, SnoFolder.Meta, out var blob)) continue;
+            int mr = AffixDefinition.Parse(blob).MaxRank;
+            total++;
+            if (mr != 0) present++;
+            if (mr is >= 1 and <= 200) sane++;
+            if (mr == 21) capped21++;
         }
-        Assert.True(count >= 650, $"expected >=650 legendary powers, checked {count}");
-        Assert.Equal(0, bad);
+        Assert.True(total >= 600, $"expected >=600 legendary aspect affixes, checked {total}");
+        Assert.Equal(total, present);                     // 661/661 present
+        Assert.Equal(total, sane);                        // 661/661 in 1..200
+        Assert.True(capped21 > total / 2, $"expected 21 to be the modal cap, got {capped21}/{total}");
     }
 
     /// <summary>FR-C34 (CL-101) — the <c>DifficultyTiers</c> per-monster-level

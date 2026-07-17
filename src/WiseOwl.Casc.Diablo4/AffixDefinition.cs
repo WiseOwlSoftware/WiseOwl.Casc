@@ -85,17 +85,23 @@ public sealed class AffixDefinition
     /// <c>byteSize@+0x7C</c>) — the affix's rollable-on-these-types list (#51).</summary>
     private const int AllowedItemTypesDescriptorOffset = 0x78;
 
+    /// <summary>Payload offset of the <b>legendary/aspect max-rank</b> int32
+    /// field (FR-C38, CL-107). The rank cap <c>CurrentLegendaryRank()</c>
+    /// reaches for a rank-scaled aspect affix — see <see cref="MaxRank"/>.</summary>
+    private const int MaxRankFieldOffset = 0x94;
+
     private readonly AffixEffect[] _effects;
     private readonly float[] _staticValues;
     private readonly int[] _allowedItemTypes;
 
     private AffixDefinition(
-        int snoId, AffixEffect[] effects, float[] staticValues, int[] allowedItemTypes)
+        int snoId, AffixEffect[] effects, float[] staticValues, int[] allowedItemTypes, int maxRank)
     {
         SnoId = snoId;
         _effects = effects;
         _staticValues = staticValues;
         _allowedItemTypes = allowedItemTypes;
+        MaxRank = maxRank;
     }
 
     /// <summary>The affix's own SNO id (== the CoreTOC id).</summary>
@@ -160,10 +166,36 @@ public sealed class AffixDefinition
     /// </remarks>
     public IReadOnlyList<int> AllowedItemTypes => _allowedItemTypes;
 
+    /// <summary>
+    /// FR-C38 (#55, CL-107) — the <b>per-aspect maximum legendary rank</b>: the
+    /// cap <c>CurrentLegendaryRank()</c> reaches in a rank-scaled aspect affix's
+    /// value formula (<see cref="AffixEffect.InlineFormula"/>), read from the
+    /// int32 at payload <c>+0x94</c>. It is <b>per aspect</b>, not a global
+    /// constant — the live build (<c>3.1.1.72836</c>, Season 14) has caps of
+    /// <b>21</b> (most aspects — 394 of 661), <b>11</b> (82), <b>16</b> (79),
+    /// <b>6</b> (19), and a spread of others. So an aspect's rolled value span is
+    /// <c>[InlineFormula(1) … InlineFormula(MaxRank)]</c> — e.g. Edgemaster's
+    /// (<c>MaxRank</c> 21, <c>40+(rank-1)*1</c>) spans <c>[40 … 60]</c>%, and
+    /// Aspect of Coagulation (<c>MaxRank</c> 6, <c>15+(rank-1)*1</c>) spans
+    /// <c>[15 … 20]</c>%. Owner in-game oracle (Codex of Power) validated 4/4
+    /// aspects exactly (21/21/6/16); the field is present + in a sane rank range
+    /// on 661/661 <c>legendary_*</c> aspect affixes.
+    /// <br/><br/>
+    /// The rank floor is <b>1</b> (<c>InlineFormula(1)</c> = the range minimum).
+    /// Meaningful for rank-scaled aspect affixes (those whose
+    /// <see cref="AffixEffect.InlineFormula"/> references
+    /// <c>CurrentLegendaryRank()</c>); for other affixes the field may hold an
+    /// unrelated quantity or <b>0</b>, so gate its use on the affix being a
+    /// rank-scaled aspect. This is season-drift-prone (a build may re-tune caps)
+    /// — see <c>casc-diablo4-format.md</c> §8.2. <b>0</b> on a short/malformed
+    /// record.
+    /// </summary>
+    public int MaxRank { get; }
+
     /// <summary>Decode an Affix from its raw SNO blob (identity + the
     /// structural <see cref="Effects"/> + <see cref="StaticValues"/> +
-    /// <see cref="AllowedItemTypes"/>; the localized fields need
-    /// <see cref="CoreToc"/> — use
+    /// <see cref="AllowedItemTypes"/> + <see cref="MaxRank"/>; the localized
+    /// fields need <see cref="CoreToc"/> — use
     /// <see cref="Diablo4Storage.ReadAffix(int,string)"/>). On the byte-only
     /// path each effect's <see cref="AffixEffect.AttributeName"/> is
     /// <see cref="string.Empty"/>.</summary>
@@ -171,8 +203,13 @@ public sealed class AffixDefinition
     {
         var r = new SnoRecord(blob);
         return new AffixDefinition(
-            r.SnoId, ReadEffects(r), ReadStaticValues(r), ReadAllowedItemTypes(r));
+            r.SnoId, ReadEffects(r), ReadStaticValues(r), ReadAllowedItemTypes(r), ReadMaxRank(r));
     }
+
+    /// <summary>Read the legendary/aspect max-rank int32 at payload
+    /// <c>+0x94</c> (FR-C38). <b>0</b> on a short record.</summary>
+    private static int ReadMaxRank(SnoRecord r) =>
+        r.PayloadBase + MaxRankFieldOffset + 4 <= r.Length ? r.I32(MaxRankFieldOffset) : 0;
 
     /// <summary>Decode the allowed-item-type id list from the <c>+0x78</c>
     /// <c>DT_VARIABLEARRAY[int]</c> (#51). Empty on a missing/malformed

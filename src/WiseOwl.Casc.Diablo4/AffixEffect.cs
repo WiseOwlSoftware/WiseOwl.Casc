@@ -93,15 +93,18 @@ namespace WiseOwl.Casc.Diablo4;
 /// <c>[Affix_Value_N]</c> value. <see cref="string.Empty"/> when the modifier
 /// has a GBID-referenced formula instead, no inline formula, or the affix was
 /// decoded byte-only.
-/// <para><b>Rank-scaled aspects (LIB-3 R7, CL-100).</b> Many legendary/aspect
-/// inline formulas are <i>deterministic in the item's legendary rank</i>, not
-/// random — they call the engine intrinsic <c>CurrentLegendaryRank()</c> (e.g.
-/// <c>"19+CurrentLegendaryRank()*0.5"</c>, or the more common
-/// <c>"20+(CurrentLegendaryRank()-1)*k"</c> form whose <c>-1</c> pins the rank
-/// as <b>1-based</b>: the base is the value at rank 1). The rank runs
-/// <c>1 … <see cref="PowerDefinition.MaxLegendaryRank"/></c> (universally 10 —
-/// see that constant / <see cref="PowerDefinition.MaxRank"/>), so the printable
-/// value is the span <c>[formula(1) … formula(10)]</c>, not a roll range.</para>
+/// <para><b>Rank-scaled aspects (LIB-3 R7, CL-100; corrected FR-C38 CL-107).</b>
+/// Many legendary/aspect inline formulas are <i>deterministic in the item's
+/// legendary rank</i>, not random — they call the engine intrinsic
+/// <c>CurrentLegendaryRank()</c> (e.g. <c>"19+CurrentLegendaryRank()*0.5"</c>, or
+/// the more common <c>"20+(CurrentLegendaryRank()-1)*k"</c> form whose <c>-1</c>
+/// pins the rank as <b>1-based</b>: the base is the value at rank 1). The rank
+/// runs <c>1 … <see cref="AffixDefinition.MaxRank"/></c> — the <b>per-aspect</b>
+/// cap (int32 at affix payload <c>+0x94</c>; commonly 21, but 11/16/6/… for
+/// others), <i>not</i> a global constant — so the printable value is the span
+/// <c>[formula(1) … formula(MaxRank)]</c>, not a roll range. (The earlier
+/// "universal 10" was a misread of a Power-record footer literal; see
+/// <see cref="AffixDefinition.MaxRank"/>.)</para>
 /// <para><b>Cross-references + conditionals (§8.1 grammar).</b> A minority of
 /// inline formulas reach beyond arithmetic: <c>PowerTag.&lt;Name&gt;."Script
 /// Formula N"</c> reads another power's script formula (identifiable —

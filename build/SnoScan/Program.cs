@@ -1774,6 +1774,38 @@ switch (cmd)
         }
         return 0;
     }
+    case "maxrankscan":
+    {
+        // FR-C38: validate the per-aspect legendary rank cap = affix payload
+        // +0x94 (int32). For every matching g104 affix print id, name, +0x94 and
+        // the rank-neighbor cluster +0x8C/+0x90/+0x98; report the +0x94
+        // distribution + how many are present / in a sane 1..200 rank range.
+        //   maxrankscan [substr=legendary_] [max=20000]
+        string sub = argv.Count > 1 ? argv[1] : "legendary_";
+        int max = argv.Count > 2 ? int.Parse(argv[2]) : 20000;
+        int pb = SnoRecord.DefaultPayloadBase;
+        var dist = new SortedDictionary<int, int>();
+        int total = 0, present = 0, sane = 0, printed = 0;
+        foreach (var e in toc.Entries.Where(e => (int)e.Group == 104
+                     && e.Name.Contains(sub, StringComparison.OrdinalIgnoreCase)).OrderBy(e => e.Name).Take(max))
+        {
+            if (!d4.TryReadSno(104, e.Id, SnoFolder.Meta, out var b)) continue;
+            var r = new SnoRecord(b); int len = b.Length;
+            if (pb + 0x94 + 4 > len) continue;
+            total++;
+            int mr = r.I32(0x94);
+            int c8c = pb + 0x8C + 4 <= len ? r.I32(0x8C) : -999;
+            int c90 = pb + 0x90 + 4 <= len ? r.I32(0x90) : -999;
+            int c98 = pb + 0x98 + 4 <= len ? r.I32(0x98) : -999;
+            if (mr != 0) present++;
+            if (mr is >= 1 and <= 200) { sane++; dist.TryGetValue(mr, out var c); dist[mr] = c + 1; }
+            if (printed < 25) { Console.WriteLine($"{e.Id} {e.Name}: +0x94={mr} [8C={c8c} 90={c90} 98={c98}]"); printed++; }
+        }
+        Console.WriteLine($"-- total={total} present(+0x94!=0)={present} sane(1..200)={sane} --");
+        Console.WriteLine("-- +0x94 distribution (value:count) --");
+        foreach (var kv in dist) Console.WriteLine($"   {kv.Key}: {kv.Value}");
+        return 0;
+    }
     case "inlineformula":
     {
         // LIB-3 R5: does the affix record carry an INLINE formula string
