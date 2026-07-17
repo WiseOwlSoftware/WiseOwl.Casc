@@ -20,9 +20,9 @@ load-bearing "don't re-discover" facts.
 ### ⏭️ NEXT-SESSION PICKUP (2026-07-17) — start here
 
 **Published: `WiseOwl.Casc` + `WiseOwl.Casc.Diablo4` `0.6.0` live on NuGet.**
-`main` tip **`dfabf35`**; `<Version>` = 0.6.0; working tree clean. The FR-loop
+`main` tip **`e56281a`**; `<Version>` = 0.6.0; working tree clean. The FR-loop
 counter-round marathon (CL-92 → CL-99) shipped in 0.6.0; **CL-100 (LIB-3 R7) +
-CL-101 (FR-C34) are unreleased on `main`**. Release
+CL-101/102 (FR-C34 + LevelScaling companion) are unreleased on `main`**. Release
 mechanics: `docs/RELEASING.md` (GitHub Release → `nuget` env gate → OIDC). **The
 env gate is approvable via API with the owner-authed CLI** (`gh api
 repos/.../actions/runs/<id>/pending_deployments` → `current_user_can_approve`;
@@ -64,9 +64,13 @@ SNOs (g1, ~61k; `.acr` = identity+appearance/anim, no base-HP field); base HP is
 engine-assembled, not a flat field (same boundary as player base `50`); mapped
 `MonsterLevelCurves` (`Raid_Tier_0..5`) / `MonsterNames` / `MonsterAffixCategories`
 / `MonsterTags` (typeable on request). Spec §8.3, Appendix A CL-101, devlog 0095.
-**PENDING fast-follow (owner + Optimizer requested):** type `LevelScaling`'s 5
-remaining monster columns (`monsterDr`/`powerBase`/`powerDelta`/`powerItem`/
-`xpScalar`) — `powerItem` may supply `IPower()` for the §8.1 affix evaluator (#45).
+**Fast-follow DONE (CL-102, `e56281a`):** exposed `LevelScaling`'s remaining
+columns **raw** (`LevelScalingRow.Columns`, all 53) but did **not** name the 5
+(`monsterDr`/`powerBase`/`powerDelta`/`powerItem`/`xpScalar`) — unverifiable from
+the blob (no anchor/oracle, unlike DifficultyTiers's XP). Naming **blocked pending
+d4data column-order schema OR an owner oracle** (item-power@level would pin
+`powerItem` for §8.1/#45). Behavioral characterization in §8.2; devlog 0096;
+companion note on #50 asks which unblock path.
 
 **#39 FR-C27 — RESOLVED `fr:by-design` (2026-07-17, owner call; now
 `awaiting:optimizer`).** The Optimizer verified CL-97 on published 0.6.0
