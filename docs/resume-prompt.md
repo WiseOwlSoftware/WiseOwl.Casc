@@ -24,7 +24,24 @@ load-bearing "don't re-discover" facts.
 lags a few min). `main` tip **`6fe580b`** (+ this doc commit); `<Version>` =
 0.7.0; working tree clean. **0.7.0 shipped CL-100 (LIB-3 R7) + CL-101 (FR-C34) +
 CL-102 (LevelScaling raw cols) + CL-103 (unique→affix wiring).** `main` tip
-**`5e65f22`**; **CL-104 (LIB-5 skill modifiers) is unreleased on `main`**. Release
+**`7180267`**; **unreleased on `main`: CL-104 (LIB-5 skill modifiers) + CL-105
+(FR-C35 MonsterNames + FR-C36 finding)**. Release
+
+**⚠️ API REDESIGN — DECIDED DIRECTION (owner, 2026-07-17; not yet started).** Owner
+wants the API revisited before 1.0. Judge-panel verdict = **"flat-plus +
+provenance-as-data"**, reweighted by owner's "public NuGet, many potential
+consumers" point: (1) uniform **`SnoTable<T>`** per family replacing the ~40 ad-hoc
+`ReadXxx`/`EnumerateXxx` (decode-free `.Keys` from CoreTOC, lazy cached `.Values`);
+(2) the honesty prize — **`EdgeProvenance {Authored, NameConvention, Sibling,
+NotDecoded}`** on `Catalog.Related()`; `NotDecoded` = hand-declared + evidence-gated
+"known-unknown" + CI guard; (3) phantom-typed **`SnoRef<T>`** FK handles; (4)
+document `Catalog`+`Related()` as the shipped nav model; (5) a thin dot-navigable
+`Asset` façade **built incrementally over the growing edge set** (public consumers
+ARE the audience → don't defer indefinitely, but never ahead of verified edges).
+Owner constraints: **zero known consumers → breaking changes FREE; NO shims;**
+Optimizer (owner's personal tool) adapts. Full design in the workflow output +
+my synthesis. **Sequencing: keep delivering FRs in current style meanwhile; they
+get swept into the SnoTable rename.**
 mechanics: `docs/RELEASING.md` (GitHub Release → `nuget` env gate → OIDC).
 **⚠️ IDENTITY:** release ops (release create + gate approval) MUST run as the
 **owner** (`BrentRector`), but this project's ambient `GH_TOKEN` is the **bot**
@@ -38,12 +55,19 @@ POST `-F environment_ids[]=<id> -f state=approved`). NuGet lag: the
 (installable); the **registration** endpoint (`registration5-gz-semver2/<pkg>/<ver>.json`
 → 200) + nuget.org UI lag longer. `jq` is NOT installed in bash — use `gh --jq`.
 
-**0 open CASC turns** (queue clear 2026-07-17; Optimizer offline since ~06:47Z, so
-the afternoon deliveries await its return). **All CL-100..103 now RELEASED in
-0.7.0** → the Optimizer can consume-verify #45/#50 against a published package.
-`casc-fr#39` disposed **`fr:by-design`**. Proposal **`casc-fr#51`** (affix pool —
-requesting the Optimizer's query-API shape) is `awaiting:optimizer`. The queue
-moves fast when the Optimizer is active — **re-poll before assuming idle.**
+**Optimizer is BACK + active (returned ~20:16Z).** Delivered this arc:
+`casc-fr#52` FR-C35 (MonsterNames reader, CL-105) + `#53` FR-C36 (finding — it's a
+name registry, no curve) → both `awaiting:optimizer`. **2 open `awaiting:casc`:**
+- **`#51`** affix pool — Optimizer answered my shape questions: build
+  **`AffixDefinition.AllowedItemTypes`** (per-affix `+0x78` VLA, the primitive) +
+  **`RollableAffixes(itemType)`** inverted convenience + a slot rollup; item-type
+  granularity (source of truth); raw eItemType ids first, names later. Tempering
+  folds in (same mechanism). **eItemType enum → names needs an oracle/EXE** (not
+  in g98). Build this next.
+- **`#54`** FR-C37 — resolve `PowerTag.S10ChaosTuningPerClass."Script Formula N"`
+  (86 affixes) — the deferred FR-C13 **binary-AST opcode** decode; the hard one.
+`#45`/`#50`/`#39`/`#41`/`#49` all `awaiting:optimizer` (consume-verify vs 0.7.0);
+`#39` disposed `fr:by-design`. Re-poll before assuming idle.
 
 **Skill trees = DATA-DRIVEN — GO (CL-104 shipped; my earlier NO-GO was WRONG,
 retracted 2026-07-17).** ⚠️ I first called skill trees "engine-assembled" from a
