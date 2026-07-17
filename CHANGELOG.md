@@ -6,6 +6,14 @@ Semantic Versioning once it reaches `1.0.0`.
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-07-17
+
+Deepens the affix and character-stat data: unique/legendary power **roll
+formulas** (so a build planner can compute the numbers behind `[roll]`), wider
+**attribute-name** coverage, **base Max Life by level**, names for the game's
+conditional attributes, and a NaN-safe formula evaluator. Continues to track
+the live game through Season 14 (build `3.1.1.72836`).
+
 ### Added
 
 - **Base Max Life by level** — `Diablo4Storage.ReadLevelScaling()` exposes the
