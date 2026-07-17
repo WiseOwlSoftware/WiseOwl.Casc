@@ -73,6 +73,8 @@ only gear affixes). The Optimizer catches them by re-deriving before consuming.
 is a valid recorded answer.** Applied in CL-95/96/97 (measured coverage, named
 residuals).
 
+**★ 0.6.0 PUBLISHED to NuGet (2026-07-17)** — CL-95..CL-99 batch live+validated (base Max Life/LevelScaling=CL-99, `ReadLevelScaling`/`BaseLife`). #39/#41/#45/#49 `released:v0.6.0`. #41 Phase-2 shipped. **TODO next release: modernize package READMEs** (stale `CascStorage.OpenLocal`/`ReadPath` → `Diablo4Storage.Open()` + typed API — see [[project_readme-update-next-release]]). Still `awaiting:casc`: **#45 R7** (`CurrentLegendaryRank`/max-aspect-rank for 597 aspects).
+
 **★ SESSION END STATE (2026-07-16): queue CLEAR — 0 `awaiting:casc`.** Shipped
 this session: CL-92..CL-98 (7 CLs) + **published 0.5.0 to NuGet**. Delivered
 `casc-fr` #45 (×4 rounds), #46, #47, #48, #39 (R2), #49 — all `awaiting:optimizer`.
