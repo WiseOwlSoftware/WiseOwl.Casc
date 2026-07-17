@@ -1038,6 +1038,32 @@ switch (cmd)
             Console.WriteLine($"  group {(int)e.Group,3}  id {e.Id,9}  {e.Name}");
         return 0;
     }
+    case "strdump":
+    {
+        // Generic recon: dump every printable ASCII run (>=minlen) in ANY SNO
+        // payload, with payload offset — for GameBalance / monster-table RE.
+        //   strdump <group> <sno> [minlen=3]
+        if (argv.Count < 3) { Console.Error.WriteLine("strdump <group> <sno> [minlen]"); return 2; }
+        int g = int.Parse(argv[1]), s = int.Parse(argv[2]);
+        int minLen = argv.Count > 3 ? int.Parse(argv[3]) : 3;
+        int pb = SnoRecord.DefaultPayloadBase;
+        if (!d4.TryReadSno((SnoGroup)g, s, SnoFolder.Meta, out var b)) { Console.WriteLine("no content"); return 1; }
+        Console.WriteLine($"## {g}/{s} len={b.Length}");
+        int i = pb;
+        while (i < b.Length)
+        {
+            if (b[i] is >= 0x20 and < 0x7f)
+            {
+                int start = i;
+                while (i < b.Length && b[i] is >= 0x20 and < 0x7f) i++;
+                int n = i - start;
+                if (n >= minLen)
+                    Console.WriteLine($"   +{start - pb,-5} \"{System.Text.Encoding.ASCII.GetString(b, start, n)}\"");
+            }
+            else i++;
+        }
+        return 0;
+    }
     case "rawhex":
     {
         // rawhex <group> <sno> [off=0] [len=256] — payload-relative hex+u32 dump

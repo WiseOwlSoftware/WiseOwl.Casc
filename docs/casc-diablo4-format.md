@@ -981,8 +981,13 @@ functions' `[min, max]` args and the clamps.
 (`dataOffset@+0` = 88, `byteSize@+4` = 42400) → **200 rows × 212 bytes**;
 **row index = level − 1**; the `float` **`hpScalar` is at row column `+4`**
 (`1.0` at level 1). Rows are indexed `1..200`: **characters occupy `1..70`**
-(the cap, `heroDetails` id 279), `71..200` are monster / content levels — one
-`hpScalar` column serves both populations.
+(the cap, `heroDetails` id 279), `71..200` extend the curve into content levels.
+**Reconciliation (FR-C34, CL-101):** an earlier note that this one `hpScalar`
+column *also* governs monster HP is **superseded** — monsters scale their HP off
+the separate, far steeper `DifficultyTiers` curve (§8.3): **×101,051 at L70** vs
+`hpScalar`'s ×30.5, a ~3,300× different curve. `hpScalar` is the *player*
+base-Life curve; what consumes rows `71..200` is not modeled here, but it is
+**not** the monster-HP source.
 
 **Base Max Life is class-independent** (every class reads identically):
 `round(50 × hpScalar[level])`, **round-half-away-from-zero**. The base
@@ -998,6 +1003,51 @@ Surface: `Diablo4Storage.ReadLevelScaling()` → `LevelScalingTable`
 (`HpScalar(level)`, `BaseLife(level)`, `BaseHitpointsMax`, `MaxCharacterLevel`).
 Other columns (`monsterDr` / `powerBase/Delta/Item` / `xpScalar`) exist but are
 not modeled — only the byte-verified `hpScalar` + base-Life projection ship.
+
+### 8.3 `DifficultyTiers` → per-monster-level curve (SNO 1973217; FR-C34, CL-101)
+
+`DifficultyTiers` (GameBalance 1973217) is the **monster/content analogue** of
+§8.2 — the per-**monster-level** scaling curve. Layout (verified `3.1.1.72836`):
+a `DT_VARIABLEARRAY` descriptor at payload `+0x50` (`dataOffset@+0` = 88,
+`byteSize@+4` = 19200) → **150 rows × 128 bytes**; **row index = level − 1**
+(monster levels `1..150`). Columns (byte offset within the row):
+
+| col | reading | L1 / L40 / L70 | confidence |
+|---|---|---|---|
+| `+0` (`int32`) | **level** | 1 / 40 / 70 | verified (row-index identity) |
+| `+4` (`float`) | **monster HP multiplier** | 1.0 / 909.8 / 101,051 | **inferred** (devlog 0084; no oracle) |
+| `+8` (`float`) | **monster damage multiplier** | 1.0 / 16.06 / 64.44 | **inferred** (no oracle) |
+| `+36` (`float`) | **per-level XP value** | 0 / **8.0** / **11.0** | **verified** (the anchor) |
+| `+40` (`float`) | per-level gold value | 0 / 2.0 / 2.75 | candidate |
+
+**The anchor locks the layout.** `+36` reproduces the game's per-level XP curve
+exactly (L40 = 8.0, L70 = 11.0; `+0.1`/level from ~L40) — an *independent* check
+that fixes the stride/offset, so every column is correctly *located*. But
+`+4`/`+8` carry **inferred** semantics: both are per-level multipliers (×1.0 at
+L1), yet the "monster HP / damage" meaning **cannot be owner-validated** — D4
+shows monster health as a bar only, no numeric readout (honest-label discipline,
+[[feedback_calibrate-claims-to-evidence]] / FR-C31). The remaining ~26 columns
+are a mix of small `int` flags and `float` reward/scaling coefficients, exposed
+**unlabeled** on `DifficultyTierRow.Columns`. Surface:
+`Diablo4Storage.ReadDifficultyTiers()` → `DifficultyTiersTable`
+(`Row(level)` / `MonsterHpScalar` / `MonsterDamageScalar` / `PerLevelXpValue` /
+`PerLevelGoldValue` / `LevelCount`).
+
+**Monster tables landscape (FR-C34 recon; how far RE reaches).** Monsters are
+**Actor SNOs (group 1, ~61k)**, named `<family>_<role>_<element>_<context>`
+(`Goatman_sorcerer_phys`, `BSK_Goatman_sorcerer_cold`, `…_unique_DGN_…`). The
+`.acr` record is **identity + appearance/anim references** (base appearance actor
+in group 9; anim tree in group 67) — **no base-HP field**. Other monster
+GameBalance (group 20) tables: `MonsterLevelCurves` (1610053 — 6 named
+`Raid_Tier_0..5` scaling curves for raid content), `MonsterNames` (44325 — a
+385 KB monster name-affix registry of prefixes/suffixes:
+`BloodSeekerBarbPrefix…`, `X1_Raid_Special_Add_Suffix`), `MonsterAffixCategories`
+(2440465), `MonsterTags` (1441616). **The per-monster BASE HP is not a flat
+readable field** — like the player-side `Hitpoints_Max = 50` (§8.2, fitted not
+located), monster HP is engine-assembled from base attributes × this
+`DifficultyTiers` curve × difficulty/raid-tier. That is the engine boundary; the
+per-level *scaling* is now typed, the per-monster *base* is not in the data as a
+number.
 
 ## 9. Read path (Diablo IV)
 
@@ -2465,6 +2515,21 @@ armor, …). Structural — no name parsing.
 
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
+
+- **CL-101 — `DifficultyTiers` per-monster-level curve + §8.2 reconciliation
+  (FR-C34, `casc-fr#50`).** Typed the monster/content scaling table (SNO
+  1973217, group 20): `Diablo4Storage.ReadDifficultyTiers()` → `DifficultyTiersTable`
+  — 150 rows (monster levels 1..150, VLA @ payload `+0x50` → 150 × 128 B),
+  byte-verified against the live blob. Row layout locked by an **independent**
+  anchor: `+36` per-level XP reproduces the game curve (L40 = 8.0, L70 = 11.0).
+  `+4`/`+8` HP/damage multipliers are **inferred** labels (no monster-HP oracle
+  exists — D4 shows health as a bar; AC-3), the ~26 other columns exposed
+  unlabeled on `.Columns`. **Corrected §8.2**: its "one `hpScalar` column serves
+  both populations" was wrong — monster HP scales off *this* far steeper curve
+  (×101,051 vs ×30.5 at L70), not `LevelScaling` rows 71–200. Monster-data recon
+  (owner ask): monsters are Actor SNOs (g1, ~61k; `.acr` = identity + appearance/
+  anim, no base-HP field); base HP is engine-assembled (not a flat field), the
+  same boundary as the player base `50`. Recon: `SnoScan strdump`. §8.3; devlog 0095.
 
 - **CL-100 — max legendary rank + affix formula grammar (LIB-3 R7, `casc-fr#45`).**
   Rank-scaled aspect affixes call `CurrentLegendaryRank()` (deterministic, not a

@@ -1374,6 +1374,20 @@ public sealed class Diablo4Storage : IDisposable
     public LevelScalingTable ReadLevelScaling(int id = 206158) =>
         LevelScalingTable.Parse(ReadSno(SnoGroup.GameBalance, id));
 
+    /// <summary>Read + decode the <see cref="DifficultyTiersTable"/> (FR-C34,
+    /// CL-101) — the per-<b>monster-level</b> scaling curve (SNO
+    /// <see cref="DifficultyTiersTable.DefaultSnoId"/> = 1973217, group
+    /// <see cref="SnoGroup.GameBalance"/>): 150 rows (monster levels 1..150)
+    /// with per-level HP/damage multipliers, the XP-value anchor column, and a
+    /// candidate gold column, plus the raw coefficient vector. This is the
+    /// monster/content analogue of <see cref="ReadLevelScaling(int)"/> — a
+    /// separate, far steeper curve (see the type remarks / §8.2).</summary>
+    /// <param name="id">The <c>DifficultyTiers</c> SNO id (defaults to
+    /// <c>1973217</c>).</param>
+    /// <exception cref="CascFormatException">The blob's row VLA is malformed.</exception>
+    public DifficultyTiersTable ReadDifficultyTiers(int id = DifficultyTiersTable.DefaultSnoId) =>
+        DifficultyTiersTable.Parse(ReadSno(SnoGroup.GameBalance, id));
+
     // ----- C6 typed record readers (identity + localized text) ----------
     // Scope-unfrozen by owner 2026-05-17. Raw decoded data only; deep
     // gameplay modeling remains the consumer's domain (Appendix C). The

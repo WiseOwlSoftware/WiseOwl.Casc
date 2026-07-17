@@ -1004,6 +1004,50 @@ public sealed class Diablo4StorageIntegrationTests
         Assert.Equal(0, bad);
     }
 
+    /// <summary>FR-C34 (CL-101) — the <c>DifficultyTiers</c> per-monster-level
+    /// scaling curve: 150 rows (monster levels 1..150), the level index verified
+    /// at 1/40/70/150 (AC-1), and the XP anchor column reproducing the game's
+    /// per-level XP curve (L40 = 8.0, L70 = 11.0, AC-2) — the <i>independent</i>
+    /// lock on the row layout. Also asserts the §8.2 reconciliation (AC-4): the
+    /// monster-HP curve is far steeper than the player-side <c>hpScalar</c>.
+    /// content-snapshot: the coefficient values are game-authored / per-build
+    /// (3.1.1.72836 / Season 14).</summary>
+    [SkippableFact]
+    [Trait("kind", "content-snapshot")]
+    public void ReadDifficultyTiers_decodes_per_monster_level_curve()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+
+        var t = d4.ReadDifficultyTiers();
+        Assert.Equal(1973217, t.SnoId);
+        Assert.Equal(150, t.LevelCount);
+
+        // AC-1: row i ↔ level i+1.
+        Assert.Equal(1, t.Row(1).Level);
+        Assert.Equal(40, t.Row(40).Level);
+        Assert.Equal(70, t.Row(70).Level);
+        Assert.Equal(150, t.Row(150).Level);
+
+        // AC-2: the XP anchor column — the independent row-layout lock.
+        Assert.Equal(8.0f, t.PerLevelXpValue(40));
+        Assert.Equal(11.0f, t.PerLevelXpValue(70));
+        Assert.Equal(2.0f, t.PerLevelGoldValue(40));
+
+        // HP/damage multipliers are ×1.0 at level 1 (structural).
+        Assert.Equal(1.0f, t.MonsterHpScalar(1));
+        Assert.Equal(1.0f, t.MonsterDamageScalar(1));
+
+        // AC-4 reconciliation: the monster-HP curve is a *separate*, far steeper
+        // curve than the player-side hpScalar (~×101,051 vs ~×30.5 at L70) — so
+        // §8.2's "one hpScalar serves both populations" is superseded.
+        Assert.True(t.MonsterHpScalar(70) > 1000f * d4.ReadLevelScaling().HpScalar(70));
+
+        // Full raw row exposed (32 columns of the 128-byte record).
+        Assert.Equal(32, t.Row(40).Columns.Count);
+    }
+
     /// <summary>LIB-3 (CL-92) — the <see cref="AffixEffect"/> two-namespace
     /// helpers. Pure logic (no live data): a positive
     /// <see cref="AffixEffect.AttributeId"/> is an engine attribute; a
