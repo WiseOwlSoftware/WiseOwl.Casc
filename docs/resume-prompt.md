@@ -244,7 +244,7 @@ decision.
    (cross-reference, don't duplicate, `e:\Paragon\docs\d4-binary-formats.md`
    §3–§8.15 — the upstream D4 SNO/.tex record of truth).
 4. Commit+push at milestones. Commit trailer:
-   `Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>`.
+   `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>`.
 5. Maintain `docs/ARTICLE-SOURCE.md` (expand, never shrink — obey its own
    header), `docs/devlog/NNNN-*`, this file, and project memory every
    meaningful session. Do NOT write into the wiseowl.com site repo.
