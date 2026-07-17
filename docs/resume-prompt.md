@@ -24,8 +24,9 @@ load-bearing "don't re-discover" facts.
 lags a few min). `main` tip **`6fe580b`** (+ this doc commit); `<Version>` =
 0.7.0; working tree clean. **0.7.0 shipped CL-100 (LIB-3 R7) + CL-101 (FR-C34) +
 CL-102 (LevelScaling raw cols) + CL-103 (unique→affix wiring).** `main` tip
-**`7180267`**; **unreleased on `main`: CL-104 (LIB-5 skill modifiers) + CL-105
-(FR-C35 MonsterNames + FR-C36 finding)**. Release
+**`47214f7`**; **unreleased on `main`: CL-104 (skill modifiers) + CL-105
+(MonsterNames + FR-C36 finding) + CL-106 (affix pool — `AffixDefinition.AllowedItemTypes`
++ `RollableAffixes`)**. Release
 
 **⚠️ API REDESIGN — DECIDED DIRECTION (owner, 2026-07-17; not yet started).** Owner
 wants the API revisited before 1.0. Judge-panel verdict = **"flat-plus +
@@ -58,14 +59,14 @@ POST `-F environment_ids[]=<id> -f state=approved`). NuGet lag: the
 **Optimizer is BACK + active (returned ~20:16Z).** Delivered this arc:
 `casc-fr#52` FR-C35 (MonsterNames reader, CL-105) + `#53` FR-C36 (finding — it's a
 name registry, no curve) → both `awaiting:optimizer`. **2 open `awaiting:casc`:**
-- **`#51`** affix pool — Optimizer answered my shape questions: build
-  **`AffixDefinition.AllowedItemTypes`** (per-affix `+0x78` VLA, the primitive) +
-  **`RollableAffixes(itemType)`** inverted convenience + a slot rollup; item-type
-  granularity (source of truth); raw eItemType ids first, names later. Tempering
-  folds in (same mechanism). **eItemType enum → names needs an oracle/EXE** (not
-  in g98). Build this next.
-- **`#54`** FR-C37 — resolve `PowerTag.S10ChaosTuningPerClass."Script Formula N"`
-  (86 affixes) — the deferred FR-C13 **binary-AST opcode** decode; the hard one.
+- **`#51`** affix pool — **DELIVERED CL-106** (`AllowedItemTypes` primitive +
+  `RollableAffixes` inverted). `awaiting:optimizer`. **Open sub-task: eItemType
+  enum → item-type names needs ONE owner oracle** (which types are `70`/`71` +
+  2–3 weapon values) or the EXE enum — then the slot rollup follows.
+- **`#54`** FR-C37 (**the only open `awaiting:casc`**) — resolve
+  `PowerTag.S10ChaosTuningPerClass."Script Formula N"` (86 affixes) — the deferred
+  FR-C13 **binary-AST opcode** decode; the hard one, a genuine deep-RE effort
+  (may partially resolve or hit the encrypted boundary — don't pre-declare).
 `#45`/`#50`/`#39`/`#41`/`#49` all `awaiting:optimizer` (consume-verify vs 0.7.0);
 `#39` disposed `fr:by-design`. Re-poll before assuming idle.
 
