@@ -1388,6 +1388,26 @@ public sealed class Diablo4Storage : IDisposable
     public DifficultyTiersTable ReadDifficultyTiers(int id = DifficultyTiersTable.DefaultSnoId) =>
         DifficultyTiersTable.Parse(ReadSno(SnoGroup.GameBalance, id));
 
+    /// <summary>Read the <see cref="MonsterNameRegistry"/> (FR-C35, CL-105) — the
+    /// localized name-affix fragments the game composes into elite/special
+    /// monster display names (e.g. <c>FrozenSuffix004</c> → <c>"Frostburn"</c>).
+    /// Resolved from the <c>MonsterNames</c> StringList (group 42) via CoreTOC;
+    /// returns an empty registry (never throws) if that table is absent for
+    /// <paramref name="locale"/>.</summary>
+    /// <param name="locale">Locale for the fragment text (default
+    /// <see cref="DefaultLocale"/>).</param>
+    public MonsterNameRegistry ReadMonsterNames(string locale = DefaultLocale)
+    {
+        if (!CoreToc.TryGetId(SnoGroup.StringList, MonsterNameRegistry.StringListName, out var sno))
+            return MonsterNameRegistry.FromEntries(
+                locale, System.Array.Empty<System.Collections.Generic.KeyValuePair<string, string>>());
+        var table = GetStrings(locale).Table(sno);
+        return MonsterNameRegistry.FromEntries(
+            locale,
+            (System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<string, string>>?)table?.Entries
+                ?? System.Array.Empty<System.Collections.Generic.KeyValuePair<string, string>>());
+    }
+
     // ----- C6 typed record readers (identity + localized text) ----------
     // Scope-unfrozen by owner 2026-05-17. Raw decoded data only; deep
     // gameplay modeling remains the consumer's domain (Appendix C). The

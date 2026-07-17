@@ -1126,6 +1126,30 @@ public sealed class Diablo4StorageIntegrationTests
         Assert.Contains(puncture.Modifiers, m => m.Name == "Blight Burst");
     }
 
+    /// <summary>FR-C35 (CL-105) — the <c>MonsterNames</c> registry: elite-monster
+    /// name-affix fragments (token → localized text → prefix/suffix kind).
+    /// content-snapshot: the fragment tokens + text are game-authored
+    /// (3.1.1.72836 / Season 14).</summary>
+    [SkippableFact]
+    [Trait("kind", "content-snapshot")]
+    public void ReadMonsterNames_exposes_name_fragments()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+
+        var reg = d4.ReadMonsterNames();
+        Assert.NotEmpty(reg.Fragments);
+        // Known fragment: token → localized text → classified kind.
+        var frost = reg.Fragments.Single(f => f.Token == "FrozenSuffix004");
+        Assert.Equal("Frostburn", frost.Text);
+        Assert.Equal(MonsterNameKind.Suffix, frost.Kind);
+        // Both prefix and suffix classes are populated + self-consistent.
+        Assert.NotEmpty(reg.Prefixes);
+        Assert.NotEmpty(reg.Suffixes);
+        Assert.All(reg.Suffixes, f => Assert.Equal(MonsterNameKind.Suffix, f.Kind));
+    }
+
     /// <summary>LIB-3 (CL-92) — the <see cref="AffixEffect"/> two-namespace
     /// helpers. Pure logic (no live data): a positive
     /// <see cref="AffixEffect.AttributeId"/> is an engine attribute; a
