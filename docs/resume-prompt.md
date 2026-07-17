@@ -19,22 +19,43 @@ load-bearing "don't re-discover" facts.
 
 ### ⏭️ NEXT-SESSION PICKUP (2026-07-17) — start here
 
-**Published: `WiseOwl.Casc` + `WiseOwl.Casc.Diablo4` `0.6.0` live on NuGet.**
-`main` tip **`e56281a`**; `<Version>` = 0.6.0; working tree clean. The FR-loop
-counter-round marathon (CL-92 → CL-99) shipped in 0.6.0; **CL-100 (LIB-3 R7) +
-CL-101/102 (FR-C34 + LevelScaling companion) are unreleased on `main`**. Release
-mechanics: `docs/RELEASING.md` (GitHub Release → `nuget` env gate → OIDC). **The
-env gate is approvable via API with the owner-authed CLI** (`gh api
-repos/.../actions/runs/<id>/pending_deployments` → `current_user_can_approve`;
-POST `{environment_ids:[<id>],state:"approved"}`). NuGet CDN + validation lag a
-few min after a successful run — cache-bust the flat-container and poll the
-registration endpoint (`registration5-gz-semver2/<pkg>/<ver>.json` → 200).
+**Published: `WiseOwl.Casc` + `WiseOwl.Casc.Diablo4` `0.7.0` live on NuGet**
+(pushed 2026-07-17; flat-container live/installable, registration/search index
+lags a few min). `main` tip **`6fe580b`** (+ this doc commit); `<Version>` =
+0.7.0; working tree clean. **0.7.0 shipped CL-100 (LIB-3 R7) + CL-101 (FR-C34) +
+CL-102 (LevelScaling raw cols) + CL-103 (unique→affix wiring).** Release
+mechanics: `docs/RELEASING.md` (GitHub Release → `nuget` env gate → OIDC).
+**⚠️ IDENTITY:** release ops (release create + gate approval) MUST run as the
+**owner** (`BrentRector`), but this project's ambient `GH_TOKEN` is the **bot**
+(`wiseowl-casc-bot`) and `gh` prefers `GH_TOKEN` — so **`unset GH_TOKEN`** first
+(falls back to the owner's `GITHUB_TOKEN`); verify `gh api user --jq .login` =
+`BrentRector` before `gh release create`. (I first created v0.7.0 as the bot,
+had to delete+recreate as owner.) **The env gate is approvable via API** (`gh api
+.../actions/runs/<id>/pending_deployments` → `current_user_can_approve=true`;
+POST `-F environment_ids[]=<id> -f state=approved`). NuGet lag: the
+**flat-container** (`v3-flatcontainer/<pkg>/index.json`) lists the version first
+(installable); the **registration** endpoint (`registration5-gz-semver2/<pkg>/<ver>.json`
+→ 200) + nuget.org UI lag longer. `jq` is NOT installed in bash — use `gh --jq`.
 
-**0 open CASC turns** (queue clear 2026-07-17, re-polled). Recently disposed, all
-now `awaiting:optimizer`: `casc-fr#50` FR-C34 **delivered CL-101**
-(`WiseOwl.Casc@dfabf35`), `casc-fr#45` R7 **delivered CL-100** (`11ba44f`), and
-`casc-fr#39` disposed **`fr:by-design`**. The queue is live and the Optimizer
-counter-rounds within minutes — **re-poll `awaiting:casc` before assuming idle.**
+**0 open CASC turns** (queue clear 2026-07-17; Optimizer offline since ~06:47Z, so
+the afternoon deliveries await its return). **All CL-100..103 now RELEASED in
+0.7.0** → the Optimizer can consume-verify #45/#50 against a published package.
+`casc-fr#39` disposed **`fr:by-design`**. Proposal **`casc-fr#51`** (affix pool —
+requesting the Optimizer's query-API shape) is `awaiting:optimizer`. The queue
+moves fast when the Optimizer is active — **re-poll before assuming idle.**
+
+**Gear-depth arc (owner-directed roadmap exploration, 2026-07-17).** Two scoping
+spikes run: **skill trees = NO-GO** (the tree *graph* — nodes/connections/costs —
+is engine-controller-assembled, same wall as paragon UI binding; the `SkillTree`
+scene is chrome + `Testnode` placeholders; skills themselves are Powers, already
+typed via `ReadPower`). **Gear depth = GO**, three structural targets: (1)
+unique→affix — **SHIPPED CL-103**; (2) **affix pool** (item-type→rollable affixes)
+— spike GO, per-affix `+0x78` allowed-item-types VLA is the key (eItemType enum
+1–71 needs resolving; `AffixFamilyList` is just a name registry) → proposed as
+`#51`; (3) **tempering** (`TemperRecipeFamily`, structural) + **item-type base
+stats** (g98 float scalars) — confirmed structural, not yet built. Note: rarity
+matters — uniques/mythics have a *fixed name-linked* affix (CL-103); magic/rare/
+legendary *roll from a pool* (the `#51` work).
 
 **#45 R7 — DELIVERED (CL-100, `11ba44f`).** Max legendary rank = **10**, a
 **universal engine constant** — every one of the 699 `legendary_*` powers carries
