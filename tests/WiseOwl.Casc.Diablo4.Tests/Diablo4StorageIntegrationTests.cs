@@ -1056,6 +1056,38 @@ public sealed class Diablo4StorageIntegrationTests
         Assert.Equal(32, t.Row(40).Columns.Count);
     }
 
+    /// <summary>LIB-4 (CL-103) — a unique item resolves to its fixed aspect
+    /// affix via the shared sibling name (item <c>X</c>, g73 ↔ affix <c>X</c>,
+    /// g104). The affix carries the item's power: <c>Effects</c> + an inline roll
+    /// formula. A base/non-unique item with no same-name affix returns
+    /// <see langword="false"/>. content-snapshot: the specific SNOs + formula
+    /// text are game-authored (3.1.1.72836).</summary>
+    [SkippableFact]
+    [Trait("kind", "content-snapshot")]
+    public void TryReadUniqueAffix_resolves_the_items_sibling_affix()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+
+        // 1HAxe_Unique_Druid_100 (item 1306219) → its affix (578782): effects +
+        // an inline roll formula (the item's power).
+        Assert.True(d4.TryReadUniqueAffix(1306219, out var druid));
+        Assert.NotNull(druid);
+        Assert.NotEmpty(druid!.Effects);
+        Assert.Contains(druid.Effects, e => e.InlineFormula.Length > 0);
+
+        // Chest_Unique_Paladin_001 (item 2479144) → affix (2479170) with the
+        // Mythic conditional inline formula (§8.1 grammar).
+        Assert.True(d4.TryReadUniqueAffix(2479144, out var paladin));
+        Assert.Contains(paladin!.Effects,
+            e => e.InlineFormula.Contains("S14_Mythic_UniquePotency", System.StringComparison.Ordinal));
+
+        // A base/non-unique item with no same-name affix → false, null.
+        Assert.False(d4.TryReadUniqueAffix(591438, out var none)); // 1HAxe_Legendary_Generic_001
+        Assert.Null(none);
+    }
+
     /// <summary>LIB-3 (CL-92) — the <see cref="AffixEffect"/> two-namespace
     /// helpers. Pure logic (no live data): a positive
     /// <see cref="AffixEffect.AttributeId"/> is an engine attribute; a

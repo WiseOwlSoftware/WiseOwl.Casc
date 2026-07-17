@@ -2525,10 +2525,35 @@ armor, …). Structural — no name parsing.
 - Catalog: `AssetKind.ItemType` (via `Catalog.OfKind`) with a decoded
   `category` facet.
 
+### 13.4 Unique item → its fixed aspect affix (LIB-4, CL-103)
+
+A unique/legendary item's **power** is not stored in the item record — the item
+(group 73) references only its **model actor** and **base-item template** (e.g.
+`1HAxe_Unique_Druid_100`'s record → `axe_uniq06` model + `1HAxe_Legendary_Generic_001`
+base). The power lives in an `AffixDefinition` (group 104) that shares the item's
+SNO name **verbatim** — the generalized §6.7 sibling convention (the same
+name-keying used for the localized sibling-StringList tables, CL-20). So the link
+is by shared name, resolved `CoreToc.TryGetName(Item, id)` → `CoreToc.TryGetId(Affix,
+name)` → `ReadAffix`. Name-verified across the unique roster (item `X` ↔ affix
+`X`); the affix carries the item's `Effects` / `InlineFormula` (its rolled
+values, §8.1/§11.3) + localized `Name`. Surface:
+`Diablo4Storage.TryReadUniqueAffix(int itemSnoId, out AffixDefinition?, locale)` —
+`false` for a non-unique item or a seasonal `S<NN>_`-prefixed variant whose affix
+name differs. (Wiring only — no new byte layout; joins the shipped `ReadItem` +
+`ReadAffix` readers.)
+
 ## Appendix A — correction log (Diablo IV errata)
 
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
+
+- **CL-103 — unique item → fixed aspect affix wiring (LIB-4, proactive).** A
+  unique item's power is the same-name `AffixDefinition` (the item record refs
+  only its model actor + base template, not the affix). `Diablo4Storage.TryReadUniqueAffix(itemSnoId)`
+  joins `ReadItem` + `ReadAffix` by the shared §6.7 sibling name → the item's
+  `Effects`/`InlineFormula`/localized `Name`. Name-verified 5/5 across the unique
+  roster; `false` for non-uniques / `S<NN>_`-prefixed variants. Wiring only, no
+  new byte layout. §13.4; devlog 0097.
 
 - **CL-102 — `LevelScaling` remaining columns exposed raw (companion to FR-C34,
   `casc-fr#50`).** `LevelScalingRow` / `LevelScalingTable.Row(level)` /
