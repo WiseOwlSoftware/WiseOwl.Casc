@@ -1367,6 +1367,13 @@ public sealed class Diablo4Storage : IDisposable
     public AttributeFormulaTable ReadAttributeFormulas(int id = 201912) =>
         AttributeFormulaTable.Parse(ReadSno(SnoGroup.GameBalance, id));
 
+    /// <summary>FR-C29 Phase 2 (CL-99) — read + decode the GameBalance
+    /// <see cref="LevelScalingTable"/> (default SNO <c>206158</c>): the
+    /// per-level <c>hpScalar</c> curve, and via it the class-independent base
+    /// Max Life projection (<see cref="LevelScalingTable.BaseLife(int)"/>).</summary>
+    public LevelScalingTable ReadLevelScaling(int id = 206158) =>
+        LevelScalingTable.Parse(ReadSno(SnoGroup.GameBalance, id));
+
     // ----- C6 typed record readers (identity + localized text) ----------
     // Scope-unfrozen by owner 2026-05-17. Raw decoded data only; deep
     // gameplay modeling remains the consumer's domain (Appendix C). The

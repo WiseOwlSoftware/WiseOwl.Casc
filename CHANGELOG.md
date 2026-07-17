@@ -8,6 +8,12 @@ Semantic Versioning once it reaches `1.0.0`.
 
 ### Added
 
+- **Base Max Life by level** — `Diablo4Storage.ReadLevelScaling()` exposes the
+  game's per-level scaling curve and, from it, a character's class-independent
+  base Maximum Life at any level (`LevelScalingTable.BaseLife(level)` — e.g.
+  50 at level 1, 860 at 60, 1526 at 70). The value a tooltip shows is a rounded
+  product that isn't stored anywhere in the data; the library computes it from
+  the operands that are.
 - **Formula evaluator: unsupported-vs-NaN** — `ParagonMagnitudeFormula.TryEvaluate`
   distinguishes a formula that references an engine function the library doesn't
   implement (returns `false`) from one that legitimately computes to `NaN`,

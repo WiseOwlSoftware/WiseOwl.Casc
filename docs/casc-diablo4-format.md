@@ -906,6 +906,31 @@ The residual uncertainties (`g`'s exact step count, `ROUND` tie-breaking) do
 **not** affect the printed range — the range is fully determined by the roll
 functions' `[min, max]` args and the clamps.
 
+### 8.2 `LevelScaling` → base Max Life (SNO 206158; FR-C29 Phase 2, CL-99)
+
+`LevelScaling` (GameBalance 206158) is a per-level curve table. Layout
+(verified `3.1.1.72836`): a `DT_VARIABLEARRAY` descriptor at payload `+0x50`
+(`dataOffset@+0` = 88, `byteSize@+4` = 42400) → **200 rows × 212 bytes**;
+**row index = level − 1**; the `float` **`hpScalar` is at row column `+4`**
+(`1.0` at level 1). Rows are indexed `1..200`: **characters occupy `1..70`**
+(the cap, `heroDetails` id 279), `71..200` are monster / content levels — one
+`hpScalar` column serves both populations.
+
+**Base Max Life is class-independent** (every class reads identically):
+`round(50 × hpScalar[level])`, **round-half-away-from-zero**. The base
+`Hitpoints_Max = 50` is a class-independent constant (cross-validated 15/15
+against owner oracles, incl. out-of-sample L11–L14; *fitted, not yet located*
+as a readable field — baked per the engine-constants pattern). Anchors:
+`round(50 × 1.03) = 52` at L2 (the sole exact-`.5` case, `51.5 → 52`, which
+pins the rounding mode), `round(50 × 17.200) = 860` at L60,
+`round(50 × 30.526) = 1526` at L70. **Key discipline lesson (this FR): a
+render-time value can exist nowhere in the data — `1526` is not stored; the
+operands (`50` and the scalar) are. Search for the operands, not the result.**
+Surface: `Diablo4Storage.ReadLevelScaling()` → `LevelScalingTable`
+(`HpScalar(level)`, `BaseLife(level)`, `BaseHitpointsMax`, `MaxCharacterLevel`).
+Other columns (`monsterDr` / `powerBase/Delta/Item` / `xpScalar`) exist but are
+not modeled — only the byte-verified `hpScalar` + base-Life projection ship.
+
 ## 9. Read path (Diablo IV)
 
 ```
@@ -2350,6 +2375,17 @@ armor, …). Structural — no name parsing.
 
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
+
+- **CL-99 — base Max Life from `LevelScaling` (FR-C29 Phase 2, `casc-fr#41`).**
+  `Diablo4Storage.ReadLevelScaling()` → `LevelScalingTable`: the per-level
+  `hpScalar` curve (SNO 206158, VLA @ payload `+0x50` → 200 rows × 212,
+  `hpScalar` @ col `+4`, row = level−1) and the **class-independent base Max
+  Life** projection `BaseLife(level) = round(50 × hpScalar[level])`
+  (round-half-away-from-zero; L2 `51.5→52`, L60 `860`, L70 `1526`). Byte-verified
+  against the raw blob; the base `50` is baked per the engine-constants pattern
+  (fitted 15/15, not yet located). **The `1526` a tooltip shows is a rounded
+  product that exists nowhere in the data** — the operands do; this closed only
+  after searching for the operands, not the result (§8.2). §8.2.
 
 - **CL-98 — `ParagonMagnitudeFormula.TryEvaluate` (FR-C33, `casc-fr#49`).**
   `Evaluate` returns a silent `double.NaN` both for a genuinely-NaN result and
