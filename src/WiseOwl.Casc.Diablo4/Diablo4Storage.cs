@@ -1388,6 +1388,17 @@ public sealed class Diablo4Storage : IDisposable
     public DifficultyTiersTable ReadDifficultyTiers(int id = DifficultyTiersTable.DefaultSnoId) =>
         DifficultyTiersTable.Parse(ReadSno(SnoGroup.GameBalance, id));
 
+    /// <summary>Read the <see cref="MonsterLevelCurvesTable"/> (FR-C36, CL-110) —
+    /// the six per-raid-tier (<c>Raid_Tier_0..5</c>) monster-level scaling curves.
+    /// Each tier maps a monster/area level to a scaled effective value (climbing
+    /// to 100 across the tier's level span). Corrects the earlier "not in the
+    /// data" finding — the curves are in this SNO.</summary>
+    /// <param name="id">The <c>MonsterLevelCurves</c> SNO id (defaults to
+    /// <c>1610053</c>).</param>
+    /// <exception cref="CascFormatException">The tier-list VLA is malformed.</exception>
+    public MonsterLevelCurvesTable ReadMonsterLevelCurves(int id = MonsterLevelCurvesTable.DefaultSnoId) =>
+        MonsterLevelCurvesTable.Parse(ReadSno(SnoGroup.GameBalance, id));
+
     /// <summary>Read the <see cref="MonsterNameRegistry"/> (FR-C35, CL-105) — the
     /// localized name-affix fragments the game composes into elite/special
     /// monster display names (e.g. <c>FrozenSuffix004</c> → <c>"Frostburn"</c>).

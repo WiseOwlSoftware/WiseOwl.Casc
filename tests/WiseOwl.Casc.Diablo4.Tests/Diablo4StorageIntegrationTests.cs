@@ -1059,6 +1059,44 @@ public sealed class Diablo4StorageIntegrationTests
         Assert.Equal(32, t.Row(40).Columns.Count);
     }
 
+    /// <summary>FR-C36 (CL-110) — <c>MonsterLevelCurves</c> (1610053) is the six
+    /// per-raid-tier monster-level scaling curves — <b>correcting</b> the earlier
+    /// "empty registry / not in the data" finding (the curves are here).
+    /// content-snapshot: the curve values are game-authored (3.1.1.72836).</summary>
+    [SkippableFact]
+    [Trait("kind", "content-snapshot")]
+    public void ReadMonsterLevelCurves_decodes_the_six_raid_tier_curves()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+
+        var t = d4.ReadMonsterLevelCurves();
+        Assert.Equal(1610053, t.SnoId);
+        Assert.Equal(6, t.Tiers.Count);
+
+        // Tiers are named Raid_Tier_0..5 and carry non-empty curves.
+        for (int i = 0; i < 6; i++)
+        {
+            Assert.Equal(i, t.Tiers[i].TierIndex);
+            Assert.Equal($"Raid_Tier_{i}", t.Tiers[i].Name);
+            Assert.NotEmpty(t.Tiers[i].Points);
+        }
+
+        // Curve size shrinks as higher tiers start at a higher base level.
+        Assert.True(t.Tiers[0].Points.Count > t.Tiers[5].Points.Count);
+
+        // Tier 0 spans levels ~55→95 and its scaled value reaches 100.
+        var tier0 = t.Tiers[0];
+        Assert.Equal(55, tier0.Points[0].Level);
+        Assert.Equal(100f, tier0.Points[^1].ScaledValue);
+        // Every row's two ints are equal in the live data (the level).
+        Assert.All(tier0.Points, p => Assert.Equal(p.Level, p.LevelHigh));
+
+        // Higher tiers start at a higher base level (Tier 5 at 105).
+        Assert.Equal(105, t.Tiers[5].Points[0].Level);
+    }
+
     /// <summary>LIB-4 (CL-103) — a unique item resolves to its fixed aspect
     /// affix via the shared sibling name (item <c>X</c>, g73 ↔ affix <c>X</c>,
     /// g104). The affix carries the item's power: <c>Effects</c> + an inline roll
