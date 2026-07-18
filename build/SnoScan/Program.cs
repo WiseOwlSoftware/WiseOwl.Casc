@@ -1833,6 +1833,23 @@ switch (cmd)
             Console.WriteLine($"{kv.Key}\t{string.Join(" | ", kv.Value)}");
         int collisions = map.Values.Count(v => v.Count > 1);
         Console.WriteLine($"-- {emitted} g98 records mapped; {map.Count} distinct ordinals; {collisions} ordinals with >1 name --");
+        // Diagnostic: itemtypeenum <target> scans EVERY g98 record for that int32
+        // value anywhere (to re-check the #51 "ordinal N has no g98 record" gap),
+        // and lists gear-type records the main pass filtered out.
+        if (argv.Count > 1 && int.TryParse(argv[1], out int target))
+        {
+            Console.WriteLine($"== records containing int32 {target} anywhere ==");
+            foreach (var e in toc.Entries.Where(e => (int)e.Group == 98).OrderBy(e => e.Name))
+            {
+                if (!d4.TryReadSno(98, e.Id, SnoFolder.Meta, out var b)) continue;
+                var r = new SnoRecord(b); int len = b.Length;
+                var hits = new List<int>();
+                for (int o = 0; pb0 + o + 4 <= len; o += 4)
+                    if (r.I32(o) == target) hits.Add(o);
+                if (hits.Count > 0)
+                    Console.WriteLine($"   {e.Name}: @{string.Join(",", hits.Select(h => "0x" + h.ToString("X")))}");
+            }
+        }
         return 0;
     }
     case "skilltreedump":
