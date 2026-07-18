@@ -85,13 +85,28 @@ Followed up on the three candidates:
   only (`+8=43`, `+80=88` first-record, `+84`≈size); **no threshold array**.
 
 So the numeric category/tier point-gates are **not in the skill-tree data SNOs
-checked**. Most likely a **uniform engine rule** (the live-game gates — e.g. Core
-after N points in Basic — are the kind of constant the engine hardcodes). The one
+checked**. Most likely a **uniform engine rule** (~~the live-game gates — e.g. Core
+after N points in Basic — are the kind of constant the engine hardcodes~~). The one
 structure not yet located is the tree's **edge/connection topology** (which node
 links to which) — if the gate values live anywhere in data, that graph is where
-they'd sit, and I haven't found it. Still **not** an engine-boundary declaration —
-rules 1 & 2 are fully in data; rule 3's *gates* are the residual, engine-side by
-current evidence.
+they'd sit, and I haven't found it. ~~Still not an engine-boundary declaration~~.
+
+### ⚠️ Phase-3 addendum was WRONG — the topology IS in the data (g39/199278)
+
+The "engine rule" guess above is **retracted**. The owner pushed back ("I do not
+believe *any* of the skill tree is engine decided") and was right — I had simply
+never opened the correct SNO. The class **gameplay** structure is **group 39**
+(class/board group: Barbarian…Rogue…Warlock + Mercenaries + **Warplans**), distinct
+from the g74 avatar/preview class def. `Rogue` = **g39/199278 (35,232 bytes)**, and
+its main array (`DT_VARIABLEARRAY` at payload `+0x30`, dataOff `+304`, **23,760
+bytes**) is **the skill-tree graph: 270 node records × 22 int32 (88 B)**, each with
+a node id, a **float X/Y layout position** (X∈[−6204,5984], Y∈[−8040,7877]), and
+slots. Two companion arrays follow — a ~556-int region at `+24064` and a
+**2,112-int edge array at `+26288`** (264 × 8-int entries) — the connection/edge
+data where the cluster gates live. So the topology + gates are **fully data-driven**;
+the remaining work is decoding the exact node/edge fields (which int is the gate
+threshold, node→SkillTreeRewards mapping), **not** deciding whether it's in data.
+It is. (Lesson recorded: [[feedback_never-declare-engine-driven]].)
 
 ## Net
 
