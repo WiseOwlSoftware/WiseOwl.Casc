@@ -152,3 +152,11 @@ the same name. Future hash-decode passes may crack the engine-internal
 keys and migrate those rows in.
 
 (`0x6B1C5D9C` cracked R10 = `UIImageHandleReference`.)
+
+## Skill-tree node-name hash (g39 class-board records)
+
+The node id in the g39 class skill-tree graph (e.g. `Rogue`=199278, node record
+field `[1]`) is **seed-0 DJB2 of the lowercased node name** — the same
+`SkillTreeRewards` (g20/547685) node name (`rogue_unlock_bladeshift`, …). Distinct
+from `GbidHash` (seed-5381 lowercased). Verified: maps 192/270 Rogue nodes; the
+78 unmapped are connector/hub nodes with no reward record. Recon: devlog 0105.
