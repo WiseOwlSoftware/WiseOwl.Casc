@@ -8,6 +8,14 @@ Semantic Versioning once it reaches `1.0.0`.
 
 ### Added
 
+- **Skill tree** — `Diablo4Storage.ReadSkillTree(class)` returns a class's logical
+  skill tree: every node (`SkillTreeNode`) with its kind (unlock / skill-rank /
+  modifier / talent), the skill it is or modifies, and its mutually-exclusive
+  modifier group, plus the class's active skills and a modifier-group membership
+  lookup (`ModifierGroup` — the "pick one per group" rule). Node effect text
+  resolves through the node's skill via `ReadPower`. (Logical structure; the
+  visual graph — positions/edges — is not surfaced, and the tier/category cluster
+  grouping is a follow-up.)
 - **Monster level curves** — `Diablo4Storage.ReadMonsterLevelCurves()` returns the
   six per-raid-tier (`Raid_Tier_0..5`) monster-level scaling curves — each maps a
   monster/area level to a scaled effective value across that tier's level span.

@@ -2667,6 +2667,17 @@ name differs. (Wiring only — no new byte layout; joins the shipped `ReadItem` 
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
 
+- **CL-111 — skill-tree API v1 (`#57`).** `Diablo4Storage.ReadSkillTree(class)` →
+  `SkillTree` (the logical per-class tree). Nodes come from `SkillTreeRewards`
+  (g20/547685): 284-byte records (256 B name + 7 int32 tail) → `SkillTreeNode
+  {Name, Kind, SkillSno, ModifierGroupId}` (kind from tail F4 15=Unlock/2=Rank/
+  3=Modifier/1=Talent; modified-skill SNO from F2; modifier group from F5). The
+  active-skill list is the g39 board `+0x10` VLA. `SkillTree.ModifierGroup(skill,
+  group)` enumerates a mutually-exclusive set; effect text resolves via
+  `SkillSno → ReadPower.Modifiers`. Verified across all 8 classes. v1 is logical
+  only — positions/edges (§g39 devlog 0105) and tier/category clusters are the
+  v2. §11.2; devlog 0107.
+
 - **CL-110 — `MonsterLevelCurves` is six per-raid-tier curves (FR-C36; corrects
   CL-105's "not in the data").** The earlier finding — `MonsterLevelCurves` (1610053)
   is "an empty name registry, no curve" — was **wrong**: the read stopped at the

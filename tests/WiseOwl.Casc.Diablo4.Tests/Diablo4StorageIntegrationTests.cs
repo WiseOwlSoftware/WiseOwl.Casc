@@ -1097,6 +1097,50 @@ public sealed class Diablo4StorageIntegrationTests
         Assert.Equal(105, t.Tiers[5].Points[0].Level);
     }
 
+    /// <summary>#57 (CL-111) — the logical per-class skill tree: nodes with kind /
+    /// skill / modifier-group, the active-skill list, and modifier-group
+    /// membership (the "pick one per group" rule as data). content-snapshot: the
+    /// node metadata is game-authored (3.1.1.72836).</summary>
+    [SkippableFact]
+    [Trait("kind", "content-snapshot")]
+    public void ReadSkillTree_exposes_nodes_skills_and_modifier_groups()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+
+        var tree = d4.ReadSkillTree(SkillTreeClass.Rogue);
+        Assert.Equal(SkillTreeClass.Rogue, tree.Class);
+        Assert.True(tree.Nodes.Count > 100, $"expected a populated Rogue tree, got {tree.Nodes.Count}");
+
+        // Every node is Rogue_-prefixed and carries a decoded kind.
+        Assert.All(tree.Nodes, n => Assert.StartsWith("Rogue_", n.Name));
+        Assert.Contains(tree.Nodes, n => n.Kind == SkillTreeNodeKind.Unlock);
+        Assert.Contains(tree.Nodes, n => n.Kind == SkillTreeNodeKind.Modifier);
+        Assert.Contains(tree.Nodes, n => n.Kind == SkillTreeNodeKind.Talent);
+
+        // Blade Shift (Power 399111): its modifiers split into two exclusive groups
+        // — UpgradeA/B/C (group 0) and Side1..4 (group 1).
+        var upgrades = tree.ModifierGroup(399111, 0);
+        Assert.Equal(3, upgrades.Count);
+        Assert.All(upgrades, n => Assert.Equal(399111, n.SkillSno));
+        Assert.All(upgrades, n => Assert.Contains("Upgrade", n.Name));
+        Assert.Equal(4, tree.ModifierGroup(399111, 1).Count);   // Side1..4
+
+        // Blade Shift's unlock node references the skill; effect resolves via ReadPower.
+        var unlock = tree.Nodes.Single(n => n.Name == "Rogue_Unlock_BladeShift");
+        Assert.Equal(SkillTreeNodeKind.Unlock, unlock.Kind);
+        Assert.Equal(399111, unlock.SkillSno);
+        Assert.NotEmpty(d4.ReadPower(unlock.SkillSno).Modifiers);   // the effect join
+
+        // The active-skill list (g39 board) includes Blade Shift.
+        Assert.Contains(399111, tree.Skills);
+
+        // Every class reads a populated tree.
+        foreach (SkillTreeClass c in System.Enum.GetValues<SkillTreeClass>())
+            Assert.True(d4.ReadSkillTree(c).Nodes.Count > 50, $"{c} tree looks empty");
+    }
+
     /// <summary>LIB-4 (CL-103) — a unique item resolves to its fixed aspect
     /// affix via the shared sibling name (item <c>X</c>, g73 ↔ affix <c>X</c>,
     /// g104). The affix carries the item's power: <c>Effects</c> + an inline roll
