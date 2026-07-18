@@ -34,13 +34,18 @@ Shipped as `ItemType.EItemType` + `Diablo4Storage.ReadItemTypeNames()` /
 `Staff`/`StaffDruid`/`StaffSorcerer` = `13`), so the map is
 one-ordinal-to-many-names; the resolver returns the shortest equippable base name.
 
-## The honest gap
+## The gap — and its refinement (2026-07-18)
 
-Two ordinals used in pools have **no g98 record**: `9` (a weapon in the Strength
-weapon pool) and `23` (the sixth `CoreStat_Strength` armor type). They stay
-unnamed — `GetItemTypeName` returns `null`, never a wrong name. They are
-engine-aggregate/legacy values; the 96 mapped g98 records don't cover them and no
-unmapped gear-type name fits. Left as a documented gap, not fabricated.
+Two pool ordinals — `9`, `23` — aren't *leaf* item-types (no record carries them
+as its `+0x28` `eItemType`), so `GetItemTypeName` returns `null`. Initially
+recorded as "no g98 record / engine-aggregate." A later idle re-check (applying the
+session's discipline lesson to my own gap) refined it: they're **aggregate category
+ordinals**, present as *secondary* markers on the relevant records. `23` appears in
+exactly the seven off-hand/shield records (`Shield`, `Amazon_Shield`, `ShieldHTH`,
+`Focus`, `FocusBookOffHand`, `OffHandTotem`, `HoradricSeal`) → the off-hand/shield
+category; `9` is a weapon-family marker on the weapon records. So the leaf map is
+complete; the two aggregates are category-level, not voids. Recon: `SnoScan
+itemtypeenum <target>`; shared on casc-fr#51.
 
 ## Discipline note
 

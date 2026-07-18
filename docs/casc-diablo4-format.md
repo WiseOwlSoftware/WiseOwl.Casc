@@ -2393,11 +2393,18 @@ But the ordinal → name map **is in g98 after all** (#51, CL-108): each g98
 `Diablo4Storage.ReadItemTypeNames()` picks the shortest equippable base name and
 `GetItemTypeName(ordinal)` resolves one. (The earlier "not in g98" was a misread —
 the ordinal is in the `+0x28` array, not the header fields the first attempt
-scanned.) **Honest gap:** a few ordinals seen in pools — `9` (a weapon), `23` (a
-Strength armor type) — have *no* g98 record and stay unnamed
-(`GetItemTypeName` returns `null`, never a wrong name); they are
-engine-aggregate/legacy values. Tempering pools use the same per-affix mechanism
-(a temper-family-tagged subset); `TemperRecipeFamily` is likewise just a name
+scanned.) **The remaining gap, refined:** a few pool ordinals — `9`, `23` — are
+not *leaf* item-types (no record carries them as its `+0x28` `eItemType`), so
+`GetItemTypeName` returns `null` for them. But they are not voids: they are
+**aggregate category ordinals** that appear as secondary type markers on the
+relevant records. `23` shows up in exactly the seven off-hand/shield records
+(`Shield`, `Amazon_Shield`, `ShieldHTH`, `Focus`, `FocusBookOffHand`,
+`OffHandTotem`, `HoradricSeal`) → it is the **off-hand/shield category** (so
+`CoreStat_Strength`'s `[16,17,28,30,29,23]` = Helm/Chest/Gloves/Legs/Boots +
+off-hands); `9` is a weapon-family marker on the weapon records. So the leaf-name
+map is complete and the two aggregate ids are category-level (recon: `SnoScan
+itemtypeenum <target>`). Tempering pools use the same per-affix mechanism (a
+temper-family-tagged subset); `TemperRecipeFamily` is likewise just a name
 registry.
 
 ### 11.4 `ItemDefinition` (group 73, `.itm`)
