@@ -1634,6 +1634,53 @@ public sealed class Diablo4Storage : IDisposable
         }
     }
 
+    private IReadOnlyDictionary<int, string>? _itemTypeNames;
+
+    /// <summary>
+    /// The engine <c>eItemType</c> <b>ordinal → base-type name</b> map (#51,
+    /// CL-108) — the key that names an affix pool. An affix's
+    /// <see cref="AffixDefinition.AllowedItemTypes"/> (and the inverse
+    /// <see cref="RollableAffixes(int)"/>) speak these ordinals; this resolves
+    /// each to a readable base-type name (<c>16 → "Helm"</c>, <c>71 → "Charm"</c>,
+    /// <c>1 → "Axe"</c>). Built from the g98 <see cref="ItemType"/> records
+    /// (<see cref="ItemType.EItemType"/>). Where several base types share one
+    /// ordinal (1H/2H/class variants — <c>Axe</c> and <c>Axe2H</c> are both
+    /// <c>1</c>) the representative is the shortest equippable name (the base).
+    /// Cached after the first call.
+    /// </summary>
+    /// <remarks>A few ordinals seen in affix pools (e.g. <c>9</c>, <c>23</c>) have
+    /// no g98 record and are therefore absent from the map — they are
+    /// engine-aggregate/legacy values not nameable from the data.</remarks>
+    public IReadOnlyDictionary<int, string> ReadItemTypeNames()
+    {
+        if (_itemTypeNames is not null) return _itemTypeNames;
+        // Per ordinal, keep the best representative: an equippable base type beats
+        // a non-equippable one; among equal equippability the shorter name wins
+        // (so "Axe" beats "Axe2H", "Staff" beats "StaffDruid"/"StaffSorcerer").
+        var best = new Dictionary<int, (string Name, bool Equip)>();
+        foreach (var t in EnumerateItemTypes())
+        {
+            if (t.EItemType < 0) continue;
+            if (!best.TryGetValue(t.EItemType, out var cur)
+                || (t.IsEquippable && !cur.Equip)
+                || (t.IsEquippable == cur.Equip && t.Name.Length < cur.Name.Length))
+                best[t.EItemType] = (t.Name, t.IsEquippable);
+        }
+        var map = new Dictionary<int, string>(best.Count);
+        foreach (var kv in best) map[kv.Key] = kv.Value.Name;
+        return _itemTypeNames = map;
+    }
+
+    /// <summary>Resolve an engine <c>eItemType</c> ordinal (as it appears in
+    /// <see cref="AffixDefinition.AllowedItemTypes"/> / <see cref="RollableAffixes(int)"/>)
+    /// to a representative base-type name (#51, CL-108), or <see langword="null"/>
+    /// when the ordinal has no g98 <see cref="ItemType"/> record (an
+    /// engine-aggregate/legacy value — never a wrong name). See
+    /// <see cref="ReadItemTypeNames"/>.</summary>
+    /// <param name="eItemType">The <c>eItemType</c> ordinal.</param>
+    public string? GetItemTypeName(int eItemType) =>
+        ReadItemTypeNames().TryGetValue(eItemType, out var n) ? n : null;
+
     /// <summary>Enumerate every item (group <see cref="SnoGroup.Item"/> = 73)
     /// whose base type falls in <paramref name="category"/> — e.g.
     /// <c>EnumerateItems(ItemClass.Weapon)</c> for every weapon in the game,

@@ -1806,6 +1806,35 @@ switch (cmd)
         foreach (var kv in dist) Console.WriteLine($"   {kv.Key}: {kv.Value}");
         return 0;
     }
+    case "itemtypeenum":
+    {
+        // #51 slot rollup: extract the eItemType enum (ordinal -> name) from the
+        // g98 ItemType records. Each record's VLA2 (descriptor at payload +0x28
+        // = +40: dataOff/byteSize) has the eItemType ordinal as its first int32.
+        // Verified: Helm=16, ChestArmor=17, Gloves=28, Boots=29, Charm=71.
+        //   itemtypeenum
+        const int descOff = 40, pb0 = 16;
+        var map = new SortedDictionary<int, List<string>>();
+        int emitted = 0;
+        foreach (var e in toc.Entries.Where(e => (int)e.Group == 98).OrderBy(e => e.Name))
+        {
+            if (!d4.TryReadSno(98, e.Id, SnoFolder.Meta, out var b)) continue;
+            var r = new SnoRecord(b); int len = b.Length;
+            if (pb0 + descOff + 8 > len) continue;
+            int dataOff = r.I32(descOff), byteSize = r.I32(descOff + 4);
+            if (dataOff <= 0 || byteSize < 4 || pb0 + dataOff + 4 > len) continue;
+            int ordinal = r.I32(dataOff);
+            if (ordinal is < 0 or > 500) continue;   // sane enum range
+            if (!map.TryGetValue(ordinal, out var names)) { names = new List<string>(); map[ordinal] = names; }
+            names.Add(e.Name);
+            emitted++;
+        }
+        foreach (var kv in map)
+            Console.WriteLine($"{kv.Key}\t{string.Join(" | ", kv.Value)}");
+        int collisions = map.Values.Count(v => v.Count > 1);
+        Console.WriteLine($"-- {emitted} g98 records mapped; {map.Count} distinct ordinals; {collisions} ordinals with >1 name --");
+        return 0;
+    }
     case "skilltreedump":
     {
         // Skill-tree phase-2: decode SkillTreeRewards (g20/547685) — the

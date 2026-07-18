@@ -2375,12 +2375,23 @@ listing the `eItemType` ordinals it may roll on — semantically verified
 `CritHitChance` → `[70]`). Surface: `AffixDefinition.AllowedItemTypes` (the
 byte-verified primitive) + `Diablo4Storage.RollableAffixes(itemTypeId)` (the
 inverted "what rolls on this type" convenience, a lazy full pass over group 104).
-**The values are engine `eItemType` ordinals, NOT group-98 `ItemType` SNOs** —
-resolving them to type names needs an oracle / the EXE enum (not in g98; a
-correlation attempt failed), so raw ids ship as the primitive and a slot rollup
-is deferred until the enum is resolved. Tempering pools use the same per-affix
-mechanism (a temper-family-tagged subset); `TemperRecipeFamily` is likewise just
-a name registry.
+**The values are engine `eItemType` ordinals, NOT group-98 `ItemType` SNO ids.**
+But the ordinal → name map **is in g98 after all** (#51, CL-108): each g98
+`ItemType` record carries its `eItemType` ordinal as the **first int32 of the
+`DT_VARIABLEARRAY` at payload `+0x28`** — surfaced as `ItemType.EItemType`. So
+`16 → "Helm"`, `17 → "ChestArmor"`, `28 → "Gloves"`, `29 → "Boots"`, `30 →
+"Legs"`, `26 → "Amulet"`, `19 → "Ring"`, `1 → "Axe"`, `10 → "Bow"`, `71 →
+"Charm"` (build 3.1.1.72836). 1H/2H and class variants **share one ordinal**
+(`Axe`/`Axe2H` are both `1`), so the map is one-ordinal-to-many-names;
+`Diablo4Storage.ReadItemTypeNames()` picks the shortest equippable base name and
+`GetItemTypeName(ordinal)` resolves one. (The earlier "not in g98" was a misread —
+the ordinal is in the `+0x28` array, not the header fields the first attempt
+scanned.) **Honest gap:** a few ordinals seen in pools — `9` (a weapon), `23` (a
+Strength armor type) — have *no* g98 record and stay unnamed
+(`GetItemTypeName` returns `null`, never a wrong name); they are
+engine-aggregate/legacy values. Tempering pools use the same per-affix mechanism
+(a temper-family-tagged subset); `TemperRecipeFamily` is likewise just a name
+registry.
 
 ### 11.4 `ItemDefinition` (group 73, `.itm`)
 
@@ -2594,6 +2605,11 @@ Boots), **Jewelry 2** (Amulet/Ring), **Charm 1**, **Other 117** (consumables,
 currency, gems/runes, quest items, caches, keys, essences, mount/companion
 armor, …). Structural — no name parsing.
 
+`ItemType.EItemType` (#51, CL-108) is the record's engine `eItemType` **ordinal**
+— the first int32 of the `DT_VARIABLEARRAY` at payload `+0x28` — the value that
+appears in an affix's `AllowedItemTypes` pool. `Diablo4Storage.ReadItemTypeNames()`
+inverts the full g98 set into an ordinal → base-type-name map (§11.3).
+
 ### 13.3 API
 
 - `Diablo4Storage.ReadItemType(int)` → `ItemType` (`SnoId`, `Name`, `Class`,
@@ -2628,6 +2644,20 @@ name differs. (Wiring only — no new byte layout; joins the shipped `ReadItem` 
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
 
+- **CL-108 — `eItemType` ordinal → name, from g98 `+0x28` (#51; corrects CL-106's
+  "not in g98").** The affix-pool ordinals in `AllowedItemTypes` *are* nameable from
+  the data after all: each g98 `ItemType` record's `eItemType` ordinal is the first
+  int32 of the `DT_VARIABLEARRAY` at payload **`+0x28`** — surfaced as
+  `ItemType.EItemType`; `Diablo4Storage.ReadItemTypeNames()` / `GetItemTypeName(int)`
+  invert the g98 set into an ordinal → base-type-name map (`16→Helm`, `17→ChestArmor`,
+  `28→Gloves`, `29→Boots`, `30→Legs`, `26→Amulet`, `19→Ring`, `1→Axe`, `71→Charm`).
+  1H/2H + class variants share one ordinal (`Axe`/`Axe2H`=`1`) → shortest-equippable
+  representative. The CL-106 "correlation failed / needs the EXE enum" was a misread
+  (it scanned the header, not the `+0x28` array). Honest gap: ordinals `9`/`23`
+  appear in pools but have no g98 record → `GetItemTypeName` returns `null` (engine
+  -aggregate/legacy). Owner declined the in-game oracle + asked for the EXE route;
+  the answer was in the SNO data. §11.3, §13.1. Recon: `SnoScan itemtypeenum`. devlog 0103.
+
 - **CL-107 — legendary max rank is per-aspect, at affix `+0x94` (FR-C38, `casc-fr#55`;
   corrects CL-100).** The rank cap `CurrentLegendaryRank()` reaches is **not** a
   universal `10` — it is **per-aspect**, the int32 at the g104 **affix** record's
@@ -2653,8 +2683,9 @@ true value (the sections above already state the corrected truth).
   `AffixDefinition.AllowedItemTypes` (primitive) + `Diablo4Storage.RollableAffixes(itemTypeId)`
   (inverted convenience). Verified: `CoreStat_Strength_Weapon` → the weapon types,
   `CritHitChance` → `[70]`. The values are engine `eItemType` ordinals, **not**
-  g98 SNOs — names need an oracle/EXE (raw ids ship; slot rollup deferred). §11.3;
-  devlog 0100.
+  g98 SNO *ids* — but they **are** nameable from g98 (`ItemType.EItemType` at
+  `+0x28`); the "names need an oracle/EXE" call here was wrong — see **CL-108**.
+  §11.3; devlog 0100.
 
 - **CL-105 — `MonsterNames` registry (FR-C35) + `MonsterLevelCurves` finding
   (FR-C36).** `Diablo4Storage.ReadMonsterNames(locale)` → `MonsterNameRegistry`:
