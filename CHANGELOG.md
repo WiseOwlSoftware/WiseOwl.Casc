@@ -6,6 +6,19 @@ Semantic Versioning once it reaches `1.0.0`.
 
 ## [Unreleased]
 
+## [0.8.0] — 2026-07-17
+
+Names the **affix pool** (item type ↔ rollable affixes, now with readable
+type names), exposes each skill's **skill-tree modifiers** and the game's
+**monster name fragments**, adds an item's **CoreTOC name** for de-duping the
+game's leftover seasonal unique duplicates, and **corrects the legendary aspect
+rank cap** to its true per-aspect value. Continues to track the live game through
+Season 14 (build `3.1.1.72836`).
+
+> **Breaking:** `PowerDefinition.MaxRank` and `PowerDefinition.MaxLegendaryRank`
+> (0.7.0) are **removed** — replaced by the per-aspect `AffixDefinition.MaxRank`.
+> See *Changed* below.
+
 ### Changed
 
 - **Legendary aspect rank cap is now per-aspect** — `AffixDefinition.MaxRank`
