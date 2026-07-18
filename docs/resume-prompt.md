@@ -56,36 +56,40 @@ POST `-F environment_ids[]=<id> -f state=approved`). NuGet lag: the
 (installable); the **registration** endpoint (`registration5-gz-semver2/<pkg>/<ver>.json`
 → 200) + nuget.org UI lag longer. `jq` is NOT installed in bash — use `gh --jq`.
 
-**Optimizer is BACK + active (returned ~20:16Z).** Delivered this arc:
-`casc-fr#52` FR-C35 (MonsterNames reader, CL-105) + `#53` FR-C36 (finding — it's a
-name registry, no curve) → both `awaiting:optimizer`. **2 open `awaiting:casc`:**
-- **`#51`** affix pool — **DELIVERED CL-106** (`AllowedItemTypes` primitive +
-  `RollableAffixes` inverted). `awaiting:optimizer`. **Open sub-task: eItemType
-  enum → item-type names needs ONE owner oracle** (which types are `70`/`71` +
-  2–3 weapon values) or the EXE enum — then the slot rollup follows.
-- **`#54`** FR-C37 — **DELIVERED as a finding** (thoroughly verified, not a
-  premature boundary): `S10ChaosTuningPerClass` has 7 degenerate `SF_0+0.0`
-  formula slots + one `"0.20"` literal; **no per-class matrix in the data**
-  (whole-record scan clean + no variant powers + no referenced table). The
-  FR-C13 decoder DROPS the `"0.20"` (backward-walk stops after 1 slot — a fixable
-  gap). **Fork needs an in-game oracle:** does one of the 86 affixes read the
-  SAME value across classes (→ uniform `0.20`; fix the decoder + resolve them) or
-  DIFFERENT (→ engine-runtime-injected, boundary)? `awaiting:optimizer`.
+**Queue effectively CLEAR — only dormant `#53` open.** Everything else
+`awaiting:optimizer` or `needs:owner`. Delivered across this arc (all unreleased,
+owner batching):
+- **`#55`** FR-C38 — **CL-107** (`@2d67bed`). Per-aspect legendary rank cap =
+  `AffixDefinition.MaxRank` (affix `+0x94`), corrects CL-100's misread; **removed**
+  `PowerDefinition.MaxRank`/`.MaxLegendaryRank` (breaking). `awaiting:optimizer`.
+- **`#51`** affix pool — **CL-106 primitive + CL-108** (`@5d5ab4e`) **the
+  eItemType names**. The ordinal→name map WAS in g98 (`ItemType.EItemType` = first
+  int32 of the `+0x28` VLA; CL-106's "not in g98" was a header-scan misread).
+  `Diablo4Storage.ReadItemTypeNames()`/`GetItemTypeName(int)`. Honest gap: ordinals
+  `9`/`23` have no g98 record (unnamed, null). `awaiting:optimizer`.
+- **`#56`** FR-C39 — **CL-109** (`@c59599e`). `ItemDefinition.SnoName` (CoreTOC
+  name) so consumers de-dupe the ~473 season-prefixed (`^S\d+_`) leftover unique
+  duplicates; name prefix is the reliable signal (the `0x10000000` flag isn't
+  clean). Likely origin: seasonal→eternal migration. `awaiting:optimizer`.
+- **`#54`** FR-C37 — finding delivered; Optimizer relayed the uniform-`0.20`-vs-
+  per-class oracle → **`needs:owner`** (hard stop, no action).
+- **`#53`** FR-C36 — MonsterLevelCurves "not in data" finding; owner keeps it as a
+  **dormant standing-home** for raid-scaling (acked; nothing pending).
 
-- **`#55`** FR-C38 — **DELIVERED CL-107** (`WiseOwl.Casc@2d67bed`, PR #102, main /
-  **unreleased**). Optimizer's correction of CL-100: the legendary rank cap is
-  **per-aspect** (int32 at g104 affix `+0x94` = `AffixDefinition.MaxRank`), NOT the
-  universal `10`. The CL-100 `("10",10.0)` was a value-descriptor footer misread
-  (tautological "confirmation"); **removed** `PowerDefinition.MaxRank` +
-  `.MaxLegendaryRank` (breaking; 0.7.0 shipped them, owner-OK zero consumers).
-  4/4 owner oracles exact (21/21/6/16); 661/661 present+sane. `awaiting:optimizer`.
+**Skill-tree phase-2 (task #18) — RE DONE, no API yet (devlog 0102).** The tree IS
+data-driven: `SkillTreeRewards` (g20/547685) is a 2360-node table (256-byte name
+buffer + 7 int32). **Rule 1 (modifier groups) SOLVED** = F5 group id (Blade Shift
+UpgradeA/B/C=grp0, Side1-4=grp1); **rule 2 (prereq) SOLVED** = F2 modified-skill
+Power SNO. **Rule 3 (category thresholds) PARTIAL** — typed nodes + named tiers
+(`Talent_<Cat>_T<n>`) present, but the numeric threshold isn't a field in this
+table (candidates: `GenericSkillTree` g46 UI layout, engine rule — NOT a boundary).
+Recon: `SnoScan skilltreedump`. A `SkillTreeNode{Name,Kind,SkillSno,ModifierGbid,
+GroupId}` API is proposable to the Optimizer (customer-proxy) before building.
 
-**Queue now CLEAR (0 `awaiting:casc`).** All FRs delivered; everything
-`awaiting:optimizer` (consume-verify vs 0.7.0 + oracle asks: #51 eItemType names,
-#54 uniform-vs-per-class; #55 CL-107 unreleased). **Available owner-approved
-deferred work if idle:** the API redesign (decided direction — start with P0 docs
-+ a `SnoTable<T>` prototype) OR phase-2 skill-tree structure (modifier groups /
-prereqs / category thresholds).
+**Available owner-approved deferred work if idle:** the API redesign (decided
+direction — P0 docs + a `SnoTable<T>` prototype); skill-tree phase-3 (rule-3
+thresholds via the UI layout, or the SkillTreeNode API); eItemType `9`/`23` pinning
+(needs an in-game view). Unreleased CLs on `main`: **CL-104..109**.
 `#45`/`#50`/`#39`/`#41`/`#49` all `awaiting:optimizer` (consume-verify vs 0.7.0);
 `#39` disposed `fr:by-design`. Re-poll before assuming idle.
 
