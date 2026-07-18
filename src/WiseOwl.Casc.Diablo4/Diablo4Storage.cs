@@ -1399,6 +1399,103 @@ public sealed class Diablo4Storage : IDisposable
     public MonsterLevelCurvesTable ReadMonsterLevelCurves(int id = MonsterLevelCurvesTable.DefaultSnoId) =>
         MonsterLevelCurvesTable.Parse(ReadSno(SnoGroup.GameBalance, id));
 
+    private const int SkillTreeRewardsSno = 547685;   // g20 per-node metadata table
+    private const int SkillTreeBoardGroup = 39;        // class board (g39)
+
+    // (g39 board SNO, SkillTreeRewards name prefixes) per class, in SkillTreeClass order.
+    private static readonly (int Board, string[] Prefixes)[] SkillTreeClasses =
+    [
+        (169806,  ["Barb_", "Barbarian_"]),   // Barbarian
+        (164706,  ["Druid_"]),                // Druid
+        (199280,  ["Necro_", "Necromancer_"]),// Necromancer
+        (2336990, ["Paladin_"]),              // Paladin
+        (199278,  ["Rogue_"]),                // Rogue
+        (72984,   ["Sorc_", "Sorcerer_"]),    // Sorcerer
+        (1663193, ["Spiritborn_"]),           // Spiritborn
+        (2208849, ["Warlock_"]),              // Warlock
+    ];
+
+    /// <summary>
+    /// Read a class's <see cref="SkillTree"/> (#57, CL-111) — the logical per-node
+    /// tree: every unlock / skill-rank / modifier / talent node with its kind, the
+    /// skill it is/modifies, and its mutually-exclusive modifier group, plus the
+    /// class's active skills. Node effect text resolves through
+    /// <see cref="SkillTreeNode.SkillSno"/> → <see cref="ReadPower(int, string)"/>.
+    /// The visual graph (positions/edges) is intentionally not surfaced — see the
+    /// <see cref="SkillTree"/> remarks.
+    /// </summary>
+    /// <param name="classId">The character class.</param>
+    public SkillTree ReadSkillTree(SkillTreeClass classId)
+    {
+        var (board, prefixes) = SkillTreeClasses[(int)classId];
+        return new SkillTree(classId, ReadSkillTreeNodes(prefixes), ReadSkillTreeSkills(board));
+    }
+
+    private SkillTreeNode[] ReadSkillTreeNodes(string[] prefixes)
+    {
+        var blob = ReadSno(SnoGroup.GameBalance, SkillTreeRewardsSno);
+        var r = new SnoRecord(blob);
+        int len = blob.Length, pb = r.PayloadBase;
+        const int first = 88, stride = 284, nameBuf = 256;
+        int count = (len - pb - first) / stride;
+        var list = new List<SkillTreeNode>();
+        for (int i = 0; i < count; i++)
+        {
+            int rec = first + i * stride;
+            if (pb + rec + stride > len) break;
+            int nameMax = Math.Min(nameBuf, len - pb - rec);
+            string name = ReadCString(r, rec, nameMax);
+            bool match = false;
+            foreach (var p in prefixes)
+                if (name.StartsWith(p, StringComparison.Ordinal)) { match = true; break; }
+            if (!match) continue;
+            int t = rec + 256;                         // 7-int32 tail
+            int skill = r.I32(t + 8);                  // F2 = modified-skill Power SNO
+            var kind = MapSkillNodeKind(r.I32(t + 16));// F4 = node type
+            int group = r.I32(t + 20);                 // F5 = modifier group id
+            list.Add(new SkillTreeNode(
+                name, kind, skill < 0 ? 0 : skill,
+                kind == SkillTreeNodeKind.Modifier ? group : -1));
+        }
+        return list.ToArray();
+    }
+
+    private int[] ReadSkillTreeSkills(int boardSno)
+    {
+        if (!TryReadSno(SkillTreeBoardGroup, boardSno, SnoFolder.Meta, out var blob)) return [];
+        var r = new SnoRecord(blob);
+        int len = blob.Length, pb = r.PayloadBase;
+        if (pb + 16 + 8 > len) return [];              // skill-list descriptor @ +0x10
+        int dataOff = r.I32(16), size = r.I32(20);
+        if (dataOff <= 0 || size <= 0 || size % 8 != 0 || pb + dataOff + size > len) return [];
+        int n = size / 8;                              // pairs of (skill SNO, flag)
+        var skills = new List<int>(n);
+        for (int i = 0; i < n; i++)
+        {
+            int sno = r.I32(dataOff + i * 8);
+            if (sno > 0) skills.Add(sno);
+        }
+        return skills.ToArray();
+    }
+
+    private static SkillTreeNodeKind MapSkillNodeKind(int f4) => f4 switch
+    {
+        15 or 5 => SkillTreeNodeKind.Unlock,   // 5 = the Spiritborn-board unlock variant
+        2 => SkillTreeNodeKind.SkillRank,
+        3 or 12 => SkillTreeNodeKind.Modifier, // 12 = a default-modifier variant
+        1 => SkillTreeNodeKind.Talent,
+        _ => SkillTreeNodeKind.Other,
+    };
+
+    private static string ReadCString(SnoRecord r, int payloadOffset, int maxLength)
+    {
+        if (maxLength <= 0) return string.Empty;
+        string raw = r.Ascii(payloadOffset, maxLength);
+        int end = 0;
+        while (end < raw.Length && raw[end] is >= (char)0x20 and < (char)0x7F) end++;
+        return raw[..end];
+    }
+
     /// <summary>Read the <see cref="MonsterNameRegistry"/> (FR-C35, CL-105) — the
     /// localized name-affix fragments the game composes into elite/special
     /// monster display names (e.g. <c>FrozenSuffix004</c> → <c>"Frostburn"</c>).
