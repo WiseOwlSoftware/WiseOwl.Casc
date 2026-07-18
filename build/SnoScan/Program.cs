@@ -1806,6 +1806,41 @@ switch (cmd)
         foreach (var kv in dist) Console.WriteLine($"   {kv.Key}: {kv.Value}");
         return 0;
     }
+    case "skilltreedump":
+    {
+        // Skill-tree phase-2: decode SkillTreeRewards (g20/547685) — the
+        // per-node table. Each 284-byte record = 256-byte inline name buffer +
+        // 7 int32 fields. Tail (rec+256): F0=-1, F1, F2=modifiedSkillSno,
+        // F3=modifierGbid, F4=nodeType, F5=groupId, F6=-1.
+        //   skilltreedump [substr] [nodeTypeFilter=-999]
+        string sub = argv.Count > 1 ? argv[1] : "";
+        int typeFilter = argv.Count > 2 ? int.Parse(argv[2]) : -999;
+        const int sno = 547685, first = 88, stride = 284, nameBuf = 256;
+        if (!d4.TryReadSno(20, sno, SnoFolder.Meta, out var b)) { Console.WriteLine("no content"); return 1; }
+        var r = new SnoRecord(b); int len = b.Length, pb = SnoRecord.DefaultPayloadBase;
+        int count = (len - pb - first) / stride;
+        var typeCounts = new SortedDictionary<int, int>();
+        var groupCounts = new SortedDictionary<int, int>();
+        int printed = 0;
+        for (int i = 0; i < count; i++)
+        {
+            int rec = first + i * stride;
+            if (pb + rec + stride > len) break;
+            int nend = rec; while (nend < rec + nameBuf && b[pb + nend] != 0) nend++;
+            string name = System.Text.Encoding.ASCII.GetString(b, pb + rec, nend - rec);
+            int t = rec + nameBuf;
+            int f1 = r.I32(t + 4), f2 = r.I32(t + 8), f3 = r.I32(t + 12), f4 = r.I32(t + 16), f5 = r.I32(t + 20);
+            typeCounts.TryGetValue(f4, out var c); typeCounts[f4] = c + 1;
+            groupCounts.TryGetValue(f5, out var g); groupCounts[f5] = g + 1;
+            bool match = name.Contains(sub, StringComparison.OrdinalIgnoreCase)
+                         && (typeFilter == -999 || f4 == typeFilter);
+            if (match && printed < 80)
+            { Console.WriteLine($"{name}\tskill={f2} gbid={(uint)f3} type={f4} group={f5} f1={f1}"); printed++; }
+        }
+        Console.WriteLine($"-- {count} records; nodeType(F4): {string.Join(", ", typeCounts.Select(kv => $"{kv.Key}:{kv.Value}"))} --");
+        Console.WriteLine($"-- groupId(F5): {string.Join(", ", groupCounts.Select(kv => $"{kv.Key}:{kv.Value}"))} --");
+        return 0;
+    }
     case "inlineformula":
     {
         // LIB-3 R5: does the affix record carry an INLINE formula string
