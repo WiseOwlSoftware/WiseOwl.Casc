@@ -19,14 +19,14 @@ load-bearing "don't re-discover" facts.
 
 ### ⏭️ NEXT-SESSION PICKUP (2026-07-17) — start here
 
-**Published: `WiseOwl.Casc` + `WiseOwl.Casc.Diablo4` `0.7.0` live on NuGet**
-(pushed 2026-07-17; flat-container live/installable, registration/search index
-lags a few min). `main` tip **`6fe580b`** (+ this doc commit); `<Version>` =
-0.7.0; working tree clean. **0.7.0 shipped CL-100 (LIB-3 R7) + CL-101 (FR-C34) +
-CL-102 (LevelScaling raw cols) + CL-103 (unique→affix wiring).** `main` tip
-**`47214f7`**; **unreleased on `main`: CL-104 (skill modifiers) + CL-105
-(MonsterNames + FR-C36 finding) + CL-106 (affix pool — `AffixDefinition.AllowedItemTypes`
-+ `RollableAffixes`)**. Release
+**Published: `WiseOwl.Casc` + `WiseOwl.Casc.Diablo4` `0.8.0` live on NuGet**
+(pushed 2026-07-18, release `v0.8.0` by BrentRector, PR #105; both packages
+`Created`; flat-container/search index lags a few min post-push). `main` tip
+**`83d5549`** (+ this doc commit); `<Version>` = 0.8.0; working tree clean.
+**0.8.0 shipped CL-104 (skill modifiers) + CL-105 (MonsterNames) + CL-106/CL-108
+(affix pool + eItemType names) + CL-107 (per-aspect max rank — BREAKING: removed
+`PowerDefinition.MaxRank`/`.MaxLegendaryRank`) + CL-109 (`ItemDefinition.SnoName`).**
+0.7.0 shipped CL-100..103. FRs #51/#52/#55/#56 labeled `released:v0.8.0`. Release
 
 **⚠️ API REDESIGN — DECIDED DIRECTION (owner, 2026-07-17; not yet started).** Owner
 wants the API revisited before 1.0. Judge-panel verdict = **"flat-plus +
@@ -89,7 +89,8 @@ GroupId}` API is proposable to the Optimizer (customer-proxy) before building.
 **Available owner-approved deferred work if idle:** the API redesign (decided
 direction — P0 docs + a `SnoTable<T>` prototype); skill-tree phase-3 (rule-3
 thresholds via the UI layout, or the SkillTreeNode API); eItemType `9`/`23` pinning
-(needs an in-game view). Unreleased CLs on `main`: **CL-104..109**.
+(needs an in-game view). **CL-104..109 are now published in 0.8.0**; `main` is
+clean at the release tag. Next unreleased work starts fresh.
 `#45`/`#50`/`#39`/`#41`/`#49` all `awaiting:optimizer` (consume-verify vs 0.7.0);
 `#39` disposed `fr:by-design`. Re-poll before assuming idle.
 
