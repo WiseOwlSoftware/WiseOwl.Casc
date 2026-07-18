@@ -6,6 +6,13 @@ Semantic Versioning once it reaches `1.0.0`.
 
 ## [Unreleased]
 
+### Added
+
+- **Monster level curves** — `Diablo4Storage.ReadMonsterLevelCurves()` returns the
+  six per-raid-tier (`Raid_Tier_0..5`) monster-level scaling curves — each maps a
+  monster/area level to a scaled effective value across that tier's level span.
+  (Corrects an earlier finding that recorded this table as empty.)
+
 ## [0.8.0] — 2026-07-17
 
 Names the **affix pool** (item type ↔ rollable affixes, now with readable

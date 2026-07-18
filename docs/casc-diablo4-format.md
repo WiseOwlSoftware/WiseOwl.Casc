@@ -1091,15 +1091,22 @@ display names (§11.3 / FR-C30). Surface: `Diablo4Storage.ReadMonsterNames(local
 (honest — the exact composition rule is engine-side); token + text are
 byte-verified.
 
-**`MonsterLevelCurves` (FR-C36) — a name registry, NOT a curve.** RE finding: the
-table (SNO `1610053`) is a **6-entry name registry** (`Raid_Tier_0..5`, VLA @
-payload `+0x50` → 6 × 320 B) whose records are **near-empty** — just the tier
-name + placeholder `1.0` floats, identical across `Tier_0` and `Tier_5`. It does
-**not** contain per-level scaling curves; the per-monster-level scaling is
-`DifficultyTiers` (§8.3). So there is nothing meaningful to type beyond the six
-tier names — recorded as an evidence-backed "not in the data" (like
-`AffixFamilyList` / `TemperRecipeFamily`, which are also name registries). No
-reader shipped; the finding is the deliverable.
+**`MonsterLevelCurves` (FR-C36, CL-110) — six per-raid-tier scaling curves.**
+⚠️ **Corrects a wrong earlier finding** ("a name registry, NOT a curve / not in
+the data"). The curves *are* here — the earlier read stopped at the tier records'
+placeholder `1.0` floats and never followed each record's curve descriptor. The
+table (SNO `1610053`, group 20) is: a VLA @ payload `+0x50` → **6 × 320-byte tier
+records** (`Raid_Tier_0..5`, named inline), and **each record carries a
+`DT_VARIABLEARRAY` at record offset `+312`** → its curve rows in the record tail.
+Each curve row is **12 bytes** = two `int32` (equal in the live data — the level)
++ one `float32` (the scaled effective value, climbing to `100` across the tier's
+level span). Tier 0 spans levels 55→95 (11 rows); higher tiers start higher (Tier
+1 at 65, … Tier 5 at 105) with fewer rows. Surface: `MonsterLevelCurvesTable`
+(`Tiers` → `MonsterLevelCurve` → `MonsterLevelCurvePoint{Level,LevelHigh,ScaledValue}`)
+via `Diablo4Storage.ReadMonsterLevelCurves()`. The exact remap semantic (effective
+level vs. multiplier) is a structural inference — named descriptively, raw values
+exposed. This is *separate* from `DifficultyTiers` (§8.3, the per-monster-level
+HP/XP curve): `MonsterLevelCurves` is the per-**raid-tier** level remap.
 
 ## 9. Read path (Diablo IV)
 
@@ -2659,6 +2666,17 @@ name differs. (Wiring only — no new byte layout; joins the shipped `ReadItem` 
 
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
+
+- **CL-110 — `MonsterLevelCurves` is six per-raid-tier curves (FR-C36; corrects
+  CL-105's "not in the data").** The earlier finding — `MonsterLevelCurves` (1610053)
+  is "an empty name registry, no curve" — was **wrong**: the read stopped at the
+  tier records' placeholder floats and never followed each record's curve descriptor.
+  Each of the 6 `Raid_Tier_N` records (VLA @ `+0x50`, 320 B each) carries a
+  `DT_VARIABLEARRAY` at record `+312` → 12-byte curve rows (two `int32` level + one
+  `float32` scaled value, reaching 100 across the tier span). Shipped
+  `MonsterLevelCurvesTable` / `Diablo4Storage.ReadMonsterLevelCurves()`. Fourth
+  "not-in-the-data" miss of the session — see [[feedback_never-declare-engine-driven]].
+  §8.4; devlog 0106.
 
 - **CL-109 — item `SnoName` + season-prefixed unique-duplicate convention (#56).**
   The live Item group has ~473 leftover season-prefixed (`^S\d+_`) duplicate unique
