@@ -76,15 +76,24 @@ owner batching):
 - **`#53`** FR-C36 — MonsterLevelCurves "not in data" finding; owner keeps it as a
   **dormant standing-home** for raid-scaling (acked; nothing pending).
 
-**Skill-tree phase-2 (task #18) — RE DONE, no API yet (devlog 0102).** The tree IS
-data-driven: `SkillTreeRewards` (g20/547685) is a 2360-node table (256-byte name
-buffer + 7 int32). **Rule 1 (modifier groups) SOLVED** = F5 group id (Blade Shift
-UpgradeA/B/C=grp0, Side1-4=grp1); **rule 2 (prereq) SOLVED** = F2 modified-skill
-Power SNO. **Rule 3 (category thresholds) PARTIAL** — typed nodes + named tiers
-(`Talent_<Cat>_T<n>`) present, but the numeric threshold isn't a field in this
-table (candidates: `GenericSkillTree` g46 UI layout, engine rule — NOT a boundary).
-Recon: `SnoScan skilltreedump`. A `SkillTreeNode{Name,Kind,SkillSno,ModifierGbid,
-GroupId}` API is proposable to the Optimizer (customer-proxy) before building.
+**Skill-tree — FULLY DECODED, all data-driven (devlog 0102 + 0105); API proposed
+`casc-fr#57`.** ⚠️ I called the topology/gates "engine-side" THREE times; all wrong
+(owner: "I do not believe *any* of the skill tree is engine decided" — correct).
+Lesson saved: [[feedback_never-declare-engine-driven]] + "all buffer space is used".
+Two SNOs:
+- **`SkillTreeRewards` (g20/547685)** — per-node metadata (2360 nodes): kind, the
+  modified-skill Power SNO (**rule 2 prereq**), the **modifier group id** (Blade
+  Shift UpgradeA/B/C=grp0, Side1-4=grp1 — **rule 1**). Recon: `SnoScan skilltreedump`.
+- **`g39/<class>`** (Rogue=**199278**, 35 KB — the class *gameplay/board* group, NOT
+  the g74 avatar def) — the **tree graph**: +104 active-skill list, +304 node graph
+  (270 nodes × 22 int32: name-hash=**seed-0 DJB2 lowercased** of the SkillTreeRewards
+  name, **X/Y position**, kind [16=skill/4=mod/12·20·24=connector], adjacency ptr),
+  +26288 edge list (264 connections), +34736 line-routing waypoints. **Rule 3 gate**
+  = connector-node `[5]` **tier/depth** (monotonic with Y: top≈5 → bottom≈24) + the
+  edge topology. Node-name hash added to `docs/d4-hash-dictionary.md`.
+- **`#57` proposal** `awaiting:optimizer` — asked them to shape the `SkillTree`/
+  `SkillTreeNode{Name,Kind,SkillSno,ModifierGroupId,Position,Tier,Neighbors}` surface
+  (use-case? graph-vs-logical? literal-points-gate? filters? scope?) before I build.
 
 **Available owner-approved deferred work if idle:** the API redesign (decided
 direction — P0 docs + a `SnoTable<T>` prototype); skill-tree phase-3 (rule-3
