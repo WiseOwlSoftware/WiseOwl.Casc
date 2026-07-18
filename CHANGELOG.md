@@ -39,6 +39,11 @@ Semantic Versioning once it reaches `1.0.0`.
   the ordinal on each item base type — so the affix pool can be reported by name.
   A few pool ids have no base-type record and stay unresolved (returns null, never
   a wrong name).
+- **Item SNO name** — `ItemDefinition.SnoName` exposes an item's CoreTOC name
+  (distinct from the localized display name), populated by `ReadItem` and
+  `EnumerateItems`. It lets consumers de-dupe the game's leftover season-prefixed
+  unique duplicates (`^S\d+_` SNOs that share a canonical item's display name) —
+  filter to the non-season-prefixed name when listing uniques.
 
 ## [0.7.0] — 2026-07-17
 

@@ -1601,6 +1601,7 @@ public sealed class Diablo4Storage : IDisposable
     public ItemDefinition ReadItem(int id, string locale = DefaultLocale)
     {
         var it = ItemDefinition.Parse(ReadSno(SnoGroup.Item, id));
+        it.SetSnoName(CoreToc.GetName(SnoGroup.Item, id) ?? string.Empty);
         TryReadSiblingString(SnoGroup.Item, id, "Item_", "Name", locale, out var nm);
         TryReadSiblingString(SnoGroup.Item, id, "Item_", "Flavor", locale, out var fl);
         TryReadSiblingString(SnoGroup.Item, id, "Item_", "TransmogName", locale, out var tm);
@@ -1698,6 +1699,7 @@ public sealed class Diablo4Storage : IDisposable
             ItemDefinition item;
             try { item = ItemDefinition.Parse(ReadSno(SnoGroup.Item, e.Id)); }
             catch { continue; }
+            item.SetSnoName(e.Name);   // the CoreTOC name — enables ^S\d+_ dedup (#56)
             if (item.ItemTypeSnoId == 0) continue;
             if (!classOfType.TryGetValue(item.ItemTypeSnoId, out var cls))
             {

@@ -2399,7 +2399,23 @@ Identity (`snoId@0`) + localized `Name`/`Flavor`/`TransmogName` from
 sibling `Item_<snoName>`. Item stat/affix/power modeling is consumer
 domain. Anchor: item `223287` (`1HAxe_Unique_Generic_001`) → Name
 `The Butcher's Cleaver`, TransmogName `Cadaver Chopper`. Surface:
-`Diablo4Storage.ReadItem(int, locale)`. CL-22.
+`Diablo4Storage.ReadItem(int, locale)` + `EnumerateItems(class)`. CL-22.
+
+**Season-prefixed unique duplicates (#56, CL-109).** The live Item group carries
+**leftover seasonal/PTR duplicate** unique SNOs whose CoreTOC name is
+season-prefixed (`^S\d+_` — e.g. `S10_Amulet_Unique_Rogue_100_Boots`, a stale
+duplicate of the canonical `Amulet_Unique_Rogue_100` with a different slot / more
+explicits). Of ~1030 live `_Unique_` item SNOs, ~473 are season-prefixed. They
+**share the localized display `Name`** with the canonical item — so any surface
+that de-dupes uniques by display name must prefer the **non-`^S\d+_`**
+`ItemDefinition.SnoName` (now exposed for exactly this test). The likely origin is
+**seasonal→eternal migration**: a character's seasonal-realm item needs a distinct
+SNO so it doesn't collide with the canonical eternal version, so the season
+incarnation is kept under an `S<n>_`-prefixed name. No clean structural bit
+separates them — the `0x10000000` flag (payload `+0x14`) correlates ~91% on
+season-prefixed vs ~7% canonical but has exceptions both ways (it reads as a
+seasonal-content bit that is also set on some current-season canonical uniques),
+so the **name prefix is the reliable signal**, not a flag.
 
 All four: byte-only `Parse(blob)` yields identity only (localized
 fields empty — they need `CoreToc`); the deep binary beyond the
@@ -2643,6 +2659,16 @@ name differs. (Wiring only — no new byte layout; joins the shipped `ReadItem` 
 
 What was found wrong/omitted during empirical implementation, and the
 true value (the sections above already state the corrected truth).
+
+- **CL-109 — item `SnoName` + season-prefixed unique-duplicate convention (#56).**
+  The live Item group has ~473 leftover season-prefixed (`^S\d+_`) duplicate unique
+  SNOs that share a canonical item's localized display name (different slot / more
+  explicits) — a de-dup hazard for any "list uniques" / affix-pool / taxonomy
+  surface. Exposed `ItemDefinition.SnoName` (the CoreTOC name, populated by
+  `ReadItem` + `EnumerateItems`) so consumers prefer the non-`^S\d+_` record; the
+  name prefix is the reliable signal (the `0x10000000` flag correlates ~91% but has
+  exceptions). Likely origin: seasonal→eternal migration keeps the season item under
+  a distinct `S<n>_` SNO. §11.4; devlog 0104.
 
 - **CL-108 — `eItemType` ordinal → name, from g98 `+0x28` (#51; corrects CL-106's
   "not in g98").** The affix-pool ordinals in `AllowedItemTypes` *are* nameable from

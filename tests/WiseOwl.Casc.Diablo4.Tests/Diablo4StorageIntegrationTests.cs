@@ -1224,6 +1224,37 @@ public sealed class Diablo4StorageIntegrationTests
         Assert.Single(named, n => n is null);   // ordinal 23
     }
 
+    /// <summary>#56 (CL-109) — <see cref="ItemDefinition.SnoName"/> exposes the
+    /// CoreTOC name so consumers can de-dupe uniques by the reliable
+    /// <c>^S\d+_</c> season-prefix signal. content-snapshot: the Word of Hakan
+    /// pair — the canonical Amulet vs the leftover S10 Boots duplicate that shares
+    /// its display name (3.1.1.72836).</summary>
+    [SkippableFact]
+    [Trait("kind", "content-snapshot")]
+    public void ItemDefinition_SnoName_enables_seasonal_dedup()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+
+        var canonical = d4.ReadItem(1306259);   // Amulet_Unique_Rogue_100
+        var leftover = d4.ReadItem(2416563);     // S10_Amulet_Unique_Rogue_100_Boots
+        Assert.Equal("Amulet_Unique_Rogue_100", canonical.SnoName);
+        Assert.Equal("S10_Amulet_Unique_Rogue_100_Boots", leftover.SnoName);
+
+        // Both carry the same localized display name (the dedup hazard) ...
+        Assert.False(string.IsNullOrEmpty(canonical.Name));
+        Assert.Equal(canonical.Name, leftover.Name);
+
+        // ... but the ^S\d+_ prefix cleanly separates the leftover.
+        Assert.DoesNotMatch(@"^S\d+_", canonical.SnoName);
+        Assert.Matches(@"^S\d+_", leftover.SnoName);
+
+        // EnumerateItems also populates SnoName (dedup happens over enumeration).
+        Assert.Contains(d4.EnumerateItems(ItemClass.Jewelry),
+            i => i.SnoName == "Amulet_Unique_Rogue_100");
+    }
+
     /// <summary>LIB-3 (CL-92) — the <see cref="AffixEffect"/> two-namespace
     /// helpers. Pure logic (no live data): a positive
     /// <see cref="AffixEffect.AttributeId"/> is an engine attribute; a
