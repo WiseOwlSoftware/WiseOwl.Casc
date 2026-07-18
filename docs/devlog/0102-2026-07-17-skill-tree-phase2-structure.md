@@ -72,6 +72,27 @@ the `GenericSkillTree` UI layout (g46 2136720, a tier-row scene), a separate
 category/cluster table, or an engine rule. **Not** declared an engine boundary — this
 is "found the node structure + tier names, numeric thresholds still to be located."
 
+### Phase-3 threshold hunt (2026-07-18) — candidates checked, still not located
+
+Followed up on the three candidates:
+- **`GenericSkillTree` (g46 2136720)** — checked the scene itself (not just its name,
+  the earlier retracted mistake): it is the **UI visual template** — node-state
+  layers (`Available`/`Unavailable`/`Claimed`), glow/unlock VFX, `CategoryIcon`,
+  `Hotkey_SpendPoint`/`Hotkey_SellPoint`. **No tier/threshold numbers** — pure chrome.
+- **Per-class tree-layout SNO** — none exists (`*_SkillTree`/`ClassSkillTree`/… all
+  empty; the class def g74 holds avatar + resource config, no skill list).
+- **`SkillTreeRewards` header** (bytes before the +88 node array) — offsets/counts
+  only (`+8=43`, `+80=88` first-record, `+84`≈size); **no threshold array**.
+
+So the numeric category/tier point-gates are **not in the skill-tree data SNOs
+checked**. Most likely a **uniform engine rule** (the live-game gates — e.g. Core
+after N points in Basic — are the kind of constant the engine hardcodes). The one
+structure not yet located is the tree's **edge/connection topology** (which node
+links to which) — if the gate values live anywhere in data, that graph is where
+they'd sit, and I haven't found it. Still **not** an engine-boundary declaration —
+rules 1 & 2 are fully in data; rule 3's *gates* are the residual, engine-side by
+current evidence.
+
 ## Net
 
 The skill tree is data-driven (vindicating the owner's correction of the earlier
