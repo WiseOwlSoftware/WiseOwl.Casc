@@ -1180,6 +1180,50 @@ public sealed class Diablo4StorageIntegrationTests
         Assert.Contains(d4.RollableAffixes(70), a => a.SnoId == 2590254);
     }
 
+    /// <summary>#51 (CL-108) — the <c>eItemType</c> ordinal → base-type name map,
+    /// decoded from the g98 <see cref="ItemType.EItemType"/> field (the +0x28
+    /// item-type VLA). This names an affix pool: the ordinals in
+    /// <see cref="AffixDefinition.AllowedItemTypes"/> resolve to readable types.
+    /// content-snapshot: the ordinals are game-authored (3.1.1.72836) and season
+    /// -drift-prone. Also locks the honest gap — ordinals 9/23 appear in pools but
+    /// have no g98 record, so <see cref="Diablo4Storage.GetItemTypeName(int)"/>
+    /// returns <see langword="null"/> (never a wrong name).</summary>
+    [SkippableFact]
+    [Trait("kind", "content-snapshot")]
+    public void ItemType_eItemType_ordinals_name_the_affix_pool()
+    {
+        var install = Install();
+        Skip.If(install is null, "No Diablo IV install available.");
+        using var d4 = Diablo4Storage.Open(install!);
+
+        // The ordinal is decoded onto the g98 ItemType record itself.
+        Assert.Equal(16, d4.ReadItemType(446830).EItemType);   // Helm
+        Assert.Equal(71, d4.ReadItemType(2288901).EItemType);  // Charm
+
+        // ordinal → representative base-type name.
+        Assert.Equal("Helm", d4.GetItemTypeName(16));
+        Assert.Equal("ChestArmor", d4.GetItemTypeName(17));
+        Assert.Equal("Gloves", d4.GetItemTypeName(28));
+        Assert.Equal("Boots", d4.GetItemTypeName(29));
+        Assert.Equal("Legs", d4.GetItemTypeName(30));
+        Assert.Equal("Charm", d4.GetItemTypeName(71));
+        // 1H/2H variants collapse to the shortest equippable base name.
+        Assert.Equal("Axe", d4.GetItemTypeName(1));
+
+        // Honest gap: ordinals used in pools with no g98 record are unnamed.
+        Assert.Null(d4.GetItemTypeName(9));
+        Assert.Null(d4.GetItemTypeName(23));
+        Assert.Null(d4.GetItemTypeName(9999));
+
+        // End-to-end: name the CoreStat_Strength pool [16,17,28,30,29,23] — five
+        // resolve, the sixth (23) is the honest gap.
+        var named = d4.ReadAffix(583632).AllowedItemTypes
+            .Select(o => d4.GetItemTypeName(o)).ToList();
+        Assert.Equal(5, named.Count(n => n is not null));
+        Assert.Contains("Helm", named);
+        Assert.Single(named, n => n is null);   // ordinal 23
+    }
+
     /// <summary>LIB-3 (CL-92) — the <see cref="AffixEffect"/> two-namespace
     /// helpers. Pure logic (no live data): a positive
     /// <see cref="AffixEffect.AttributeId"/> is an engine attribute; a

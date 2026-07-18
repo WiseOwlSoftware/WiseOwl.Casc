@@ -32,8 +32,13 @@ Semantic Versioning once it reaches `1.0.0`.
 - **Affix pool** — `AffixDefinition.AllowedItemTypes` exposes which item types an
   affix can roll on, and `Diablo4Storage.RollableAffixes(itemType)` gives the
   inverted "what can roll on this item type" query — the pool behind
-  magic/rare/legendary gear. (Item-type values are the game's internal type ids;
-  resolving them to type names is a follow-up.)
+  magic/rare/legendary gear.
+- **Item-type names** — `Diablo4Storage.GetItemTypeName(ordinal)` /
+  `ReadItemTypeNames()` resolve the affix-pool item-type ids to readable base-type
+  names (16 → "Helm", 71 → "Charm", 1 → "Axe"), and `ItemType.EItemType` exposes
+  the ordinal on each item base type — so the affix pool can be reported by name.
+  A few pool ids have no base-type record and stay unresolved (returns null, never
+  a wrong name).
 
 ## [0.7.0] — 2026-07-17
 
